@@ -457,7 +457,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
-| `file` | path | (none) | (none) | restart to apply; The user-only plaintext secrets file, for hosts where no keyring serves m3's headless jobs (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml. |
+| `file` | path | (none) | (none) | restart to apply; The user-only secrets file: every m3 secret, as its value or a pointer to its OS keyring entry (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml. |
 
 ## [services]
 
@@ -514,9 +514,9 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## Secrets
 
-Secrets are never read from this file. Each resolves from the environment, then the OS keyring, then the user-only secrets file (`[secrets].file`), then the encrypted vault, except a *bootstrap* secret, which never comes from the vault.
+Secrets are never read from this file, or from the environment. Each resolves from the user-only secrets file (`[secrets].file`), then the OS keyring entry that file names (`NAME = { keyring = "service/key" }`, or `system/NAME` when it does not list the name), then the encrypted vault, except a *bootstrap* secret, which never comes from the vault. Store one with `m3 secret set NAME` (add `--keyring` for the OS keyring); `m3 config import-env` moves the ones set in the older places.
 
-| Name | Environment names | Bootstrap | Notes |
+| Name | Older environment names (`import-env` reads them) | Bootstrap | Notes |
 |---|---|---|---|
 | `AGENT_OS_MASTER_KEY` | `AGENT_OS_MASTER_KEY` | yes | Key that decrypts the vault. |
 | `ANTHROPIC_API_KEY` | `ANTHROPIC_API_KEY` | no | Anthropic API key. |

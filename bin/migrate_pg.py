@@ -65,9 +65,9 @@ _FORBIDDEN_STATEMENTS_RE = re.compile(r"(?im)^\s*(COMMIT|ROLLBACK|BEGIN|START\s+
 def _resolve_dsn(explicit: str | None = None) -> str:
     """Resolve the PRIMARY-store DSN, fail loud if absent.
 
-    ``explicit`` (from --dsn) wins; else the primary resolver
-    (M3_PRIMARY_PG_URL > M3_PG_URL). NEVER reads PG_URL / any CDW var, and the
-    result is checked against M3_PG_FORBIDDEN_HOSTS — so this runner cannot touch
+    ``explicit`` (from --dsn) wins; else the stored primary DSN
+    (M3_PRIMARY_PG_URL, the secrets chain; never env). NEVER the warehouse DSN,
+    and the result is checked against M3_PG_FORBIDDEN_HOSTS — so this runner cannot touch
     the warehouse hub. Reuses the exact guards from the backend."""
     sys.path.insert(0, os.path.join(_BASE_DIR, "bin"))
     from m3_sdk import PgRole, resolve_pg_dsn
@@ -76,8 +76,8 @@ def _resolve_dsn(explicit: str | None = None) -> str:
     dsn = (explicit or "").strip() or resolve_pg_dsn(PgRole.PRIMARY)
     if not dsn:
         raise SystemExit(
-            "No PostgreSQL PRIMARY DSN. Pass --dsn, or set M3_PRIMARY_PG_URL "
-            "(or M3_PG_URL). This runner never reads PG_URL (the warehouse var)."
+            "No PostgreSQL PRIMARY DSN. Pass --dsn, or store it: `m3 secret set M3_PRIMARY_PG_URL`. "
+            "This runner never uses the warehouse DSN."
         )
     _reject_forbidden_host(dsn)  # refuses a warehouse-hub DSN
     return dsn

@@ -38,7 +38,7 @@ Default endpoint: `http://localhost:1234/v1`. Override with `LLM_ENDPOINTS_CSV` 
 
 ### PostgreSQL Sync Details
 
-- Configurable via `M3_CDW_PG_URL` env var or the encrypted vault (`PG_URL`) — no hardcoded credentials
+- Configurable via the `M3_CDW_PG_URL` secret (`m3 secret set M3_CDW_PG_URL`) or the encrypted vault (`PG_URL`) — never the environment, no hardcoded credentials
 - Bi-directional delta sync via `bin/pg_sync.py` using watermark-based UPSERT
 - Syncs: memory items (including `user_id`, `scope`, `valid_from`, `valid_to`, `content_hash`), relationships, embeddings, encrypted secrets
 - Auto-creates `agent_retention_policies` and `gdpr_requests` tables if missing
@@ -229,12 +229,12 @@ When `type="auto"` is passed to `memory_write`:
 
 ### Credential Resolution (`bin/auth_utils.py`)
 
-Priority order:
-1. **Environment variables** — checked first
-2. **OS keyring** — macOS Keychain, Windows Credential Manager, Linux SecretService
-3. **Encrypted vault** — `synchronized_secrets` table, AES-256 via Fernet/PBKDF2-HMAC-SHA256, 600K iterations
+Priority order (the environment is never read for a secret):
+1. **Secrets file** — user-only `m3_secrets.toml` in the config root; each `[secrets]` entry is a value or a pointer `NAME = { keyring = "service/key" }`
+2. **OS keyring** — the entry the file points at, or service `system`, key `NAME` (macOS Keychain, Windows Credential Manager, Linux SecretService)
+3. **Encrypted vault** — `synchronized_secrets` table, AES-256 via Fernet/PBKDF2-HMAC-SHA256, 600K iterations; never consulted for the bootstrap secrets (`M3_PRIMARY_PG_URL`, `AGENT_OS_MASTER_KEY`, `M3_AGENT_OS_SALT_HEX`)
 
-Master key (`AGENT_OS_MASTER_KEY`) must be in native OS keyring. Never stored in code or files. Legacy 100K-iteration secrets auto-migrate to 600K on first decryption.
+Store a secret with `m3 secret set NAME` (`--keyring` for the OS keyring); `m3 config import-env` migrates ones set in the environment, rc files, `.env` or MCP `env` blocks. The master key (`AGENT_OS_MASTER_KEY`) is never stored in code or the vault. Legacy 100K-iteration secrets auto-migrate to 600K on first decryption.
 
 ### Content Integrity
 
@@ -352,7 +352,7 @@ Watermark updates are NOT atomic with data writes. A crash between data write an
 | `DB_POOL_SIZE` | 5 | SQLite connection pool size |
 | `DB_POOL_TIMEOUT` | 30 | Pool acquisition timeout (seconds) |
 | `ORIGIN_DEVICE` | `platform.node()` | Device identifier for sync provenance |
-| `PG_URL` | (vault/env) | PostgreSQL connection string |
+| `M3_CDW_PG_URL` | (secret: file/keyring/vault; not env) | Warehouse PostgreSQL connection string (`PG_URL` in older vaults) |
 | `LLM_ENDPOINTS_CSV` | `http://localhost:1234/v1` | Comma-separated OpenAI-compatible LLM server endpoints |
 | `MMR_LAMBDA` | 0.7 | MMR relevance vs. diversity balance |
 | `M3_SPEAKER_IN_TITLE` | `1` | When a memory's `metadata.role` is a proper name, prepend `[Role]` to the title at write time so FTS5 can match speaker-scoped queries. Set to `0` to disable. |

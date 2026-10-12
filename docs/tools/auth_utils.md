@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: dcf7cfcf0096
-mtime_utc: 2026-10-11T20:28:34.222107+00:00
-generated_utc: 2026-10-11T20:28:52.702068+00:00
+sha1: 1eb81a09d79b
+mtime_utc: 2026-10-12T19:13:56.188022+00:00
+generated_utc: 2026-10-12T19:14:09.032030+00:00
 private: false
 ---
 
@@ -28,10 +28,8 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `AGENT_OS_MASTER_KEY`
 - `COMPUTERNAME`
 - `HOSTNAME`
-- `M3_AGENT_OS_SALT_HEX`
 
 ---
 
@@ -47,9 +45,8 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', 'AGENT_OS_MASTER_KEY', '-w']`` (line 266)
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', service, '-w']`` (line 541)
-- `subprocess.run()` (line 562)
+- `subprocess.run()  → `['security', 'find-generic-password', '-s', name, '-w']`` (line 511)
+- `subprocess.run()` (line 556)
 
 
 ---
@@ -63,11 +60,9 @@ _(no argparse arguments detected)_
 - `m3_core.errors (log_swallowed)`
 - `m3_core.paths (get_m3_config_root, get_m3_legacy_root)`
 - `m3_core.paths (resolve_backend_name, store_is_a_file)`
-- `m3_core.seams (is_macos, is_windows, os_name)`
-- `m3_core.secret_store (SecretsFileError)`
+- `m3_core.seams (is_windows, os_name)`
 - `m3_core.secret_store (bump_secret_generation)`
 - `m3_core.secret_store (explain_named_secret)`
-- `m3_core.secret_store (get_secret)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
 - `platform`

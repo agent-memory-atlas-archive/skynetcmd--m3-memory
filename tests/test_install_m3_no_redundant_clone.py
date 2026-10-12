@@ -85,7 +85,7 @@ def test_installed_payload_short_circuits_before_any_fetch(monkeypatch, tmp_path
 
     monkeypatch.setattr(installer, "save_config", lambda cfg: None)
     monkeypatch.setattr(installer, "_post_install", lambda *a, **k: called.__setitem__("post", True))
-    monkeypatch.setattr(installer, "_assert_no_deprecated_pg_url_anywhere", lambda: None)
+    monkeypatch.setattr(installer, "_note_deprecated_pg_url_anywhere", lambda: None)
     for p in (
         "_prompt_endpoint_choice",
         "_prompt_capture_mode",

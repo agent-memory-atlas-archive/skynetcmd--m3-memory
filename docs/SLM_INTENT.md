@@ -119,7 +119,7 @@ fallback: general                # returned when model output matches no label;
                                  # must be one of `labels`; defaults to labels[0]
 temperature: 0                   # passed through to the chat completion
 timeout_s: 5.0                   # httpx timeout; applied to connect+read
-api_key_service: LM_API_TOKEN    # keyring service name resolved via auth_utils;
+api_key_service: LM_API_TOKEN    # secret name (secrets file / keyring), via auth_utils;
                                  # omit or set null for auth-less endpoints
 
 # OPTIONAL — wire-format backend (default: openai)
@@ -182,8 +182,8 @@ To use a cloud backend:
    whose `api_key_service` names the keyring entry holding your key.
    The shipped example is `config/slm/contextual_keys_haiku.yaml`, which
    uses Anthropic Haiku with prompt caching.
-2. **Set the key**: `python bin/setup_secret.py <SERVICE>` (for
-   Anthropic, `ANTHROPIC_API_KEY`).
+2. **Set the key**: `m3 secret set <SERVICE>` (for Anthropic,
+   `ANTHROPIC_API_KEY`). m3 does not read it from the environment.
 3. **Invoke that profile explicitly**: every caller that loads SLM
    profiles takes an explicit name (`--contextual-keys-profile
    contextual_keys_haiku` on the bench, `profile=` kwarg in code). No
@@ -329,7 +329,7 @@ Edit `config/slm/memory.yaml`:
 ```yaml
 url: http://127.0.0.1:1234/v1/chat/completions    # LM Studio default
 model: llama-3.2-3b-instruct                       # whatever's loaded
-api_key_service: LM_STUDIO_API_KEY                 # keyring entry name
+api_key_service: LM_API_TOKEN                      # secret name (m3 secret set LM_API_TOKEN)
 ```
 
 Then:
@@ -345,7 +345,7 @@ export M3_SLM_PROFILE=memory    # use the edited file, not default.yaml
 Store the key first:
 
 ```bash
-python bin/setup_secret.py      # interactive; stores OPENAI_API_KEY in keyring
+m3 secret set OPENAI_API_KEY --keyring   # prompts for the key; stores it in the OS keyring
 ```
 
 Add a profile `config/slm/openai.yaml`:

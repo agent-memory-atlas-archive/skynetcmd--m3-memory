@@ -210,9 +210,10 @@ Environment=HOME=/home/<user>
 
 # The bearer token. A systemd unit does NOT inherit your login session's keyring,
 # so a token stored only in the OS keyring is unreachable here and the service
-# will refuse to start. Either point it at a file the unit can read:
-#   EnvironmentFile=/etc/m3-memory/serve.env      # M3_SERVE_TOKEN=...  (chmod 600)
-# or rely on the encrypted vault, which is headless-safe and needs no session.
+# will refuse to start. Store it in the user-only secrets file instead
+# (`m3 secret set M3_SERVE_TOKEN`, run as <user>), or rely on the encrypted
+# vault; both are headless-safe and need no session. m3 does not read the
+# token from the environment, so an EnvironmentFile= line does not work.
 
 [Install]
 WantedBy=multi-user.target
@@ -254,9 +255,9 @@ journalctl -u m3-memory -f
 
 A LaunchAgent (per-user, loaded into your GUI session) can normally reach the
 login Keychain, so a vault- or Keychain-stored token resolves without extra
-configuration. A **LaunchDaemon** (system-wide) cannot — give that one an
-explicit `M3_SERVE_TOKEN` via `EnvironmentVariables`, or keep the token in the
-encrypted vault, which needs no session.
+configuration. A **LaunchDaemon** (system-wide) cannot — keep that one's token
+in the secrets file (`m3 secret set M3_SERVE_TOKEN`) or the encrypted vault,
+which need no session. An `EnvironmentVariables` entry is not read.
 
 ```bash
 launchctl load ~/Library/LaunchAgents/dev.m3-memory.serve.plist
@@ -284,11 +285,12 @@ m3 serve --show-token              # reports configured / missing — never prin
 m3 serve --generate-token --force  # rotate (invalidates every existing connector)
 ```
 
-The token resolves through the standard cascade (env → OS keyring → encrypted
-vault), so it works under systemd/launchd with no interactive prompt. ⚠ The
-environment wins over the vault: if `M3_SERVE_TOKEN` is set in the shell, that is
-the value the server expects, not the one `--generate-token` just printed. The
-command warns when it detects this.
+The token resolves through the standard secret chain (secrets file → OS keyring
+→ encrypted vault), so it works under systemd/launchd with no interactive
+prompt. The environment is never read: an `M3_SERVE_TOKEN` exported in the shell
+is ignored (`m3 config import-env` moves it into the secrets file, and
+`m3 doctor` names it). ⚠ A token in the secrets file or keyring wins over the
+vault, so after `--generate-token` remove any older copy there.
 
 **Defence in depth is still worth it.** The token is one credential on a public
 endpoint. Where you can, also front it with Cloudflare Access, an IP allowlist,

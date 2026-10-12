@@ -92,13 +92,12 @@ One canonical probe per service, in conftest, that a marker auto-applies — so 
 test says *what it needs*, never *how to detect it*:
 
 ```python
-# conftest.py — single source of truth for the DSN precedence rule
+# conftest.py — single source of truth for the test DSN
 def pg_dsn() -> str | None:
-    # M3_PRIMARY_PG_URL > M3_PG_URL — NEVER PG_URL (PG_URL points at PROD; see
-    # CLAUDE.md / the pg-url-split memory). Centralizing it here means the
-    # precedence can't drift across 19 files.
-    return (os.environ.get("M3_PRIMARY_PG_URL")
-            or os.environ.get("M3_PG_URL") or "").strip() or None
+    # `pytest --m3-pg-url=<dsn>` is the ONE source — never an env var, so an
+    # exported production DSN can't be picked up. Centralizing it here means the
+    # rule can't drift across 19 files.
+    return (_PG_URL_OPTION or "").strip() or None
 
 def _pg_reachable() -> bool: ...      # one probe, cached per session
 def _embed_reachable() -> bool: ...   # wraps existing embed_backend_reachable()
@@ -107,7 +106,7 @@ def _embed_reachable() -> bool: ...   # wraps existing embed_backend_reachable()
 def pg_url() -> str:
     dsn = pg_dsn()
     if not dsn or not _pg_reachable():
-        pytest.skip("no reachable PostgreSQL — set M3_PRIMARY_PG_URL to a throwaway cluster")
+        pytest.skip("no reachable PostgreSQL (pass pytest --m3-pg-url=<a throwaway cluster DSN>)")
     return dsn
 ```
 
@@ -129,6 +128,8 @@ def pytest_collection_modifyitems(config, items):
 Net effect: a `*_pg_live.py` file becomes `pytestmark = pytest.mark.pg_live` at
 the top and requests the `pg_url` fixture — no DSN parsing, no reachability
 helper, no skipif. **~19 files × ~15 lines of identical boilerplate deleted.**
+A test that needs the PostgreSQL backend selects it the way a user does,
+`use_backend("postgres", pg_dsn())` — never by exporting a DSN.
 
 ### 3. `m3_sandbox`: one hermetic-environment fixture (isolation)
 
@@ -152,8 +153,7 @@ Replace bare `pytest tests/` with tiers:
 - run: pytest -m "native" --strict-markers
 # services job (Postgres in `services:`, embedder started):
   services: { postgres: ... }
-  env: { M3_PRIMARY_PG_URL: postgresql://…@localhost/m3_test }
-- run: pytest -m "integration" --strict-markers
+- run: pytest --m3-pg-url="postgresql://user:PASSWORD@localhost:5432/m3_test" -m "integration" --strict-markers
 ```
 
 This is the biggest correctness win: **integration tests become enforced** on a

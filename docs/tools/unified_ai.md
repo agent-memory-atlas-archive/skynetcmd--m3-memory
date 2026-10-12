@@ -1,8 +1,8 @@
 ---
 tool: bin/unified_ai.py
-sha1: bc337b0ce2a8
-mtime_utc: 2026-10-10T23:42:29.371896+00:00
-generated_utc: 2026-10-10T23:43:52.053453+00:00
+sha1: 3cb76fb26be3
+mtime_utc: 2026-10-12T18:29:52.682071+00:00
+generated_utc: 2026-10-12T18:59:10.720045+00:00
 private: false
 ---
 
@@ -19,7 +19,7 @@ endpoint during high-volume enrichment runs (April-May 2026).
 
 Usage:
     from unified_ai import UnifiedAI
-    cli = UnifiedAI(gemini_key=os.environ["GEMINI_API_KEY"])
+    cli = UnifiedAI(gemini_key=get_api_key("GEMINI_API_KEY"))  # auth_utils
     text = cli.chat(
         "gemini", "gemini-2.5-flash",
         messages=[{"role": "system", "content": "..."},
@@ -47,7 +47,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `GEMINI_API_KEY`
+_(none detected)_
 
 ---
 

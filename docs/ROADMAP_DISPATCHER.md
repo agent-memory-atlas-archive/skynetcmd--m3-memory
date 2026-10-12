@@ -88,9 +88,9 @@ application safe.
 This holds even where such a network exists. It authenticates *devices*, not
 requests; treating it as the boundary makes every host on it a trusted client.
 
-**Credentials.** Tokens resolve through the existing chain — environment
-variable → OS keyring → encrypted vault (AES-256, PBKDF2-HMAC-SHA256, 600K
-iterations). Never a literal in a config file, and the resolver already exists
+**Credentials.** Tokens resolve through the existing chain — user-only secrets
+file → OS keyring → encrypted vault (AES-256, PBKDF2-HMAC-SHA256, 600K
+iterations); never the environment. Never a literal in a config file, and the resolver already exists
 (`m3_sdk.get_secret`); this design does not add a second one.
 
 **Outbound safety.** Every agent-side HTTP call carries an explicit timeout and

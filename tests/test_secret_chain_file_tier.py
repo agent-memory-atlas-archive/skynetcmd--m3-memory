@@ -1,4 +1,5 @@
-"""get_api_key's chain: env > keyring > user-only secrets file > vault (plan 2B.1)."""
+"""get_api_key's chain: the user-only secrets file > keyring > vault; never env
+(plan 2B.1, m3 9cbed0af)."""
 
 from __future__ import annotations
 
@@ -18,27 +19,27 @@ def auth(monkeypatch):
     return auth_utils
 
 
-def test_file_tier_answers_when_env_and_keyring_do_not(auth):
+def test_file_tier_answers_when_the_keyring_does_not(auth):
     from m3_core import secret_store
 
     secret_store.set_secret("OPENCLAW_GATEWAY_TOKEN", "from-file")
     assert auth.get_api_key("OPENCLAW_GATEWAY_TOKEN") == "from-file"
 
 
-def test_env_beats_the_file(auth, monkeypatch):
+def test_env_never_beats_the_file(auth, monkeypatch):
     from m3_core import secret_store
 
     secret_store.set_secret("OPENCLAW_GATEWAY_TOKEN", "from-file")
     monkeypatch.setenv("OPENCLAW_GATEWAY_TOKEN", "from-env")
-    assert auth.get_api_key("OPENCLAW_GATEWAY_TOKEN") == "from-env"
+    assert auth.get_api_key("OPENCLAW_GATEWAY_TOKEN") == "from-file"
 
 
-def test_keyring_beats_the_file(auth, monkeypatch):
+def test_the_file_beats_the_keyring(auth, monkeypatch):
     from m3_core import secret_store
 
     secret_store.set_secret("OPENCLAW_GATEWAY_TOKEN", "from-file")
     monkeypatch.setattr(auth, "_keyring_read", lambda *a, **k: ("from-keyring", None))
-    assert auth.get_api_key("OPENCLAW_GATEWAY_TOKEN") == "from-keyring"
+    assert auth.get_api_key("OPENCLAW_GATEWAY_TOKEN") == "from-file"
 
 
 @pytest.mark.requires_posix  # POSIX mode bits

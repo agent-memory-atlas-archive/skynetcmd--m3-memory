@@ -5,13 +5,13 @@ import logging
 import os
 import threading
 from types import FrameType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from cryptography.fernet import Fernet
 
 from crypto_provider import provider as crypto
-from m3_core.seams import is_macos, is_windows, os_name
+from m3_core.seams import is_windows, os_name
 
 # --- Global Sync ---
 _crypto_lock = threading.Lock()
@@ -249,33 +249,12 @@ def _dialect_param() -> str:
 
 
 def get_master_key() -> str | None:
-    """Retrieves the AGENT_OS_MASTER_KEY from the native OS keyring or environment."""
-    val: str | None = os.getenv("AGENT_OS_MASTER_KEY", "").strip()
-    if val:
-        return val
+    """AGENT_OS_MASTER_KEY from the secrets file or the OS keyring (the one
+    chain, m3_core.secret_store; never the environment, never the vault it
+    unlocks)."""
+    from m3_core.secret_store import explain_named_secret
 
-    try:
-        val = safe_keyring_get_password("system", "AGENT_OS_MASTER_KEY")
-        if val:
-            return val
-    except Exception:
-        pass
-
-    if is_macos():
-        try:
-            result = subprocess.run(
-                ["security", "find-generic-password", "-s", "AGENT_OS_MASTER_KEY", "-w"],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=5,
-                **no_window_kwargs(),
-            )
-            return cast("str | None", result.stdout.strip())
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            pass
-
-    return None
+    return explain_named_secret("AGENT_OS_MASTER_KEY").value or None
 
 
 class SaltMissingError(RuntimeError):
@@ -327,7 +306,7 @@ def _get_device_salt() -> bytes:
     """
     Retrieves a persistent 16-byte salt for PBKDF2 from a local file.
 
-    Resolution: M3_AGENT_OS_SALT_HEX env (32 hex chars, recovery/override) >
+    Resolution: the M3_AGENT_OS_SALT_HEX secret (32 hex chars, recovery/override) >
     config-root file > legacy-root file. If none is found, a NEW salt is
     minted ONLY when the vault has no encrypted secrets yet (a genuine fresh
     install). If the salt is missing but the vault already holds secrets,
@@ -337,11 +316,14 @@ def _get_device_salt() -> bytes:
     """
     # Recovery / explicit override: lets an operator restore a lost salt
     # (e.g. from a backup) without putting the file back, or pin the salt in
-    # a container. Must be exactly 16 bytes (32 hex chars).
-    env_hex = os.getenv("M3_AGENT_OS_SALT_HEX", "").strip()
-    if env_hex:
+    # a container: `m3 secret set M3_AGENT_OS_SALT_HEX`. The secrets chain, never
+    # the environment (m3 9cbed0af). Must be exactly 16 bytes (32 hex chars).
+    from m3_core.secret_store import explain_named_secret
+
+    salt_hex = explain_named_secret("M3_AGENT_OS_SALT_HEX").value
+    if salt_hex:
         try:
-            raw = bytes.fromhex(env_hex)
+            raw = bytes.fromhex(salt_hex)
             if len(raw) == 16:
                 return raw
             logger.warning(
@@ -353,7 +335,7 @@ def _get_device_salt() -> bytes:
         except ValueError:
             logger.warning(
                 "M3_AGENT_OS_SALT_HEX is not valid hex; will check file fallback. "
-                "observed: env var could not be decoded as 32-character hex string. "
+                "observed: the stored value could not be decoded as a 32-character hex string. "
                 "possible: typo or truncation in the M3_AGENT_OS_SALT_HEX value. "
                 "inspect: verify the value matches /^[0-9a-fA-F]{32}$/ (exactly 32 hex chars = 16 bytes)."
             )
@@ -379,7 +361,7 @@ def _get_device_salt() -> bytes:
         vault = _vault_db_path() if store_is_a_file() else f"(the {resolve_backend_name()} store)"
         raise SaltMissingError(
             f"Device salt is missing but the vault already holds encrypted secrets; refusing to mint a new salt. "
-            f"observed: salt file not found at {salt_path}, no M3_AGENT_OS_SALT_HEX env set, and vault {vault} contains synchronized_secrets rows. "
+            f"observed: salt file not found at {salt_path}, no M3_AGENT_OS_SALT_HEX secret stored, and vault {vault} contains synchronized_secrets rows. "
             "possible: the salt file was deleted, the config/engine root was relocated without preserving .agent_os_salt, a backup restore was incomplete, or the file system is corrupted. "
             "inspect: (1) check if .agent_os_salt exists in the config root or legacy root (get_m3_legacy_root() / get_m3_config_root()); (2) restore from backup if available; (3) if salt is unrecoverable and secrets can be re-entered, clear synchronized_secrets with `DELETE FROM synchronized_secrets` and retry — a fresh salt will mint automatically."
         )
@@ -501,12 +483,13 @@ def _sanitize_service(service: str) -> str:
 
 def get_api_key(service: str | None) -> str | None:
     """
-    Resolves an API key by service name across macOS, Windows, and Linux.
-    1. os.environ
-    2. Python keyring (Windows Credential Manager, Linux Secret Service, macOS Keychain)
-    3. Direct macOS Keychain fallback
-    4. The user-only secrets file (m3_core.secret_store; machines with no keyring)
-    5. Encrypted vault (synchronized_secrets)
+    Resolves an API key by service name on every OS, through the one chain
+    (m3_core.secret_store.explain_secret):
+    1. The user-only secrets file's value
+    2. The OS keyring entry the file points at, else system/<service>
+       (python keyring; on macOS also the security CLI)
+    3. Encrypted vault (synchronized_secrets), never for a bootstrap secret
+    The environment is never read for a secret (m3 9cbed0af).
 
     No service (an SLM profile's api_key_service is optional) means no key, not
     an error: callers pass the profile field straight through.
@@ -514,41 +497,52 @@ def get_api_key(service: str | None) -> str | None:
     if not service:
         return None
     service = _sanitize_service(service)
-    # The one chain owner (env names from the registry, e.g. LM_API_TOKEN's
-    # LM_STUDIO_API_KEY alias; the vault never for a bootstrap secret).
+    # The one chain owner (the vault never for a bootstrap secret).
     from m3_core.secret_store import explain_named_secret
 
     return explain_named_secret(service).value or None
 
 
-def _keyring_tier(service: str) -> tuple[str | None, str | None]:
-    """The OS keyring (python keyring, then the macOS security CLI). Returns
-    (value, error): the error is what this tier hit, for a caller that must
-    explain a miss instead of reporting "not set" (m3 2f4bad6c)."""
+def _macos_keychain_read(name: str) -> str | None:
+    """The macOS Keychain generic password named ``name``, via the security CLI;
+    None when absent or unreadable. Its own function so the test sandbox can
+    keep every test away from the real keychain (conftest)."""
+    try:
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", name, "-w"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+            **no_window_kwargs(),
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    return result.stdout.strip() or None
+
+
+def _keyring_tier(key: str, *, service: str = "system") -> tuple[str | None, str | None]:
+    """The OS keyring entry ``service``/``key`` (python keyring, then for the
+    "system" service the macOS security CLI). Returns (value, error): the error
+    is what this tier hit, for a caller that must explain a miss instead of
+    reporting "not set" (m3 2f4bad6c)."""
     # Try python keyring if available.
     # Derive the OS name from sys.platform, not platform.system(): the latter
     # can hang on a WMI query on Python 3.14 / Windows. This runs on every
     # secret read, so it must not stall.
     system = os_name()
-    val, error = _keyring_read("system", service)
+    val, error = _keyring_read(service, key)
     if val:
         return val, None
+    if service != "system":  # the CLI fallbacks below know only m3's own entries
+        return None, error
+    service = key
 
     # Platform-specific native credential store fallbacks
     if system == "Darwin":
-        # macOS Keychain via security CLI
-        try:
-            result = subprocess.run(
-                ["security", "find-generic-password", "-s", service, "-w"],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=5,
-                **no_window_kwargs(),
-            )
-            return result.stdout.strip(), None
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            pass
+        found = _macos_keychain_read(service)
+        if found:
+            return found, None
 
     # Windows has no native fallback: the keyring module (a hard dependency) IS the
     # Credential Manager reader, and cmdkey cannot return a password. A cmdkey
@@ -582,30 +576,6 @@ def _keyring_tier(service: str) -> tuple[str | None, str | None]:
     return None, error
 
 
-def _file_tier(service: str) -> tuple[str | None, str | None]:
-    """The user-only secrets file (m3_core.secret_store). Returns (value, error)."""
-    # The user-only secrets file: the tier for machines with no keyring backend
-    # (CONFIG_DESIGN §10, U6 (a)). An unsafe or malformed file is refused LOUDLY
-    # and the chain continues; it is never read as if it were fine.
-    try:
-        from m3_core.secret_store import SecretsFileError
-        from m3_core.secret_store import get_secret as _file_secret
-
-        try:
-            val = _file_secret(service)
-            if val:
-                return val, None
-        except SecretsFileError as e:
-            logger.error(
-                f"Secrets file refused while resolving {service}: {e}. Not read; falling through to the vault."
-            )
-            return None, f"secrets file: {e}"
-    except ImportError:
-        logger.debug("m3_core.secret_store not importable (installer bootstrap); skipping the secrets file")
-
-    return None, None
-
-
 def _vault_tier(service: str) -> tuple[str | None, str | None]:
     """The encrypted vault (synchronized_secrets in the main store). Returns
     (value, error). Never for a bootstrap secret (CONFIG_DESIGN §10): the
@@ -634,9 +604,9 @@ def _vault_tier(service: str) -> tuple[str | None, str | None]:
             if not master_key:
                 logger.warning(
                     f"Encrypted secret exists for {service}, but master key is unavailable; returning None. "
-                    f"observed: synchronized_secrets row found for service={service}, but AGENT_OS_MASTER_KEY not in env or keyring. "
-                    "possible: AGENT_OS_MASTER_KEY was cleared from the keyring, the env var is unset, or the keyring is inaccessible. "
-                    "inspect: (1) check env vars: `env | grep AGENT_OS_MASTER_KEY`; (2) check keyring: `keyring get system AGENT_OS_MASTER_KEY` (Linux/macOS) or Credential Manager (Windows)."
+                    f"observed: synchronized_secrets row found for service={service}, but AGENT_OS_MASTER_KEY is in neither the secrets file nor the keyring. "
+                    "possible: AGENT_OS_MASTER_KEY was cleared from the keyring, it was only ever set in the environment (m3 no longer reads secrets there), or the keyring is inaccessible. "
+                    "inspect: `m3 doctor --verbose` (the secrets checks); store it with `m3 secret set AGENT_OS_MASTER_KEY`."
                 )
                 return None, "vault: a row exists but AGENT_OS_MASTER_KEY is unavailable"
 
@@ -744,9 +714,9 @@ def set_api_key(service: str, value: str):
     master_key = get_master_key()
     if not master_key:
         raise ValueError(
-            "AGENT_OS_MASTER_KEY not found in OS keyring. Cannot encrypt secret. "
-            "observed: no AGENT_OS_MASTER_KEY in the keyring or the environment. "
-            "inspect: `python -m keyring set system AGENT_OS_MASTER_KEY`, or m3 setup"
+            "AGENT_OS_MASTER_KEY not found. Cannot encrypt secret. "
+            "observed: no AGENT_OS_MASTER_KEY in the secrets file or the OS keyring. "
+            "fix: `m3 secret set AGENT_OS_MASTER_KEY --keyring` (prompts), or m3 setup"
         )
 
     encrypted_value = _encrypt_value(value, master_key)

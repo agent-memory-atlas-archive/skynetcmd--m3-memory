@@ -8,10 +8,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 import auth_utils
 
 
-def test_get_master_key_env():
-    """Test retrieving master key from environment variable."""
-    with patch.dict(os.environ, {"AGENT_OS_MASTER_KEY": "test-env-key"}):
-        assert auth_utils.get_master_key() == "test-env-key"
+def test_get_master_key_from_the_secrets_file_never_env():
+    """The master key comes from the secrets chain; the environment is ignored
+    (m3 9cbed0af)."""
+    from m3_core.secret_store import set_secret
+
+    with patch.dict(os.environ, {"AGENT_OS_MASTER_KEY": "from-env"}):
+        assert auth_utils.get_master_key() is None
+        set_secret("AGENT_OS_MASTER_KEY", "test-file-key")
+        assert auth_utils.get_master_key() == "test-file-key"
 
 
 def test_fernet_encryption_decryption():
@@ -81,16 +86,19 @@ def test_salt_missing_with_secrets_raises(tmp_path):
             pass
 
 
-def test_salt_env_override_wins(tmp_path):
-    """M3_AGENT_OS_SALT_HEX (32 hex chars) overrides file/vault logic entirely —
-    the recovery escape hatch for a lost salt."""
+def test_salt_override_secret_wins(tmp_path):
+    """The M3_AGENT_OS_SALT_HEX secret (32 hex chars) overrides file/vault logic
+    entirely: the recovery escape hatch for a lost salt. A secret, so it is
+    stored with set_secret, never read from env."""
+    from m3_core.secret_store import set_secret
+
     cfg = _empty_config(tmp_path)
     hexval = "00112233445566778899aabbccddeeff"
+    set_secret("M3_AGENT_OS_SALT_HEX", hexval)
     with (
         patch("m3_core.paths.get_m3_config_root", return_value=str(cfg)),
         patch("m3_core.paths.get_m3_root", return_value=str(tmp_path)),
         patch.object(auth_utils, "_vault_has_secrets", return_value=True),
-        patch.dict(os.environ, {"M3_AGENT_OS_SALT_HEX": hexval}),
     ):
         salt = auth_utils._get_device_salt()
     assert salt == bytes.fromhex(hexval)

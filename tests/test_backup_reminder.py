@@ -16,6 +16,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
+from m3_core.secret_store import set_secret  # noqa: E402
+
 from m3_memory import installer  # noqa: E402
 
 
@@ -48,7 +50,7 @@ def test_cdw_via_env_ip_is_named(monkeypatch):
 def test_pg_url_host_shown_password_never_leaked(monkeypatch):
     for k in ("POSTGRES_SERVER", "SYNC_TARGET_IP"):
         monkeypatch.delenv(k, raising=False)
-    monkeypatch.setenv("PG_URL", "postgresql://app:TOPSECRET@warehouse.example:5432/m3")
+    set_secret("PG_URL", "postgresql://app:TOPSECRET@warehouse.example:5432/m3")
     out = _reminder_output()
     assert "warehouse.example" in out  # host shown
     assert "TOPSECRET" not in out  # password NEVER shown
@@ -68,5 +70,5 @@ def test_detect_returns_none_with_no_config(monkeypatch):
 def test_detect_extracts_host_from_pg_url(monkeypatch):
     for k in ("POSTGRES_SERVER", "SYNC_TARGET_IP"):
         monkeypatch.delenv(k, raising=False)
-    monkeypatch.setenv("PG_URL", "postgresql://u:p@db.internal:5432/x")
+    set_secret("PG_URL", "postgresql://u:p@db.internal:5432/x")
     assert installer._detect_cdw_target() == "db.internal"

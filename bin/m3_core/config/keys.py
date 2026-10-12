@@ -211,8 +211,8 @@ SECRETS_FILE = Key(
     default=None,  # <config root>/m3_secrets.toml, resolved by m3_core.secret_store
     scope=Scope.LOCATOR,
     reloadable=False,
-    doc="The user-only plaintext secrets file, for hosts where no keyring serves "
-    "m3's headless jobs (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml.",
+    doc="The user-only secrets file: every m3 secret, as its value or a pointer to its "
+    "OS keyring entry (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml.",
 )
 
 

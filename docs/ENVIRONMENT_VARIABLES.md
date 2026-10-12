@@ -16,16 +16,19 @@ replacement. Old names keep working for at least one release, then are removed.
 - To migrate: rename `X` → `M3_X` in your shell rc / secret store (e.g.
   `DEDUP_THRESHOLD` → `M3_DEDUP_THRESHOLD`, `OBSERVER_PROFILE` → `M3_OBSERVER_PROFILE`).
 - `m3 doctor` lists every deprecated bare name currently in use.
-- **Not renamed** (external conventions, keep as-is): third-party API keys
-  (`ANTHROPIC_API_KEY`, `LM_API_TOKEN`, `GH_TOKEN`, …), `AGENT_OS_MASTER_KEY`,
-  and OS/system vars (`APPDATA`, `CUDA_PATH`, `NO_COLOR`, …).
+- **Not renamed** (external conventions, keep as-is): OS/system vars
+  (`APPDATA`, `CUDA_PATH`, `NO_COLOR`, …) and dev tokens such as `GH_TOKEN`.
+- **Secrets are not environment variables.** m3 reads its own secrets
+  (`ANTHROPIC_API_KEY`, `LM_API_TOKEN`, `AGENT_OS_MASTER_KEY`, the PostgreSQL
+  DSNs, …) only from the secrets file / OS keyring / vault — see
+  [Secrets](#-the-zero-leak-architecture-principle).
 
 ## 🏛️ The "Zero-Leak" Architecture Principle
 
 ```mermaid
 graph TD
     subgraph "1. Highest Priority"
-        ENV[Environment Variables]
+        FILE[User-only secrets file m3_secrets.toml]
     end
     subgraph "2. OS Native"
         KEY[OS Keyring / Keychain]
@@ -34,18 +37,37 @@ graph TD
         VLT[Encrypted synchronized_secrets]
     end
 
-    ENV -->|Fallback| KEY
+    FILE -->|Fallback| KEY
     KEY -->|Fallback| VLT
 ```
 
-All user-specific variables MUST be loaded into your shell's environment from a secure, local-only source.
- The recommended method is to use your operating system's native secret management service:
+**m3 never reads its own secrets from the environment.** Each secret (the
+registry names are listed in [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md#secrets))
+resolves from:
 
-*   **macOS**: Keychain
-*   **Linux**: Secret Service API (e.g., GNOME Keyring, KeePassXC)
-*   **Windows**: Credential Manager
+1. the user-only secrets file `m3_secrets.toml` in the config root — a `[secrets]`
+   table whose entries are `NAME = "value"` or a pointer
+   `NAME = { keyring = "service/key" }`;
+2. the OS keyring entry the file points at (or service `system`, key `NAME` when
+   the file does not list it) — macOS Keychain, Linux Secret Service (GNOME
+   Keyring, KWallet, KeePassXC), Windows Credential Manager;
+3. the encrypted vault — never for the bootstrap secrets `AGENT_OS_MASTER_KEY`
+   and `M3_AGENT_OS_SALT_HEX`. A `M3_PRIMARY_PG_URL` already in the vault still
+   works for now, with a warning each time; move it with
+   `m3 secret set M3_PRIMARY_PG_URL`.
 
-We provide example `zshenv.example` and `zshrc.example` files in the `config/` directory. These scripts automatically detect your OS and load secrets from the appropriate backend, making them available as environment variables.
+Store one with `m3 secret set NAME` (prompts for the value, hidden, twice — never
+put the value on the command line). `m3 secret set NAME --keyring` stores it in
+the OS keyring and writes the pointer into the file. Secrets you previously
+exported (shell rc files, `.env`, the Windows persistent environment, m3's MCP
+server `env` blocks, `.llm_config.json`) are moved by `m3 config import-env`,
+which `m3 upgrade` also runs; `m3 doctor` names any m3 secret still set only in
+those places (`m3 doctor --verbose` lists where). A scripted, container or CI
+install writes `m3_secrets.toml` (e.g. from a CI secret) rather than exporting
+env vars for m3.
+
+The `zshenv.example` / `zshrc.example` files in `config/` load **non-secret**
+settings into your shell.
 
 ---
 
@@ -60,14 +82,14 @@ We provide example `zshenv.example` and `zshrc.example` files in the `config/` d
     ```
 2.  **Edit the merged files (`~/.zshenv`, `~/.zshrc`)**:
     *   Set `M3_CHECKOUT` to your repository clone; only the example aliases use it. Do not set `M3_MEMORY_ROOT` for this — it is the **master state override** and relocates the engine, config and logs roots under it (see [Roots & precedence](#roots--precedence-the-single-source-of-truth)).
-    *   Follow the commented-out instructions to store your secrets (API keys, IPs, etc.) in your OS's keychain for the first time.
+    *   Store secrets (API keys, DSNs) with `m3 secret set NAME`, not in these files.
 3.  **Restart your shell** (`zsh`). The scripts will now automatically and securely load your configuration on every new terminal session.
 
 ---
 
 ## 📋 Core Environment Variables
 
-Your `.zshenv` should define and export the following variables by calling the `get_secret` function.
+Your `.zshenv` may export the non-secret variables below. Rows marked **Secret** are not read from the environment.
 
 ### Roots & precedence (the single source of truth)
 
@@ -119,15 +141,16 @@ SQLite DB) and `timeout` arg — both are stripped before the impl runs.
 By default m3 stores everything in a local **SQLite** file — zero infrastructure,
 nothing to configure. PostgreSQL as the **primary** store is opt-in. The installer
 asks which backend to use (default SQLite); you can also pass
-`m3 install-m3 --db-backend postgres` (it reads the DSN from
-`M3_PRIMARY_PG_URL`). m3 selects its backend from the **environment**, not the
-config file, so these must be set wherever m3 runs (your MCP server's `env` block,
-your shell, or the process that imports m3 — LangChain/SDK/CLI):
+`m3 install-m3 --db-backend postgres` (it reads the DSN from the
+`M3_PRIMARY_PG_URL` secret). m3 selects its backend from the **environment**, not
+the config file, so `M3_DB_BACKEND` must be set wherever m3 runs (your MCP
+server's `env` block, your shell, or the process that imports m3 —
+LangChain/SDK/CLI). The DSN is a secret and is never read from the environment:
 
-| Variable | Purpose | Example |
+| Name | Purpose | Example |
 |---|---|---|
 | `M3_DB_BACKEND` | Primary backend: `sqlite` (default) or `postgres`. | `export M3_DB_BACKEND=postgres` |
-| `M3_PRIMARY_PG_URL` | Primary-store DSN when `M3_DB_BACKEND=postgres` (falls back to `M3_PG_URL`). Never reads a warehouse/CDW var. | `export M3_PRIMARY_PG_URL="postgresql://m3:PASSWORD@localhost:5432/m3_primary"` |
+| `M3_PRIMARY_PG_URL` | **Secret** (secrets file / keyring). Primary-store DSN when `M3_DB_BACKEND=postgres`. Never the warehouse DSN. The env names `M3_PRIMARY_PG_URL` / `M3_PG_URL` are read only by `m3 config import-env`, to migrate. | `m3 secret set M3_PRIMARY_PG_URL` (value like `postgresql://m3:PASSWORD@localhost:5432/m3_primary`) |
 
 The schema is created automatically on first connect if the server wasn't reachable
 at install time — nothing else to do once the database is up.
@@ -173,7 +196,7 @@ engine root; the sweeper knobs bound background embedding cost.
 |---|---|---|
 | `M3_MEMORY_ROOT` | Optional master state-root override (see [Roots & precedence](#roots--precedence-the-single-source-of-truth)). Defaults to `~/.m3` (`~/.m3-memory` until `m3 setup` or `m3 doctor --fix` moves it). | `export M3_MEMORY_ROOT="/path/to/state"` (Set directly) |
 | `M3_SYNC_TARGET_IP` | **Optional.** Overrides the host the sync job probes before running; by default it comes from the warehouse DSN. *(legacy alias: `SYNC_TARGET_IP`.)* | `export M3_SYNC_TARGET_IP="192.0.2.10"` |
-| `PG_URL`| **Deprecated as an env var.** Use `M3_CDW_PG_URL` for the data-warehouse role or `M3_PRIMARY_PG_URL` for a PostgreSQL primary store (see "Primary database backend" above). `PG_URL` remains the NAME of the warehouse DSN in m3's encrypted vault, which is where scheduled jobs read it. The default install is SQLite and needs no PostgreSQL at all. | `python <payload>/bin/setup_secret.py` (service name `PG_URL`) |
+| `M3_CDW_PG_URL` | **Secret** (secrets file / keyring / vault), not an env var. DSN of the data-warehouse (sync) role; a PostgreSQL primary store uses `M3_PRIMARY_PG_URL` instead (see "Primary database backend" above). An existing vault entry named `PG_URL` is still read. The env names `M3_CDW_PG_URL` / `PG_URL` are read only by `m3 config import-env`, to migrate. The default install is SQLite and needs no PostgreSQL at all. | `m3 secret set M3_CDW_PG_URL` |
 
 ### Postgres & sync
 
@@ -193,26 +216,30 @@ the LAN sync workflow; the default SQLite install ignores all of these.
 ### API Keys & Authentication
 
 `AGENT_OS_MASTER_KEY` is m3's own vault key; the third-party service keys below
-have their own section.
+have their own section. Both are secrets, read from the secrets file / keyring
+(see [above](#-the-zero-leak-architecture-principle)), never from the environment.
 
-| Variable | Purpose | Example Keychain Command (macOS) |
+| Secret | Purpose | Store it |
 |---|---|---|
-| `AGENT_OS_MASTER_KEY`| **Required to store or read secrets in the encrypted vault** (e.g. the warehouse `PG_URL`). Master key for the encrypted vault. | `_keychain_set AGENT_OS_MASTER_KEY "your-secure-key"` |
+| `AGENT_OS_MASTER_KEY`| **Required to store or read secrets in the encrypted vault** (e.g. the warehouse DSN). Master key for the encrypted vault. Bootstrap secret: never read from the vault. | `m3 secret set AGENT_OS_MASTER_KEY --keyring` |
 
 ### Third-party service credentials & endpoints
 
 Keys and endpoints for **external services** m3 can talk to. These follow each
-vendor's own naming convention (they are **not** `M3_*`-namespaced by design — a
-tool that already exports `ANTHROPIC_API_KEY` should just work). All are
-**optional** (`LM_API_TOKEN` is needed only when your local LLM endpoint enforces
-a key); a feature that needs an unset key degrades or
-is skipped, never a hard failure of the core. Store them in your OS keychain, not
-in shell rc files (see the Zero-Leak principle above).
+vendor's own naming convention (they are **not** `M3_*`-namespaced by design).
+All are **optional** (`LM_API_TOKEN` is needed only when your local LLM endpoint
+enforces a key); a feature that needs an unset key degrades or
+is skipped, never a hard failure of the core. The keys are **secrets m3 reads
+from the secrets file / OS keyring, not the environment** — store each with
+`m3 secret set NAME` (see the Zero-Leak principle above). An exported
+`ANTHROPIC_API_KEY` etc. is read only by `m3 config import-env`, which moves it
+into the secrets file. `PERPLEXITY_API_KEY` and `NEWS_API_KEY` are not in m3's
+secret registry.
 
-| Variable | Service / used by | Required? |
+| Name | Service / used by | Required? |
 |---|---|---|
 | `LM_API_TOKEN` | Token for your local LLM server (LM Studio, Ollama, llama-server, vLLM) — the primary inference endpoint. | **Required** when that endpoint enforces a key (LM Studio default); omit for tokenless endpoints (Ollama) |
-| `LM_STUDIO_API_KEY` | Alternate token some LM Studio setups expect; read by `auth_utils` as a fallback for the local LLM token. | Optional |
+| `LM_STUDIO_API_KEY` | Older name for `LM_API_TOKEN`; `m3 config import-env` migrates it. | Optional |
 | `ANTHROPIC_API_KEY` | Anthropic / Claude models (e.g. via the MCP proxy's model routing). | Optional |
 | `GEMINI_API_KEY` | Google / Gemini models. | Optional |
 | `OPENAI_API_KEY` | OpenAI-compatible cloud models (MCP proxy routing / cloud fallback). | Optional |
@@ -235,7 +262,7 @@ override only for multi-agent / multi-device setups.
 | `M3_USER_ID` | _(config)_ | Owning user identity for the process (Hermes identity layer). |
 | `M3_AGENT_ID` | _(config)_ | Agent identity for the process (Hermes identity layer). |
 | `M3_AGENT_DB` | _(resolver default)_ | Per-agent DB path used when building a KG variant. *(legacy alias: `AGENT_DB`, still honored via `getenv_compat`.)* |
-| `M3_AGENT_OS_SALT_HEX` | _(generated)_ | Hex-encoded salt for agent-OS auth derivation. |
+| `M3_AGENT_OS_SALT_HEX` | _(generated)_ | **Secret** (secrets file / keyring, never the env or vault): hex-encoded device salt for the vault key derivation. Store with `m3 secret set M3_AGENT_OS_SALT_HEX`; the env name is read only by `m3 config import-env`. |
 | `M3_ORIGIN_DEVICE` | _(host)_ | Origin-device identifier stamped by the auth layer. |
 | `M3_ENFORCE_AGENT_ISOLATION` | — | When enabled, enforces strict per-agent data isolation so one agent cannot read another's memories. |
 | `M3_MACBOOK_STATUS_HOST` | — | Host/bind address for the MacBook status server. |
@@ -380,8 +407,8 @@ without it, ingest produces text + extractive summaries only. Full guide:
 | `M3_FILES_SUMMARY_MODEL` | `qwen3-4b-instruct` | Model id for the summarizer. |
 | `M3_LMSTUDIO_URL` | _(unset)_ | Shared last-resort fallback endpoint for both extract and summary when their specific URLs are unset. |
 
-Auth: if the endpoint enforces a key (LM Studio default), set
-[`LM_API_TOKEN`](#api-keys--authentication) — it is sent as
+Auth: if the endpoint enforces a key (LM Studio default), store
+[`LM_API_TOKEN`](#api-keys--authentication) with `m3 secret set LM_API_TOKEN` — it is sent as
 `Authorization: Bearer <token>`. Omit for tokenless endpoints (Ollama).
 
 ### Files Memory — ingestion, dedup & promotion
@@ -688,7 +715,7 @@ compilation to a different/larger model than the lede synthesizer.
 | `M3_WIKI_DRIFT_PRECISION_FLOOR` | `0.70` | Minimum precision the drift judge must clear in its live-validation test (no fallback). |
 
 The drift vars also configure the GDPR derivability judge (`--review-derivability`),
-which reuses `DriftConfig`. The LLM token is read from `LM_API_TOKEN`
+which reuses `DriftConfig`. The LLM token is the `LM_API_TOKEN` secret
 (see [API Keys](#api-keys--authentication)).
 Admission-gate tuning is a config file, not an env var — see the [wiki docs](WIKI.md).
 
@@ -771,8 +798,8 @@ payload is stripped before it leaves the host.
 |---|---|---|
 | `M3_ALLOW_CLOUD_FALLBACK` | _(off)_ | Master gate allowing fallback to the cloud enclave when local backends are unavailable. |
 | `M3_CLOUD_ENCLAVE_URL` | — | URL of the privacy enclave endpoint. |
-| `M3_CLOUD_AUTH_TOKEN` | — | Bearer token for the cloud enclave. |
-| `M3_CLOUD_AUTH_TOKEN_KEYRING` | — | Keyring entry name to read the enclave token from (preferred over the inline var). |
+| `M3_CLOUD_AUTH_TOKEN` | — | **Secret** (secrets file / keyring / vault), not an env var: bearer token for the cloud enclave. Store with `m3 secret set M3_CLOUD_AUTH_TOKEN`; the env name is read only by `m3 config import-env`. |
+| `M3_CLOUD_AUTH_TOKEN_KEYRING` | — | Keyring entry name to read the enclave token from. A reference, not the secret. |
 | `M3_CLOUD_MINIMIZATION_LEVEL` | — | How aggressively payloads are minimized/redacted before leaving the host. |
 
 ## Installation & runtime

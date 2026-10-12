@@ -116,7 +116,7 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 | `test_mcp_proxy_unit.py` (now in `tests/`) | `pytest tests/test_mcp_proxy_unit.py` | 12 tests | none | Proxy internals: tool-list merging, destructive-tool gating, `inject_agent_id` enforcement |
 | `test_bulk_parity.py` | `python bin/test_bulk_parity.py` | ~15 checks | SQLite (mocked schema) | Bulk vs single write parity: enrichment, variant isolation, contradiction detection |
 | `test_embedding_logic.py` | `python bin/test_embedding_logic.py` | 2 ops | LM Studio, `LM_API_TOKEN` | Embed path smoke: token resolution, `_embed()` round-trip |
-| `test_keychain.py` | `python bin/test_keychain.py` | 3 lookups | OS keychain or env vars | `auth_utils.get_api_key()` across env / keyring / platform-native stores |
+| `test_keychain.py` | `python bin/test_keychain.py` | 3 lookups | secrets file or OS keychain | `auth_utils.get_api_key()` across the secrets file / keyring / vault |
 | `test_unified_router.py` | `python bin/test_unified_router.py` | 3 payloads | LM Studio on :1234, `LM_API_TOKEN`, optional `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` | OpenAI-compatible router: local dispatch + cloud fallback (Claude / Gemini) |
 | `test_mission_control.py` | `python bin/test_mission_control.py` | 20 checks | LM Studio (skip if offline), nvidia-smi (skip if no GPU), network (skip if unreachable) | Status dashboard: platform detect, paths, KV stats, GPU / VRAM, ping, single render pass |
 
@@ -219,26 +219,28 @@ m3 runs on both SQLite (default) and PostgreSQL through one storage seam. A set 
 the maintenance pass, the files store, chatlog, etc. They are marked
 `@pytest.mark.requires_pg`.
 
-**Running them.** Point the suite at any throwaway PostgreSQL via the DSN env vars
-and run as normal:
+**Running them.** Point the suite at any throwaway PostgreSQL with the
+`--m3-pg-url` option and run as normal:
 
 ```bash
-export M3_PRIMARY_PG_URL="postgresql://<user>:<pass>@<host>:5432/<throwaway_db>"
-export M3_PG_URL="$M3_PRIMARY_PG_URL"          # fallback the tests also read
-python -m pytest -m requires_pg -q             # every PG-live test
-python -m pytest tests/test_schema_parity_pg_live.py -q   # the migration-parity gate
+DSN="postgresql://<user>:<pass>@<host>:5432/<throwaway_db>"
+python -m pytest --m3-pg-url="$DSN" -m requires_pg -q             # every PG-live test
+python -m pytest --m3-pg-url="$DSN" tests/test_schema_parity_pg_live.py -q   # the migration-parity gate
 ```
 
-Use a **disposable** database — the fixtures create/drop schemas freely. The DSN is
-resolved `M3_PRIMARY_PG_URL` > `M3_PG_URL`; the suite deliberately **never** reads
-`PG_URL` (that names the production/warehouse store). Applying the schema to a fresh
+Use a **disposable** database — the fixtures create/drop schemas freely. The DSN
+comes **only** from `--m3-pg-url`; the suite never reads a DSN from the
+environment (so an exported `M3_PRIMARY_PG_URL` / `PG_URL` pointing at a real store
+is never picked up). A test selects PostgreSQL with
+`use_backend("postgres", pg_dsn())` from `tests/conftest.py`. Applying the schema to a fresh
 DB is `psql -f memory/migrations/postgres/pg_primary_v1.sql` then
 `migrate_pg.run_pending_pg_migrations(conn)` (pass a live connection, not a DSN
 string); the files-store schema builds itself via its own migrations on first
 `files_memory.db.init_db()`.
 
-**Auto-skip is by design.** With no DSN set (or no reachable cluster), every
-`requires_pg` test **skips cleanly** — that is expected on a SQLite-only checkout and
+**Auto-skip is by design.** With no `--m3-pg-url` (or no reachable cluster), every
+`requires_pg` test **skips cleanly** (reason: "no reachable PostgreSQL (pass
+pytest --m3-pg-url=<a throwaway cluster DSN>)") — that is expected on a SQLite-only checkout and
 in the default CI lane, not a failure. A conftest collection hook probes reachability
 once per session and skips the marked tests when the probe fails.
 
@@ -250,8 +252,8 @@ once per session and skips the marked tests when the probe fails.
 > **skip while a cluster is up**, the probe isn't reaching it: verify the DSN host is
 > actually accepting TCP connections from where pytest runs (a common cause is a DB
 > bound to loopback-only behind a flaky port forward — bind it so your test host can
-> reach it directly). A quick check: `python -c "import psycopg2,os;
-> psycopg2.connect(os.environ['M3_PRIMARY_PG_URL']).close(); print('reachable')"`.
+> reach it directly). A quick check: `python -c "import psycopg2,sys;
+> psycopg2.connect(sys.argv[1]).close(); print('reachable')" "$DSN"`.
 
 Native Windows PostgreSQL is not a supported test target on some setups (its
 per-connection fork model can crash under a locked-down DLL environment); a Linux

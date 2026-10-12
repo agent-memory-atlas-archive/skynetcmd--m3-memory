@@ -1,10 +1,14 @@
 import os
+import sys
 
 import requests
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from auth_utils import get_api_key  # noqa: E402
+
 # Constants
 ROUTER_URL = "http://127.0.0.1:1234/v1/chat/completions"  # Default router/LM Studio port
-API_TOKEN = os.getenv("LM_API_TOKEN") or "no-token-found"
+API_TOKEN = get_api_key("LM_API_TOKEN") or "no-token-found"
 
 
 def test_payload(model, description):
@@ -42,8 +46,8 @@ if __name__ == "__main__":
     test_payload("deepseek-r1-distill-llama-70b-mlx", "Local LM Studio / DeepSeek")
 
     # If keys are present, test cloud routing
-    if os.getenv("ANTHROPIC_API_KEY"):
+    if get_api_key("ANTHROPIC_API_KEY"):
         test_payload("claude-3-5-sonnet", "Anthropic Claude Translation")
 
-    if os.getenv("GEMINI_API_KEY"):
+    if get_api_key("GEMINI_API_KEY"):
         test_payload("gemini-1.5-pro", "Google Gemini Translation")

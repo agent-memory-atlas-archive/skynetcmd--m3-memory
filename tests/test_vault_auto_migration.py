@@ -20,10 +20,11 @@ _MASTER = "r3-test-master-key"
 @pytest.fixture
 def auth(monkeypatch, each_backend):
     import auth_utils
+    from m3_core.secret_store import set_secret
 
     # A fixed device salt: without one, inserting rows first makes m3 (rightly)
     # refuse to mint a salt for a vault that already holds secrets.
-    monkeypatch.setenv("M3_AGENT_OS_SALT_HEX", "ab" * 16)
+    set_secret("M3_AGENT_OS_SALT_HEX", "ab" * 16)
     monkeypatch.setattr(auth_utils, "get_master_key", lambda: _MASTER)
     monkeypatch.setattr(auth_utils, "_keyring_read", lambda *a, **k: (None, None))
     return auth_utils

@@ -802,22 +802,71 @@ def _no_warehouse_secret(monkeypatch):
     import functools
 
     import auth_utils
+    import keyring
 
-    for tier in ("_keyring_tier", "_vault_tier"):
-        real_tier = getattr(auth_utils, tier)
+    # NO test reads the developer's real keyring or keychain, under ANY name.
+    # Once secrets stopped coming from env (m3 9cbed0af), a test that set a
+    # secret in env fell through to the keyring and printed the real vault
+    # master key into a test log (2026-10-12). Three layers, because the real
+    # store is reachable three ways: python keyring (an empty backend for the
+    # test; a test that installs its own fake backend replaces it), the macOS
+    # security CLI (stubbed), and the tier itself for every registry secret
+    # (below, kept for a test that fakes _keyring_read to return a real-looking
+    # value).
+    real_backend = keyring.get_keyring()
+    keyring.set_keyring(_EmptyKeyring())
+    monkeypatch.setattr(auth_utils, "_macos_keychain_read", lambda name: None)
+    real_keyring, real_vault = auth_utils._keyring_tier, auth_utils._vault_tier
+    blocked_names = _DSN_SECRETS | _registry_secret_names()
 
-        @functools.wraps(real_tier)  # __wrapped__: a test with its OWN fake backend may lift the block
-        def blocked(service, _real=real_tier):
-            return (None, None) if service in _DSN_SECRETS else _real(service)
+    @functools.wraps(real_keyring)  # __wrapped__: a test with its OWN fake backend may lift the block
+    def keyring_blocked(key, *, service="system"):
+        return (None, None) if key in blocked_names else real_keyring(key, service=service)
 
-        monkeypatch.setattr(auth_utils, tier, blocked)
+    @functools.wraps(real_vault)
+    def vault_blocked(service):
+        return (None, None) if service in _DSN_SECRETS else real_vault(service)
+
+    monkeypatch.setattr(auth_utils, "_keyring_tier", keyring_blocked)
+    monkeypatch.setattr(auth_utils, "_vault_tier", vault_blocked)
     # And no test WRITES the developer's keyring, under any name: the store
     # falls through to the (sandboxed) secrets file instead. A test of the
     # writer patches _keyring_store or the keyring module itself.
     monkeypatch.setattr(
         auth_utils, "_keyring_store", lambda service, value: "keyring: writes blocked by the test sandbox"
     )
-    yield
+    try:
+        yield
+    finally:
+        keyring.set_keyring(real_backend)
+
+
+def _registry_secret_names() -> frozenset[str]:
+    from m3_core.config import REGISTRY, KeyClass
+
+    return frozenset(n for k in REGISTRY if k.klass is KeyClass.SECRET for n in (k.name, *k.env_names))
+
+
+import keyring.backend as _keyring_backend  # noqa: E402
+
+
+class _EmptyKeyring(_keyring_backend.KeyringBackend):
+    """A keyring backend that holds nothing and stores nothing: what every test
+    sees unless it installs its own."""
+
+    priority = 1  # type: ignore[assignment]
+
+    def get_password(self, service, username):
+        return None
+
+    def set_password(self, service, username, password):
+        raise RuntimeError("keyring writes are blocked by the test sandbox")
+
+    def delete_password(self, service, username):
+        return None
+
+    def get_credential(self, service, username):
+        return None
 
 
 # Every DSN name a test must never resolve from the developer's real keyring or vault.

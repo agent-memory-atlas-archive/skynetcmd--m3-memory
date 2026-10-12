@@ -54,7 +54,7 @@ chatlogs.
 - LM Studio running on `localhost:1234`
 - `qwen/qwen3-8b` loaded in LM Studio's Models tab
 - `text-embedding-bge-m3` (or another embed model) loaded
-- `LM_API_TOKEN=lm-studio` (any string works)
+- `LM_API_TOKEN` stored with `m3 secret set LM_API_TOKEN` if LM Studio enforces a key (any string works when it does not check the value)
 
 ### 2. Preview
 
@@ -117,11 +117,11 @@ Each profile lives in `config/slm/`. Pass the name (without `.yaml`) via
 
 ```bash
 # Cloud frontier
-export ANTHROPIC_API_KEY=sk-ant-...
+m3 secret set ANTHROPIC_API_KEY      # prompts for the key; once
 python bin/m3_enrich.py --profile enrich_anthropic_haiku
 
 # Cheapest cloud
-export GEMINI_API_KEY=AIza...
+m3 secret set GEMINI_API_KEY
 python bin/m3_enrich.py --profile enrich_google_gemini
 
 # Custom YAML
@@ -239,11 +239,14 @@ Your endpoint isn't reachable. Check:
 
 ### "ERROR: env var X is empty"
 
-Set the env var the profile expects:
-- LM Studio: `export LM_API_TOKEN=lm-studio`
-- Anthropic: `export ANTHROPIC_API_KEY=sk-ant-...`
-- OpenAI: `export OPENAI_API_KEY=sk-...`
-- Gemini: `export GEMINI_API_KEY=AIza...`
+The profile's key (its `api_key_service`) is not stored. Store it — m3 reads it
+from the secrets file / keyring, not the environment:
+- LM Studio: `m3 secret set LM_API_TOKEN`
+- Anthropic: `m3 secret set ANTHROPIC_API_KEY`
+- OpenAI: `m3 secret set OPENAI_API_KEY`
+- Gemini: `m3 secret set GEMINI_API_KEY`
+
+A key you exported earlier is moved by `m3 config import-env`.
 
 ### "0 observations written, all empty"
 

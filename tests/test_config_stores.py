@@ -174,12 +174,13 @@ def test_a_write_inside_a_sqlite_store_lands_in_its_file(stores_file, tmp_path, 
 def _pg_store(monkeypatch, stores_file, dsn: str | None):
     import importlib
 
+    from m3_core.secret_store import set_secret
+
     use_backend("sqlite")
-    if dsn is None:
-        monkeypatch.delenv("M3_STORE_BENCH_PG_URL", raising=False)
-    else:
-        monkeypatch.setenv("M3_STORE_BENCH_PG_URL", dsn)
+    # The store first: its dsn_secret is a name the secrets file accepts once declared.
     stores_file('[stores.bench]\nbackend = "postgres"\ndsn_secret = "M3_STORE_BENCH_PG_URL"\n')
+    if dsn is not None:
+        set_secret("M3_STORE_BENCH_PG_URL", dsn)
     return importlib.import_module("memory.backends.selector")
 
 
@@ -189,7 +190,9 @@ def test_an_unset_store_secret_is_reported_with_the_fix(monkeypatch, stores_file
     mb = _pg_store(monkeypatch, stores_file, None)
     mb._reset_for_tests()
     with active_store("bench"):
-        with pytest.raises(RuntimeError, match=r"dsn_secret M3_STORE_BENCH_PG_URL.*keyring set system"):
+        with pytest.raises(
+            RuntimeError, match=r"dsn_secret M3_STORE_BENCH_PG_URL.*m3 secret set M3_STORE_BENCH_PG_URL"
+        ):
             mb.active_backend()
 
 
@@ -198,7 +201,9 @@ def test_a_store_on_the_warehouse_is_refused(monkeypatch, stores_file):
 
     dsn = "postgresql://u:p@wh.example:5432/cdw"
     mb = _pg_store(monkeypatch, stores_file, dsn)
-    monkeypatch.setenv("M3_CDW_PG_URL", dsn)
+    from m3_core.secret_store import set_secret
+
+    set_secret("M3_CDW_PG_URL", dsn)
     mb._reset_for_tests()
     with active_store("bench"):
         with pytest.raises(Exception, match=r"(?i)warehouse"):
@@ -212,14 +217,15 @@ def test_two_stores_on_one_database_share_an_instance(monkeypatch, stores_file):
     import importlib
 
     mb = importlib.import_module("memory.backends.selector")
+    from m3_core.secret_store import set_secret
+
     use_backend("sqlite")
-    monkeypatch.setenv("M3_STORE_A_PG_URL", dsn)
-    monkeypatch.setenv("M3_STORE_B_PG_URL", dsn)
-    monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
     stores_file(
         '[stores.a]\nbackend = "postgres"\ndsn_secret = "M3_STORE_A_PG_URL"\n'
         '[stores.b]\nbackend = "postgres"\ndsn_secret = "M3_STORE_B_PG_URL"\n'
     )
+    set_secret("M3_STORE_A_PG_URL", dsn)
+    set_secret("M3_STORE_B_PG_URL", dsn)
     prepared = _record_prepare(monkeypatch)
     mb._reset_for_tests()
     with active_store("a"):
@@ -249,11 +255,12 @@ def test_a_store_naming_the_default_database_is_never_prepared(monkeypatch, stor
 
     dsn = "postgresql://u:p@db.example:5432/m3"
     mb = importlib.import_module("memory.backends.selector")
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", dsn)
-    monkeypatch.setenv("M3_STORE_ALIAS_PG_URL", "host=db.example dbname=m3 user=other")
-    monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
+    from m3_core.secret_store import set_secret
+
+    monkeypatch.setenv("M3_DB_BACKEND", "postgres")  # stores_file rewrites the config file; env until step (iv)
     stores_file('[stores.alias]\nbackend = "postgres"\ndsn_secret = "M3_STORE_ALIAS_PG_URL"\n')
+    set_secret("M3_PRIMARY_PG_URL", dsn)
+    set_secret("M3_STORE_ALIAS_PG_URL", "host=db.example dbname=m3 user=other")
     prepared = _record_prepare(monkeypatch)
     mb._reset_for_tests()
     try:
@@ -444,9 +451,10 @@ def test_a_postgres_store_on_a_second_database_gets_its_own_core_and_files(monke
     store_dsn = make_dsn(lane, dbname=db)
     mb = importlib.import_module("memory.backends.selector")
     try:
-        monkeypatch.setenv("M3_STORE_SECOND_PG_URL", store_dsn)
-        monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
+        from m3_core.secret_store import set_secret
+
         stores_file('[stores.second]\nbackend = "postgres"\ndsn_secret = "M3_STORE_SECOND_PG_URL"\n')
+        set_secret("M3_STORE_SECOND_PG_URL", store_dsn)
         mb._reset_for_tests()
         fdb = importlib.import_module("files_memory.db")
         from files_memory.config import files_table

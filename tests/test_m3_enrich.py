@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from m3_core.secret_store import set_secret  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "bin"))
@@ -504,7 +505,7 @@ def test_drain_queue_mode_handles_empty_queue(stub_db, monkeypatch, capsys):
     # there's no credential vault and no env, so the call sys.exits before
     # we ever reach the empty-queue check. Stamp a dummy token — the real
     # SLM call never fires because the queue is empty.
-    monkeypatch.setenv("LM_API_TOKEN", "test-stub-token")
+    set_secret("LM_API_TOKEN", "test-stub-token")
     import m3_enrich
 
     m3_enrich._ensure_migration_025(stub_db)

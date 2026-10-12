@@ -32,7 +32,7 @@ def debug(msg: str) -> None:
 
 def secret_env_names() -> frozenset[str]:
     """Every env name a secret-class key answers to: what ``child_env(drop=...)``
-    strips for a non-m3 child, so an env secret override never leaks into pip,
+    strips for a non-m3 child, so a secret left in the environment never leaks into pip,
     pg_dump or a model server (CONFIG_DESIGN §5)."""
     from .keys import REGISTRY
     from .registry import KeyClass

@@ -54,11 +54,11 @@ from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surf
     _gemini_hook_state,
     _interrupted_rewrite_section,
     _llm_file_legacy_section,
-    _plaintext_dsn_section,
     _read_json,
     _resolve_chatlog_db,
     _roots_section,
     _secrets_file_exposure_section,
+    _secrets_in_env_section,
     _sqlite3_cli_hint,
 )
 
@@ -905,13 +905,16 @@ def _mask_dsn(dsn: str) -> str:
     Best-effort: a DSN we can't parse is returned with any ``:...@`` credential
     span masked; if there's no recognizable credential, it's returned as-is
     (nothing secret to hide). Never raises — logging must not crash install.
+    The one masker is m3_core.secret_store's.
     """
-    import re
-
     if not dsn:
         return dsn
-    # userinfo form: scheme://user[:password]@host...
-    return re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn)
+    _bin.ensure_on_path()
+    try:
+        from m3_core.secret_store import mask_dsn_passwords
+    except ImportError:  # bootstrap without bin/: show nothing rather than a password
+        return "*** (not shown: m3_core is not importable)"
+    return str(mask_dsn_passwords(dsn))
 
 
 def _prompt_db_backend(interactive: bool, backend_flag: str | None) -> tuple[str, str] | None:
@@ -923,9 +926,10 @@ def _prompt_db_backend(interactive: bool, backend_flag: str | None) -> tuple[str
 
     ``backend_flag`` is the explicit ``--db-backend`` override (``sqlite`` /
     ``postgres``); it skips the interactive prompt. A ``postgres`` flag still
-    needs a DSN, which comes from ``M3_PRIMARY_PG_URL``/``M3_PG_URL`` in the
-    environment (so a scripted install can pass it out-of-band); if none is set
-    we warn and fall back to SQLite rather than persist a backend with no DSN.
+    needs a DSN, which comes from the secrets chain (a scripted install writes
+    ``M3_PRIMARY_PG_URL`` into the secrets file first; never env, m3 9cbed0af);
+    if none is stored we warn and fall back to SQLite rather than persist a
+    backend with no DSN.
 
     Non-interactive with no flag returns ``None`` (SQLite) — a headless install
     never blocks on this prompt and never silently arms PostgreSQL.
@@ -937,7 +941,7 @@ def _prompt_db_backend(interactive: bool, backend_flag: str | None) -> tuple[str
         if not dsn:
             print(
                 "[!] PostgreSQL selected but no DSN given "
-                "(set M3_PRIMARY_PG_URL, or enter one when prompted). "
+                "(store it first: `m3 secret set M3_PRIMARY_PG_URL`, or enter one when prompted). "
                 "Falling back to SQLite for this install."
             )
             return None
@@ -964,16 +968,16 @@ def _prompt_db_backend(interactive: bool, backend_flag: str | None) -> tuple[str
     if reply != "2":
         return None
 
-    # Offer the env DSN as the default so the user can just hit enter.
-    env_dsn = resolve_pg_dsn(PgRole.PRIMARY)
-    hint = f" [{_mask_dsn(env_dsn)}]" if env_dsn else ""
+    # Offer the stored DSN as the default so the user can just hit enter.
+    stored_dsn = resolve_pg_dsn(PgRole.PRIMARY)
+    hint = f" [{_mask_dsn(stored_dsn)}]" if stored_dsn else ""
     print("\nPostgreSQL primary-store DSN (e.g. postgresql://m3:PASSWORD@localhost:5432/m3_primary):")
     try:
         entered = input(f"DSN{hint}: ").strip()
     except (EOFError, KeyboardInterrupt):
         print()
         return None
-    return _postgres_with_dsn(entered or env_dsn)
+    return _postgres_with_dsn(entered or stored_dsn)
 
 
 def _chatlog_init_supports(chatlog_init: Path, flag: str) -> bool:
@@ -1256,10 +1260,10 @@ def _persist_pg_backend(dsn: str) -> list[str]:
     different value left in the environment is reported.
 
     The DSN is a secret and goes to the one DSN store owner
-    (``m3_core.secret_store.store_pg_dsn``: keyring where headless jobs can read
-    it, else the user-only secrets file), never to the registry or a profile in
-    plaintext (user decision D2, 2026-10-08). A plaintext copy an earlier install
-    wrote is left alone, still wins as env, and is reported here.
+    (``m3_core.secret_store.store_pg_dsn``: the user-only secrets file), never to
+    the registry or a profile in plaintext (user decision D2, 2026-10-08). A
+    plaintext copy an earlier install wrote is left alone and reported: m3 no
+    longer reads it (secrets ignore env, m3 9cbed0af), but it is still on disk.
     """
     msgs: list[str] = []
     _bin.ensure_on_path()  # never inserts "" (the cwd) when bin/ is missing
@@ -1305,15 +1309,12 @@ def _persist_pg_backend(dsn: str) -> list[str]:
         try:
             stored = store_pg_dsn(PgRole.PRIMARY, dsn)
             msgs.append(f"[+] stored the primary PostgreSQL DSN ({_mask_dsn(dsn)}) in {stored.location}")
-            msgs.extend(f"[i] {why}" for why in stored.skipped)
         except SecretsFileError as e:
             store_error = e
     if store_error is not None:
         msgs.append(
             f"[!] the primary PostgreSQL DSN was NOT stored: {store_error}. m3 cannot reach the "
-            "PostgreSQL store until it is: run `python -m keyring set system "
-            "M3_PRIMARY_PG_URL` (prompts for it), or set M3_PRIMARY_PG_URL in the "
-            "environment of every m3 process."
+            "PostgreSQL store until it is. fix: `m3 secret set M3_PRIMARY_PG_URL` (prompts for it)."
         )
     msgs.extend(_legacy_plaintext_dsn_notes())
     return [m for m in msgs if m]
@@ -1322,8 +1323,8 @@ def _persist_pg_backend(dsn: str) -> list[str]:
 def _legacy_plaintext_dsn_notes() -> list[str]:
     """Name every plaintext DSN copy an earlier install left behind (D2 keeps them).
 
-    Reported, not removed: the copy may be what a running process reads, and it
-    still OUTRANKS the store as env, so a stale one silently wins.
+    Reported, not removed: an older m3 still running may read it. m3 itself no
+    longer reads a secret from env, so the copy is only a plaintext secret on disk.
     """
     # The process copy is excluded: it is inherited from one of the places below
     # (or is the one the installer just set for its own post-install steps).
@@ -1334,8 +1335,7 @@ def _legacy_plaintext_dsn_notes() -> list[str]:
         for loc in _find_env_var_locations(n, include_process_env=False, unchecked=unchecked)
     ]
     notes = [
-        f"[!] plaintext DSN copy left in place: {w}. It overrides the stored DSN "
-        "while set; remove it once nothing reads it."
+        f"[!] plaintext DSN copy left in place: {w}. m3 no longer reads it; remove it once nothing else does."
         for w in where
     ]
     notes += [f"[!] could not check {u} for a plaintext DSN copy; inspect it by hand." for u in sorted(set(unchecked))]
@@ -1526,10 +1526,9 @@ def _post_install(
 def _detect_cdw_target() -> str | None:
     """Return the configured data-warehouse host (no credentials), or None.
 
-    A CDW is "configured" if PG_URL resolves (env var or the encrypted vault)
+    A CDW is "configured" if the warehouse DSN resolves (the secrets chain)
     OR a SYNC_TARGET_IP / POSTGRES_SERVER is set. We return only the host so the
-    reminder can name where data is auto-syncing — never the password from
-    PG_URL.
+    reminder can name where data is auto-syncing — never the password.
     """
     from m3_sdk import PgRole, getenv_compat, resolve_pg_dsn
 
@@ -1540,10 +1539,9 @@ def _detect_cdw_target() -> str | None:
     if host:
         return cast("str | None", host.strip())
 
-    # 2. Warehouse DSN (M3_CDW_PG_URL > PG_URL) — from env, or the encrypted
-    #    vault. Parse out ONLY the host. This is the WAREHOUSE host, not the
-    #    primary store, so it uses the CDW resolver (never M3_PG_URL).
-    # The one DSN owner covers env, keyring, secrets file and vault.
+    # 2. The warehouse DSN, from the one DSN owner (secrets file, keyring,
+    #    vault). Parse out ONLY the host. This is the WAREHOUSE host, not the
+    #    primary store, so it uses the warehouse role.
     pg_url = resolve_pg_dsn(PgRole.WAREHOUSE)
     if pg_url:
         try:
@@ -1654,12 +1652,11 @@ def install_m3(
     """
     from m3_memory import __version__
 
-    # Fail LOUD if the deprecated, role-ambiguous PG_URL is set ANYWHERE we can
-    # see. Install/upgrade is the one moment the operator is present to fix config,
-    # so we force the rename here (runtime paths only warn). The scan sweeps EVERY
-    # common location and reports ALL of them at once, so the fix is one pass, not
-    # a re-run per hidden copy.
-    _assert_no_deprecated_pg_url_anywhere()
+    # Name every place the old PG_URL is still set. m3 no longer reads secrets
+    # from env (m3 9cbed0af), so it is a leftover plaintext DSN, not an ambiguity
+    # that could arm the wrong store: reported, never a refusal, so the upgrade
+    # that moves it (import-env) can run.
+    _note_deprecated_pg_url_anywhere()
 
     if repo_path is None:
         repo_path = default_repo_path()
@@ -2204,30 +2201,21 @@ def _find_env_var_locations(
     return sorted({f.where for f in scan([name], include_process_env=include_process_env, unchecked=unchecked)})
 
 
-def _assert_no_deprecated_pg_url_anywhere() -> None:
-    """Hard-fail install/upgrade if a deprecated PG_URL is set in ANY scanned
-    location, listing every one so the operator fixes them in a single pass.
-
-    PG_URL was split by role — ``M3_CDW_PG_URL`` (data-warehouse / pg_sync) vs
-    ``M3_PRIMARY_PG_URL`` (a PostgreSQL PRIMARY store) — so an ambiguous PG_URL
-    must be renamed to the correct one before proceeding."""
+def _note_deprecated_pg_url_anywhere() -> None:
+    """Print every scanned place the old PG_URL is set, in one pass. It used to
+    hard-fail install, when an env PG_URL could arm the wrong store; m3 reads no
+    secret from env now, so a copy is only plaintext left behind, and
+    `m3 config import-env` stores it as the warehouse DSN (M3_CDW_PG_URL)."""
     unchecked: list[str] = []
     locations = _find_env_var_locations("PG_URL", unchecked=unchecked)
-    if not locations:
-        # Not a hard failure (an unreadable HKLM must not block every install),
-        # but "PG_URL is not set" is only true of the places that were read.
-        for where in sorted(set(unchecked)):
-            print(f"[!] could not check {where} for a deprecated PG_URL; inspect it by hand.")
-        return
-    bullet = "\n  - ".join(locations)
-    raise RuntimeError(
-        "Deprecated env var PG_URL is set. It has been split by role and renamed: "
-        "use M3_CDW_PG_URL for the data-warehouse (pg_sync) DSN, or "
-        "M3_PRIMARY_PG_URL for a PostgreSQL PRIMARY store.\n"
-        f"Found PG_URL in {len(locations)} location(s) — fix ALL of them, then "
-        f"re-run install/update:\n  - {bullet}\n"
-        "(See CHANGELOG: 'PG_URL split by role'.)"
-    )
+    for where in sorted(set(unchecked)):
+        print(f"[!] could not check {where} for the old PG_URL; inspect it by hand.")
+    if locations:
+        print(
+            "[i] the old PG_URL (a warehouse DSN m3 no longer reads from the environment) is set in: "
+            + "; ".join(locations)
+            + ". `m3 config import-env` stores it as M3_CDW_PG_URL; then remove those copies."
+        )
 
 
 def _migrate_env_names(*, apply: bool = False) -> list[str]:
@@ -2764,7 +2752,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     _interrupted_rewrite_section()
 
-    _plaintext_dsn_section()
+    _secrets_in_env_section(brief=brief)
 
     _secrets_file_exposure_section(brief=brief)
 

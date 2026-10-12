@@ -335,9 +335,10 @@ Start-Process -WindowStyle Hidden `
 openai-api-base: http://localhost:9000/v1
 ```
 
-Export the API key for whichever upstream you're routing to
-(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`).
-The proxy forwards the key to the provider matching the model prefix.
+Store the API key for whichever upstream you're routing to with
+`m3 secret set NAME` (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`,
+`GEMINI_API_KEY`); the proxy reads it from m3's secrets file / keyring, not the
+environment, and forwards it to the provider matching the model prefix.
 
 Keep `CONVENTIONS.md` at the repo root pointing at `AGENT_INSTRUCTIONS.md`
 so Aider gets the "always use memory_search first" rules in its system
@@ -447,14 +448,16 @@ m3 Memory works standalone with local SQLite — no additional
 infrastructure needed. For multi-device sync, you can optionally connect:
 
 - **PostgreSQL** — bi-directional delta sync across machines, via
-  `M3_CDW_PG_URL` (the `PG_URL` name still works but is deprecated)
+  the `M3_CDW_PG_URL` secret (`m3 secret set M3_CDW_PG_URL`; a vault entry
+  under the older name `PG_URL` still works)
 
 See [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) for warehouse-sync
 configuration.
 
 **PostgreSQL as primary store (not just sync).** Separately from the warehouse
 role above, PostgreSQL can be m3's *primary* live backend instead of SQLite —
-opt in with `M3_DB_BACKEND=postgres` + `M3_PRIMARY_PG_URL`, chosen at install
+opt in with `M3_DB_BACKEND=postgres` + the `M3_PRIMARY_PG_URL` secret
+(`m3 secret set M3_PRIMARY_PG_URL`), chosen at install
 (the installer prompts) or non-interactively with
 `mcp-memory install-m3 --db-backend postgres`. SQLite remains the recommended
 default for single-user/local. Note: on a PostgreSQL primary, vector search is

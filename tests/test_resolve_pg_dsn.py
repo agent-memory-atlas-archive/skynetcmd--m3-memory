@@ -1,7 +1,8 @@
 """m3_core.secret_store.resolve_pg_dsn / explain_pg_dsn: the one DSN owner (plan 2B.1).
 
-The keyring, secrets-file and vault tiers are replaced by fakes keyed by name,
-so no real keyring or vault is touched.
+The keyring and vault tiers are replaced by fakes keyed by name, so no real
+keyring or vault is touched; the secrets file is the sandbox's own. The
+environment is never a tier (m3 9cbed0af).
 """
 
 from __future__ import annotations
@@ -16,14 +17,15 @@ WAREHOUSE = "postgresql://u:p@warehouse.example/cdw"
 
 @pytest.fixture
 def tiers(monkeypatch):
-    """Fake tiers: dicts of name -> value; an Exception value is that tier's error."""
+    """Fake keyring (``system/<name>`` entries keyed by name) and vault: an
+    Exception value is that tier's error."""
     import auth_utils
 
-    store = {"keyring": {}, "file": {}, "vault": {}}
+    store = {"keyring": {}, "vault": {}}
 
     def make(kind):
-        def read(name):
-            v = store[kind].get(name)
+        def read(name, *, service="system"):
+            v = store[kind].get(name) if service == "system" else None
             if isinstance(v, Exception):
                 return None, f"{kind}: {type(v).__name__}: {v}"
             return v, None
@@ -31,10 +33,7 @@ def tiers(monkeypatch):
         return read
 
     monkeypatch.setattr(auth_utils, "_keyring_tier", make("keyring"))
-    monkeypatch.setattr(auth_utils, "_file_tier", make("file"))
     monkeypatch.setattr(auth_utils, "_vault_tier", make("vault"))
-    for var in ("M3_PRIMARY_PG_URL", "M3_PG_URL", "M3_CDW_PG_URL", "PG_URL"):
-        monkeypatch.delenv(var, raising=False)
     return store
 
 
@@ -44,24 +43,24 @@ def _explain(role):
     return explain_pg_dsn(PgRole(role))
 
 
-def test_env_wins_and_is_named(tiers, monkeypatch):
-    tiers["keyring"]["M3_PRIMARY_PG_URL"] = "postgresql://from-keyring/x"
-    monkeypatch.setenv("M3_PG_URL", f"  {PRIMARY}  ")
+def test_env_is_never_read_and_the_miss_names_it(tiers, monkeypatch):
+    monkeypatch.setenv("M3_PG_URL", PRIMARY)
     r = _explain("primary")
-    assert (r.dsn, r.source) == (PRIMARY, "env:M3_PG_URL")
+    assert r.dsn == "" and r.source is None
+    said = " | ".join(r.errors)
+    assert "M3_PG_URL is set in the environment" in said and "m3 secret set M3_PRIMARY_PG_URL" in said, said
+    assert PRIMARY not in said and "u:p@" not in said
 
 
-@pytest.mark.parametrize("tier,source", [("keyring", "keyring"), ("file", "secrets-file")])
-def test_keyring_then_file(tiers, tier, source):
-    tiers[tier]["M3_PRIMARY_PG_URL"] = PRIMARY
-    r = _explain("primary")
-    assert (r.dsn, r.source) == (PRIMARY, f"{source}:M3_PRIMARY_PG_URL")
+def test_file_then_keyring(tiers):
+    from m3_core.secret_store import set_secret
 
-
-def test_keyring_beats_the_file(tiers):
     tiers["keyring"]["M3_PRIMARY_PG_URL"] = PRIMARY
-    tiers["file"]["M3_PRIMARY_PG_URL"] = "postgresql://from-file/x"
-    assert _explain("primary").dsn == PRIMARY
+    r = _explain("primary")
+    assert (r.dsn, r.source) == (PRIMARY, "keyring:system/M3_PRIMARY_PG_URL")
+    set_secret("M3_PRIMARY_PG_URL", "postgresql://from-file/x")
+    r = _explain("primary")
+    assert (r.dsn, r.source) == ("postgresql://from-file/x", "secrets-file:M3_PRIMARY_PG_URL")
 
 
 def test_primary_from_the_vault_works_but_warns_every_time(tiers, caplog):
@@ -73,7 +72,7 @@ def test_primary_from_the_vault_works_but_warns_every_time(tiers, caplog):
     assert r1.dsn == r2.dsn == PRIMARY and r1.source == "vault:M3_PRIMARY_PG_URL"
     assert caplog.text.count("deprecated") == 2
     # Actionable (§5): names the key and a repair that keeps the DSN out of history.
-    assert "python -m keyring set system M3_PRIMARY_PG_URL" in caplog.text
+    assert "m3 secret set M3_PRIMARY_PG_URL" in caplog.text
     assert PRIMARY not in caplog.text, "the warning echoed the DSN"
 
 
@@ -85,15 +84,16 @@ def test_warehouse_from_the_legacy_vault_key_is_not_a_warning(tiers, caplog):
     assert "deprecated" not in caplog.text
 
 
-def test_roles_never_cross(tiers, monkeypatch):
-    monkeypatch.setenv("M3_CDW_PG_URL", WAREHOUSE)
+def test_roles_never_cross(tiers):
+    from m3_core.secret_store import set_secret
+
+    set_secret("M3_CDW_PG_URL", WAREHOUSE)
     tiers["keyring"]["PG_URL"] = WAREHOUSE
     assert _explain("primary").dsn == "", "the warehouse DSN reached the primary role"
-    monkeypatch.delenv("M3_CDW_PG_URL")
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", PRIMARY)
     tiers["keyring"].clear()
+    set_secret("M3_PRIMARY_PG_URL", PRIMARY)
     tiers["vault"]["M3_PRIMARY_PG_URL"] = PRIMARY
-    assert _explain("warehouse").dsn == "", "the primary DSN reached the warehouse role"
+    assert _explain("warehouse").dsn == WAREHOUSE, "the warehouse lost its own DSN"
 
 
 def test_a_miss_explains_what_each_tier_hit(tiers):
@@ -107,7 +107,7 @@ def test_a_miss_explains_what_each_tier_hit(tiers):
 
 
 def test_warehouse_migrator_finds_a_stored_dsn(tiers):
-    """It read env only, so a DSN the installer stored in the keyring was 'missing'."""
+    """It read env only, so a DSN the installer stored was 'missing'."""
     import migrate_warehouse_to_schema as mw
 
     tiers["keyring"]["M3_CDW_PG_URL"] = WAREHOUSE
@@ -123,12 +123,12 @@ def test_warehouse_migrator_miss_names_each_tier(tiers, capsys):
         mw._resolve_dsn(None)
     assert exc.value.code == 1
     err = capsys.readouterr().err
-    assert "keyring backend crashed" in err and "--dsn" in err, err
+    assert "keyring backend crashed" in err and "--dsn" in err and "m3 secret set M3_CDW_PG_URL" in err, err
 
 
-def test_resolve_returns_the_string(tiers, monkeypatch):
-    from m3_core.secret_store import PgRole, resolve_pg_dsn
+def test_resolve_returns_the_string(tiers):
+    from m3_core.secret_store import PgRole, resolve_pg_dsn, set_secret
 
     assert resolve_pg_dsn(PgRole.PRIMARY) == ""
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", PRIMARY)
+    set_secret("M3_PRIMARY_PG_URL", f"  {PRIMARY}  ")
     assert resolve_pg_dsn(PgRole.PRIMARY) == PRIMARY

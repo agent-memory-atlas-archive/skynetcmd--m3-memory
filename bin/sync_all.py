@@ -311,18 +311,16 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
         # from the warehouse back to ITSELF and synced the warehouse with itself
         # — the primary store was never touched, and the run reported success.
         #
-        # The primary must come from the primary resolver, whose own docstring
-        # states the invariant this violated: "the warehouse DSN must never reach
-        # the primary store through env resolution."
+        # The primary must come from the primary role, whose invariant this
+        # violated: the warehouse DSN never reaches the primary store.
         from m3_core.secret_store import PgRole, resolve_pg_dsn
         from memory.backends.postgres_backend import PostgresBackend
 
         primary_dsn = resolve_pg_dsn(PgRole.PRIMARY)
         if not primary_dsn:
             log.warning(
-                "PG primary selected (M3_DB_BACKEND=postgres) but no primary DSN "
-                "resolved — set M3_PRIMARY_PG_URL (or M3_PG_URL). Falling back to "
-                "the generic bridge."
+                "PG primary selected but no primary DSN resolved — store it: "
+                "`m3 secret set M3_PRIMARY_PG_URL`. Falling back to the generic bridge."
             )
             return None
 

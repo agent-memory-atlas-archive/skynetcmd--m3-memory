@@ -11,8 +11,9 @@ chooses; with no one there (``m3 upgrade``) nothing is written for that key, and
 every source and value is listed with the ``m3 config set`` that settles it.
 
 A key already in the file is left alone (the file outranks every legacy source).
-Secrets are listed by name and place only, never read into the file (slice 3).
-The file is backed up first (``GuardedRewrite``: ``m3_config.toml.bak`` and a
+Secrets go to the secrets file, never m3_config.toml (slice 3, ``import_secrets``:
+persistent places only; a keyring-held secret becomes a pointer; values are never
+shown, logged or backed up). m3_config.toml is backed up first (``GuardedRewrite``: ``m3_config.toml.bak`` and a
 ``.backup_history`` section), and every imported key must then resolve from the
 file to the chosen value; if one does not, the backup is restored. The legacy
 places are never edited; ``.llm_config.json`` is renamed ``.imported`` once all
@@ -179,10 +180,18 @@ def run(config: str | None, *, dry_run: bool, non_interactive: bool = False) -> 
     print(f"m3 config import-env: {loc.file}")
     for line in lines:
         print(line)
-    if secrets:
-        print("  [i] secrets found (not imported here; never written to m3_config.toml):")
-        for f in sorted(secrets, key=lambda f: (f.name, f.where)):
-            print(f"        {f.name} in {f.where}")
+    from m3_core.secret_store import SecretsFileError
+
+    from m3_memory.install.import_secrets import import_secrets
+
+    try:
+        for line in import_secrets(
+            secrets, interactive=console_has_person() and not (dry_run or non_interactive), dry_run=dry_run
+        ):
+            print(line)
+    except (OSError, SecretsFileError) as e:
+        print(f"observed: import-env could not store a secret: {e}; inspect: `m3 doctor --verbose`", file=sys.stderr)
+        return 2
     if not chosen:
         print("  nothing to import")
         return 0

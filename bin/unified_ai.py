@@ -7,7 +7,7 @@ endpoint during high-volume enrichment runs (April-May 2026).
 
 Usage:
     from unified_ai import UnifiedAI
-    cli = UnifiedAI(gemini_key=os.environ["GEMINI_API_KEY"])
+    cli = UnifiedAI(gemini_key=get_api_key("GEMINI_API_KEY"))  # auth_utils
     text = cli.chat(
         "gemini", "gemini-2.5-flash",
         messages=[{"role": "system", "content": "..."},

@@ -16,6 +16,7 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
 import migrate_pg  # noqa: E402
+from m3_core.secret_store import set_secret  # noqa: E402
 
 
 class TestDiscovery:
@@ -64,8 +65,8 @@ class TestValidation:
 
 class TestDsnGuard:
     def test_forbidden_host_refused(self, monkeypatch):
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.7:5432/db")
-        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.7")
+        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.7")  # before the snapshot set_secret builds
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.7:5432/db")
         # Match the REFUSED HOST, not the env var name: M3_PG_FORBIDDEN_HOSTS is
         # an input to this test, so a message that merely echoed it for some
         # unrelated reason would still pass. The host is what the guard decided.
@@ -82,7 +83,7 @@ class TestDsnGuard:
         # PG_URL (the warehouse var) must not satisfy the primary runner.
         for v in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
             monkeypatch.delenv(v, raising=False)
-        monkeypatch.setenv("PG_URL", "postgresql://warehouse/cdw")
+        set_secret("PG_URL", "postgresql://warehouse/cdw")
         with pytest.raises(SystemExit):
             migrate_pg._resolve_dsn()
 

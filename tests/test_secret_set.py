@@ -20,7 +20,11 @@ def keyring(monkeypatch):
 
     store: dict[str, str] = {}
     monkeypatch.setattr(auth_utils, "_keyring_store", lambda name, value: store.__setitem__(name, value))
-    monkeypatch.setattr(auth_utils, "_keyring_tier", lambda name: (store.get(name), None))
+    monkeypatch.setattr(
+        auth_utils,
+        "_keyring_tier",
+        lambda name, *, service="system": (store.get(name) if service == "system" else None, None),
+    )
     return store
 
 
@@ -50,15 +54,18 @@ def test_the_value_is_asked_for_and_stored_in_the_file(person, capsys):
     assert "m3 now asks for the value" in out and "hunter2" not in out
 
 
-def test_keyring_moves_it_out_of_the_file(person, keyring, capsys):
-    from m3_core.secret_store import get_secret, set_secret
+def test_keyring_moves_it_out_of_the_file_and_leaves_a_pointer(person, keyring, capsys):
+    """The file keeps listing the secret (m3 0be66297): a pointer replaces the value."""
+    from m3_core.secret_store import KeyringRef, explain_named_secret, get_secret, read_secret_entries, set_secret
 
     set_secret(NAME, "postgresql://old@h/db")
     person += [VALUE, VALUE]
     assert _run(keyring_flag=True) == 0
     assert keyring[NAME] == VALUE and get_secret(NAME) is None
+    assert read_secret_entries()[NAME] == KeyringRef("system", NAME)
+    assert explain_named_secret(NAME).value == VALUE, "the pointer must resolve to the keyring copy"
     out = capsys.readouterr().out
-    assert "read back OK" in out and "removed its value" in out and "hunter2" not in out
+    assert "read back OK" in out and "value line there was replaced" in out and "hunter2" not in out
 
 
 @pytest.mark.parametrize("answers", [["", ""], [VALUE, VALUE + "x"]], ids=["empty", "mismatch"])

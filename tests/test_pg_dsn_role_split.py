@@ -1,8 +1,9 @@
-"""PG_URL split-by-role: resolvers, deprecation, and primary-store safeguards.
+"""PG_URL split-by-role: resolvers and primary-store safeguards.
 
-No database needed — these are pure env-resolution + guard tests. They lock in
-the invariant that killed the footgun: the primary store and the data-warehouse
-resolve from DISJOINT env vars, so neither can silently arm the other.
+No database needed. They lock in the invariant that killed the footgun: the
+primary store and the data-warehouse resolve from DISJOINT stored names, so
+neither can silently arm the other. Secrets come from the (sandboxed) secrets
+file, never the environment (m3 9cbed0af).
 """
 
 from __future__ import annotations
@@ -16,59 +17,45 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
 from m3_core import paths as _paths  # noqa: E402
+from m3_core.secret_store import set_secret  # noqa: E402
 
 from conftest import simulate_os
 
 
 @pytest.fixture(autouse=True)
 def _clear_pg_env(monkeypatch):
-    for v in ("M3_PRIMARY_PG_URL", "M3_PG_URL", "M3_CDW_PG_URL", "PG_URL", "M3_PG_FORBIDDEN_HOSTS"):
-        monkeypatch.delenv(v, raising=False)
-    # reset the one-time deprecation-warning latch so each test sees a fresh warn
-    _paths._reset_pg_url_deprecation_state_for_tests()
+    monkeypatch.delenv("M3_PG_FORBIDDEN_HOSTS", raising=False)
     yield
 
 
 class TestPrimaryResolver:
-    def test_prefers_primary_specific_var(self, monkeypatch):
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://p/primary")
-        monkeypatch.setenv("M3_PG_URL", "postgresql://p/legacy")
+    def test_reads_the_stored_primary_dsn(self):
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://p/primary")
         assert _paths.resolve_primary_pg_dsn() == "postgresql://p/primary"
 
-    def test_falls_back_to_m3_pg_url(self, monkeypatch):
+    def test_never_reads_the_environment(self, monkeypatch):
+        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://p/env")
         monkeypatch.setenv("M3_PG_URL", "postgresql://p/legacy")
-        assert _paths.resolve_primary_pg_dsn() == "postgresql://p/legacy"
-
-    def test_never_reads_pg_url(self, monkeypatch):
-        """The whole point: a warehouse PG_URL must not reach the primary store."""
-        monkeypatch.setenv("PG_URL", "postgresql://warehouse/cdw")
         assert _paths.resolve_primary_pg_dsn() is None
         assert _paths.resolve_primary_pg_dsn("fallback") == "fallback"
 
-    def test_never_reads_cdw_var(self, monkeypatch):
-        monkeypatch.setenv("M3_CDW_PG_URL", "postgresql://warehouse/cdw")
+    def test_never_reads_the_warehouse_dsn(self):
+        """The whole point: a warehouse DSN must not reach the primary store."""
+        set_secret("M3_CDW_PG_URL", "postgresql://warehouse/cdw")
+        set_secret("PG_URL", "postgresql://warehouse/legacy")
         assert _paths.resolve_primary_pg_dsn() is None
 
 
 class TestCdwResolver:
-    def test_prefers_cdw_var(self, monkeypatch):
-        monkeypatch.setenv("M3_CDW_PG_URL", "postgresql://w/cdw")
-        monkeypatch.setenv("PG_URL", "postgresql://w/legacy")
+    def test_prefers_the_cdw_name_over_the_older_pg_url(self):
+        set_secret("PG_URL", "postgresql://w/legacy")
+        assert _paths.resolve_cdw_pg_dsn() == "postgresql://w/legacy"
+        set_secret("M3_CDW_PG_URL", "postgresql://w/cdw")
         assert _paths.resolve_cdw_pg_dsn() == "postgresql://w/cdw"
 
-    def test_falls_back_to_deprecated_pg_url_and_warns(self, monkeypatch, caplog):
-        monkeypatch.setenv("PG_URL", "postgresql://w/legacy")
-        import logging
-
-        with caplog.at_level(logging.WARNING, logger="M3_SDK"):
-            assert _paths.resolve_cdw_pg_dsn() == "postgresql://w/legacy"
-        assert any("PG_URL" in r.message and "M3_CDW_PG_URL" in r.message for r in caplog.records)
-        # and it is recorded for `m3 doctor`
-        assert _paths.deprecated_env_in_use().get("PG_URL") == "M3_CDW_PG_URL"
-
-    def test_never_reads_m3_pg_url(self, monkeypatch):
-        """The warehouse must not read the primary-store var either."""
-        monkeypatch.setenv("M3_PG_URL", "postgresql://p/primary")
+    def test_never_reads_the_primary_dsn(self):
+        """The warehouse must not read the primary-store secret either."""
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://p/primary")
         assert _paths.resolve_cdw_pg_dsn() is None
 
 
@@ -90,8 +77,8 @@ class TestInstallHardFail:
         monkeypatch.setenv("PG_URL", "postgresql://w/legacy")
         with pytest.raises(RuntimeError) as ei:
             _paths.assert_no_deprecated_pg_url_on_install()
-        assert "M3_CDW_PG_URL" in str(ei.value)
-        assert "M3_PRIMARY_PG_URL" in str(ei.value)
+        assert "m3 secret set M3_CDW_PG_URL" in str(ei.value)
+        assert "postgresql://w/legacy" not in str(ei.value)
 
     def test_noop_when_unset(self):
         _paths.assert_no_deprecated_pg_url_on_install()  # must not raise
@@ -101,7 +88,7 @@ class TestInstallerMultiLocationScan:
     """The installer's scanner must find PG_URL in EVERY common location and
     report them all at once — not stop at the first hit."""
 
-    def test_finds_env_and_config_and_shell_profile_together(self, monkeypatch, tmp_path):
+    def test_finds_env_and_config_and_shell_profile_together(self, monkeypatch, tmp_path, capsys):
         from m3_memory import installer as I
 
         # 1. live env
@@ -132,13 +119,11 @@ class TestInstallerMultiLocationScan:
         assert str(home / ".zshenv") in locs
         assert len(locs) == 3
 
-        with pytest.raises(RuntimeError) as ei:
-            I._assert_no_deprecated_pg_url_anywhere()
-        msg = str(ei.value)
-        assert "3 location" in msg or "location(s)" in msg
-        assert str(settings) in msg and str(home / ".zshenv") in msg
+        I._note_deprecated_pg_url_anywhere()  # named in one pass, never a refusal
+        msg = capsys.readouterr().out
+        assert str(settings) in msg and str(home / ".zshenv") in msg and "import-env" in msg
 
-    def test_clean_when_nowhere_set(self, monkeypatch, tmp_path):
+    def test_clean_when_nowhere_set(self, monkeypatch, tmp_path, capsys):
         from m3_memory import installer as I
 
         monkeypatch.delenv("PG_URL", raising=False)
@@ -152,7 +137,8 @@ class TestInstallerMultiLocationScan:
         simulate_os(monkeypatch, "Linux")
 
         assert I._find_deprecated_pg_url_locations() == []
-        I._assert_no_deprecated_pg_url_anywhere()  # must not raise
+        I._note_deprecated_pg_url_anywhere()
+        assert "PG_URL" not in capsys.readouterr().out
 
     def test_windows_registry_user_scope_detected(self, monkeypatch, tmp_path):
         """A persistent Windows User-scope PG_URL (registry) is surfaced, not just
@@ -198,8 +184,8 @@ class TestPrimaryBackendGuards:
     """Forbidden-host + same-as-warehouse guards in postgres_backend._resolve_dsn."""
 
     def test_forbidden_host_rejected(self, monkeypatch):
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.51:5432/db")
         monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.51")
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.51:5432/db")
         from memory.backends import postgres_backend as pb
 
         with pytest.raises(RuntimeError) as ei:
@@ -207,8 +193,8 @@ class TestPrimaryBackendGuards:
         assert "forbidden host" in str(ei.value).lower()
 
     def test_forbidden_host_allows_other_hosts(self, monkeypatch):
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5433/dev")
         monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.51")
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5433/dev")
         from memory.backends import postgres_backend as pb
 
         assert pb._resolve_dsn() == "postgresql://u:p@127.0.0.1:5433/dev"
@@ -216,24 +202,24 @@ class TestPrimaryBackendGuards:
     def test_forbidden_host_no_false_positive_on_prefix(self, monkeypatch):
         # A forbidden 198.51.100.5 must NOT reject the distinct host 198.51.100.51
         # (parsed-host exact match, not substring).
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.51:5432/db")
         monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.5")
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.51:5432/db")
         from memory.backends import postgres_backend as pb
 
         assert pb._resolve_dsn() == "postgresql://u:p@198.51.100.51:5432/db"
 
     def test_forbidden_host_not_matched_inside_password(self, monkeypatch):
         # The forbidden host string appearing only in the password must not trigger.
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:198.51.100.51pw@safehost:5432/db")
         monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.51")
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://u:198.51.100.51pw@safehost:5432/db")
         from memory.backends import postgres_backend as pb
 
         assert pb._resolve_dsn() == "postgresql://u:198.51.100.51pw@safehost:5432/db"
 
     def test_same_as_warehouse_rejected(self, monkeypatch):
         same = "postgresql://u:p@127.0.0.1:5432/shared"
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", same)
-        monkeypatch.setenv("M3_CDW_PG_URL", same)
+        set_secret("M3_PRIMARY_PG_URL", same)
+        set_secret("M3_CDW_PG_URL", same)
         from memory.backends import postgres_backend as pb
 
         with pytest.raises(RuntimeError) as ei:
@@ -241,8 +227,8 @@ class TestPrimaryBackendGuards:
         assert "warehouse" in str(ei.value).lower()
 
     def test_same_host_different_db_allowed(self, monkeypatch):
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5432/primary")
-        monkeypatch.setenv("M3_CDW_PG_URL", "postgresql://u:p@127.0.0.1:5432/warehouse")
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5432/primary")
+        set_secret("M3_CDW_PG_URL", "postgresql://u:p@127.0.0.1:5432/warehouse")
         from memory.backends import postgres_backend as pb
 
         assert pb._resolve_dsn() == "postgresql://u:p@127.0.0.1:5432/primary"
@@ -250,8 +236,8 @@ class TestPrimaryBackendGuards:
     def test_same_db_rejected_despite_benign_dsn_differences(self, monkeypatch):
         # Same database, but not byte-identical: explicit vs implicit default port,
         # trailing slash, different credentials. Normalized identity must still match.
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://alice:pw1@db.host/shared")
-        monkeypatch.setenv("M3_CDW_PG_URL", "postgresql://bob:pw2@db.host:5432/shared/")
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://alice:pw1@db.host/shared")
+        set_secret("M3_CDW_PG_URL", "postgresql://bob:pw2@db.host:5432/shared/")
         from memory.backends import postgres_backend as pb
 
         with pytest.raises(RuntimeError) as ei:
@@ -262,8 +248,8 @@ class TestPrimaryBackendGuards:
         # The warehouse DSN lives in the vault under PG_URL (standard keyring
         # setup), NOT env. The same-DSN guard must still see it via the vault.
         same = "postgresql://u:p@127.0.0.1:5432/shared"
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", same)
-        # no M3_CDW_PG_URL / PG_URL in env — warehouse comes from the vault
+        set_secret("M3_PRIMARY_PG_URL", same)
+        # no M3_CDW_PG_URL / PG_URL in the secrets file: the warehouse is in the vault
         import auth_utils
         from memory.backends import postgres_backend as pb
 
@@ -278,17 +264,15 @@ class TestPrimaryBackendGuards:
         assert "same database" in str(ei.value).lower()
 
     def test_no_dsn_error_names_primary_var(self, monkeypatch):
-        # Stub the vault so the test is deterministic regardless of the machine's
-        # keyring (no M3_PRIMARY_PG_URL secret present).
-        import m3_core.context as _ctx
+        # The conftest sandbox blocks the real keyring and vault for DSN names.
         from memory.backends import postgres_backend as pb
 
-        monkeypatch.setattr(_ctx.M3Context, "get_secret", lambda self, key: None)
+        set_secret("M3_CDW_PG_URL", "postgresql://u:p@wh/cdw")  # never used for the primary
         with pytest.raises(RuntimeError) as ei:
             pb._resolve_dsn()
         msg = str(ei.value)
-        assert "M3_PRIMARY_PG_URL" in msg
-        assert "does not read PG_URL" in msg  # the anti-footgun note
+        assert "m3 secret set M3_PRIMARY_PG_URL" in msg
+        assert "never used for the primary store" in msg  # the anti-footgun note
 
 
 # ── Windows registry env migration (doctor --fix auto-writes User scope) ──────

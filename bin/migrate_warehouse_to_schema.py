@@ -53,8 +53,8 @@ _DROP_IF_PRESENT = ("sync_watermarks",)  # legacy artifact — never keep
 def _resolve_dsn(explicit: str | None) -> str:
     if explicit:
         return explicit
-    # The one DSN owner: env (M3_CDW_PG_URL > PG_URL) > keyring > secrets file >
-    # vault, so a DSN stored the way the installer stores it is found here too.
+    # The one DSN owner (the secrets file, the keyring, the vault; never env),
+    # so a DSN stored the way the installer stores it is found here too.
     from m3_core.secret_store import PgRole, explain_pg_dsn
 
     found = explain_pg_dsn(PgRole.WAREHOUSE)
@@ -62,10 +62,9 @@ def _resolve_dsn(explicit: str | None) -> str:
         return found.dsn
     hit = ("; tiers reported: " + " | ".join(found.errors)) if found.errors else ""
     print(
-        "ERROR: no warehouse DSN was found in --dsn, the environment "
-        "(M3_CDW_PG_URL, PG_URL), the keyring, the secrets file or the vault"
-        f"{hit}. Pass --dsn postgresql://user:pass@host:5432/db, or set "
-        "M3_CDW_PG_URL.",
+        "ERROR: no warehouse DSN was given with --dsn or found in the secrets file, "
+        f"the keyring or the vault{hit}. Pass --dsn postgresql://user:pass@host:5432/db, "
+        "or store it: `m3 secret set M3_CDW_PG_URL`.",
         file=sys.stderr,
     )
     sys.exit(1)

@@ -38,7 +38,9 @@ EXEMPT = {
 # 2026-10-10: 180 -> 178 (install_schedules asks the seam).
 # 2026-10-10: 178 -> 5 (the AST migration; EXEMPT files are not counted; the 5
 # left only print the platform name).
-_BUDGET = 5
+# 2026-10-12: 5 -> 4 (store_pg_dsn no longer picks a store per OS, so its
+# "not used on <platform>" message went).
+_BUDGET = 4
 
 
 def _sites(roots=("bin", "m3_memory"), base: Path = _ROOT) -> tuple[list[str], list[str]]:

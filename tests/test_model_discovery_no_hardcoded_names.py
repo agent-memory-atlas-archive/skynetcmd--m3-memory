@@ -29,6 +29,7 @@ if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
 import llm_failover as L  # noqa: E402
+from m3_core.secret_store import set_secret  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -183,7 +184,7 @@ class TestDiscoverModelSync:
 
     def test_auth_header_sent_when_token_present(self, monkeypatch):
         cap: dict = {}
-        monkeypatch.setenv("LM_API_TOKEN", "tok123")
+        set_secret("LM_API_TOKEN", "tok123")
         _fake_httpx(monkeypatch, {"data": [{"id": "m"}]}, capture=cap)
         L.discover_model_sync("http://x/v1")
         assert cap["headers"] == {"Authorization": "Bearer tok123"}

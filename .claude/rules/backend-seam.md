@@ -15,8 +15,13 @@ paths:
   then `[db] backend` in m3_config.toml. `M3_PRIMARY_PG_URL` never selects the
   backend — it only says where PostgreSQL is. A lane that sets the DSN without the selector silently tests SQLite; that
   shipped once, and a CI job titled "PostgreSQL lane" had no PG coverage.
-- **`conftest.pg_dsn()` precedence**: `M3_PRIMARY_PG_URL` > `M3_PG_URL`, and
-  **never** `PG_URL` (that is production).
+- **`conftest.pg_dsn()`** is the `pytest --m3-pg-url` option and nothing else:
+  no env fallback, and **never** a warehouse DSN (that is production). A test
+  selects PostgreSQL with `use_backend("postgres", pg_dsn())`, which writes the
+  sandbox's config and secrets files the way a user's setup does.
+- **Secrets never come from the environment** (m3 9cbed0af): the chain is the
+  secrets file, then the keyring entry it points at (or `system/NAME`), then the
+  vault. A test gives m3 a secret with `secret_store.set_secret`, not `setenv`.
 - **`requires_pg` gates on REACHABILITY**, not on the seam being PG. A DSN being
   *present* is not the cluster being *up*; treating it as such costs a connect
   timeout per test instead of a skip.

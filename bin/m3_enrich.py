@@ -121,8 +121,9 @@ async def _smoke_profile(profile: Profile) -> None:
     token = get_api_key(profile.api_key_service) or ""
     if not token and profile.api_key_service:
         sys.exit(
-            f"ERROR: env var {profile.api_key_service!r} is empty. "
-            f"Set it before running (e.g. `export {profile.api_key_service}=...`)."
+            f"ERROR: no {profile.api_key_service} secret is stored (m3 does not read secrets "
+            f"from the environment). Store it: `m3 secret set {profile.api_key_service}`, or move "
+            "it from your shell setup: `m3 config import-env`."
         )
     # Use a trivially-empty turns block; expect {observations:[]} back.
     test_block = {"session_date": "2025-01-01", "turns": []}
@@ -755,7 +756,10 @@ async def _main_async(args) -> int:
         )
     token = get_api_key(profile.api_key_service) or ""
     if not token and profile.api_key_service:
-        sys.exit(f"ERROR: env var {profile.api_key_service!r} is empty. Set it before running.")
+        sys.exit(
+            f"ERROR: no {profile.api_key_service} secret is stored. Store it: "
+            f"`m3 secret set {profile.api_key_service}` (m3 does not read secrets from the environment)."
+        )
 
     # --embed-url / --embed-model pin the embedder (default discovery prefers LMS
     # :1234, a 1-slot server that throttles multi-stream ingest). The flags become

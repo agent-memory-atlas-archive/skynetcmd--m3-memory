@@ -89,3 +89,25 @@ def test_find_env_var_locations_is_built_on_the_sweep(home, monkeypatch):
 def test_the_sandbox_points_the_sweep_away_from_the_real_home():
     """Without the test's own fixture, the conftest guard already redirects it."""
     assert env_sources._home() != Path.home(), "the sweep would read the developer's real rc and MCP configs"
+
+
+@pytest.mark.parametrize(
+    "name, entry, ours",
+    [
+        ("memory", {"command": "py"}, True),
+        ("m3_memory", {"command": "anything"}, True),
+        ("mine", {"command": "D:/tools/pipx/venvs/m3-memory/Scripts/m3.exe"}, True),
+        ("mine", {"command": "python", "args": ["/opt/m3/bin/memory_bridge.py"]}, True),
+        ("github", {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]}, False),
+        ("m3-lookalike", {"command": "m3x"}, False),
+    ],
+)
+def test_m3s_own_mcp_entry_is_recognised_and_no_other(name, entry, ours):
+    """import-env takes a secret only from m3's own entry; another tool's key in
+    its own entry is report-only (m3 c7082b20)."""
+    assert env_sources.is_m3_server(name, entry) is ours
+
+
+def test_an_m3_lookalike_file_name_is_not_m3():
+    """The exact entry-point rule, not a substring (m3 0ed9169d)."""
+    assert not env_sources.is_m3_server("mine", {"command": "python", "args": ["/x/my_memory_bridge_wrapper.py"]})

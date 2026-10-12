@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 82fb2445130a
-mtime_utc: 2026-10-12T15:22:21.781981+00:00
-generated_utc: 2026-10-12T15:38:20.421643+00:00
+sha1: dd50d8bef46b
+mtime_utc: 2026-10-12T19:13:56.187021+00:00
+generated_utc: 2026-10-12T19:14:09.418861+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1043)
+- `def main()` (line 1047)
 - `if __name__ == "__main__"` guard
 
 ---

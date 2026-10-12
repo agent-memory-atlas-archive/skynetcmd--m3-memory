@@ -38,7 +38,7 @@
   - `tasklist | findstr python` (Windows)
 
 ### PostgreSQL sync failures
-- **Check**: Scheduled jobs do not see your shell's environment. Store the warehouse DSN in m3's vault under `PG_URL` (`python <payload>/bin/setup_secret.py`); `M3_CDW_PG_URL` in the environment overrides it for manual runs. See [SYNC.md](SYNC.md#setup). If your *local* store is PostgreSQL too, `M3_PRIMARY_PG_URL` must point at the primary, not the warehouse — see [SYNC_PG_TO_PG.md](SYNC_PG_TO_PG.md).
+- **Check**: Scheduled jobs do not see your shell's environment. Store the warehouse DSN with `m3 secret set M3_CDW_PG_URL` (a vault copy under `PG_URL` also works); m3 never reads it from the environment — `m3 config import-env` moves an exported one, and `m3 doctor` names it. See [SYNC.md](SYNC.md#setup). If your *local* store is PostgreSQL too, `M3_PRIMARY_PG_URL` must point at the primary, not the warehouse — see [SYNC_PG_TO_PG.md](SYNC_PG_TO_PG.md).
 - **Check**: Confirm the PostgreSQL server is reachable from this machine.
 - **Note**: Sync is optional. m3 Memory works fully without PostgreSQL.
 

@@ -62,7 +62,7 @@ m3 setup
 `m3 setup` always keeps the store on **SQLite** (default, zero-infrastructure);
 it never configures PostgreSQL. For a PostgreSQL **primary** store, run
 `m3 install-m3 --db-backend postgres` (or set `M3_DB_BACKEND=postgres`) with a
-reachable server in `M3_PRIMARY_PG_URL`.
+reachable server whose DSN you stored with `m3 secret set M3_PRIMARY_PG_URL`.
 
 **Prefer a graphical setup?** `m3 setup --gui` opens a window with the same
 questions the terminal wizard asks (recommended defaults pre-selected), then

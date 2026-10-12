@@ -690,8 +690,8 @@ def _cmd_restore(args: argparse.Namespace) -> int:
 def _secret_set(args: argparse.Namespace) -> int:
     """`m3 secret set NAME [--keyring]`: ask for the value (hidden, twice) and
     store it in the secrets file, or with --keyring in the OS keyring (then the
-    file's value line, if any, is removed). The value is never taken from the
-    command line, and never printed."""
+    file points at it, replacing any value line). The value is never taken from
+    the command line, and never printed."""
     import getpass
 
     _bin.ensure_on_path()
@@ -699,7 +699,7 @@ def _secret_set(args: argparse.Namespace) -> int:
         SecretsFileError,
         get_secret,
         is_known_secret,
-        remove_secret,
+        read_secrets,
         secrets_file_path,
         set_secret,
         store_in_keyring,
@@ -733,11 +733,13 @@ def _secret_set(args: argparse.Namespace) -> int:
         if args.keyring:
             enc = volume_encryption(str(secrets_file_path()))
             store = enc.keyring if enc is not None else "the OS keyring"
-            store_in_keyring(name, value)
-            removed = remove_secret(name)
+            had_value = name in read_secrets()
+            where = store_in_keyring(name, value)
             print(f"stored {name} in {store} (read back OK).")
-            if removed is not None:
-                print(f"removed its value from {removed}; m3 reads the keyring for it now.")
+            print(
+                f"{secrets_file_path()} now lists {name} as {where.removeprefix('keyring:')} in the keyring"
+                + ("; its value line there was replaced." if had_value else ".")
+            )
         else:
             path = set_secret(name, value)
             if get_secret(name) != value:

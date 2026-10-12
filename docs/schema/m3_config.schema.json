@@ -1460,7 +1460,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "The user-only plaintext secrets file, for hosts where no keyring serves m3's headless jobs (CONFIG_DESIGN \u00a710). Default: <config root>/m3_secrets.toml."
+          "description": "The user-only secrets file: every m3 secret, as its value or a pointer to its OS keyring entry (CONFIG_DESIGN \u00a710). Default: <config root>/m3_secrets.toml."
         }
       }
     },

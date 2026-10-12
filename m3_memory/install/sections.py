@@ -975,6 +975,67 @@ def _secrets_file_disk_encryption(path: str, *, brief: bool = False) -> None:
         print(f"        m3 secret set {name} --keyring")
 
 
+def _secrets_in_env_section(brief: bool = False) -> None:
+    """Name m3 secrets still set in the environment, rc files, `.env`, the
+    Windows registry or MCP env blocks, which m3 no longer reads (m3 9cbed0af).
+    [!] for one m3 cannot resolve from the secrets file or keyring: that feature
+    is off until it is stored. [i] for a leftover plaintext copy of one it does
+    resolve. Another tool's key in its own MCP entry is listed under --verbose
+    only, by name and file (m3 c7082b20). Names and places only, never values."""
+    try:
+        _bin.ensure_on_path()
+        from m3_core.config import REGISTRY, KeyClass
+        from m3_core.secret_store import explain_named_secret
+
+        from m3_memory.install.env_sources import scan
+
+        unchecked: list[str] = []
+        found = scan([n for k in REGISTRY if k.klass is KeyClass.SECRET for n in k.env_names], unchecked=unchecked)
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not check where secrets are still set: {e}")
+        return
+    ours: dict[str, list] = {}
+    others = []
+    for f in found:
+        if not f.value.strip():
+            continue
+        if f.kind == "mcp" and not f.m3_server:
+            others.append(f)
+            continue
+        key = REGISTRY.by_env(f.name)
+        if key is not None:
+            ours.setdefault(key.name, []).append(f)
+    if not ours and (brief or not (others or unchecked)):
+        return
+    unresolved = sorted(n for n in ours if not explain_named_secret(n).value)
+    leftover = sorted(n for n in ours if n not in unresolved)
+    print()
+    if brief:
+        if unresolved:
+            print(
+                f"  [!] {', '.join(unresolved)}: set only in the environment or startup files, which m3 no "
+                "longer reads for secrets; `m3 config import-env` stores them (`m3 doctor --verbose` lists where)."
+            )
+        if leftover:
+            print(
+                f"  [i] {len(leftover)} secret(s) m3 reads from the secrets file or keyring also have plaintext "
+                "copies in the environment or startup files; `m3 doctor --verbose` lists where."
+            )
+        return
+    for name in unresolved:
+        print(f"  [!] {name} is set only where m3 no longer reads secrets, so m3 runs without it:")
+        print(f"        {', '.join(sorted({f'{f.place} ({f.name})' for f in ours[name]}))}")
+        print(f"      fix: `m3 config import-env` (moves it), or `m3 secret set {name}` (prompts).")
+    for name in leftover:
+        print(f"  [i] {name}: plaintext copies m3 does not read; remove them once nothing else does:")
+        print(f"        {', '.join(sorted({f'{f.place} ({f.name})' for f in ours[name]}))}")
+    for f in sorted(others, key=lambda f: (f.name, f.place)):
+        print(f"  [i] {f.name} in {f.place}: another tool's key; m3 leaves it there.")
+    for u in sorted(set(unchecked)):
+        print(f"  [i] could not check {u} for secrets; inspect it by hand.")
+
+
 def _interrupted_rewrite_section() -> None:
     """Name each file whose last rewrite began and never finished (a BEGIN with
     no END in its .backup_history), with the restore. Silent when none."""
@@ -992,27 +1053,6 @@ def _interrupted_rewrite_section() -> None:
         print()
         print(f"  [!] a rewrite of {path} by {by} began {began} and did not finish;")
         print(f"      the file may be incomplete. restore: copy {bak} over {path.name} (details: {history})")
-
-
-def _plaintext_dsn_section() -> None:
-    """Name each plaintext primary-DSN copy in the registry or shell profile.
-
-    Installs before D2 (2026-10-08) wrote M3_PRIMARY_PG_URL there in plaintext.
-    The install no longer does, and leaves old copies in place; this is where
-    they surface. Says nothing on a clean setup.
-    """
-    from m3_memory import installer as _I  # lazy: installer imports this module
-
-    notes = _I._legacy_plaintext_dsn_notes()
-    if not notes:
-        return
-    print()
-    for note in notes:
-        print(f"  {note}")
-    print(
-        "      The DSN belongs in the keyring or the user-only secrets file: "
-        "`python -m keyring set system M3_PRIMARY_PG_URL` (prompts for it)."
-    )
 
 
 def _deprecated_env_section() -> None:

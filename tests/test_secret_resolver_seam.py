@@ -12,6 +12,8 @@ import re
 import sys
 from pathlib import Path
 
+from m3_core.secret_store import set_secret  # noqa: E402
+
 _ROOT = Path(__file__).resolve().parents[1]
 _BIN = _ROOT / "bin"
 for _p in (str(_ROOT), str(_BIN)):
@@ -26,8 +28,8 @@ def test_m3_sdk_exposes_get_secret(monkeypatch):
     import m3_sdk
 
     assert callable(m3_sdk.get_secret)
-    monkeypatch.setenv("SOME_TEST_SECRET", "s3cr3t")
-    assert m3_sdk.get_secret("SOME_TEST_SECRET") == "s3cr3t"
+    set_secret("OPENCLAW_GATEWAY_TOKEN", "s3cr3t")  # the secrets file accepts m3's names only
+    assert m3_sdk.get_secret("OPENCLAW_GATEWAY_TOKEN") == "s3cr3t"
 
 
 def test_get_secret_lm_alias(monkeypatch):
@@ -35,7 +37,7 @@ def test_get_secret_lm_alias(monkeypatch):
     import m3_sdk
 
     monkeypatch.delenv("LM_API_TOKEN", raising=False)
-    monkeypatch.setenv("LM_STUDIO_API_KEY", "tok-alias")
+    set_secret("LM_API_TOKEN", "tok-alias")
     assert m3_sdk.get_secret("LM_API_TOKEN") == "tok-alias"
 
 
@@ -71,7 +73,7 @@ def test_extract_endpoint_override_wins(m3_settings):
 
 
 def test_llm_auth_headers_resolves_token(monkeypatch):
-    monkeypatch.setenv("LM_API_TOKEN", "tok-xyz")
+    set_secret("LM_API_TOKEN", "tok-xyz")
     from files_memory.config import llm_auth_headers
 
     assert llm_auth_headers() == {"Authorization": "Bearer tok-xyz"}

@@ -122,12 +122,100 @@ def test_an_unparseable_value_is_skipped_with_its_source(world, capsys):
     assert "'lots'" in out and ".bashrc" in out
 
 
-def test_a_secret_is_listed_never_written_or_shown(world, capsys):
-    _rc(world, 'export M3_PRIMARY_PG_URL="postgresql://u:s3cret@h/db"\n')
+def _secrets():
+    from m3_core.secret_store import read_secret_entries
+
+    return read_secret_entries()
+
+
+def test_a_secret_goes_to_the_secrets_file_never_the_config_or_stdout(world, capsys):
+    """Slice 3 (m3 a8083888): stored, read back, under the registry name (the
+    M3_PG_URL alias stores as M3_PRIMARY_PG_URL); never shown, never in
+    m3_config.toml or its backup."""
+    _rc(world, 'export M3_PG_URL="postgresql://u:s3cret@h/db"\n')
+    assert _run(world, "--dry-run") == 0
+    assert _secrets() == {} and "would store M3_PRIMARY_PG_URL" in capsys.readouterr().out
     assert _run(world) == 0
     out = capsys.readouterr().out
-    assert "M3_PRIMARY_PG_URL" in out and "s3cret" not in out
-    assert "s3cret" not in (world["cfg"].read_text(encoding="utf-8") if world["cfg"].exists() else "")
+    assert _secrets() == {"M3_PRIMARY_PG_URL": "postgresql://u:s3cret@h/db"}
+    assert "stored M3_PRIMARY_PG_URL" in out and ".bashrc" in out and "s3cret" not in out
+    for f in world["cfg"].parent.glob("m3_config.toml*"):
+        assert "s3cret" not in f.read_text(encoding="utf-8"), f
+    assert _run(world) == 0 and "[=] M3_PRIMARY_PG_URL: listed in" in capsys.readouterr().out
+
+
+def test_a_secret_only_in_this_process_is_listed_not_stored(world, capsys, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-process-only-1234567890")
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert _secrets() == {}
+    assert "ANTHROPIC_API_KEY: set only in this process's environment" in out and "sk-process" not in out
+
+
+def test_another_tools_mcp_entry_is_never_a_source_but_m3s_own_is(world, capsys, monkeypatch):
+    import json
+
+    from m3_memory import installer
+
+    cfg = world["home"] / "client.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "other-tool": {"command": "npx", "env": {"OPENAI_API_KEY": "sk-other-tool-0123456789"}},
+                    "memory": {"command": "m3", "env": {"GEMINI_API_KEY": "gm-m3s-own-0123456789"}},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(installer, "_client_config_sources", lambda: {"Client": [cfg]})
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert _secrets() == {"GEMINI_API_KEY": "gm-m3s-own-0123456789"}
+    assert "OPENAI_API_KEY in" in out and "belongs to another tool" in out and "sk-other" not in out
+
+
+def test_a_secret_in_the_keyring_becomes_a_pointer(world, capsys, monkeypatch):
+    import auth_utils
+    from m3_core.secret_store import KeyringRef
+
+    held = {"XAI_API_KEY": "xai-in-the-keyring-0123"}
+    monkeypatch.setattr(auth_utils, "_keyring_tier", lambda k, *, service="system": (held.get(k), None))
+    _rc(world, "export XAI_API_KEY=xai-a-legacy-copy-0123\n")
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert _secrets() == {"XAI_API_KEY": KeyringRef("system", "XAI_API_KEY")}
+    assert "now points at keyring system/XAI_API_KEY" in out and "legacy copies" in out and "xai-" not in out
+
+
+def test_disagreeing_copies_store_nothing_without_a_person_and_masked_with_one(world, capsys, monkeypatch):
+    from m3_memory.install import import_env
+
+    _rc(world, "export OPENAI_API_KEY=sk-from-bashrc-0123456789\n")
+    (world["cwd"] / ".env").write_text("OPENAI_API_KEY=sk-from-dotenv-0123456789\n", encoding="utf-8")
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert _secrets() == {} and "disagree; nothing stored" in out and "m3 secret set OPENAI_API_KEY" in out
+    assert "sk-from" not in out
+
+    monkeypatch.setattr(import_env, "console_has_person", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "2")
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert "sk-f***89" in out and "sk-from-" not in out, out  # masked choices only
+    assert _secrets() == {"OPENAI_API_KEY": "sk-from-dotenv-0123456789"}  # sorted: bashrc, dotenv
+
+
+def test_a_listed_secret_is_left_and_a_differing_copy_named(world, capsys):
+    from m3_core.secret_store import set_secret
+
+    set_secret("GEMINI_API_KEY", "gm-in-the-file-0123456789")
+    _rc(world, "export GEMINI_API_KEY=gm-an-old-copy-0123456789\n")
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert _secrets() == {"GEMINI_API_KEY": "gm-in-the-file-0123456789"}
+    assert "copies that differ, which m3 no longer reads" in out and ".bashrc" in out
 
 
 def test_an_existing_file_is_backed_up_with_a_history_section(world):

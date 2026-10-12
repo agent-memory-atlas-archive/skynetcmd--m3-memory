@@ -356,6 +356,32 @@ the policy is forward-going only.
 
 ### Changed
 
+- **m3 no longer reads secrets from environment variables.** DSNs, API keys,
+  tokens and the vault master key come from the user-only secrets file, then
+  the OS keyring entry the file names (or `system/<NAME>` when the file does not
+  list it), then the encrypted vault where allowed.
+  - **The secrets file lists every secret:** `NAME = "value"`, or
+    `NAME = { keyring = "service/key" }` for one kept in the keyring.
+  - **New secrets go to the file on every OS**, including the PostgreSQL DSN
+    setup stores. `m3 secret set NAME --keyring` stores one in the keyring
+    instead and points the file at it.
+  - **`m3 config import-env` moves them** from shell startup files, `.env`, the
+    Windows persistent environment, m3's own MCP entries and
+    `.llm_config.json`. A secret already in the keyring becomes a pointer.
+    Copies that disagree are offered masked to a person at the console, or
+    listed and skipped. A secret set only in the current shell is listed, not
+    stored; another tool's MCP entry is left alone. `m3 upgrade` runs it.
+  - **`m3 doctor` names secrets set only where m3 no longer looks**, and
+    leftover plaintext copies (`--verbose` lists the places, never values).
+  - **Install no longer refuses to run while the old `PG_URL` is set;** it
+    names where, and `import-env` stores it as `M3_CDW_PG_URL`.
+  - **A named store's `dsn_secret` can be stored in the secrets file.**
+
+  **Affected:** installs that set a DSN, API key or token in the environment,
+  a shell profile, `.env`, an MCP env block or the Windows registry ·
+  **Action:** run `m3 upgrade` (or `m3 config import-env`), then `m3 doctor` ·
+  **Data status:** none; legacy copies are left in place.
+
 - **Each file m3 rewrites keeps `<name>.bak` and `<name>.backup_history`.**
   - **`<name>.bak`** is the file exactly as it was before the latest change;
     restoring is copying it back.

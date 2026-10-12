@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 from m3_core.dsn import DsnParts, parse_pg_dsn
+from m3_core.secret_store import set_secret  # noqa: E402
 
 _SECRET = "s3cr3t-pw"
 
@@ -58,7 +59,7 @@ def test_store_identity_never_carries_the_password():
 def test_the_warehouse_guard_sees_through_the_keyword_form(monkeypatch):
     from memory.backends.postgres_backend import _reject_same_as_warehouse
 
-    monkeypatch.setenv("M3_CDW_PG_URL", f"postgresql://wh:{_SECRET}@wh.example:5432/cdw")
+    set_secret("M3_CDW_PG_URL", f"postgresql://wh:{_SECRET}@wh.example:5432/cdw")
     with pytest.raises(RuntimeError, match="SAME database as the warehouse") as e:
         _reject_same_as_warehouse(f"host=wh.example dbname=cdw user=me password={_SECRET}")
     assert _SECRET not in str(e.value)

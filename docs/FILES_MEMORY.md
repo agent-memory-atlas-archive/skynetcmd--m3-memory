@@ -131,12 +131,13 @@ Fact extraction (and the LLM summarizer) read these env vars:
 | `M3_FILES_EXTRACT_URL` | Base URL of an OpenAI-compatible chat endpoint, **without** the `/v1` suffix (the code appends `/v1/chat/completions`). E.g. `http://127.0.0.1:1234`. If unset, extraction is unavailable and ingest falls back to extractive summaries. |
 | `M3_FILES_EXTRACT_MODEL` | Model id to request. E.g. `mistralai/ministral-3-14b-reasoning`. Default `qwen3-4b-instruct`. |
 | `M3_FILES_SUMMARY_URL` / `M3_FILES_SUMMARY_MODEL` | Same, for the abstractive file/section summarizer. Falls back to `M3_LMSTUDIO_URL` if set. |
-| `LM_API_TOKEN` | **Required if your endpoint enforces auth** (LM Studio's "require API key" is on by default). Sent as `Authorization: Bearer <token>`. Stored in the OS keyring / vault — see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#api-keys--authentication). Omit for tokenless endpoints (e.g. Ollama). |
+| `LM_API_TOKEN` | **Required if your endpoint enforces auth** (LM Studio's "require API key" is on by default). Sent as `Authorization: Bearer <token>`. A secret, not an env var: store it with `m3 secret set LM_API_TOKEN` (secrets file / OS keyring) — see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#api-keys--authentication). Omit for tokenless endpoints (e.g. Ollama). |
 
 > **Auth gotcha.** An auth-enabled LM Studio silently rejects requests with no
-> `Authorization` header — extraction produces zero facts with no error. Set
-> `LM_API_TOKEN` (or disable auth in LM Studio's server settings). m3 reads the
-> token from env/keyring automatically once it's set.
+> `Authorization` header — extraction produces zero facts with no error. Store
+> `LM_API_TOKEN` with `m3 secret set LM_API_TOKEN` (or disable auth in LM Studio's
+> server settings). m3 reads it from the secrets file / keyring, never the
+> environment.
 
 Keep `temperature` at the server default of 0 for the model card — LM Studio
 resets the per-model temp slider to its UI default (often 0.8) on reload, which
@@ -155,7 +156,7 @@ makes extraction non-deterministic.
 The CLI lives in `bin/`, so run it with `bin/` on the path:
 
 ```bash
-# Point extraction at a local LM Studio (auth on -> LM_API_TOKEN must be set)
+# Point extraction at a local LM Studio (auth on -> store LM_API_TOKEN with `m3 secret set`)
 export M3_FILES_EXTRACT_URL=http://127.0.0.1:1234
 export M3_FILES_EXTRACT_MODEL=mistralai/ministral-3-14b-reasoning
 

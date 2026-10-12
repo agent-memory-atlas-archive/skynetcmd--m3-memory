@@ -1,8 +1,8 @@
 ---
 tool: bin/test_mcp_proxy.py
-sha1: cf5d95ed6d51
-mtime_utc: 2026-10-10T23:43:02.128746+00:00
-generated_utc: 2026-10-10T23:43:52.020561+00:00
+sha1: 89b3f73a9e5b
+mtime_utc: 2026-10-12T18:29:52.681063+00:00
+generated_utc: 2026-10-12T18:59:10.691513+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ Usage:
 
 ## Entry points
 
-- `async def main()` (line 246)
+- `async def main()` (line 236)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -41,12 +41,13 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `ANTHROPIC_API_KEY`
+_(none detected)_
 
 ---
 
 ## Calls INTO this repo (intra-repo imports)
 
+- `auth_utils (get_api_key)`
 - `m3_sdk (resolve_db_path)`
 
 ---
@@ -55,17 +56,16 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', 'ANTHROPIC_API_KEY', '-w']`` (line 182)
-- `subprocess.run()  → `cmd`` (line 217)
+- `subprocess.run()  → `cmd`` (line 207)
 
 **http**
 
-- `httpx.AsyncClient()` (line 64)
-- `httpx.AsyncClient()` (line 87)
+- `httpx.AsyncClient()` (line 65)
+- `httpx.AsyncClient()` (line 88)
 
 **sqlite**
 
-- `sqlite3.connect()  → `DB_PATH`` (line 75)
+- `sqlite3.connect()  → `DB_PATH`` (line 76)
 
 
 ---

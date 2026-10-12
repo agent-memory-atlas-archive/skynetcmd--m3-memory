@@ -50,7 +50,8 @@ success. m3 now refuses when the two DSNs name the same `(host, port, dbname)`.
 ## What you need
 
 1. **Both** ends are PostgreSQL: a PG primary (`M3_PRIMARY_PG_URL`) and a PG
-   warehouse (`M3_CDW_PG_URL`).
+   warehouse (`M3_CDW_PG_URL`), each stored with `m3 secret set NAME` (m3 does
+   not read either DSN from the environment).
 2. The `postgres_fdw` **extension installed on the primary** (one-time, superuser).
 3. The **sync role granted access to the warehouse schema** (`m3_warehouse`),
    one-time, on the warehouse, by a superuser.

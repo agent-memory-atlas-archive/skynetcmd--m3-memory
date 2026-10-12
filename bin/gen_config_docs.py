@@ -85,11 +85,14 @@ def render_markdown() -> str:
     lines += [
         "## Secrets",
         "",
-        "Secrets are never read from this file. Each resolves from the environment, then the "
-        "OS keyring, then the user-only secrets file (`[secrets].file`), then the encrypted "
-        "vault, except a *bootstrap* secret, which never comes from the vault.",
+        "Secrets are never read from this file, or from the environment. Each resolves from "
+        "the user-only secrets file (`[secrets].file`), then the OS keyring entry that file "
+        'names (`NAME = { keyring = "service/key" }`, or `system/NAME` when it does not list '
+        "the name), then the encrypted vault, except a *bootstrap* secret, which never comes "
+        "from the vault. Store one with `m3 secret set NAME` (add `--keyring` for the OS "
+        "keyring); `m3 config import-env` moves the ones set in the older places.",
         "",
-        "| Name | Environment names | Bootstrap | Notes |",
+        "| Name | Older environment names (`import-env` reads them) | Bootstrap | Notes |",
         "|---|---|---|---|",
     ]
     for key in secrets:

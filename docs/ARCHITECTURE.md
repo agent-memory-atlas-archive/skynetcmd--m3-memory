@@ -89,7 +89,7 @@ which is not optional there but the *only* supported path (see
 
 **L1 — Primary store** *(pluggable)*. SQLite by default: all reads and writes hit local SQLite first, WAL mode enables concurrent access, no external dependencies — the recommended default for single-user/local. The primary backend can instead be **PostgreSQL** via `M3_DB_BACKEND=postgres` + `M3_PRIMARY_PG_URL` (opt-in, chosen at install or with `mcp-memory install-m3 --db-backend postgres`), for a shared/server-hosted live store. Note: on the PostgreSQL primary, vector search is currently brute-force Rust cosine; pgvector/HNSW ANN is a future accelerator, not yet implemented.
 
-**L2 — PostgreSQL warehouse** *(optional, separate role)* provides cross-device sync. Bi-directional delta sync uses UUID-based UPSERT with watermark tracking. Syncs memories, relationships, embeddings, and encrypted secrets. Configurable via `M3_CDW_PG_URL` (`PG_URL` still works but is deprecated). This is distinct from using PostgreSQL as the L1 primary store above.
+**L2 — PostgreSQL warehouse** *(optional, separate role)* provides cross-device sync. Bi-directional delta sync uses UUID-based UPSERT with watermark tracking. Syncs memories, relationships, embeddings, and encrypted secrets. Configured by the `M3_CDW_PG_URL` secret (`m3 secret set M3_CDW_PG_URL`; a vault entry under the older name `PG_URL` still works). This is distinct from using PostgreSQL as the L1 primary store above.
 
 ---
 
@@ -522,7 +522,7 @@ All LLM features run locally by default. Cloud endpoints are opt-in.
 
 ### Credential Resolution
 
-Three-tier priority: environment variables → OS keyring → encrypted vault (AES-256, PBKDF2, 600K iterations).
+Three-tier priority: user-only secrets file (`m3_secrets.toml`) → OS keyring → encrypted vault (AES-256, PBKDF2, 600K iterations; never for bootstrap secrets). The environment is never read for a secret; `m3 secret set NAME` stores one and `m3 config import-env` migrates exported ones.
 
 ### Content Integrity
 

@@ -97,17 +97,19 @@ See [memory/migrations/README.md](../memory/migrations/README.md) and
 
 ### Q: My `requires_pg` tests all **skip** even though PostgreSQL is running. Why?
 
-The reachability probe couldn't connect from where pytest runs, so the whole suite
-skipped (the result is cached per session). Most common cause: the DSN host isn't
-actually reachable — e.g. a cluster bound loopback-only behind a flaky port forward.
-Verify with:
+First check you passed the cluster: the DSN comes only from
+`pytest --m3-pg-url=<a throwaway cluster DSN>`, never from an environment variable.
+Otherwise the reachability probe couldn't connect from where pytest runs, so the
+whole suite skipped (the result is cached per session). Most common cause: the DSN
+host isn't actually reachable — e.g. a cluster bound loopback-only behind a flaky
+port forward. Verify with:
 
 ```bash
-python -c "import psycopg2,os; psycopg2.connect(os.environ['M3_PRIMARY_PG_URL']).close(); print('reachable')"
+python -c "import psycopg2,sys; psycopg2.connect(sys.argv[1]).close(); print('reachable')" "$DSN"
 ```
 
-and point the tests at a host your machine can reach directly. Full detail (DSN env
-vars, the auto-skip-is-expected semantics, the silent-skip footgun):
+and point the tests at a host your machine can reach directly. Full detail (the
+`--m3-pg-url` option, the auto-skip-is-expected semantics, the silent-skip footgun):
 [TESTING.md → "PostgreSQL-backed tests"](TESTING.md). Maintainers keep the
 machine-specific cluster stand-up in the internal runbooks (it carries local
 credentials).

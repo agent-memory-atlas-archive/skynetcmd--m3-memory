@@ -192,6 +192,8 @@ def _detect_agents() -> AgentTargets:
         shutil.which("openclaw")
         or os.path.exists(Path.home() / ".npm-global" / "bin" / "openclaw")
         or os.path.isdir(Path.home() / ".openclaw")
+        # Presence only, as a sign OpenClaw is installed: OpenClaw reads its own
+        # token from env. m3 does not take the value from here (m3 9cbed0af).
         or os.environ.get("OPENCLAW_GATEWAY_TOKEN")
     )
     # Hermes Agent uses a file-based plugin (not MCP wiring): detection drives

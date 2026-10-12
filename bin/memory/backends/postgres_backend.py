@@ -266,16 +266,13 @@ def _reject_forbidden_host(url: str) -> None:
 def _resolve_dsn() -> str:
     """Resolve the PRIMARY-store PostgreSQL DSN, fail loud if absent.
 
-    Role-separated (see m3_core.paths): ``M3_PRIMARY_PG_URL`` > ``M3_PG_URL`` >
-    encrypted vault. It NEVER reads ``PG_URL`` or any CDW/warehouse var — the
-    warehouse DSN must not reach the primary store. The resolved DSN is then
+    The secrets chain under the PRIMARY role's name only (``M3_PRIMARY_PG_URL``:
+    the secrets file, the keyring, the vault as a deprecated fallback), never
+    the environment and never the warehouse DSN. The resolved DSN is then
     checked against ``M3_PG_FORBIDDEN_HOSTS`` (the known warehouse host(s)). No
     default — selecting the postgres backend without a DSN is a configuration
     error, not a reason to silently do something else.
     """
-    # The one DSN owner: env > keyring > secrets file > vault (deprecated for the
-    # primary), under the PRIMARY role's names only, so a stored warehouse DSN
-    # (PG_URL) can never become the primary store.
     from m3_core.secret_store import PgRole, explain_pg_dsn
 
     found = explain_pg_dsn(PgRole.PRIMARY)
@@ -285,13 +282,11 @@ def _resolve_dsn() -> str:
         # to be swallowed here and reported as a missing DSN (m3 2f4bad6c).
         hit = ("; tiers reported: " + " | ".join(found.errors)) if found.errors else ""
         raise RuntimeError(
-            "observed: PostgreSQL backend selected (M3_DB_BACKEND=postgres) but no "
-            "DSN was found in the environment, the keyring, the secrets file or the "
-            f"vault{hit}. inspect: set M3_PRIMARY_PG_URL to a postgresql:// URL "
-            "(e.g. postgresql://user:pass@host:5432/dbname) or store it in the "
-            "keyring. Note: the primary store does not read PG_URL -- that is the "
-            "data-warehouse DSN (now M3_CDW_PG_URL). It reads M3_PRIMARY_PG_URL, or "
-            "M3_PG_URL as a fallback. Will not silently fall back to SQLite."
+            "observed: the PostgreSQL backend is selected but no primary DSN "
+            f"(M3_PRIMARY_PG_URL) is in the secrets file, the keyring or the vault{hit}. "
+            "fix: `m3 secret set M3_PRIMARY_PG_URL` (prompts for the postgresql:// URL). "
+            "The warehouse DSN (M3_CDW_PG_URL) is never used for the primary store. "
+            "Will not silently fall back to SQLite."
         )
     _reject_forbidden_host(url)
     _reject_same_as_warehouse(url)
@@ -316,10 +311,9 @@ def _dsn_identity(url: str) -> tuple[str, int, str] | None:
 
 
 def _resolve_warehouse_dsn_for_guard() -> str:
-    """Resolve the warehouse DSN the same way the warehouse consumers do —
-    env (M3_CDW_PG_URL > PG_URL) AND the vault key PG_URL — so the same-DSN guard
-    sees a vault-stored warehouse DSN too (the standard 'creds in keyring' setup),
-    not just an env one. Best-effort; returns '' on any failure."""
+    """Resolve the warehouse DSN the same way the warehouse consumers do (the
+    secrets chain: file, keyring, vault), so the same-DSN guard sees it wherever
+    it is stored. Best-effort; returns '' on any failure."""
     try:
         from m3_core.secret_store import PgRole, resolve_pg_dsn
 
@@ -330,19 +324,19 @@ def _resolve_warehouse_dsn_for_guard() -> str:
 
 def _resolve_store_dsn(store) -> str:
     """The DSN of a named PostgreSQL store (CONFIG_DESIGN §14). ``dsn_secret`` names a
-    BOOTSTRAP secret (§10): env, keyring, the secrets file, never the vault (it
-    lives in a store a DSN unlocks). The primary's guards apply: a forbidden host
+    BOOTSTRAP secret (§10): the secrets file, then the keyring, never the vault (it
+    lives in a store a DSN unlocks), never the environment (m3 9cbed0af). The primary's guards apply: a forbidden host
     and the warehouse DSN are refused, so a store can never become the warehouse."""
-    from m3_core.secret_store import VaultPolicy, _env_first, explain_secret
+    from m3_core.secret_store import VaultPolicy, explain_secret
 
-    found = explain_secret((store.dsn_secret,), env_hit=_env_first((store.dsn_secret,)), vault=VaultPolicy.NEVER)
+    found = explain_secret((store.dsn_secret,), vault=VaultPolicy.NEVER, env_names=(store.dsn_secret,))
     if not found.value:
         tiers = ("; tiers reported: " + " | ".join(found.errors)) if found.errors else ""
         raise RuntimeError(
             f"observed: store {store.name!r} (backend postgres) names dsn_secret "
-            f"{store.dsn_secret}, which is not set in the environment, the keyring or the "
-            f"secrets file{tiers}. inspect: `python -m keyring set system {store.dsn_secret}` "
-            f"(prompts for the DSN), or [stores.{store.name}] in m3_config.toml"
+            f"{store.dsn_secret}, which is in neither the secrets file nor the keyring{tiers}. "
+            f"fix: `m3 secret set {store.dsn_secret}` (prompts for the DSN). "
+            f"inspect: [stores.{store.name}] in m3_config.toml"
         )
     _reject_forbidden_host(found.value)
     _reject_same_as_warehouse(found.value)

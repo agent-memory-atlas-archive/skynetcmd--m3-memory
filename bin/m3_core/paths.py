@@ -175,114 +175,56 @@ def deprecated_env_in_use() -> dict[str, str]:
 # ── PostgreSQL DSN resolution: two ROLES, deliberately separated ──────────────
 # m3 uses PostgreSQL in two unrelated roles that historically read the SAME env
 # var (PG_URL / M3_PG_URL) — a footgun, because setting the warehouse DSN would
-# silently arm the primary-store path (and vice-versa). They are now separated:
+# silently arm the primary-store path (and vice-versa). They are separated:
 #
-#   * PRIMARY store   (opt-in `M3_DB_BACKEND=postgres`): a single instance's
-#     authoritative read/write DB. Env tier: `resolve_primary_pg_dsn`,
-#       M3_PRIMARY_PG_URL > M3_PG_URL. NEVER reads a CDW var.
+#   * PRIMARY store: a single instance's authoritative read/write DB, stored as
+#     the secret M3_PRIMARY_PG_URL. NEVER resolves a warehouse DSN.
 #   * CDW / WAREHOUSE (pg_sync fan-in mirror, `m3_warehouse` namespace): a shared
-#     aggregate many instances UPSERT into. Env tier: `resolve_cdw_pg_dsn`,
-#       M3_CDW_PG_URL > PG_URL(deprecated, warns).
+#     aggregate many instances UPSERT into, stored as M3_CDW_PG_URL (an older
+#     store may hold it as PG_URL).
 #
-# These two read the ENVIRONMENT ONLY. The full chain (env > keyring > secrets
-# file > vault), which is what a launchd/systemd/Task Scheduler job needs, is
-# m3_core.secret_store.resolve_pg_dsn(role) — call that, not these.
-#
-# `PG_URL` is DEPRECATED for the warehouse role: it still resolves as a last
-# resort so live sync doesn't break mid-migration, but every read warns once and
-# is recorded for `m3 doctor`, and install/upgrade HARD-FAILS if it is set (see
-# assert_no_deprecated_pg_url_on_install). Rename it to M3_CDW_PG_URL.
-#
-# The primary role does NOT accept `PG_URL` at all — a warehouse DSN can never
-# reach the primary store through env resolution.
+# Both resolve through the secrets chain (m3_core.secret_store: the secrets file,
+# the keyring, the vault) and NEVER read the environment (m3 9cbed0af). These
+# two functions are the SDK's names for it.
 
-# The canonical deprecation: old PG_URL -> the warehouse (CDW) namespace. This is
-# NOT pure M3_ namespacing (PG_URL -> M3_CDW_PG_URL, not M3_PG_URL), so it is
-# tracked here rather than in DEPRECATED_ENV_RENAMES (which is namespacing-only).
+# The canonical rename: old PG_URL -> the warehouse (CDW) name. This is NOT pure
+# M3_ namespacing (PG_URL -> M3_CDW_PG_URL, not M3_PG_URL), so it is tracked here
+# rather than in DEPRECATED_ENV_RENAMES (which is namespacing-only).
 PG_URL_DEPRECATION: tuple[str, str] = ("PG_URL", "M3_CDW_PG_URL")
 
 
-def _warn_pg_url_deprecated() -> None:
-    """One-time warning + doctor-visible record that PG_URL is set (warehouse)."""
-    old, new = PG_URL_DEPRECATION
-    _DEPRECATED_ENV_SEEN[old] = new
-    if old not in _DEPRECATED_ENV_WARNED:
-        _DEPRECATED_ENV_WARNED.add(old)
-        logger.warning(
-            "Deprecated env var %s is set; use %s instead for the data-warehouse "
-            "DSN. The old name still works for now but will be removed, and "
-            "`m3 install`/`update` will refuse to run while it is set. "
-            "(`m3 doctor --fix` renames it.)",
-            old,
-            new,
-        )
-
-
 def resolve_primary_pg_dsn(default: str | None = None) -> str | None:
-    """DSN for the PRIMARY PostgreSQL store (M3_DB_BACKEND=postgres).
+    """DSN for the PRIMARY PostgreSQL store, from the secrets chain
+    (``secret_store.resolve_pg_dsn``), else ``default``. Never a warehouse DSN,
+    never the environment."""
+    from m3_core.secret_store import PgRole, resolve_pg_dsn
 
-    Precedence: M3_PRIMARY_PG_URL > M3_PG_URL > default. Deliberately does NOT
-    read PG_URL or any M3_CDW_* var — the warehouse DSN must never reach the
-    primary store through env resolution. Env only: the stored-secret tiers are
-    in m3_core.secret_store.resolve_pg_dsn, which callers should use.
-    """
-    val = os.environ.get("M3_PRIMARY_PG_URL")
-    if val is not None:
-        return val
-    val = os.environ.get("M3_PG_URL")
-    if val is not None:
-        return val
-    return default
+    return resolve_pg_dsn(PgRole.PRIMARY) or default
 
 
 def resolve_cdw_pg_dsn(default: str | None = None) -> str | None:
-    """DSN for the CDW / data-warehouse PostgreSQL (pg_sync fan-in mirror).
+    """DSN for the CDW / data-warehouse PostgreSQL (pg_sync fan-in mirror), from
+    the secrets chain, else ``default``. Never the primary DSN, never the
+    environment."""
+    from m3_core.secret_store import PgRole, resolve_pg_dsn
 
-    Precedence: M3_CDW_PG_URL > PG_URL(deprecated) > default. Reading the legacy
-    PG_URL warns once and is recorded for `m3 doctor`. Does NOT read M3_PG_URL —
-    that is the primary-store var; a warehouse consumer that wants the old
-    behavior must set M3_CDW_PG_URL explicitly.
-    """
-    val = os.environ.get("M3_CDW_PG_URL")
-    if val is not None:
-        return val
-    val = os.environ.get("PG_URL")
-    if val is not None:
-        _warn_pg_url_deprecated()
-        return val
-    return default
-
-
-def _reset_pg_url_deprecation_state_for_tests() -> None:
-    """Clear the one-time PG_URL deprecation latch + seen-record. Test-only.
-
-    The 'warn once' behavior of ``resolve_cdw_pg_dsn`` is module-global; a test
-    that asserts the warning fires must reset this first or it gets order-dependent
-    flakiness. Exposed as a named helper so tests don't reach into private globals.
-    """
-    old, _ = PG_URL_DEPRECATION
-    _DEPRECATED_ENV_WARNED.discard(old)
-    _DEPRECATED_ENV_SEEN.pop(old, None)
+    return resolve_pg_dsn(PgRole.WAREHOUSE) or default
 
 
 def assert_no_deprecated_pg_url_on_install() -> None:
-    """Hard-fail an install/upgrade if the deprecated PG_URL env var is set.
+    """For SDK callers: raise if the old PG_URL env var is set.
 
-    Rationale: install/upgrade is the one moment the operator is present and can
-    fix config, so we force the rename here rather than letting a stale PG_URL
-    keep shadowing behavior forever. Runtime paths only warn (a hard-fail there
-    would be an outage); install is the safe place to be strict. Raises
-    RuntimeError with the exact remediation.
+    m3 itself no longer reads a DSN from the environment, so a PG_URL there is
+    a plaintext warehouse DSN m3 ignores, and an SDK caller that still exports
+    it is relying on behaviour that is gone. Raises RuntimeError with the fix.
     """
     old, new = PG_URL_DEPRECATION
     if os.environ.get(old) is not None:
         raise RuntimeError(
-            f"Deprecated env var {old} is set. It has been split by role and "
-            f"renamed: use {new} for the data-warehouse (pg_sync) DSN, or "
-            f"M3_PRIMARY_PG_URL for a PostgreSQL PRIMARY store. Unset {old} and "
-            f"set the correct one, then re-run. (See CHANGELOG: 'PG_URL split by "
-            f"role'.) Refusing to install/upgrade with an ambiguous {old} set. "
-            f"observed: {old} is set. inspect: {old}, {new}, M3_PRIMARY_PG_URL"
+            f"observed: the old env var {old} is set; m3 does not read DSNs from the environment. "
+            f"fix: store the warehouse DSN with `m3 secret set {new}` (or a PostgreSQL primary "
+            f"store with `m3 secret set M3_PRIMARY_PG_URL`), or move it with `m3 config import-env`, "
+            f"then unset {old}."
         )
 
 

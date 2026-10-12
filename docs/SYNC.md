@@ -43,22 +43,18 @@ You need:
 1. A reachable PostgreSQL server (your warehouse).
 2. Its connection string (DSN), where the scheduled sync can read it.
 
-**Store the DSN in m3's encrypted vault** under the name `PG_URL`. This is the
-recommended place: the scheduled sync runs under launchd, systemd, cron or Task
-Scheduler, none of which sees your shell's environment, but all of which can
-read the vault. Run the payload's interactive helper and enter `PG_URL` as the
-service name:
+**Store the DSN as the secret `M3_CDW_PG_URL`.** The scheduled sync runs under
+launchd, systemd, cron or Task Scheduler, none of which sees your shell's
+environment, but all of which can read m3's user-only secrets file:
 
 ```bash
-python <payload>/bin/setup_secret.py     # the payload path: `m3 doctor` prints it ("resolved bridge")
+m3 secret set M3_CDW_PG_URL     # prompts for the DSN, e.g. postgresql://user:PASSWORD@db.example.com:5432/agent_memory
 ```
 
-For a manual run you can use an environment variable instead; it takes
-precedence over the vault:
-
-```bash
-export M3_CDW_PG_URL='postgresql://user:pass@db.example.com:5432/agent_memory'   # PG_URL works too, deprecated
-```
+Add `--keyring` to keep the value in the OS keyring instead (the file then holds
+a pointer). A DSN already in m3's encrypted vault under `PG_URL` keeps working.
+m3 never reads the DSN from the environment; an `export M3_CDW_PG_URL` / `PG_URL`
+from an earlier setup is moved into the secrets file by `m3 config import-env`.
 
 Sync takes the warehouse host from the DSN. `M3_POSTGRES_SERVER` (or
 `SYNC_TARGET_IP`) is optional and only overrides the host used for the
@@ -156,9 +152,9 @@ the newer one wins. This means:
 
 ## Troubleshooting
 
-**"No warehouse configured … skipping sync"** → the job found no DSN. Store
-`PG_URL` in the vault (see Setup); an `export` in your shell rc is invisible to
-scheduled jobs.
+**"No warehouse configured … skipping sync"** → the job found no DSN. Store it
+with `m3 secret set M3_CDW_PG_URL` (see Setup); m3 does not read an `export` in
+your shell rc (`m3 config import-env` moves it).
 
 **"PostgreSQL data warehouse (host:port, from …) unreachable"** → TCP probe
 failed. Check:
@@ -190,13 +186,12 @@ or run `m3 schedules repair`.
 Setting up a second machine to sync against the same warehouse:
 
 1. Install m3 on machine B (`pipx install m3-memory && m3 setup`).
-2. Store the same warehouse DSN in B's vault as `PG_URL` (see Setup). Vault
-   rows are encrypted with a key derived from `AGENT_OS_MASTER_KEY` plus a
-   per-device salt, and sync replicates them by name — so B can decrypt a
-   replicated `PG_URL` only if it shares A's master key and salt
-   (`.agent_os_salt` in the config root, or `M3_AGENT_OS_SALT_HEX`). If it
-   doesn't, give B's scheduled job the DSN via `M3_CDW_PG_URL` in the
-   environment that job runs under instead.
+2. Store the same warehouse DSN on B with `m3 secret set M3_CDW_PG_URL` (see
+   Setup). A vault copy also works only if B can decrypt it: vault rows are
+   encrypted with a key derived from `AGENT_OS_MASTER_KEY` plus a per-device
+   salt, and sync replicates them by name — so B can decrypt a replicated
+   `PG_URL` only if it shares A's master key and salt (`.agent_os_salt` in the
+   config root, or the `M3_AGENT_OS_SALT_HEX` secret).
 3. First sync pulls everything from the warehouse — let it finish.
 4. From then on, edits on either machine appear on the other after sync.
 

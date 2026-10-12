@@ -34,6 +34,40 @@ class EnvFound:
     value: str
     where: str  # a human-readable location; for a file, its path
     kind: str  # "process" | "mcp" | "dotenv" | "rc" | "registry" | "llmfile"
+    server: str | None = None  # kind "mcp": the server entry's name
+    m3_server: bool = False  # kind "mcp": the entry runs m3 (not another tool)
+
+    @property
+    def place(self) -> str:
+        """``where``, plus the server for an MCP entry: for a person reading."""
+        return f"{self.where} (server {self.server!r})" if self.server else self.where
+
+    @property
+    def persistent(self) -> bool:
+        """Set in a place that outlives this process, and m3's own: the places
+        import-env may take a secret from (user decision, m3 a8083888). Another
+        tool's MCP entry is never one (m3 c7082b20: report only)."""
+        return self.kind != "process" and (self.kind != "mcp" or self.m3_server)
+
+
+# The server names m3 registers itself under: `claude mcp add m3_memory` and the
+# "memory" entry written for the other clients (generate_configs).
+M3_SERVER_NAMES = frozenset({"m3_memory", "memory"})
+
+
+def is_m3_server(name: str, entry: dict) -> bool:
+    """Whether an MCP server entry runs m3: one of m3's names, or a command line
+    that launches m3 by the process classifier's exact entry-point rule
+    (``m3_core.process.runs_m3``; a substring test once misread
+    ``test_memory_bridge.py`` as m3). A user's own server is never one."""
+    if name in M3_SERVER_NAMES:
+        return True
+    from m3_memory import _bin
+
+    _bin.ensure_on_path()
+    from m3_core.process import runs_m3
+
+    return bool(runs_m3([str(entry.get("command") or ""), *(str(a) for a in (entry.get("args") or []))]))
 
 
 def shell_assignment(text: str, name: str) -> str | None:
@@ -74,10 +108,10 @@ def mcp_config_files() -> list[Path]:
     return sorted(files)
 
 
-def _server_entries(data: dict) -> Iterable[dict]:
-    yield from (data.get("mcpServers") or {}).values()
+def _server_entries(data: dict) -> Iterable[tuple[str, dict]]:
+    yield from (data.get("mcpServers") or {}).items()
     for project in (data.get("projects") or {}).values():  # ~/.claude.json project scope
-        yield from ((project or {}).get("mcpServers") or {}).values()
+        yield from ((project or {}).get("mcpServers") or {}).items()
 
 
 def scan(
@@ -107,9 +141,11 @@ def scan(
         except (OSError, ValueError) as e:
             skipped.append(f"{path} ({type(e).__name__}: {e})")
             continue
-        for entry in _server_entries(data if isinstance(data, dict) else {}):
-            env_block = (entry or {}).get("env") or {}
-            out += [EnvFound(n, str(env_block[n]), str(path), "mcp") for n in wanted if n in env_block]
+        for server, entry in _server_entries(data if isinstance(data, dict) else {}):
+            entry = entry if isinstance(entry, dict) else {}
+            env_block = entry.get("env") or {}
+            ours = is_m3_server(server, entry)
+            out += [EnvFound(n, str(env_block[n]), str(path), "mcp", server, ours) for n in wanted if n in env_block]
 
     out += _dotenv_hits(wanted, skipped)
 

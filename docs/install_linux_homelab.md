@@ -95,15 +95,18 @@ This performs 6 actions automatically:
 
 ## Step 5 — Store API keys in the system keyring
 
-The `AGENT_OS_MASTER_KEY` is set during Step 4. For additional API keys, use Python's `keyring` library from inside the activated venv:
+The `AGENT_OS_MASTER_KEY` is set during Step 4. Store m3's other secrets (API keys, the warehouse DSN) with `m3 secret set` — it prompts for the value (hidden, twice); `--keyring` keeps it in the system keyring and writes a pointer into m3's secrets file (omit `--keyring` on a headless box with no Secret Service). Type only the command, never the value:
 
 ```bash
-python -c "import keyring; keyring.set_password('system', 'GROK_API_KEY', 'YOUR-KEY')"
+m3 secret set XAI_API_KEY --keyring
+m3 secret set M3_CDW_PG_URL --keyring      # homelab warehouse only
 python -c "import keyring; keyring.set_password('system', 'PERPLEXITY_API_KEY', 'YOUR-KEY')"
 ```
 
+m3 does not read its secrets from environment variables; `m3 config import-env` moves any you exported earlier.
+
 > `AGENT_OS_MASTER_KEY` is **required** for the encrypted vault.
-> Grok and Perplexity keys are only needed if you use those services.
+> The xAI (Grok) and Perplexity keys are only needed if you use those services.
 
 To verify a key was stored:
 

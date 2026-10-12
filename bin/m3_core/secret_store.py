@@ -1,12 +1,12 @@
-"""The user-only secrets file: m3's secret tier where no keyring works (CONFIG_DESIGN §10, U6 (a)).
+"""The user-only secrets file: where m3 keeps its secrets, and THE list of them.
 
-A machine with no keyring backend (a desktop-less Linux box: claude-dev has
-``fail.Keyring`` in every context, measured 2026-10-08) still needs somewhere
-for a DSN or token that is not a world-readable env var, rc line or ``.env``.
-This file is that place:
+Every OS stores secrets here (user decision, m3 c7082b20); the OS keyring holds
+one only when the person asked (`m3 secret set NAME --keyring`), and then the
+file names where it is (m3 0be66297):
 
-* ``<config root>/m3_secrets.toml`` (until ``m3_config.toml``'s ``secrets.file``
-  key exists, Phase 2C), one table, ``[secrets]``, of ``NAME = "value"``.
+* ``secrets.file`` in m3_config.toml, else ``<config root>/m3_secrets.toml``;
+  one table, ``[secrets]``, of ``NAME = "value"`` or
+  ``NAME = { keyring = "service/key" }``.
 * Created user-only (0600 via ``atomic_write``); every read REFUSES a file that
   is group/other-accessible or not owned by the running user, naming the file,
   the mode and the fix (the ssh-key rule). On Windows the same rule is applied
@@ -17,8 +17,11 @@ This file is that place:
 * Written only under ``file_lock`` (read-modify-write), never relaxing an
   existing file's mode.
 
-Resolution order lives in ``auth_utils.get_api_key``: env -> keyring -> this
-file -> vault (the vault never for a bootstrap secret, CONFIG_DESIGN §10).
+Resolution (``explain_secret``): the file's value -> the keyring entry the file
+points at, or ``system/NAME`` when the file does not list the name -> the vault
+(never for a bootstrap secret, CONFIG_DESIGN §10). The environment is NEVER read
+for a secret (user decision, m3 9cbed0af); a name found there only makes a miss
+say so, with the command that stores it.
 """
 
 from __future__ import annotations
@@ -26,13 +29,13 @@ from __future__ import annotations
 import logging
 import os
 import re
-import sys
 import tomllib
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import override
 
-from m3_core.seams import current_uid, is_macos, is_windows
+from m3_core.seams import current_uid, is_windows
 
 SECRETS_FILE_NAME = "m3_secrets.toml"
 _NAME = re.compile(r"[A-Za-z0-9_-]+")
@@ -96,9 +99,35 @@ def _check_private(p: Path) -> None:
         )
 
 
-def read_secrets() -> dict[str, str]:
-    """All secrets in the file; {} when there is no file. Raises SecretsFileError
-    for a file that exists but is unsafe or malformed (never silently empty)."""
+@dataclass(frozen=True, slots=True)
+class KeyringRef:
+    """A secrets-file entry naming where the value lives instead of holding it:
+    ``NAME = { keyring = "service/key" }`` (user decision, m3 0be66297)."""
+
+    service: str
+    key: str
+
+    @classmethod
+    def parse(cls, text: str) -> KeyringRef:
+        service, sep, key = text.partition("/")
+        if not (sep and service and key):
+            raise ValueError(f"{text!r} is not service/key")
+        return cls(service, key)
+
+    @override
+    def __str__(self) -> str:
+        return f"{self.service}/{self.key}"
+
+
+def default_keyring_ref(name: str) -> KeyringRef:
+    """Where a secret the file does not list is looked for in the keyring."""
+    return KeyringRef("system", name)
+
+
+def read_secret_entries() -> dict[str, str | KeyringRef]:
+    """Every entry in the file: a value, or a ``KeyringRef``. {} when there is no
+    file. Raises SecretsFileError for a file that exists but is unsafe or
+    malformed (never silently empty)."""
     p = secrets_file_path()
     if not os.path.isfile(p):
         return {}
@@ -110,12 +139,31 @@ def read_secrets() -> dict[str, str]:
     table = data.get("secrets", {})
     if not isinstance(table, dict):
         raise SecretsFileError(f"{p}: 'secrets' must be a [secrets] table, found {type(table).__name__}")
-    bad = sorted(k for k, v in table.items() if not isinstance(v, str))
+    out: dict[str, str | KeyringRef] = {}
+    bad: list[str] = []
+    for name, entry in table.items():
+        if isinstance(entry, str):
+            out[name] = entry
+        elif isinstance(entry, dict) and set(entry) == {"keyring"} and isinstance(entry["keyring"], str):
+            try:
+                out[name] = KeyringRef.parse(entry["keyring"])
+            except ValueError:
+                bad.append(name)
+        else:
+            bad.append(name)
     if bad:
         # Names only: a value may be the secret itself.
-        raise SecretsFileError(f'{p}: [secrets] entries must be NAME = "string"; not a string: {", ".join(bad)}')
-    _check_names(p, table)
-    return dict(table)
+        raise SecretsFileError(
+            f'{p}: [secrets] entries must be NAME = "value" or NAME = {{ keyring = "service/key" }}; '
+            f"not one of those: {', '.join(sorted(bad))}"
+        )
+    _check_names(p, out)
+    return out
+
+
+def read_secrets() -> dict[str, str]:
+    """The secrets whose VALUE is in the file (keyring pointers left out)."""
+    return {k: v for k, v in read_secret_entries().items() if isinstance(v, str)}
 
 
 def _known_secret_names() -> set[str]:
@@ -123,7 +171,22 @@ def _known_secret_names() -> set[str]:
     from m3_core.config import REGISTRY, KeyClass
 
     known = {n for k in REGISTRY if k.klass is KeyClass.SECRET for n in (k.name, *k.env_names)}
-    return known | {n for keys in _STORE_KEYS.values() for n in keys}
+    return known | {n for keys in _STORE_KEYS.values() for n in keys} | _store_dsn_secrets()
+
+
+def _store_dsn_secrets() -> set[str]:
+    """The ``dsn_secret`` each named store in m3_config.toml declares
+    (CONFIG_DESIGN §14): the secrets file is where such a DSN is kept, so the
+    name must be one the file accepts."""
+    from m3_core.config import ConfigFileError
+    from m3_core.config.resolve import ConfigEnvErrors
+    from m3_core.config.settings import current
+
+    try:
+        stores = current().stores
+    except (ConfigFileError, ConfigEnvErrors):  # secrets_file_path reports the invalid file itself
+        return set()
+    return {s.dsn_secret for s in stores.values() if s.dsn_secret}
 
 
 def _check_names(p: Path, table: dict) -> None:
@@ -151,14 +214,58 @@ def _check_names(p: Path, table: dict) -> None:
     )
 
 
+# userinfo form: scheme://user[:password]@host...
+_DSN_PASSWORD = re.compile(r"(://[^:/@]+:)[^@/]+(@)")
+
+
+def mask_dsn_passwords(text: str) -> str:
+    """``text`` with the password of every DSN in it replaced by ``***``; text
+    with no DSN credential is returned as it is. Safe for an error line."""
+    return _DSN_PASSWORD.sub(r"\1***\2", text)
+
+
+def mask_secret(value: str) -> str:
+    """A value safe to show a person choosing between copies (user decision,
+    m3 a8083888): a DSN keeps all but its password
+    (``postgresql://u:***@host/db``); anything else keeps at most its first 4
+    and last 2 characters, and nothing when it is too short for that to hide it."""
+    if "://" in value:
+        return mask_dsn_passwords(value)
+    return f"{value[:4]}***{value[-2:]} ({len(value)} chars)" if len(value) >= 16 else f"*** ({len(value)} chars)"
+
+
 def get_secret(name: str) -> str | None:
     return read_secrets().get(name)
 
 
-def _render(table: dict[str, str]) -> str:
-    from m3_core.config.toml_render import render_table
+_HEADER = (
+    'm3 secrets: user-only (0600). Values are plaintext; NAME = { keyring = "service/key" } '
+    "means the value is in the OS keyring under that entry. A secret not listed here is read "
+    'from the keyring (service "system", key NAME).'
+)
 
-    return render_table("secrets", table, header="m3 secrets: user-only (0600). Managed by m3; values are plaintext.")
+
+def _rewrite_file(p: Path, change) -> None:
+    """Apply ``change(table)`` to the [secrets] table and write the file back,
+    keeping comments, other entries and pointers (tomlkit round-trip). Call under
+    the file lock, after ``read_secret_entries()`` has checked the existing file."""
+    import tomlkit
+
+    from m3_core.atomic_io import atomic_write
+
+    if os.path.exists(p):
+        doc = tomlkit.parse(p.read_text(encoding="utf-8"))
+    else:
+        if is_windows():
+            _check_new_file_would_be_private(p.parent)
+        doc = tomlkit.document()
+        doc.add(tomlkit.comment(_HEADER))
+    table = doc.get("secrets")
+    if table is None:
+        table = tomlkit.table()
+        doc["secrets"] = table
+    change(table)
+    atomic_write(p, tomlkit.dumps(doc))
 
 
 # ── PostgreSQL DSNs: the one owner (plan 2B.1, review S5) ─────────────────────
@@ -178,7 +285,7 @@ _STORE_KEYS: dict[PgRole, tuple[str, ...]] = {
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DsnResolution:
     dsn: str  # "" when nothing resolved
-    source: str | None  # e.g. "env:M3_PRIMARY_PG_URL", "keyring:M3_PRIMARY_PG_URL"
+    source: str | None  # e.g. "secrets-file:M3_PRIMARY_PG_URL", "keyring:system/M3_PRIMARY_PG_URL"
     errors: tuple[str, ...]  # what each tier HIT on the way, for an honest "not found"
 
 
@@ -191,7 +298,7 @@ class VaultPolicy(StrEnum):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SecretResolution:
     value: str  # "" when nothing resolved
-    source: str | None  # "env:NAME", "keyring:NAME", "secrets-file:NAME", "vault:NAME"
+    source: str | None  # "secrets-file:NAME", "keyring:service/key", "vault:NAME"
     errors: tuple[str, ...]  # what each tier HIT on the way, for an honest "not found"
 
 
@@ -211,35 +318,53 @@ def vault_policy(name: str) -> VaultPolicy:
 
 
 def explain_secret(
-    store_keys: tuple[str, ...], *, env_hit: tuple[str, str] | None, vault: VaultPolicy
+    store_keys: tuple[str, ...], *, vault: VaultPolicy, env_names: tuple[str, ...] = ()
 ) -> SecretResolution:
-    """THE secret chain: env -> OS keyring -> user-only secrets file -> vault.
+    """THE secret chain: the file's value -> the OS keyring -> the vault.
 
-    ``env_hit`` is (name, value) from the caller's env reader, which owns that
-    secret's env names and their legacy warnings. ``store_keys`` are the names
-    the value is stored under in the keyring, the file and the vault. Every
-    tier's failure is collected, so a miss is never reported as "not set" when a
-    tier was broken (m3 2f4bad6c).
+    ``store_keys`` are the names the value is stored under. The keyring entry is
+    the one the file points at (``NAME = { keyring = "service/key" }``), or
+    ``system/NAME`` for a name the file does not list. The environment is never
+    read for the value (m3 9cbed0af); ``env_names`` are only looked up so that a
+    miss can say "set in the environment, which m3 does not read" and name the
+    command that stores it. Every tier's failure is collected, so a miss is never
+    reported as "not set" when a tier was broken (m3 2f4bad6c).
     """
-    if env_hit is not None and env_hit[1].strip():
-        return SecretResolution(value=env_hit[1].strip(), source=f"env:{env_hit[0]}", errors=())
+    errors: list[str] = []
+    try:
+        entries = read_secret_entries()
+    except SecretsFileError as e:
+        logging.getLogger(__name__).error(
+            "observed: the secrets file was refused while resolving %s: %s. Not read; trying the keyring and vault.",
+            ", ".join(store_keys),
+            e,
+        )
+        errors.append(f"secrets file: {e}")
+        entries = {}
+    for key in store_keys:
+        entry = entries.get(key)
+        if isinstance(entry, str) and entry.strip():
+            return SecretResolution(value=entry.strip(), source=f"secrets-file:{key}", errors=tuple(errors))
+
     try:
         import auth_utils
-    except ImportError as e:  # installer bootstrap: env is all there is
-        return SecretResolution(value="", source=None, errors=(f"secret tiers unavailable: {e}",))
+    except ImportError as e:  # installer bootstrap: the file is all there is
+        errors.append(f"keyring and vault unavailable: {e}")
+        return _miss(store_keys, env_names, errors)
 
-    errors: list[str] = []
-    tiers = (("keyring", auth_utils._keyring_tier), ("secrets-file", auth_utils._file_tier))
-    for tier, read in tiers:
-        for key in store_keys:
-            value, err = read(key)
-            if err:
-                errors.append(err)
-            if value and value.strip():
-                return SecretResolution(value=value.strip(), source=f"{tier}:{key}", errors=tuple(errors))
+    for key in store_keys:
+        entry = entries.get(key)
+        ref = entry if isinstance(entry, KeyringRef) else default_keyring_ref(key)
+        value, err = auth_utils._keyring_tier(ref.key, service=ref.service)
+        if err:
+            errors.append(err)
+        if value and value.strip():
+            return SecretResolution(value=value.strip(), source=f"keyring:{ref}", errors=tuple(errors))
+        if isinstance(entry, KeyringRef):
+            errors.append(f"secrets file: {key} points at keyring {ref}, which holds no value")
     if vault is VaultPolicy.NEVER:
         errors.append(f"vault: not consulted for {', '.join(store_keys)} (a bootstrap secret)")
-        return SecretResolution(value="", source=None, errors=tuple(errors))
+        return _miss(store_keys, env_names, errors)
     for key in store_keys:
         value, err = auth_utils._vault_tier(key)
         if err:
@@ -249,34 +374,55 @@ def explain_secret(
                 logging.getLogger(__name__).warning(
                     "observed: %s came from the encrypted vault, which is deprecated for it: it is "
                     "a bootstrap secret, and the vault lives in the store it unlocks. It still "
-                    "works; the vault fallback is removed at N+3. fix: `python -m keyring set "
-                    "system %s` (prompts for the value, so it stays out of shell history), or set "
-                    "%s in the environment of every m3 process.",
-                    key,
+                    "works; the vault fallback is removed at N+3. fix: `m3 secret set %s` "
+                    "(prompts for the value, so it stays out of shell history).",
                     key,
                     key,
                 )
             return SecretResolution(value=value.strip(), source=f"vault:{key}", errors=tuple(errors))
+    return _miss(store_keys, env_names, errors)
+
+
+def _miss(store_keys: tuple[str, ...], env_names: tuple[str, ...], errors: list[str]) -> SecretResolution:
+    """Nothing resolved. A name set in the environment is named (never its
+    value): m3 no longer reads it there, and that is the likeliest reason."""
+    in_env = [n for n in env_names if (os.environ.get(n) or "").strip()]
+    if in_env:
+        errors.append(
+            f"{', '.join(in_env)} is set in the environment, which m3 does not read for secrets; "
+            f"store it: `m3 secret set {store_keys[0]}` (prompts), or `m3 config import-env` "
+            "(moves it from your rc files, .env, MCP config and registry)"
+        )
     return SecretResolution(value="", source=None, errors=tuple(errors))
 
 
-def _env_first(names: tuple[str, ...]) -> tuple[str, str] | None:
-    """The first of ``names`` set to a non-blank value in the environment."""
-    for n in names:
-        v = os.environ.get(n)
-        if v is not None and v.strip():
-            return n, v
-    return None
-
-
-# A registry secret that is a role DSN resolves through its role, which owns the
-# role's env names and the PG_URL deprecation warning.
+# A registry secret that is a role DSN resolves through its role.
 _DSN_ROLE = {"M3_PRIMARY_PG_URL": PgRole.PRIMARY, "M3_CDW_PG_URL": PgRole.WAREHOUSE}
+# The env names that once held each role's DSN: read for the miss message only.
+_DSN_ENV_NAMES: dict[PgRole, tuple[str, ...]] = {
+    PgRole.PRIMARY: ("M3_PRIMARY_PG_URL", "M3_PG_URL"),
+    PgRole.WAREHOUSE: ("M3_CDW_PG_URL", "PG_URL"),
+}
+
+
+def store_keys_for(name: str) -> tuple[str, ...]:
+    """The names a secret's value may be stored under, its own name first (the
+    warehouse DSN may sit under the older PG_URL)."""
+    role = _DSN_ROLE.get(name)
+    return _STORE_KEYS[role] if role is not None else (name,)
+
+
+def keyring_value(ref: KeyringRef) -> tuple[str | None, str | None]:
+    """(value, error) of one keyring entry: the keyring tier, for a caller that
+    is not resolving a secret but asking where one lives (import-env, doctor)."""
+    import auth_utils
+
+    return auth_utils._keyring_tier(ref.key, service=ref.service)
 
 
 def explain_named_secret(name: str) -> SecretResolution:
-    """Resolve one secret by name: a registry key with its env names, or a
-    dynamic ``get_secret(service)`` name standing for itself."""
+    """Resolve one secret by name: a registry key, or a dynamic
+    ``get_api_key(service)`` name standing for itself."""
     role = _DSN_ROLE.get(name)
     if role is not None:
         d = explain_pg_dsn(role)
@@ -285,26 +431,14 @@ def explain_named_secret(name: str) -> SecretResolution:
 
     key = REGISTRY.get(name)
     env_names = key.env_names if key is not None and key.env_names else (name,)
-    return explain_secret((name,), env_hit=_env_first(env_names), vault=vault_policy(name))
+    return explain_secret((name,), vault=vault_policy(name), env_names=env_names)
 
 
 def explain_pg_dsn(role: PgRole) -> DsnResolution:
     """Resolve a role's DSN and say where it came from, or why nothing did.
-
-    Env comes from the role's own variables via m3_core.paths, which owns their
-    precedence and the legacy-name warning; the rest is ``explain_secret``. For
-    PRIMARY the vault is a DEPRECATED fallback (D1). Never reads the other
-    role's variables, so a warehouse DSN cannot become the primary store.
-    """
-    from m3_core.paths import resolve_cdw_pg_dsn, resolve_primary_pg_dsn
-
-    env_reader = resolve_primary_pg_dsn if role is PgRole.PRIMARY else resolve_cdw_pg_dsn
-    env = (env_reader("") or "").strip()
-    env_hit = None
-    if env:
-        names = ("M3_PRIMARY_PG_URL", "M3_PG_URL") if role is PgRole.PRIMARY else ("M3_CDW_PG_URL", "PG_URL")
-        env_hit = (next((n for n in names if (os.environ.get(n) or "").strip() == env), names[0]), env)
-    r = explain_secret(_STORE_KEYS[role], env_hit=env_hit, vault=vault_policy(_STORE_KEYS[role][0]))
+    For PRIMARY the vault is a DEPRECATED fallback (D1). Only the role's own
+    names are read, so a warehouse DSN cannot become the primary store."""
+    r = explain_secret(_STORE_KEYS[role], vault=vault_policy(_STORE_KEYS[role][0]), env_names=_DSN_ENV_NAMES[role])
     return DsnResolution(dsn=r.value, source=r.source, errors=r.errors)
 
 
@@ -315,58 +449,25 @@ def resolve_pg_dsn(role: PgRole) -> str:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DsnStored:
-    location: str  # "keyring:<key>" or "secrets-file:<path>"
-    skipped: tuple[str, ...]  # why an earlier store was not used
-
-
-def _keyring_serves_daemons() -> bool:
-    """Whether a keyring write made now is readable by m3's headless jobs.
-
-    Windows Credential Manager and the macOS login keychain are (the AgentOS_*
-    tasks run with Interactive logon; launchd user agents share the keychain).
-    On Linux, cron and plain SSH have no session bus and a systemd --user unit
-    sees the login keyring only after a PAM login (CONFIG_DESIGN §10, measured
-    2026-10-08), so a read-back from the installer's own session proves nothing
-    for them: the secrets file is the store there.
-    """
-    return is_windows() or is_macos()
+    location: str  # "secrets-file:<path>"
 
 
 def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
-    """Store a role's DSN where m3's headless jobs can read it, verified by read-back.
-
-    The keyring where it serves daemons, else the user-only secrets file (never
-    the vault: a bootstrap secret, CONFIG_DESIGN §10). Raises SecretsFileError
-    naming every store's failure when none took the value.
-    """
-    import auth_utils
-
+    """Store a role's DSN in the user-only secrets file, verified by read-back.
+    The file on every OS (user decision, m3 c7082b20): m3 writes the keyring
+    only when asked (`m3 secret set NAME --keyring`). Raises SecretsFileError
+    naming what failed."""
     key = _STORE_KEYS[role][0]
     dsn = dsn.strip()
-    skipped: list[str] = []
-    if _keyring_serves_daemons():
-        err = auth_utils._keyring_store(key, dsn)
-        if err is None:
-            back, read_err = auth_utils._keyring_tier(key)
-            if back == dsn:
-                bump_secret_generation()  # running processes drop their cached copy
-                return DsnStored(location=f"keyring:{key}", skipped=())
-            err = f"keyring: wrote {key} but the read-back " + (
-                f"failed ({read_err})" if read_err else "returned a different value"
-            )
-        skipped.append(err)
-    else:
-        skipped.append(f"keyring: not used on {sys.platform} (cron and SSH jobs cannot read it)")
     try:
         p = set_secret(key, dsn)
         if get_secret(key) != dsn:
             raise SecretsFileError(f"{p}: wrote {key} but the read-back returned a different value")
     except (OSError, SecretsFileError) as e:
         raise SecretsFileError(
-            f"could not store the {role.value} PostgreSQL DSN ({key}) anywhere: "
-            + " | ".join([*skipped, f"secrets file: {type(e).__name__}: {e}"])
+            f"could not store the {role.value} PostgreSQL DSN ({key}) in the secrets file: {type(e).__name__}: {e}"
         ) from e
-    return DsnStored(location=f"secrets-file:{p}", skipped=tuple(skipped))
+    return DsnStored(location=f"secrets-file:{p}")
 
 
 def is_known_secret(name: str) -> bool:
@@ -383,59 +484,52 @@ def is_known_secret(name: str) -> bool:
     return name in declared
 
 
-def remove_secret(name: str) -> Path | None:
-    """Delete ``name``'s line from the secrets file under its lock. Returns the
-    path, or None when the file has no value for it."""
-    from m3_core.atomic_io import atomic_write
-    from m3_core.locking import file_lock
-
-    p = secrets_file_path()
-    with file_lock(str(p) + ".lock", purpose="secrets file"):
-        table = read_secrets()
-        if name not in table:
-            return None
-        del table[name]
-        atomic_write(p, _render(table))
-    bump_secret_generation()
-    return p
-
-
 def store_in_keyring(name: str, value: str) -> str:
-    """Put ``name`` in the OS keyring (service "system"), verified by read-back.
-    Only on the user's explicit request (`m3 secret set NAME --keyring`): m3
-    otherwise never writes the keyring (user decisions, m3 c7082b20 and its
-    2026-10-12 exception). Returns where it went; raises SecretsFileError naming
-    what failed, never the value."""
+    """Put ``name`` in the OS keyring (service "system"), verified by read-back,
+    and make the secrets file point at it (replacing any value there: a value in
+    the file would win over the keyring). Only on the user's explicit request
+    (`m3 secret set NAME --keyring`). Returns where the value went; raises
+    SecretsFileError naming what failed, never the value."""
     import auth_utils
 
+    ref = default_keyring_ref(name)
     err = auth_utils._keyring_store(name, value)
     if err is not None:
         raise SecretsFileError(f"could not store {name} in the OS keyring: {err}")
-    back, read_err = auth_utils._keyring_tier(name)
+    back, read_err = auth_utils._keyring_tier(ref.key, service=ref.service)
     if back != value:
         raise SecretsFileError(
             f"stored {name} in the OS keyring but the read-back "
             + (f"failed ({read_err})" if read_err else "returned a different value")
         )
-    bump_secret_generation()  # running processes drop their cached copy
-    return f"keyring:system/{name}"
+    set_secret(name, ref)  # bumps the generation: running processes drop their cached copy
+    return f"keyring:{ref}"
 
 
-def set_secret(name: str, value: str) -> Path:
-    """Store one secret (create or replace) under the file lock. Returns the path."""
+def set_secret(name: str, value: str | KeyringRef) -> Path:
+    """Store one secret, or a pointer to where it lives, under the file lock
+    (create or replace). Returns the path. Comments, other entries and pointers
+    survive the write."""
     if not _NAME.fullmatch(name):
         raise ValueError(f"secret name {name!r}: use letters, digits, '_' or '-'")
-    from m3_core.atomic_io import atomic_write
     from m3_core.locking import file_lock
 
     p = secrets_file_path()
     _check_names(p, {name: value})  # refuse before writing a file that could not be read back
     with file_lock(str(p) + ".lock", purpose="secrets file"):
-        table = read_secrets()  # an existing file is checked here
-        if is_windows() and not os.path.exists(p):
-            _check_new_file_would_be_private(p.parent)
-        table[name] = value
-        atomic_write(p, _render(table))
+        read_secret_entries()  # an existing file is checked here (permissions, syntax, names)
+
+        def put(table) -> None:
+            if isinstance(value, KeyringRef):
+                import tomlkit
+
+                ref = tomlkit.inline_table()
+                ref["keyring"] = str(value)
+                table[name] = ref
+            else:
+                table[name] = value
+
+        _rewrite_file(p, put)
     bump_secret_generation()  # running processes drop their cached copy
     return p
 

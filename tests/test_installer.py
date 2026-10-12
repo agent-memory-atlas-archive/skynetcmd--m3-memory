@@ -120,21 +120,17 @@ def test_config_roundtrip(tmp_path, monkeypatch):
     assert installer.load_config() == {"bridge_path": "/a/b", "version": "1.0"}
 
 
-def test_install_m3_hard_fails_when_pg_url_set(tmp_path, monkeypatch):
-    """install_m3 refuses to run (before any fetch) while a deprecated PG_URL is
-    set, and its message names the split-role replacements."""
+def test_install_names_an_old_pg_url_without_refusing(tmp_path, monkeypatch, capsys):
+    """An env PG_URL no longer blocks install: m3 does not read it (m3 9cbed0af),
+    so it is named, with the command that stores it, and install proceeds."""
     from m3_memory import installer
 
-    # Re-set PG_URL after the autouse fixture cleared it; keep platform off win32
-    # so only the env location trips (deterministic on any host).
-    monkeypatch.setenv("PG_URL", "postgresql://legacy/warehouse")
+    monkeypatch.setenv("PG_URL", "postgresql://legacy:pw@warehouse/x")
     monkeypatch.setattr(installer, "_client_config_sources", lambda: {})
-
-    with pytest.raises(RuntimeError) as ei:
-        installer.install_m3(repo_path=tmp_path / "repo")
-    msg = str(ei.value)
-    assert "PG_URL" in msg
-    assert "M3_CDW_PG_URL" in msg and "M3_PRIMARY_PG_URL" in msg
+    installer._note_deprecated_pg_url_anywhere()
+    out = capsys.readouterr().out
+    assert "PG_URL" in out and "import-env" in out and "M3_CDW_PG_URL" in out, out
+    assert "pw@" not in out
 
 
 def test_load_config_tolerates_malformed_json(tmp_path, monkeypatch):
@@ -706,15 +702,16 @@ class TestDbBackendSelection:
         assert _prompt_db_backend(False, "sqlite") is None
 
     def test_prompt_postgres_flag_needs_dsn(self, monkeypatch):
+        from m3_core.secret_store import set_secret
+
         from m3_memory.installer import _prompt_db_backend
 
-        for k in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
-            monkeypatch.delenv(k, raising=False)
-        # postgres flag with NO env DSN → falls back to SQLite (None), never a
-        # backend with no DSN
+        # postgres flag with NO stored DSN (one in env is ignored) → falls back to
+        # SQLite (None), never a backend with no DSN
+        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5432/env")
         assert _prompt_db_backend(False, "postgres") is None
-        # postgres flag WITH env DSN → ("postgres", dsn)
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5432/x")
+        # postgres flag WITH a stored DSN → ("postgres", dsn)
+        set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5432/x")
         assert _prompt_db_backend(False, "postgres") == ("postgres", "postgresql://u:p@127.0.0.1:5432/x")
 
     def test_prompt_interactive_choice(self, monkeypatch):
@@ -875,15 +872,24 @@ class TestDbBackendSelection:
         assert inst._scan_registry_env_deprecations({"M3_PG_URL": ""}, unchecked) == []
         assert len(unchecked) == 1 and "Machine" in unchecked[0] and "access denied" in unchecked[0]
 
-    def test_doctor_names_a_plaintext_copy_and_is_quiet_without_one(self, unix_home, capsys):
-        from m3_memory.install.sections import _plaintext_dsn_section
+    def test_doctor_names_a_plaintext_copy_and_is_quiet_without_one(self, unix_home, capsys, monkeypatch):
+        from m3_core.config import REGISTRY, KeyClass
 
-        _plaintext_dsn_section()
+        from m3_memory.install.sections import _secrets_in_env_section
+
+        # The developer's shell may export real secrets; the quiet case needs none.
+        for name in (n for k in REGISTRY if k.klass is KeyClass.SECRET for n in k.env_names):
+            monkeypatch.delenv(name, raising=False)
+        _secrets_in_env_section()
         assert capsys.readouterr().out == ""
         unix_home.write_text('export M3_PG_URL="postgresql://u:pw@old/x"\n')
-        _plaintext_dsn_section()
+        _secrets_in_env_section()
         out = capsys.readouterr().out
-        assert "M3_PG_URL" in out and "keyring set system" in out and "pw@" not in out, out
+        assert "M3_PRIMARY_PG_URL" in out and "(M3_PG_URL)" in out and "import-env" in out, out
+        assert "pw@" not in out and "postgresql" not in out, out  # names and places, never a value
+        _secrets_in_env_section(brief=True)
+        brief = capsys.readouterr().out.strip()
+        assert brief.count("\n") == 0 and "M3_PRIMARY_PG_URL" in brief and "--verbose" in brief, brief
 
     def test_persist_when_no_store_takes_it_is_loud_and_writes_no_plaintext(self, unix_home, monkeypatch):
         from m3_core import secret_store
@@ -896,47 +902,33 @@ class TestDbBackendSelection:
         monkeypatch.setattr(secret_store, "set_secret", refuse)
         msgs = _persist_pg_backend(self._DSN)
         bad = [m for m in msgs if "NOT stored" in m]
-        assert bad and "read-only file system" in bad[0] and "keyring set system" in bad[0], msgs
+        assert bad and "read-only file system" in bad[0] and "m3 secret set M3_PRIMARY_PG_URL" in bad[0], msgs
         assert not unix_home.exists(), "no plaintext fallback into a profile"
 
 
 class TestStorePgDsn:
-    """m3_core.secret_store.store_pg_dsn: keyring where daemons read it, else the file."""
+    """m3_core.secret_store.store_pg_dsn: the user-only secrets file on every OS,
+    verified by read-back; never the keyring (m3 c7082b20)."""
 
     DSN = "postgresql://u:p@db.example/m3"
 
-    def test_keyring_with_a_verified_read_back(self, monkeypatch):
+    def test_the_file_and_never_the_keyring(self, monkeypatch):
+        """No OS branch: the same store everywhere (it used to pick the keyring on
+        Windows and macOS)."""
         import auth_utils
         from m3_core import secret_store as s
 
-        monkeypatch.setattr(s, "_keyring_serves_daemons", lambda: True)
-        kept = {}
-        monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: kept.update({k: v}))
-        monkeypatch.setattr(auth_utils, "_keyring_tier", lambda k: (kept.get(k), None))
-        r = s.store_pg_dsn(s.PgRole.PRIMARY, self.DSN)
-        assert r.location == "keyring:M3_PRIMARY_PG_URL" and kept == {"M3_PRIMARY_PG_URL": self.DSN}
-        assert s.get_secret("M3_PRIMARY_PG_URL") is None, "also wrote plaintext"
-
-    def test_a_failed_read_back_falls_to_the_file_and_says_why(self, monkeypatch):
-        import auth_utils
-        from m3_core import secret_store as s
-
-        monkeypatch.setattr(s, "_keyring_serves_daemons", lambda: True)
-        monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: None)
-        monkeypatch.setattr(auth_utils, "_keyring_tier", lambda k: (None, "keyring: KeyringLocked: locked"))
-        r = s.store_pg_dsn(s.PgRole.WAREHOUSE, self.DSN)
-        assert r.location.startswith("secrets-file:")
-        assert "KeyringLocked" in r.skipped[0]
+        monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: pytest.fail("wrote the keyring"))
+        r = s.store_pg_dsn(s.PgRole.WAREHOUSE, f"  {self.DSN} ")
+        assert r.location == f"secrets-file:{s.secrets_file_path()}"
         assert s.get_secret("M3_CDW_PG_URL") == self.DSN
 
-    def test_linux_uses_the_file(self, monkeypatch):
-        import auth_utils
+    def test_a_failed_read_back_is_an_error_naming_the_key(self, monkeypatch):
         from m3_core import secret_store as s
 
-        monkeypatch.setattr(s, "_keyring_serves_daemons", lambda: False)
-        monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: pytest.fail("wrote a keyring cron cannot read"))
-        r = s.store_pg_dsn(s.PgRole.PRIMARY, self.DSN)
-        assert r.location.startswith("secrets-file:") and "cron" in r.skipped[0]
+        monkeypatch.setattr(s, "get_secret", lambda name: "something else")
+        with pytest.raises(s.SecretsFileError, match=r"M3_PRIMARY_PG_URL.*read-back"):
+            s.store_pg_dsn(s.PgRole.PRIMARY, self.DSN)
 
 
 def test_a_pinned_llm_endpoint_is_recorded_in_the_file_not_env(monkeypatch, tmp_path):

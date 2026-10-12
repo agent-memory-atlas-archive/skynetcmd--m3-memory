@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from m3_core.secret_store import set_secret  # noqa: E402
 
 _ROOT = Path(__file__).resolve().parent.parent
 _CLI = _ROOT / "bin" / "config_cli.py"
@@ -40,12 +41,12 @@ def test_show_lists_values_and_origins(monkeypatch, capsys):
 def test_show_json_never_carries_a_secret_value(monkeypatch, capsys):
     import config_cli
 
-    monkeypatch.setenv("M3_SERVE_TOKEN", "s3cret-serve-token")
+    set_secret("M3_SERVE_TOKEN", "s3cret-serve-token")
     assert config_cli.main(["show", "--json"]) == 0
     raw = capsys.readouterr().out
     doc = json.loads(raw)
     serve = next(s for s in doc["secrets"] if s["name"] == "M3_SERVE_TOKEN")
-    assert serve["set"] is True and serve["source"] == "env:M3_SERVE_TOKEN"
+    assert serve["set"] is True and serve["source"] == "secrets-file:M3_SERVE_TOKEN"
     assert "s3cret-serve-token" not in raw
 
 

@@ -151,7 +151,7 @@ _PY_LAUNCHERS = frozenset({"python", "python3", "pythonw", "py", "uv", "uvx", "p
 _M3_ENTRY_STEMS = frozenset({"m3", "m3_memory", "memory_bridge"})
 
 
-def _runs_m3(cmdline: list[str]) -> bool:
+def runs_m3(cmdline: list[str]) -> bool:
     """True when a command line launches m3 (launcher, package, or MCP bridge).
 
     Arguments are split into words: a shell receives its whole command as ONE
@@ -181,7 +181,7 @@ def is_m3_launch_step(name: str, cmdline: list[str]) -> bool:
         case "m3":
             return True
         case stem if stem in _SHELLS or stem in _PY_LAUNCHERS:
-            return _runs_m3(cmdline)
+            return runs_m3(cmdline)
         case _:
             return False
 

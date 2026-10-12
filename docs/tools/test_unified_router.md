@@ -1,8 +1,8 @@
 ---
 tool: bin/test_unified_router.py
-sha1: ecbdbcf54b63
-mtime_utc: 2026-10-10T21:05:16.647430+00:00
-generated_utc: 2026-10-10T21:05:30.016982+00:00
+sha1: 77757756a2d3
+mtime_utc: 2026-10-12T18:29:52.682071+00:00
+generated_utc: 2026-10-12T18:59:10.713538+00:00
 private: false
 ---
 
@@ -28,15 +28,13 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `ANTHROPIC_API_KEY`
-- `GEMINI_API_KEY`
-- `LM_API_TOKEN`
+_(none detected)_
 
 ---
 
 ## Calls INTO this repo (intra-repo imports)
 
-_(none detected)_
+- `auth_utils (get_api_key)`
 
 ---
 
@@ -44,7 +42,7 @@ _(none detected)_
 
 **http**
 
-- `requests.post()  → `ROUTER_URL`` (line 25)
+- `requests.post()  → `ROUTER_URL`` (line 29)
 
 
 ---

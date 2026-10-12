@@ -86,15 +86,18 @@ This performs 6 actions automatically:
 
 ## Step 5 — Store API keys in macOS Keychain
 
-The `AGENT_OS_MASTER_KEY` is set during Step 4. For additional API keys, use the `security` command:
+The `AGENT_OS_MASTER_KEY` is set during Step 4. Store m3's other secrets (API keys, the warehouse DSN) with `m3 secret set` — it prompts for the value (hidden, twice); `--keyring` keeps it in the macOS Keychain and writes a pointer into m3's secrets file. Type only the command, never the value:
 
 ```bash
-security add-generic-password -s "GROK_API_KEY" -a "$USER" -w "YOUR-KEY"
+m3 secret set XAI_API_KEY --keyring
+m3 secret set M3_CDW_PG_URL --keyring      # homelab warehouse only
 security add-generic-password -s "PERPLEXITY_API_KEY" -a "$USER" -w "YOUR-KEY"
 ```
 
+m3 does not read its secrets from environment variables; `m3 config import-env` moves any you exported earlier.
+
 > `AGENT_OS_MASTER_KEY` is **required** for the encrypted vault.
-> Grok and Perplexity keys are only needed if you use those services.
+> The xAI (Grok) and Perplexity keys are only needed if you use those services.
 
 To verify a key was stored:
 
@@ -229,4 +232,6 @@ Options:
 - Run the setup locally (not over SSH) and let `keyring` store to Keychain.
 - Over SSH: install `keyrings.alt` for a file-based fallback:
   `pip install keyrings.alt` — then re-run `python3 install_os.py`.
-- Or store keys as environment variables in `~/.zshrc` instead of Keychain.
+- Or store m3's keys in its user-only secrets file instead of Keychain:
+  `m3 secret set NAME` (without `--keyring`). m3 does not read its secrets from
+  environment variables in `~/.zshrc`.

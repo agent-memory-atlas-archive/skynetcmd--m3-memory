@@ -11,7 +11,7 @@ Built and under test; not yet released. Details in the
 
 - [ ] **One configuration file** — `m3_config.toml` in the config root holds every setting, so background services read the same values as your shell; `m3 config show` reports each setting and where it came from. Legacy environment names keep working for now and log a notice.
 - [ ] **Named stores** — `[stores.<name>]` defines a store, selected per call (`store`) or per process (`--store`).
-- [ ] **A user-only secrets file** — `m3_secrets.toml`, for machines without an OS keyring; the installer stores the primary PostgreSQL DSN in the keyring or this file, not in plaintext environment variables.
+- [ ] **A user-only secrets file** — `m3_secrets.toml`, for machines without an OS keyring; the installer stores the primary PostgreSQL DSN in the keyring or this file, not in plaintext environment variables. m3 no longer reads its secrets from the environment: `m3 secret set NAME` stores one, and `m3 config import-env` (also run by `m3 upgrade`) moves existing ones.
 - [ ] **More of m3 runs on PostgreSQL** — including the LangGraph checkpointer (`M3Saver`), GLiNER entity extraction, and the enrichment tools.
 - [ ] **`search_profile` tool** — per-stage timing of one real search.
 - [ ] **Python 3.12 codebase** — the code is brought up to the supported floor and held there by lint and type checks.

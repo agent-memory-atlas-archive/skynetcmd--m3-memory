@@ -86,9 +86,6 @@ def test_the_dsn_miss_names_a_crashing_keyring(monkeypatch, backend):
     backend(locked)
     # Lift the sandbox's DSN block: this test's own backend holds nothing real.
     monkeypatch.setattr(auth_utils, "_keyring_tier", auth_utils._keyring_tier.__wrapped__)
-    monkeypatch.setattr(auth_utils, "_file_tier", lambda s: (None, None))
     monkeypatch.setattr(auth_utils, "_vault_tier", lambda s: (None, None))
-    for var in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
-        monkeypatch.delenv(var, raising=False)
     r = explain_pg_dsn(PgRole.PRIMARY)
     assert r.dsn == "" and any("keychain locked" in e for e in r.errors), r.errors

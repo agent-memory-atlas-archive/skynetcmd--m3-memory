@@ -30,6 +30,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Honors M3_DATABASE — run the suite against a scratch DB with:
 #   M3_DATABASE=memory/_test.db python bin/test_mcp_proxy.py
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
+from auth_utils import get_api_key  # noqa: E402
 from m3_sdk import resolve_db_path  # noqa: E402
 
 DB_PATH = resolve_db_path(None)
@@ -176,19 +177,8 @@ async def t3_gemini() -> None:
 def t4_aider() -> None:
     print("\nT4 — aider-claude non-interactive (subprocess)")
     # Source zshrc to get shell functions, then run aider directly with proxy settings
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        try:
-            result = subprocess.run(  # nosec B607 - `security` is the macOS keychain CLI
-                ["security", "find-generic-password", "-s", "ANTHROPIC_API_KEY", "-w"],  # nosec B105 - CLI subcommand name, not a password literal
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                api_key = result.stdout.strip()
-        except Exception:
-            pass
+    # m3's secrets chain (the secrets file, then the keyring), as the proxy reads it.
+    api_key = get_api_key("ANTHROPIC_API_KEY") or ""
 
     if not api_key:
         record("aider-claude non-interactive", False, "ANTHROPIC_API_KEY not found — skipped")
