@@ -703,6 +703,19 @@ def _service_files_state() -> dict:
 
 
 @pytest.fixture(autouse=True)
+def _sys_path_restored():
+    """Undo whatever a test added to ``sys.path``. Code under test legitimately
+    puts a configured ``bin/`` on the path (``_bin.ensure_on_path``, honouring
+    M3_PATH_BIN), and a test that points M3_PATH_BIN at a tmp dir with a fake
+    ``memory_bridge.py`` left it there: every later ``import memory_bridge`` got
+    the fake (test_lazy_tool_loading after test_agent_config_selfheal,
+    2026-10-11). Collection-time inserts are in the baseline and stay."""
+    saved = list(sys.path)
+    yield
+    sys.path[:] = saved
+
+
+@pytest.fixture(autouse=True)
 def _no_existing_install_by_default(monkeypatch):
     """setup's "keep current settings?" prompt keys off the developer's real
     store, which CI does not have; default it off so interactive-setup tests

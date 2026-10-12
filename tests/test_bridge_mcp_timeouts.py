@@ -49,8 +49,8 @@ def test_timeout_zero_disables_the_bound(impl, is_async):
     assert asyncio.run(_mcp_fn(impl, is_async)(timeout=0)) == "done"
 
 
-def test_the_tools_own_budget_applies_when_no_timeout_is_given(monkeypatch):
-    monkeypatch.delenv("M3_TOOL_TIMEOUT", raising=False)
+def test_the_tools_own_budget_applies_when_no_timeout_is_given(m3_settings):
+    m3_settings()  # registry defaults: tools.timeout_s unset, whatever the developer's env says
     tight = asyncio.run(_mcp_fn(_slow_async, True, timeout_s=0.1)())
     roomy = asyncio.run(_mcp_fn(_slow_async, True, timeout_s=5)())
     assert tight.startswith("Error: ToolTimeout") and roomy == "done"

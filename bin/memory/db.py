@@ -826,6 +826,7 @@ _READ_LOG_FLUSH_S = 0.25
 _read_log_pending: list[tuple[str, str, str, str | None, str]] = []  # (store, memory, agent, user, op)
 _read_log_lock = threading.Lock()
 _read_log_thread: threading.Thread | None = None
+_read_log_unmigrated: set[str] = set()  # stores reported once as missing the table
 
 
 def record_reads(memory_ids, op: str, user_id: str | None = None) -> None:
@@ -928,6 +929,19 @@ def flush_read_log() -> int:
                 db.commit()
             written += len(rows)
         except Exception as e:  # noqa: BLE001 — requeue, report, keep the thread alive
+            if _dialect().is_undefined_object_error(e):
+                # The store predates migration 053: no retry can succeed, and
+                # retrying for ever floods the log every flush. Report once per
+                # store, with the fix, and drop these rows (an audit gap, named).
+                if store not in _read_log_unmigrated:
+                    _read_log_unmigrated.add(store)
+                    logger.error(
+                        "read-access log: %s has no memory_access_log table (migration 053 not applied); "
+                        "reads from it are NOT audited. fix: python bin/migrate_memory.py --database %s up --yes",
+                        store,
+                        store,
+                    )
+                continue
             logger.error("read-access log: %d row(s) for %s not written (%s); retrying next flush", len(rows), store, e)
             with _read_log_lock:
                 _read_log_pending.extend((store, *r) for r in rows)

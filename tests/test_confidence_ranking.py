@@ -98,7 +98,7 @@ async def _ranked_ids(mc, **kw):
 
 
 @pytest.mark.asyncio
-async def test_flag_off_ranking_ignores_confidence(monkeypatch, tmp_path):
+async def test_flag_off_ranking_ignores_confidence(monkeypatch, tmp_path, m3_settings):
     """The contract: with the flag OFF, two rows of equal relevance rank by the
     existing signals only — their confidence is irrelevant to order and score."""
     from memory.config import EMBED_DIM
@@ -113,7 +113,7 @@ async def test_flag_off_ranking_ignores_confidence(monkeypatch, tmp_path):
         _seed(conn, "hiconf", "alpha fact two", qv, confidence=0.99)
         conn.commit()
 
-    monkeypatch.delenv("M3_CONFIDENCE_RANKING", raising=False)
+    m3_settings()  # registry defaults: search.confidence_ranking off
     cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", False)

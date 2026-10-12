@@ -176,3 +176,24 @@ def test_a_superseded_flusher_ends(monkeypatch):
     monkeypatch.setattr(db, "_read_log_pending", [])
     monkeypatch.setattr(db, "_THIS_MODULE", object())  # as if a newer module took over
     db._read_log_loop()  # returns instead of looping for ever
+
+
+def test_a_store_without_the_table_is_reported_once_not_retried(tmp_path, monkeypatch, caplog):
+    """A store that predates migration 053 can never take the rows: report once
+    with the fix and drop them, instead of an error every 0.25 s for ever."""
+    import importlib
+    import sqlite3
+
+    db = importlib.import_module("memory.db")
+    store = tmp_path / "old.db"
+    sqlite3.connect(store).close()  # no memory_access_log table
+    monkeypatch.setattr(db, "_lazy_init", lambda *a, **k: None)  # as when migrations are skipped or failed
+    monkeypatch.setattr(db, "_read_log_unmigrated", set())
+    monkeypatch.setattr(db, "_read_log_pending", [(str(store), "m1", "agent", None, "get")])
+    with caplog.at_level("ERROR"):
+        db.flush_read_log()
+        db._read_log_pending.append((str(store), "m2", "agent", None, "get"))
+        db.flush_read_log()
+    msgs = [r.getMessage() for r in caplog.records if "memory_access_log" in r.getMessage()]
+    assert len(msgs) == 1 and "migration 053" in msgs[0]
+    assert db._read_log_pending == [], "rows for an unmigrated store must not be retried for ever"
