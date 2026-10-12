@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: 3975c35ac522
-mtime_utc: 2026-10-12T14:30:48.986577+00:00
-generated_utc: 2026-10-12T14:47:32.717941+00:00
+sha1: 250fe4331399
+mtime_utc: 2026-10-12T15:36:42.430716+00:00
+generated_utc: 2026-10-12T15:38:20.107752+00:00
 private: false
 ---
 
@@ -86,7 +86,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.config.loader (ConfigFileError)`
 - `m3_core.config.registry (ConfigValueError, Key, Scope)`
 - `m3_core.config.resolve (ConfigEnvErrors, env_outranks_file)`
-- `m3_core.config.settings (Settings, build, env_contradicting)`
+- `m3_core.config.settings (Settings, build, env_contradicting, with_flags)`
 - `m3_core.config.writer (ConfigWriteError, set_values)`
 - `m3_core.seams (console_has_person)`
 - `m3_core.secret_store (SecretsFileError, secrets_file_path)`

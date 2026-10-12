@@ -1,8 +1,8 @@
 ---
 tool: bin/install_schedules.py
-sha1: b13f42d0b1fe
-mtime_utc: 2026-10-12T13:12:24.766021+00:00
-generated_utc: 2026-10-12T13:12:28.763759+00:00
+sha1: 2bb88d0327f2
+mtime_utc: 2026-10-12T15:22:21.779444+00:00
+generated_utc: 2026-10-12T15:38:20.339435+00:00
 private: false
 ---
 
@@ -77,10 +77,10 @@ Uses project virtual environment paths and ensures log directories exist.
 - `m3_core.autonomy (ensure_autonomy_config)`
 - `m3_core.config (settings)`
 - `m3_core.paths (add_config_arg)`
+- `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (get_m3_logs_root)`
 - `m3_core.seams (is_macos, is_windows, roots)`
 - `m3_core.seams (os_name)`
-- `m3_core.seams (roots)`
 - `memory.backends (dialect)`
 - `memory.orchestration (_db)`
 - `memory.orchestration (agent_list_impl)`

@@ -161,6 +161,10 @@ class _Cache:
             resolved[key.name] = Resolved(value=value, origin="cli")
         return dataclasses.replace(settings, resolved=MappingProxyType(resolved))
 
+    def cli_values(self) -> dict[Key, ConfigValue]:
+        with self._lock:
+            return dict(self._cli)
+
     def set_cli(self, values: Mapping[Key, ConfigValue]) -> None:
         with self._lock:
             self._cli.update(values)
@@ -278,6 +282,259 @@ def set_from_cli(values: Mapping[str, ConfigValue | None]) -> None:
         given[key] = value
     if given:
         _CACHE.set_cli(given)
+
+
+SET_FLAG = "--set"
+_FORMAT = f'm3 "{SET_FLAG}={{key=value, ...}}" <command>'
+_EXAMPLE = f'"{SET_FLAG}={{db.backend=^postgres^, search.row_cap=50}}"'
+# The string quote inside --set (user decision, m3 7612b947 refined): survives
+# double quotes in bash, zsh, PowerShell and cmd.exe alike (measured
+# 2026-10-12), so one quoting rule works in every shell. ^^ is a literal ^.
+_CARET = "^"
+
+
+def _carets_to_toml(text: str) -> str:
+    """``^...^`` strings become TOML strings; ``^^`` inside one is a literal ``^``.
+    A ``^`` inside a TOML ``"..."`` or ``'...'`` string is left as it is, so the
+    file's own syntax still works. Raises OverrideError for an unclosed string
+    (naming its position, never its text: it could hold a secret)."""
+    import json
+
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == _CARET:
+            start, i, buf = i, i + 1, []
+            while True:
+                if i >= n:
+                    raise OverrideError(
+                        [
+                            f"the {_CARET} string at character {start + 1} is not closed; end it with {_CARET} ({_CARET * 2} is a literal {_CARET})"
+                        ]
+                    )
+                if text[i] == _CARET:
+                    if i + 1 < n and text[i + 1] == _CARET:
+                        buf.append(_CARET)
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                buf.append(text[i])
+                i += 1
+            out.append(json.dumps("".join(buf)))  # a JSON string is a valid TOML basic string
+        elif c in ('"', "'"):
+            j = i + 1
+            while j < n and text[j] != c:
+                j += 2 if (c == '"' and text[j] == "\\") else 1
+            out.append(text[i : j + 1])
+            i = j + 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+class OverrideError(ValueError):
+    """A refused ``--set``: every problem, the scope (nothing applied), and what
+    to do. Never echoes a value that could be a secret."""
+
+    def __init__(self, problems: list[str]) -> None:
+        self.problems = problems
+        super().__init__(
+            "\n".join(
+                [
+                    f"observed: {SET_FLAG} refused; nothing was applied and the command did not run:",
+                    *(f"  - {p}" for p in problems),
+                    f"inspect: the format is {_FORMAT} (one table in double quotes, right after m3; strings in ^...^); "
+                    "`m3 config show` lists every setting and its value",
+                ]
+            )
+        )
+
+
+def flag_overridable(key: Key) -> bool:
+    """Whether ``--set`` may change ``key``: a CONFIG key that does not decide
+    where m3 keeps its data (a LOCATOR: the roots, the secrets file; use
+    ``--config``). Secrets are never flags: a command line is visible to other
+    users and kept in shell history (user decision, m3 a6cdfc48)."""
+    from .registry import Scope
+
+    return key.klass is KeyClass.CONFIG and key.scope is not Scope.LOCATOR
+
+
+def _flatten(table: Mapping[str, object], prefix: str = "") -> dict[str, object]:
+    out: dict[str, object] = {}
+    for name, value in table.items():
+        dotted = f"{prefix}{name}"
+        if isinstance(value, dict) and REGISTRY.get(dotted) is None:
+            out.update(_flatten(value, dotted + "."))
+        else:
+            out[dotted] = value
+    return out
+
+
+def _unknown(name: str) -> str:
+    """Why ``name`` is not a setting, with the nearest real names."""
+    import difflib
+
+    env_key = REGISTRY.by_env(name)
+    if env_key is not None:
+        return f"{name} is an environment-variable name; the setting is {env_key.name}"
+    names = sorted(k.name for k in REGISTRY if k.klass is KeyClass.CONFIG)
+    near = difflib.get_close_matches(name, names, n=2)
+    return f"{name} is not a setting" + (f"; did you mean {' or '.join(near)}?" if near else "")
+
+
+def _secret(name: str) -> str:
+    try:
+        from m3_core.secret_store import secrets_file_path
+
+        where = f"the secrets file {secrets_file_path()}"
+    except Exception:  # noqa: BLE001 -- the hint degrades, the refusal stands
+        where = "the secrets file"
+    return f"{name} is a secret, and secrets are never flags (a command line is visible to others): put it in {where}"
+
+
+def _locator(key: Key) -> str:
+    table, _, leaf = key.name.rpartition(".")
+    return (
+        f"{key.name} decides which files m3 reads or writes, so it is not a flag: set it in a config file "
+        f"([{table}] {leaf} = ...) and run m3 --config FILE <command>"
+    )
+
+
+def parse_set(text: str) -> dict[str, ConfigValue]:
+    """The ``{...}`` of ``--set={...}``: a TOML inline table, the same key names
+    and syntax as m3_config.toml (user decision, m3 7612b947). Each value is
+    checked by its key exactly as the file's would be. Raises OverrideError
+    naming EVERY problem; nothing is applied unless all are valid."""
+    import tomllib
+
+    from .registry import ConfigValueError
+
+    text = text.strip()
+    if not (text.startswith("{") and text.endswith("}")):
+        # Never echo the token: it could carry a secret (--set=M3_X=<password>).
+        shown = text.split("=", 1)[0][:40] + ("=..." if "=" in text else "")
+        raise OverrideError(
+            [
+                f"got {SET_FLAG}={shown}, not a {{...}} table. If you typed braces, your shell split "
+                f"them (bash and zsh expand {{a,b}} into separate words): quote the whole token, e.g. {_EXAMPLE}"
+            ]
+        )
+    try:
+        table = tomllib.loads("set = " + _carets_to_toml(text))["set"]
+    except tomllib.TOMLDecodeError as e:
+        import re
+
+        # tomllib names a column in the TRANSLATED text, which would point at the
+        # wrong character of what was typed: keep the reason, drop the position.
+        # Never the text itself: it could hold a secret.
+        reason = re.sub(r"\s*\(at line \d+, column \d+\)", "", str(e))
+        raise OverrideError(
+            [
+                f"the table does not parse ({reason}). Strings use {_CARET}...{_CARET} "
+                f"(db.backend={_CARET}postgres{_CARET}), lists [...] (llm.endpoints=[{_CARET}http://a/v1{_CARET}]), "
+                "numbers and true/false bare"
+            ]
+        ) from None
+    out: dict[str, ConfigValue] = {}
+    problems: list[str] = []
+    for name, raw in _flatten(table).items():
+        key = REGISTRY.get(name)
+        if key is None:
+            env_key = REGISTRY.by_env(name)
+            problems.append(
+                _secret(name) if env_key is not None and env_key.klass is KeyClass.SECRET else _unknown(name)
+            )
+        elif key.klass is KeyClass.SECRET:
+            problems.append(_secret(name))
+        elif not flag_overridable(key):
+            problems.append(_locator(key))
+        else:
+            try:
+                value = key.coerce_file_value(raw)
+                key.check(value)
+                out[name] = value
+            except ConfigValueError as e:
+                # A setting's value, never a secret's (refused above): safe to show.
+                problems.append(f"{name} = {raw!r} is not valid: {e}")
+    if problems:
+        raise OverrideError(problems)
+    return out
+
+
+def _is_set(arg: str) -> bool:
+    return arg == SET_FLAG or arg.startswith(SET_FLAG + "=")
+
+
+def split_set(argv: list[str]) -> tuple[str | None, list[str]]:
+    """``(the {...} text or None, argv without it)``. The token's place is fixed:
+    the first argument after the program. A ``--set`` anywhere else (before a
+    bare ``--``) is refused, never passed downstream."""
+    rest = list(argv)
+    text: str | None = None
+    if len(rest) > 1 and _is_set(rest[1]):
+        token = rest.pop(1)
+        if token == SET_FLAG:
+            if len(rest) < 2 or rest[1].startswith("-"):
+                raise OverrideError([f"{SET_FLAG} has no table after it, e.g. {_EXAMPLE}"])
+            text = rest.pop(1)
+        else:
+            text = token[len(SET_FLAG) + 1 :]
+    for i, arg in enumerate(rest[1:], start=1):
+        if arg == "--":
+            break
+        if not _is_set(arg):
+            continue
+        if text is not None and i == 1:
+            if not text.strip().startswith("{"):
+                raise OverrideError(
+                    [
+                        f"{SET_FLAG} came in pieces: your shell split the braces into separate words "
+                        f"(bash and zsh expand {{a,b}}). Quote the whole token, e.g. {_EXAMPLE}"
+                    ]
+                )
+            raise OverrideError([f"only one {SET_FLAG} is allowed: put every setting in one table, e.g. {_EXAMPLE}"])
+        raise OverrideError(
+            [
+                f"{SET_FLAG} is argument {i}, after {rest[1]!r}: it goes immediately after the program name, "
+                f"before the command, e.g. m3 {_EXAMPLE} search ..."
+            ]
+        )
+    return text, rest
+
+
+def apply_set(argv: list[str]) -> list[str]:
+    """THE pre-parser: read ``--set`` once, apply it to this process (origin
+    ``cli``; every function, thread and task reads it through ``setting()``), and
+    return argv without it, for the command to parse untouched."""
+    text, rest = split_set(argv)
+    if text is not None:
+        set_from_cli(parse_set(text))
+    return rest
+
+
+def cli_args() -> list[str]:
+    """``[--set={...}]`` with every flag-set value of this process, for an m3
+    child's FIRST argument: a new process starts with an empty snapshot, so the
+    parent hands its values over at the spawn point (beside ``config_args()``)."""
+    from .toml_render import toml_value
+
+    values = {k: v for k, v in _CACHE.cli_values().items() if flag_overridable(k)}
+    if not values:
+        return []
+    body = ", ".join(f"{k.name} = {toml_value(v)}" for k, v in sorted(values.items(), key=lambda kv: kv[0].name))
+    return [f"{SET_FLAG}={{{body}}}"]
+
+
+def with_flags(settings: Settings) -> Settings:
+    """``settings`` with this process's flag values on top (origin ``cli``), as
+    ``current()`` serves them: a snapshot built for display (`m3 config show`,
+    `get`) must not report a ``--set`` value as the file's or the default."""
+    with _CACHE._lock:
+        return _CACHE._with_cli(settings)
 
 
 def origin_of(name: str) -> str:

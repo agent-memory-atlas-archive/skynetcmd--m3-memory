@@ -1,8 +1,8 @@
 ---
 tool: bin/weekly_auditor.py
-sha1: c826760b2c50
-mtime_utc: 2026-10-12T03:53:56.954311+00:00
-generated_utc: 2026-10-12T03:54:19.174436+00:00
+sha1: e3f8e96e0e48
+mtime_utc: 2026-10-12T15:22:21.783981+00:00
+generated_utc: 2026-10-12T15:38:20.869307+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ Use --no-memory to skip the memory write step.
 
 ## Entry points
 
-- `def main()` (line 434)
+- `def main()` (line 435)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -60,9 +60,9 @@ Use --no-memory to skip the memory write step.
 
 **subprocess**
 
-- `subprocess.check_call()  → `[sys.executable, gen_script]`` (line 305)
-- `subprocess.check_call()  → `[sys.executable, graph_script]`` (line 324)
-- `subprocess.check_output()  → `cmd`` (line 258)
+- `subprocess.check_call()  → `[sys.executable, gen_script]`` (line 306)
+- `subprocess.check_call()  → `[sys.executable, graph_script]`` (line 325)
+- `subprocess.check_output()  → `cmd`` (line 259)
 
 
 ---
@@ -71,7 +71,7 @@ Use --no-memory to skip the memory write step.
 
 - `fpdf (FPDF)`
 - `fpdf.enums (XPos, YPos)`
-- `m3_core.seams (roots)`
+- `m3_core.paths (apply_early_argv)`
 - `memory.backends (dialect)`
 
 ---

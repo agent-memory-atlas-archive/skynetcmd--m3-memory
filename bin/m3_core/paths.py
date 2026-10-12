@@ -1184,7 +1184,9 @@ class _ConfigAction(argparse.Action):
 
 def add_config_arg(parser: argparse.ArgumentParser) -> None:
     """Register ``--config FILE`` on a script's parser: the file its scheduled
-    task or service was registered with (``_roots.located_config_args``)."""
+    task or service was registered with (``_roots.located_config_args``).
+    ``--set`` is not a parser flag: the early pre-parser (``apply_early_argv``)
+    reads and removes it before any parser runs."""
     parser.add_argument(
         "--config",
         dest="config_file",
@@ -1193,6 +1195,30 @@ def add_config_arg(parser: argparse.ArgumentParser) -> None:
         action=_ConfigAction,
         help="Read this m3_config.toml (its directory is the config root).",
     )
+
+
+def apply_early_argv(argv: list[str] | None = None) -> list[str]:
+    """THE first statement of an entry script, and the start of `m3`: read
+    ``--set={...}`` once (immediately after the program name), apply it to the
+    process, remove it from the command line, and pin ``--config``, all BEFORE
+    module-level code reads a setting or a root. Returns the command line the
+    command parses (``sys.argv`` itself is updated when it was the input). A
+    refused ``--set`` stops the program with the reason (exit 2): it never runs
+    on a value it was told not to use."""
+    import sys
+
+    given = sys.argv if argv is None else argv
+    from m3_core.config.settings import OverrideError, apply_set
+
+    try:
+        rest = apply_set(given)
+    except OverrideError as e:
+        print(f"{os.path.basename(given[0]) if given else 'm3'}: {e}", file=sys.stderr)
+        raise SystemExit(2) from None
+    if given is sys.argv:
+        sys.argv[:] = rest
+    _roots.pin_from_argv(rest)
+    return rest
 
 
 class _StoreAction(argparse.Action):

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_init.py
-sha1: ebeb2fb4580f
-mtime_utc: 2026-10-12T13:12:14.844596+00:00
-generated_utc: 2026-10-12T13:12:28.505246+00:00
+sha1: 4926c7ac9d3f
+mtime_utc: 2026-10-12T15:22:21.777941+00:00
+generated_utc: 2026-10-12T15:38:20.026255+00:00
 private: false
 ---
 
@@ -29,7 +29,7 @@ path equality.
 
 ## Entry points
 
-- `def main()` (line 611)
+- `def main()` (line 612)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -68,9 +68,9 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 298)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 275)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 745)
+- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 299)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 276)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 746)
 
 
 ---
@@ -79,6 +79,7 @@ _(none detected)_
 
 - `m3_core.atomic_io (GuardedRewrite, atomic_write)`
 - `m3_core.paths (add_config_arg)`
+- `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (store_is_a_file)`
 - `m3_core.seams (is_windows)`
 - `m3_core.seams (roots)`

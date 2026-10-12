@@ -4124,10 +4124,14 @@ def _m3_cli(*args: str) -> list[str]:
     package's own root goes on PYTHONPATH instead, so an installed setup stays
     on the install and a setup run from a checkout stays on that checkout.
     """
+    from m3_core.config.settings import cli_args
+
     from ._roots import config_args
     from .wizard.ui import caller_args
 
-    return [sys.executable, "-P", "-m", "m3_memory.cli", *config_args(), *caller_args(), *args]
+    # --set={...} first (its fixed place): the child starts with an empty
+    # snapshot, so this run's flag-set values are handed over here (m3 7612b947).
+    return [sys.executable, "-P", "-m", "m3_memory.cli", *cli_args(), *config_args(), *caller_args(), *args]
 
 
 def _record_decoupled_roots(config_root: str, engine_root: str) -> bool:

@@ -1,8 +1,8 @@
 ---
 tool: bin/secret_rotator.py
-sha1: 2d63ca0cf2a7
-mtime_utc: 2026-10-12T03:54:17.516586+00:00
-generated_utc: 2026-10-12T03:54:19.017289+00:00
+sha1: 68739e0aa504
+mtime_utc: 2026-10-12T15:22:21.783981+00:00
+generated_utc: 2026-10-12T15:38:20.744168+00:00
 private: false
 ---
 
@@ -54,7 +54,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `m3_core.paths (active_database, seam_backend, seam_dialect)`
-- `m3_core.seams (roots)`
+- `m3_core.paths (apply_early_argv)`
 - `secrets`
 
 ---

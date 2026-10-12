@@ -47,14 +47,14 @@ import sys as _sys
 # import below binds a root at import time. Guarded like this module's other m3
 # imports: a stripped payload still runs, on the default roots, and says so.
 try:
-    from m3_core.seams import roots as _seam_roots
+    from m3_core.paths import apply_early_argv as _apply_early_argv
 
-    _seam_roots.pin_from_argv()
+    _apply_early_argv()
 except ImportError as _e:
-    if any(a == "--config" or a.startswith("--config=") for a in _sys.argv[1:]):
+    if any(a in ("--config", "--set") or a.startswith(("--config=", "--set=")) for a in _sys.argv[1:]):
         print(
-            f"observed: --config given but m3_core is not importable ({_e}); running on the "
-            "default config root. inspect: the payload's bin/ (reinstall with `m3 upgrade`)",
+            f"observed: --config/--set given but m3_core is not importable ({_e}); running on the "
+            "default config root with no --set. inspect: the payload's bin/ (reinstall with `m3 upgrade`)",
             file=_sys.stderr,
         )
 

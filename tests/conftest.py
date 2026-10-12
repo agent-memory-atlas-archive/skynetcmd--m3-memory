@@ -155,15 +155,55 @@ def _llm_chat_reachable() -> bool:
 # two GGUF env vars, three native-wheel idioms).
 
 
+_PG_URL_OPTION: "str | None" = None
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--m3-pg-url",
+        default=None,
+        help="DSN of a THROWAWAY PostgreSQL cluster for the live tests (never a production one). "
+        "A pytest option, not an env var: m3's settings come from files (no-env plan, m3 9cbed0af).",
+    )
+
+
+def pytest_configure(config):
+    global _PG_URL_OPTION
+    _PG_URL_OPTION = config.getoption("--m3-pg-url")
+
+
 def pg_dsn() -> "str | None":
     """The Postgres DSN for live tests — the SINGLE source of the precedence rule.
 
-    M3_PRIMARY_PG_URL > M3_PG_URL, and NEVER PG_URL (PG_URL points at PROD; see
-    CLAUDE.md and the pg-url-split memory). Centralizing it here means the 12
-    former copies can't drift (one had already diverged to name M3_PG_URL in its
-    skip reason).
+    ``--m3-pg-url``. TRANSITIONAL until the lanes and CI pass the option (no-env
+    plan step 5, which removes this fallback): M3_PRIMARY_PG_URL > M3_PG_URL,
+    and NEVER PG_URL (PG_URL points at PROD; see CLAUDE.md and the pg-url-split
+    memory). Centralized so the 12 former copies cannot drift.
     """
+    if _PG_URL_OPTION:
+        return _PG_URL_OPTION.strip() or None
     return (_os.environ.get("M3_PRIMARY_PG_URL") or _os.environ.get("M3_PG_URL") or "").strip() or None
+
+
+def use_backend(name: str, dsn: "str | None" = None) -> None:
+    """Select the backend for this test the way a user does: ``[db] backend`` in
+    the sandbox's m3_config.toml, and the PostgreSQL DSN in the sandbox's
+    user-only secrets file. No env var (no-env plan step 1, m3 9cbed0af).
+    Clears the settings snapshot, the secret cache and the selector so the next
+    read sees them."""
+    from m3_core import secret_store
+    from m3_core.config import locate
+    from m3_core.config import settings as st
+    from m3_core.config.keys import DB_BACKEND
+    from m3_core.config.writer import set_values
+    from memory.backends import selector
+
+    set_values(locate(), {DB_BACKEND: name})
+    if dsn:
+        secret_store.set_secret("M3_PRIMARY_PG_URL", dsn)
+    st._reset_for_tests()
+    secret_store.clear_secret_cache()
+    selector._reset_for_tests()
 
 
 def _pg_reachable() -> bool:
@@ -493,11 +533,9 @@ def each_backend(request, monkeypatch):
     from memory.backends import selector
 
     name = request.param
-    monkeypatch.setenv("M3_DB_BACKEND", name)
     if name == "postgres":
-        monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_dsn() or "")
         monkeypatch.delenv("M3_DATABASE", raising=False)
-    selector._reset_for_tests()
+    use_backend(name, pg_dsn() if name == "postgres" else None)
     backend = selector.active_backend()
     assert backend.name == name, f"asked for {name}, the seam resolved {backend.name}"
     backend.ensure_schema()

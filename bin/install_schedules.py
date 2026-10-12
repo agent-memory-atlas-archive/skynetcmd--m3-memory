@@ -5,11 +5,11 @@ Automatically configures crontab (macOS/Linux) or schtasks (Windows).
 Uses project virtual environment paths and ensures log directories exist.
 """
 
-from m3_core.seams import roots as _seam_roots
+from m3_core.paths import apply_early_argv as _apply_early_argv
 
 # --config FILE (setup passes the file it chose) is pinned before any import
 # below binds a root, and is what every task registered here then carries.
-_seam_roots.pin_from_argv()
+_apply_early_argv()
 
 import argparse
 import html

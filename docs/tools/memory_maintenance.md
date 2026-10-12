@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: d538c71a40bc
-mtime_utc: 2026-10-12T03:53:56.973608+00:00
-generated_utc: 2026-10-12T03:54:18.850592+00:00
+sha1: 0cac23059be1
+mtime_utc: 2026-10-12T15:22:21.782981+00:00
+generated_utc: 2026-10-12T15:38:20.609719+00:00
 private: false
 ---
 
@@ -52,7 +52,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 2156)
+- `httpx.AsyncClient()` (line 2157)
 
 
 ---
@@ -63,7 +63,7 @@ _(none detected)_
 - `httpx`
 - `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
-- `m3_core.seams (roots)`
+- `m3_core.paths (apply_early_argv)`
 - `memory (confidence)`
 - `memory (config)`
 - `memory (trust)`

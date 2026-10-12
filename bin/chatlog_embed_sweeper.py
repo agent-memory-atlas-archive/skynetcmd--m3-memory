@@ -9,11 +9,12 @@ and drains any spill-to-disk files from the async write queue.
 
 from __future__ import annotations
 
-from m3_core.seams import roots as _seam_roots
+from m3_core.paths import apply_early_argv as _apply_early_argv
 
-# --config FILE (the file this job was registered with) is pinned before any
-# import below binds a root at import time (chatlog_config, log dirs).
-_seam_roots.pin_from_argv()
+# --config FILE (the file this job was registered with) is pinned, and every
+# --set KEY=VALUE applied, before any import below binds a root or reads a
+# setting at import time (chatlog_config, log dirs).
+_apply_early_argv()
 
 import argparse
 import asyncio

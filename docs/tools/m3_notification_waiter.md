@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: 6273f54e6040
-mtime_utc: 2026-10-12T03:55:17.062780+00:00
-generated_utc: 2026-10-12T03:55:25.046493+00:00
+sha1: d1a15e6ef19a
+mtime_utc: 2026-10-12T15:22:27.529860+00:00
+generated_utc: 2026-10-12T15:38:20.498024+00:00
 private: false
 ---
 
@@ -79,6 +79,7 @@ _(none detected)_
 ## Notable external imports
 
 - `m3_core.paths (add_config_arg)`
+- `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (notification_store_paths)`
 - `m3_core.paths (resolve_backend_name)`
 - `m3_core.seams (roots)`

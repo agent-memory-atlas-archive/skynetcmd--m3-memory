@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_loop_watchdog.py
-sha1: 71733f97529a
-mtime_utc: 2026-10-12T03:54:17.517885+00:00
-generated_utc: 2026-10-12T03:54:18.694592+00:00
+sha1: 13ddae67b94b
+mtime_utc: 2026-10-12T15:22:27.486742+00:00
+generated_utc: 2026-10-12T15:38:20.492014+00:00
 private: false
 ---
 
@@ -89,6 +89,7 @@ _(none detected)_
 
 ## Notable external imports
 
+- `m3_core.paths (apply_early_argv)`
 - `m3_core.seams (roots)`
 
 ---

@@ -508,6 +508,19 @@ the policy is forward-going only.
 
 ### Added
 
+- **`--set` overrides settings for one run.** It works on any `m3` command and
+  any m3 script. One table in double quotes goes right after `m3`, with the
+  setting names of `m3_config.toml`; strings go in `^...^`:
+  `m3 "--set={db.backend=^postgres^, search.row_cap=50}" search "query"`.
+  The same form works in bash, zsh, PowerShell and cmd.
+  - **Scope:** the whole run, including m3 processes it starts.
+    `m3 config show --origin` labels these values `cli`.
+  - **Refused:** secrets and paths (use the secrets file and `--config`). A
+    refused `--set` names each problem and runs nothing. The format, with
+    quoting for each shell, is in `m3 --help`.
+
+  **Affected:** none · **Action:** none · **Data status:** none.
+
 - **`m3 doctor` warns when the secrets file can leave the machine.** The secrets
   file holds secrets in plain text, protected by its permissions. Doctor names it
   when it sits inside a git working tree or a synced folder (OneDrive, Dropbox,

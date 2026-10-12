@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server_inproc.py
-sha1: 4f94576b3114
-mtime_utc: 2026-10-12T03:55:17.061782+00:00
-generated_utc: 2026-10-12T03:55:24.772748+00:00
+sha1: 1fad11665c66
+mtime_utc: 2026-10-12T15:22:21.779444+00:00
+generated_utc: 2026-10-12T15:38:20.206141+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 
 ## Entry points
 
-- `def main()` (line 544)
+- `def main()` (line 545)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -91,7 +91,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `fastapi.responses (JSONResponse)`
 - `m3_core.config (settings)`
 - `m3_core.paths (add_config_arg)`
-- `m3_core.seams (roots)`
+- `m3_core.paths (apply_early_argv)`
 - `memory (config)`
 - `memory.embed (_EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf)`
 - `numpy`

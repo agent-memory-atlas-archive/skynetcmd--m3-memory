@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping
+from pathlib import PurePath
 
 
 def toml_value(value: object) -> str:
@@ -26,6 +27,10 @@ def toml_value(value: object) -> str:
         return repr(value)
     if isinstance(value, str):
         return json.dumps(value)
+    if isinstance(value, PurePath):
+        return json.dumps(value.as_posix())  # forward slashes, as the config writer stores paths
+    if isinstance(value, list):
+        return "[" + ", ".join(toml_value(v) for v in value) + "]"
     raise TypeError(f"cannot render {type(value).__name__} {value!r} as a TOML value")
 
 

@@ -1923,6 +1923,13 @@ def _warn_if_not_applied(result, tool: str) -> None:
 def main() -> None:
     from m3_memory import __version__
 
+    # --set={...} is read once, applied, and removed here, before any parser or
+    # module reads a setting; the command parses the rest untouched.
+    _bin.ensure_on_path()
+    from m3_core.paths import apply_early_argv
+
+    apply_early_argv()
+
     parser = argparse.ArgumentParser(
         prog="m3",
         description=(
@@ -1932,6 +1939,15 @@ def main() -> None:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Override settings for one run (any command, any m3 script): one table in
+double quotes immediately after `m3`, the setting names of m3_config.toml;
+strings in ^...^ (^^ is a literal ^), lists in [...], numbers and true/false bare:
+  m3 "--set={db.backend=^postgres^, search.row_cap=50}" search "query"
+  m3 "--set={llm.endpoints=[^http://a:1234/v1^, ^http://b:11434/v1^]}" doctor
+  The same in bash, zsh, PowerShell and cmd. A value containing $ needs single
+  quotes instead in bash/zsh/PowerShell. Not for secrets or paths: use the
+  secrets file and --config.
+
 Examples:
   # First-time one-command setup (interactive wizard):
   m3 setup

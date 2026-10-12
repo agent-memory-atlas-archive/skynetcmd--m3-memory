@@ -39,7 +39,7 @@ from m3_core.config.keys import DB_BACKEND  # noqa: E402
 from m3_core.config.loader import ConfigFileError  # noqa: E402
 from m3_core.config.registry import ConfigValueError, Key, Scope  # noqa: E402
 from m3_core.config.resolve import ConfigEnvErrors, env_outranks_file  # noqa: E402
-from m3_core.config.settings import Settings, build, env_contradicting  # noqa: E402
+from m3_core.config.settings import Settings, build, env_contradicting, with_flags  # noqa: E402
 from m3_core.config.writer import ConfigWriteError, set_values  # noqa: E402
 from m3_core.seams import console_has_person  # noqa: E402
 
@@ -188,7 +188,7 @@ def _confirmed(key: Key, change: str, file: object, yes: bool) -> bool:
 
 def _get(args: argparse.Namespace) -> int:
     key = _config_key(args.key)
-    settings = build(locate(args.config))
+    settings = with_flags(build(locate(args.config)))
     line = _value_text(settings[key])
     print(f"{line}    # {settings.origin(key)}" if args.origin else line)
     return 0
@@ -258,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
             from m3_memory.install import import_env  # the sweep lives with the installer
 
             return import_env.run(args.config, dry_run=args.dry_run, non_interactive=args.non_interactive)
-        settings = build(locate(args.config))
+        settings = with_flags(build(locate(args.config)))
     except _Refused as e:
         print(e, file=sys.stderr)
         return 2
