@@ -21,6 +21,14 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **The session-start capture check works on a PostgreSQL primary store.** It
+  reported "capture status UNKNOWN" at every session start and could leave
+  empty SQLite files behind; it now reads when the chatlog last wrote, from the
+  same state `m3 chatlog status` reports, and opens no database.
+  **Affected:** PostgreSQL-primary installs using Claude Code · **Action:**
+  none · **Data status:** none; any empty `agent_memory.db` or
+  `agent_chatlog.db` it created in the engine root holds no data.
+
 - **The session-handoff server no longer opens the store when it starts.** It
   creates its table on the first save, in the store that run selected.
   **Affected:** users of the `session_handoff` MCP server · **Action:** none ·

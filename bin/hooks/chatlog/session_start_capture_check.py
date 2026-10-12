@@ -25,6 +25,16 @@ from pathlib import Path
 WINDOW_MIN = 15
 
 
+def _bin_on_path() -> Path:
+    """Put the payload's bin/ first on sys.path (once); return the repo root.
+    M3_HOME, if set, only LOCATES bin/; it never decides the DB."""
+    repo = Path(os.environ.get("M3_HOME") or Path(__file__).resolve().parents[3])
+    b = str(repo / "bin")
+    if b not in sys.path:
+        sys.path.insert(0, b)
+    return repo
+
+
 def _resolve_db() -> str:
     """Resolve the m3 agent-memory DB path portably (no hardcoded user path).
 
@@ -41,10 +51,9 @@ def _resolve_db() -> str:
     """
     # bin/hooks/chatlog/this_file.py -> repo root is parents[3]. M3_HOME (if set)
     # only helps LOCATE the bin/ dir to import m3_sdk; it does NOT decide the DB.
-    repo = Path(os.environ.get("M3_HOME") or Path(__file__).resolve().parents[3])
+    repo = _bin_on_path()
     engine_root_fn: Callable[[], str] | None = None
     try:
-        sys.path.insert(0, str(repo / "bin"))
         from m3_sdk import get_m3_engine_root, resolve_db_path
 
         engine_root_fn = get_m3_engine_root
@@ -138,7 +147,66 @@ def _candidate_dbs() -> list[str]:
     return out
 
 
+def _state_verdict() -> str | None:
+    """The verdict from the chatlog writer's own state file, or None when the
+    state cannot answer (payload missing, or nothing recorded yet on SQLite,
+    where the file count below still can).
+
+    ``last_write_at`` is stamped by ``chatlog_core`` after every flush that
+    LANDED, whatever the backend, and it is what ``m3 chatlog status`` reports.
+    Reading it opens no database, so it is right on PostgreSQL, where the turns
+    live in PG and the SQLite files this hook used to open are not the store: it
+    created empty stray files there and cried "status UNKNOWN" every session.
+    """
+    _bin_on_path()
+    try:
+        import chatlog_config
+    except Exception:  # noqa: BLE001 -- payload not importable: the file count decides
+        return None
+    try:
+        with open(chatlog_config.STATE_FILE, encoding="utf-8") as f:
+            last = json.load(f).get("last_write_at")
+    except FileNotFoundError:
+        last = None
+    except (OSError, ValueError) as e:
+        return f"\U0001f6a8 m3 chatlog check could not read {chatlog_config.STATE_FILE}: {e} — capture status UNKNOWN."
+    if not last:
+        if _primary_is_sqlite():
+            return None
+        return (
+            f"\U0001f6a8 m3 chatlog capture has recorded no write yet ({chatlog_config.STATE_FILE} has no "
+            "last_write_at) — capture status UNKNOWN. Run `m3 chatlog doctor`."
+        )
+    from datetime import UTC, datetime
+
+    try:
+        age_min = (datetime.now(UTC) - datetime.fromisoformat(str(last))).total_seconds() / 60
+    except ValueError:
+        return f"\U0001f6a8 m3 chatlog state holds an unreadable last_write_at ({last!r}) — capture status UNKNOWN."
+    if age_min <= WINDOW_MIN:
+        return f"✅ m3 chatlog capture: WORKING (last write {age_min:.0f} min ago)"
+    return (
+        f"\U0001f6a8 WARNING: m3 chatlog capture NOT writing (last write {age_min:.0f} min ago, "
+        f"at {last}). Turns from this session are NOT being preserved. Run `m3 chatlog doctor` "
+        "before continuing substantive work. (Note: an MCP disconnect does NOT cause this — "
+        "capture writes to the DB directly, independent of that connection.)"
+    )
+
+
+def _primary_is_sqlite() -> bool:
+    try:
+        from m3_core.paths import resolve_backend_name
+
+        return resolve_backend_name() == "sqlite"
+    except Exception:  # noqa: BLE001 -- unknown: the SQLite file count is the old behaviour
+        return True
+
+
 def main() -> None:
+    verdict = _state_verdict()
+    if verdict is not None:
+        print(json.dumps({"systemMessage": verdict, "suppressOutput": True}))
+        return
     dbs = _candidate_dbs()
     try:
         _sql, _params = _recent_window_sql()

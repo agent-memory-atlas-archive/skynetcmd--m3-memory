@@ -65,3 +65,58 @@ def test_resolve_db_honors_m3_database_override(monkeypatch, tmp_path):
     db = Path(mod._resolve_db()).resolve()
 
     assert db == explicit.resolve(), db
+
+
+# ── The verdict comes from the writer's state file, not a database file ──────
+def _state(monkeypatch, tmp_path, last):
+    import json
+
+    import chatlog_config
+
+    f = tmp_path / ".chatlog_state.json"
+    if last is not None:
+        f.write_text(json.dumps({"last_write_at": last}), encoding="utf-8")
+    else:
+        f.unlink(missing_ok=True)  # nothing recorded yet
+    monkeypatch.setattr(chatlog_config, "STATE_FILE", str(f))
+    return f
+
+
+def _iso(minutes_ago):
+    from datetime import UTC, datetime, timedelta
+
+    return (datetime.now(UTC) - timedelta(minutes=minutes_ago)).isoformat()
+
+
+def test_a_recent_write_reads_as_working_and_an_old_one_as_not(monkeypatch, tmp_path):
+    mod = _load_hook()
+    _state(monkeypatch, tmp_path, _iso(3))
+    assert "WORKING" in mod._state_verdict()
+    _state(monkeypatch, tmp_path, _iso(90))
+    said = mod._state_verdict()
+    assert "NOT writing" in said and "90 min ago" in said, said
+
+
+def test_on_postgres_no_sqlite_file_is_opened_or_created(monkeypatch, tmp_path, capsys):
+    """The false alarm this fixes: on a PG primary the hook opened the SQLite file
+    paths (creating empty files) and cried "status UNKNOWN" every session."""
+    from conftest import select_backend
+
+    select_backend("postgres")
+    engine = tmp_path / "engine"
+    engine.mkdir()
+    monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
+    _state(monkeypatch, tmp_path, _iso(2))
+    mod = _load_hook()
+    mod.main()
+    assert "WORKING" in capsys.readouterr().out
+    assert not list(engine.glob("*.db")), "the hook created a SQLite file on PostgreSQL"
+    _state(monkeypatch, tmp_path, None)
+    said = mod._state_verdict()
+    assert "UNKNOWN" in said and "no write yet" in said, said
+
+
+def test_on_sqlite_with_no_state_yet_the_file_count_still_decides(monkeypatch, tmp_path):
+    mod = _load_hook()
+    _state(monkeypatch, tmp_path, None)
+    assert mod._state_verdict() is None
