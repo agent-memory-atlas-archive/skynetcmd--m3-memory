@@ -634,6 +634,16 @@ def _caller_args(m3: str, dry: bool = False) -> list[str]:
     return [CALLER_FLAG, "upgrade"] if rc == 0 and CALLER_FLAG in out else []
 
 
+def _has_import_env(m3: str, dry: bool = False) -> bool:
+    """Whether THIS m3 has `m3 config import-env` (probed at the moment of use,
+    as _caller_args is: an upgrade may install a release that predates it). A dry
+    run probes nothing and shows the step."""
+    if dry:
+        return True
+    rc, out = run_captured_rc([m3, "config", "--help"], timeout=60)
+    return rc == 0 and "import-env" in out
+
+
 def m3_still_installed(owner_python: str) -> bool | None:
     """Whether m3 still imports in its own interpreter after a failed step 2.
 
@@ -1120,6 +1130,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         _summary("m3 setup", rc)
         return rc
+
+    # Settings still kept in env, rc files, .env and MCP env blocks move into
+    # m3_config.toml (plan 2F.1 slice 4). Non-interactive by decision (m3
+    # 7200dbed): a disagreement is listed with its fix, never decided here. It
+    # never fails the upgrade: the settings keep working where they are.
+    if _has_import_env(m3, dry):
+        import_cmd = [m3, "config", "import-env", "--non-interactive"]
+        print(f"\n  moving legacy settings into m3_config.toml: {_cmd_label(import_cmd)}")
+        rc_import = run(import_cmd, dry=dry, timeout=180)
+        if rc_import != 0:
+            print(
+                f"  [!] `m3 config import-env` exited {rc_import}; the upgrade continues and your\n"
+                "      settings still work where they are. Run `m3 config import-env` to see why."
+            )
 
     # --fix --fix-hooks, not a bare `doctor`. An upgrade is the one moment when
     # repairing is unambiguously wanted: the user asked for a new version and is

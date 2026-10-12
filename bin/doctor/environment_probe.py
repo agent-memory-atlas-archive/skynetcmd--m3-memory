@@ -47,8 +47,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
-import time
 from typing import cast
 
 from m3_core.seams import is_windows
@@ -380,20 +378,11 @@ def repair(dry_run: bool = True) -> dict:
         return result
 
     settings_path = _claude_settings_path()
-    try:
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        backup = f"{settings_path}.m3-backup-{stamp}"
-        shutil.copy2(settings_path, backup)
-        result["backup"] = backup
-    except Exception as e:  # noqa: BLE001 — no backup, no write
-        result["actions"].append(
-            {
-                "action": "backup",
-                "status": "error",
-                "detail": f"could not back up settings.json ({e}); refusing to modify it without a backup",
-            }
-        )
-        return result
+    # install_claude_settings backs settings.json up (<name>.bak + a
+    # .backup_history section) and writes nothing when it cannot.
+    from m3_core.atomic_io import backup_paths
+
+    backup = str(backup_paths(settings_path)[0])
 
     try:
         import generate_configs
@@ -406,12 +395,13 @@ def repair(dry_run: bool = True) -> dict:
         # the server env root blocks. install_claude_settings strips m3-owned
         # entries itself, so no separate drop step is needed.
         res = generate_configs.install_claude_settings(assume_yes=True)
+        result["backup"] = backup if res.get("changed") else None
         result["actions"].append(
             {
                 "action": "rewire",
                 "status": "ok",
                 "detail": f"re-wired {len(findings)} issue(s) via install_claude_settings "
-                f"(changed={res.get('changed')}); backup at {result['backup']}",
+                f"(changed={res.get('changed')}); backup at {result['backup'] or 'none (nothing written)'}",
             }
         )
     except Exception as e:  # noqa: BLE001
@@ -419,7 +409,7 @@ def repair(dry_run: bool = True) -> dict:
             {
                 "action": "rewire",
                 "status": "error",
-                "detail": f"{type(e).__name__}: {e}; settings.json unchanged at {result['backup']}",
+                "detail": f"{type(e).__name__}: {e}; settings.json is unchanged or restorable from {backup}",
             }
         )
     return result

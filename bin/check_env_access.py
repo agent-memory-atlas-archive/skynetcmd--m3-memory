@@ -60,6 +60,7 @@ ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py", "m3_me
 OS_NAMES: frozenset[str] = frozenset(
     {
         "HOME",
+        "USERPROFILE",
         "APPDATA",
         "LOCALAPPDATA",
         "PROGRAMDATA",
@@ -75,6 +76,10 @@ OS_NAMES: frozenset[str] = frozenset(
         "TERM_PROGRAM",
         "XDG_CONFIG_HOME",
         "XDG_DATA_HOME",
+        # Set by Windows' OneDrive client: where it syncs (_platform.synced_folder_roots)
+        "OneDrive",
+        "OneDriveConsumer",
+        "OneDriveCommercial",
         # U4 bucket A
         "ANSICON",
         "FORCE_COLOR",

@@ -41,7 +41,6 @@ import json
 import os
 import shutil
 import subprocess
-import time
 
 # Mirror of m3_memory.setup_wizard._CLAUDE_PLUGIN_SERVER_IDS and
 # generate_configs.install_claude_settings section 4. `memory` is the current
@@ -207,21 +206,22 @@ def _disable_plugin_server_in_settings() -> tuple[bool, str | None, str]:
     to_add = [pid for pid in _PLUGIN_SERVER_IDS if pid not in disabled]
     if not to_add:
         return False, None, "plugin server already disabled"
+    from m3_core.atomic_io import GuardedRewrite, atomic_write
+
+    disabled.extend(to_add)
+    live["disabledMcpServers"] = disabled
+    text = json.dumps(live, indent=2, sort_keys=True)
     backup = None
     try:
         if os.path.isfile(settings_path):
-            backup = f"{settings_path}.m3-backup-{time.strftime('%Y%m%d-%H%M%S')}"
-            shutil.copy2(settings_path, backup)
-    except Exception as e:  # noqa: BLE001 — no backup, no write
-        return False, None, f"could not back up settings.json ({e}); refused to write"
-    disabled.extend(to_add)
-    live["disabledMcpServers"] = disabled
-    try:
-        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
-        with open(settings_path, "w", encoding="utf-8") as f:
-            json.dump(live, f, indent=2, sort_keys=True)
+            guard = GuardedRewrite(settings_path, by="m3 doctor --fix (one m3 server)")
+            guard.write(text)  # backs up first; no backup, no write
+            backup = str(guard.bak)
+        else:
+            os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+            atomic_write(settings_path, text)
     except Exception as e:  # noqa: BLE001
-        return False, backup, f"{type(e).__name__}: {e}; settings.json unchanged"
+        return False, backup, f"{type(e).__name__}: {e}; settings.json is unchanged or restorable from its .bak"
     return True, backup, f"disabled {', '.join(to_add)}"
 
 

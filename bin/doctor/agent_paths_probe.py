@@ -222,9 +222,7 @@ def _remediate() -> bool:
     not stale. Idempotent: a dry-run gate means no backup and no write happen
     unless something actually differs. Returns True if settings changed."""
     try:
-        import shutil
         import sys
-        import time
 
         bin_dir = _payload_bin()
         if bin_dir not in sys.path:
@@ -234,13 +232,9 @@ def _remediate() -> bool:
         # Idempotent gate: don't back up / rewrite when nothing would change.
         if not generate_configs.install_claude_settings(dry_run=True).get("changed"):
             return False
-        # Back up the user's settings.json first (their non-m3 hooks live there
-        # too) — same discipline as the --fix-hooks environment repair.
-        settings = Path.home() / ".claude" / "settings.json"
-        if os.path.isfile(settings):
-            bak = settings.with_name(f"settings.json.m3bak-{time.strftime('%Y%m%d-%H%M%S')}")
-            shutil.copy2(settings, bak)
-            print(f"  [fix] backed up settings.json -> {bak}")
+        # install_claude_settings backs settings.json up first (<name>.bak + a
+        # .backup_history section; the user's non-m3 hooks live there too) and
+        # writes nothing when it cannot.
         print("  [fix] rewriting Claude commands to the current payload + roots …")
         return bool(generate_configs.install_claude_settings(assume_yes=True).get("changed"))
     except Exception as e:  # noqa: BLE001 — a failed fix must not crash the doctor

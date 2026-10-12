@@ -52,11 +52,13 @@ from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surf
     _deprecated_env_section,
     _embedder_tier_section,
     _gemini_hook_state,
+    _interrupted_rewrite_section,
     _llm_file_legacy_section,
     _plaintext_dsn_section,
     _read_json,
     _resolve_chatlog_db,
     _roots_section,
+    _secrets_file_exposure_section,
     _sqlite3_cli_hint,
 )
 
@@ -2760,7 +2762,11 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     _llm_file_legacy_section()
 
+    _interrupted_rewrite_section()
+
     _plaintext_dsn_section()
+
+    _secrets_file_exposure_section()
 
     _chatlog_section(cfg)
 

@@ -656,6 +656,37 @@ def _cmd_governor(args: argparse.Namespace) -> int:
     return _run_bin_script("governor_cli.py", argv)
 
 
+def _cmd_restore(args: argparse.Namespace) -> int:
+    """`m3 restore FILE [--at TIME]`: list the versions a rewrite saved in
+    FILE.backup_history, or write one back (itself backed up, so it can be undone)."""
+    _bin.ensure_on_path()
+    from m3_core.atomic_io import backup_paths, restore, versions
+
+    args.file = str(Path(args.file).expanduser())
+    found = versions(args.file)
+    if not args.at:
+        if not found:
+            print(f"no saved versions of {args.file} (looked in {backup_paths(args.file)[1]})")
+            return 1
+        print(f"versions of {args.file} (each is the file as it was BEFORE that change):")
+        for stamp, by, content in found:
+            print(f"  {stamp}  before a change by {by}  ({len(content)} bytes)")
+        print(f"restore one: m3 restore {args.file} --at <time>")
+        return 0
+    try:
+        path = restore(args.file, args.at)
+    except KeyError as e:
+        print(f"observed: {e.args[0]}. inspect: m3 restore {args.file}", file=sys.stderr)
+        return 2
+    except OSError as e:
+        print(f"observed: could not restore {args.file}: {e}; it is unchanged", file=sys.stderr)
+        return 2
+    print(
+        f"restored {path} to the version before {args.at}; to undo, `m3 restore {path}` lists the version from just before this restore"
+    )
+    return 0
+
+
 def _cmd_secret(args: argparse.Namespace) -> int:
     """`m3 secret refresh`: move the secrets generation marker. m3's own secret
     writes do this already; this is for a key changed outside m3 (a keyring edit)."""
@@ -677,7 +708,7 @@ def _cmd_config(args: argparse.Namespace) -> int:
         return 1
     argv = [getattr(args, "config_cmd", None) or "show"]
     argv += [v for v in (getattr(args, "key", None), getattr(args, "value", None)) if v is not None]
-    for flag in ("origin", "json", "yes", "dry_run"):
+    for flag in ("origin", "json", "yes", "dry_run", "non_interactive"):
         if getattr(args, flag, False):
             argv.append(f"--{flag.replace('_', '-')}")
     if getattr(args, "config", None):
@@ -2160,9 +2191,20 @@ Examples:
         "import-env", help="Move settings from env, rc files, .env and MCP env blocks into m3_config.toml."
     )
     p_cfg_import.add_argument("--dry-run", action="store_true", help="Say what would be imported; write nothing.")
+    p_cfg_import.add_argument(
+        "--non-interactive", action="store_true", help="Never ask; list each disagreement and import nothing for it."
+    )
     for p_cfg in (p_cfg_show, p_cfg_get, p_cfg_set, p_cfg_unset, p_cfg_import):
         p_cfg.add_argument("--config", metavar="FILE", help="Use this file instead of the located one.")
     p_config.set_defaults(func=_cmd_config)
+
+    p_restore = subparsers.add_parser(
+        "restore",
+        help="List or restore the versions m3 saved before rewriting a file (<file>.backup_history).",
+    )
+    p_restore.add_argument("file", help="The file m3 rewrote, e.g. ~/.claude/settings.json.")
+    p_restore.add_argument("--at", metavar="TIME", help="The UTC time of the change to undo (from the list).")
+    p_restore.set_defaults(func=_cmd_restore)
 
     p_secret = subparsers.add_parser(
         "secret",

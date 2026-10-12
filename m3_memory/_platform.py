@@ -88,6 +88,50 @@ def vscode_user_dir() -> str:
     return os.path.join(home, ".config", "Code", "User")
 
 
+def synced_folder_roots() -> list[tuple[str, str]]:
+    """``(service, directory)`` for each folder a sync client copies off this
+    machine, where this OS puts them by default or says where they are. A file
+    inside one is uploaded. Only directories that exist are returned.
+
+    Windows: the OneDrive env vars, ``~/Dropbox``, ``~/iCloudDrive``. macOS:
+    ``~/Library/Mobile Documents`` (iCloud Drive) and each provider under
+    ``~/Library/CloudStorage``, plus ``~/Dropbox``. Elsewhere: ``~/Dropbox``,
+    ``~/OneDrive``. Not detected: a sync client pointed at a custom folder.
+    """
+    home = os.path.expanduser("~")
+    found: list[tuple[str, str]] = []
+    if is_windows():
+        # Literal names: the OneDrive client sets each (personal / work), and the
+        # env checker allows them by name (bin/check_env_access.py OS_NAMES).
+        found += [
+            ("OneDrive", p)
+            for p in (
+                os.environ.get("OneDrive"),
+                os.environ.get("OneDriveConsumer"),
+                os.environ.get("OneDriveCommercial"),
+            )
+            if p
+        ]
+        found += [("Dropbox", os.path.join(home, "Dropbox")), ("iCloud Drive", os.path.join(home, "iCloudDrive"))]
+    elif is_macos():
+        found.append(("iCloud Drive", os.path.join(home, "Library", "Mobile Documents")))
+        cloud = os.path.join(home, "Library", "CloudStorage")
+        try:
+            found += [(name.split("-")[0], os.path.join(cloud, name)) for name in sorted(os.listdir(cloud))]
+        except OSError:
+            pass
+        found.append(("Dropbox", os.path.join(home, "Dropbox")))
+    else:
+        found += [("Dropbox", os.path.join(home, "Dropbox")), ("OneDrive", os.path.join(home, "OneDrive"))]
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for service, path in found:
+        if path not in seen and os.path.isdir(path):
+            seen.add(path)
+            out.append((service, path))
+    return out
+
+
 # The persistent environment scopes: (label, hive attribute, subkey, writable
 # without admin). User is what `setx` writes; Machine needs elevation.
 PERSISTENT_ENV_SCOPES = (

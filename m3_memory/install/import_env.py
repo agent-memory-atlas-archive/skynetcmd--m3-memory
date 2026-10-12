@@ -162,7 +162,7 @@ def _rename_llm_file(loc: Location, after: Settings) -> str | None:
     return f"  [+] renamed {path} to {done.name}; its values are in {loc.file}"
 
 
-def run(config: str | None, *, dry_run: bool) -> int:
+def run(config: str | None, *, dry_run: bool, non_interactive: bool = False) -> int:
     from m3_core.atomic_io import GuardedRewrite, atomic_write
     from m3_core.config.writer import ConfigWriteError, set_values
 
@@ -173,7 +173,9 @@ def run(config: str | None, *, dry_run: bool) -> int:
         print(format_config_error(e), file=sys.stderr)
         return 2
     verb = "would import" if dry_run else "imported"
-    chosen, lines, secrets = _plan(loc, current, interactive=console_has_person() and not dry_run, verb=verb)
+    chosen, lines, secrets = _plan(
+        loc, current, interactive=console_has_person() and not (dry_run or non_interactive), verb=verb
+    )
     print(f"m3 config import-env: {loc.file}")
     for line in lines:
         print(line)
@@ -226,9 +228,12 @@ def _restore(guard, loc: Location, atomic_write, reason: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="m3 config import-env", description=__doc__.split("\n\n")[0])
     ap.add_argument("--dry-run", action="store_true", help="say what would be imported; write nothing")
+    ap.add_argument(
+        "--non-interactive", action="store_true", help="never ask: list each disagreement and import nothing for it"
+    )
     ap.add_argument("--config", metavar="FILE", help="use this file instead of the located one")
     args = ap.parse_args(argv)
-    return run(args.config, dry_run=args.dry_run)
+    return run(args.config, dry_run=args.dry_run, non_interactive=args.non_interactive)
 
 
 if __name__ == "__main__":

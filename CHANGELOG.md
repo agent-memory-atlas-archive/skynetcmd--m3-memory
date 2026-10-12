@@ -354,9 +354,15 @@ the policy is forward-going only.
 - **Each file m3 rewrites keeps `<name>.bak` and `<name>.backup_history`.**
   - **`<name>.bak`** is the file exactly as it was before the latest change;
     restoring is copying it back.
-  - **`<name>.backup_history`** gets one UTC-stamped entry per change, with the
-    diff. An entry with no `END` line means the change did not finish, and the
-    entry says how to restore.
+  - **`<name>.backup_history`** gets one UTC-stamped entry per change: the full
+    previous content (every line prefixed `| `, so the history cannot be mistaken
+    for the file) and the diff. `m3 restore <file>` lists the versions;
+    `m3 restore <file> --at <time>` puts one back, and can itself be undone.
+  - **An unfinished change** (an entry with no `END` line) is named by `m3 doctor`,
+    with the restore.
+  - **The history keeps every previous version,** including any API keys the
+    file held. It has the same permissions as the file; delete it after
+    rotating a leaked key.
   - **Which files:** MCP client settings, OpenCode, the Gemini hooks, the
     crontab and launchd agents.
   - **What it replaces:** the `.m3bak`, `.bak` and timestamped copies, which
@@ -364,6 +370,13 @@ the policy is forward-going only.
   - **When a backup fails,** the file is not rewritten.
 
   **Affected:** all installs · **Action:** none · **Data status:** none.
+
+- **`m3 upgrade` moves settings into `m3_config.toml`.** After setup it runs
+  `m3 config import-env --non-interactive`: settings that every place agrees on
+  are imported; disagreements are listed with the `m3 config set` that settles
+  them, and nothing is written for them. A problem here never stops the upgrade.
+  **Affected:** all installs · **Action:** settle any disagreement the upgrade
+  lists · **Data status:** none.
 
 - **`m3 doctor --fix` no longer rewrites a `.env` or `~/.claude.json`.** Doctor
   prints the exact rename to make by hand in a `.env`. For `~/.claude.json`,
@@ -494,6 +507,13 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Added
+
+- **`m3 doctor` warns when the secrets file can leave the machine.** The secrets
+  file holds secrets in plain text, protected by its permissions. Doctor names it
+  when it sits inside a git working tree or a synced folder (OneDrive, Dropbox,
+  iCloud Drive and other cloud folders), and says how to move it.
+  **Affected:** installs with a secrets file · **Action:** move the file if doctor
+  names it · **Data status:** none.
 
 - **`m3 config import-env`.** It moves settings into `m3_config.toml` from the
   places they used to live: the environment, shell startup files, `.env` files,

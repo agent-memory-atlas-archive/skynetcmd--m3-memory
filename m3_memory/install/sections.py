@@ -873,6 +873,82 @@ def _llm_file_legacy_section() -> None:
     print("      `m3 config import-env` moves them (`--dry-run` first to see the plan).")
 
 
+def _inside(path: str, root: str) -> bool:
+    p, r = (os.path.normcase(os.path.realpath(x)) for x in (path, root))
+    try:
+        return os.path.commonpath([p, r]) == r
+    except ValueError:  # different drives
+        return False
+
+
+def _git_tree_of(path: str) -> str | None:
+    """The git working tree ``path`` sits in, or None."""
+    d = os.path.dirname(os.path.realpath(path))
+    while True:
+        if os.path.exists(os.path.join(d, ".git")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+
+
+def _secrets_file_exposure_section() -> None:
+    """Warn when the secrets file sits where it can leave this machine: inside a
+    git working tree (a commit publishes it) or a synced folder (the sync client
+    uploads it). The file is plaintext by decision (m3 c7082b20), protected only
+    by its permissions, so where it lives is the protection (CONFIG_DESIGN §10).
+    Silent when there is no secrets file or it is in neither."""
+    try:
+        _bin.ensure_on_path()
+        from m3_core.secret_store import secrets_file_path
+
+        from m3_memory._platform import synced_folder_roots
+
+        path = str(secrets_file_path())
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not locate the secrets file to check where it lives: {e}")
+        return
+    if not os.path.isfile(path):
+        return
+    problems = []
+    tree = _git_tree_of(path)
+    if tree:
+        problems.append(f"it is inside the git working tree {tree}: a commit would publish it")
+    problems += [
+        f"it is inside {service} ({root}): the sync client uploads it"
+        for service, root in synced_folder_roots()
+        if _inside(path, root)
+    ]
+    for problem in problems:
+        print()
+        print(f"  [!] the secrets file {path} holds plaintext secrets, and {problem}.")
+        print(
+            "      fix: move it out, and point `secrets.file` in m3_config.toml at the new place "
+            "(`m3 config set secrets.file <path> --yes`)."
+        )
+
+
+def _interrupted_rewrite_section() -> None:
+    """Name each file whose last rewrite began and never finished (a BEGIN with
+    no END in its .backup_history), with the restore. Silent when none."""
+    try:
+        _bin.ensure_on_path()
+        from m3_core.atomic_io import backup_paths, unfinished_rewrites
+
+        found = unfinished_rewrites()
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not check for interrupted rewrites: {e}. inspect: <config root>/.backup_index")
+        return
+    for path, by, began in found:
+        bak, history = backup_paths(path)
+        print()
+        print(f"  [!] a rewrite of {path} by {by} began {began} and did not finish;")
+        print(f"      the file may be incomplete. restore: copy {bak} over {path.name} (details: {history})")
+
+
 def _plaintext_dsn_section() -> None:
     """Name each plaintext primary-DSN copy in the registry or shell profile.
 
