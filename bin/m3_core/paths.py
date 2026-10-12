@@ -755,10 +755,15 @@ def _looks_like_dsn(value: str) -> bool:
 def resolve_db_path(explicit: str | None = None) -> str:
     """Resolve an absolute SQLite DB path.
 
-    Order: explicit arg > the active named SQLite store (2C.3, §14) > M3_DATABASE env
-    > active_database ContextVar > default
+    Order: explicit arg > the active named SQLite store (2C.3, §14) >
+    active_database ContextVar > M3_DATABASE env (legacy) > default
     (memory/agent_memory.db). Returns an absolute path so pool-cache keys are
     consistent regardless of caller CWD.
+
+    The ContextVar outranks env (M3_DATABASE design, approved 2026-10-12, Q3
+    phase 1): a call scoped with ``active_database()`` must resolve its scoped
+    DB, and an env value that happened to agree used to mask a scope that was
+    never set (R5).
 
     Raises ``ValueError`` when the resolved candidate is a DSN. This function
     answers "which SQLite FILE", so a connection string is a configuration
@@ -779,18 +784,14 @@ def resolve_db_path(explicit: str | None = None) -> str:
     """
     store = current_store()
     store_path = store.path if store is not None and store.backend == "sqlite" else None
-    candidate = explicit or store_path or os.environ.get("M3_DATABASE") or _active_db.get() or _default_db_path()
+    scoped = _active_db.get()
+    legacy = os.environ.get("M3_DATABASE")
+    candidate = explicit or store_path or scoped or legacy or _default_db_path()
     if _looks_like_dsn(candidate):
         # Name the source so the operator knows WHICH knob to fix; the value is
         # echoed scheme-only because a DSN carries a password.
         scheme = candidate.strip().split("://", 1)[0]
-        source = (
-            "the explicit argument"
-            if explicit
-            else "M3_DATABASE"
-            if os.environ.get("M3_DATABASE")
-            else "the active_database() context"
-        )
+        source = "the explicit argument" if explicit else "the active_database() context" if scoped else "M3_DATABASE"
         raise ValueError(
             f"resolve_db_path() resolves a SQLite FILE path, but got a DSN. "
             f"observed: {scheme}:// DSN from {source}. "

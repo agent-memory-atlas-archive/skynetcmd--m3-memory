@@ -291,14 +291,14 @@ class M3Client:
     async def _delete_chatlog_rows_async(self, ids: list) -> int:
         """Soft-delete chatlog rows by id ON the chatlog connection (§2.5 N2).
 
-        The core ``memory_delete_bulk`` resolves its DB via
-        ``resolve_db_path`` = explicit > ``M3_DATABASE`` env > active_database
-        ContextVar > default — so when ``M3_DATABASE`` is set (real deployments,
-        the test fixture), ``active_database(chatlog_path)`` CANNOT redirect it
-        and the delete misses chatlog rows entirely. We therefore delete via the
+        The core ``memory_delete_bulk`` resolves a SQLite FILE via
+        ``resolve_db_path``, and on PostgreSQL the chatlog is not a file at all
+        (``chat_log_items`` on the main pool). So the delete goes through the
         chatlog CONNECTION directly (``M3Context.get_chatlog_conn()``, the exact
         route chatlog writes/reads use — topology-correct for integrated/
-        separate/hybrid), with parameterized SQL (§6). Soft-delete (is_deleted=1)
+        separate/hybrid), with parameterized SQL (§6). (It was also needed
+        because ``M3_DATABASE`` env once outranked ``active_database``; the scope
+        now wins, M3_DATABASE design 2026-10-12.) Soft-delete (is_deleted=1)
         matches m3's default delete semantics. Returns rows affected."""
         if not ids:
             return 0

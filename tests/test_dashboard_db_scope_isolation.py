@@ -43,11 +43,11 @@ from m3_core.paths import active_database, resolve_db_path  # noqa: E402
 # ── The mechanism, independent of the dashboard ───────────────────────────────
 
 
-def test_env_var_outranks_the_contextvar(monkeypatch, tmp_path):
-    """Why the env write was not merely redundant but actively harmful.
+def test_the_contextvar_outranks_the_env_var(monkeypatch, tmp_path):
+    """Flipped 2026-10-12 (M3_DATABASE design phase 1): a scope beats the env var.
 
-    If this ever flips, `DbScopeMiddleware`'s deliberate yield-to-the-env-var
-    branch is no longer needed -- and the comment explaining it is wrong.
+    So `DbScopeMiddleware`'s yield-to-the-env-var branch is now what keeps an
+    operator's `M3_DATABASE` pin winning; its docstring says so.
     """
     main = str(tmp_path / "main.db")
     chat = str(tmp_path / "chat.db")
@@ -58,9 +58,8 @@ def test_env_var_outranks_the_contextvar(monkeypatch, tmp_path):
 
     monkeypatch.setenv("M3_DATABASE", main)
     with active_database(chat):
-        assert resolve_db_path(None) == os.path.abspath(main), (
-            "M3_DATABASE must outrank the ContextVar; the middleware relies on "
-            "this to let an operator's explicit pin win"
+        assert resolve_db_path(None) == os.path.abspath(chat), (
+            "the scope must outrank M3_DATABASE; DbScopeMiddleware's yield is what lets an operator's explicit pin win"
         )
 
 

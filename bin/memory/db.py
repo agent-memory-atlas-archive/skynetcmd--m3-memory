@@ -78,7 +78,10 @@ _ENTITY_COUNT_QUERY = "SELECT COUNT(*) FROM entities"
 # Access-stamp batcher: coalesce last_accessed_at UPDATEs into bulk writes
 # ──────────────────────────────────────────────────────────────────────────────
 _ACCESS_FLUSH_INTERVAL = 0.25  # seconds
-_access_pending: set[str] = set()
+# (store, memory id): the flusher is an asyncio task created by the FIRST reader,
+# so it carries that reader's context for good; a stamp must name its own store,
+# or a read under --store X / active_database(X) stamps the wrong database.
+_access_pending: set[tuple[str, str]] = set()
 _access_flusher_task: asyncio.Task | None = None
 _access_lock = asyncio.Lock()
 
@@ -712,8 +715,9 @@ def _gate_active(setting_name: str, count_query: str, threshold: int = 1) -> boo
 # ──────────────────────────────────────────────────────────────────────────────
 # Access-stamp batcher
 # ──────────────────────────────────────────────────────────────────────────────
-def _flush_access_batch(batch: list) -> int:
-    """Write one batch of access stamps. Returns the number of ids attempted.
+def _flush_access_batch(batch: list[tuple[str, str]]) -> int:
+    """Write one batch of (store, id) access stamps, each store under its own
+    scope (the read-log's pattern). Returns the number of ids attempted.
 
     ⚠ THROUGH THE SEAM. This carried literal `?` placeholders, which PostgreSQL
     rejects outright — and the caller swallowed the error at debug level, so on
@@ -728,27 +732,31 @@ def _flush_access_batch(batch: list) -> int:
     """
     if not batch:
         return 0
-    from memory.backends import dialect as _dialect
-
-    _d = _dialect()
-    _p = _d.param()
+    active_database, _dialect = _bind_read_log_deps()
+    by_store: dict[str, list[str]] = {}
+    for store, mid in batch:
+        by_store.setdefault(store, []).append(mid)
     now_iso = datetime.now(UTC).isoformat()
-    try:
-        with _db() as db:
-            placeholders = ",".join([_p] * len(batch))
-            db.execute(
-                f"UPDATE memory_items "
-                f"SET last_accessed_at = {_p}, access_count = "
-                f"COALESCE(access_count, 0) + 1 "
-                f"WHERE id IN ({placeholders})",
-                (now_iso, *batch),
-            )
-            if hasattr(db, "commit"):
-                db.commit()
-    except Exception as e:  # noqa: BLE001 — never break a read path
-        log_swallowed(logger, e, f"access-stamp flush failed (batch={len(batch)}): {e}")
-        return 0
-    return len(batch)
+    written = 0
+    for store, ids in by_store.items():
+        try:
+            with active_database(store), _db() as db:
+                _d = _dialect()
+                _p = _d.param()
+                placeholders = ",".join([_p] * len(ids))
+                db.execute(
+                    f"UPDATE memory_items "
+                    f"SET last_accessed_at = {_p}, access_count = "
+                    f"COALESCE(access_count, 0) + 1 "
+                    f"WHERE id IN ({placeholders})",
+                    (now_iso, *ids),
+                )
+                if hasattr(db, "commit"):
+                    db.commit()
+            written += len(ids)
+        except Exception as e:  # noqa: BLE001 — never break a read path
+            log_swallowed(logger, e, f"access-stamp flush failed (store={store}, batch={len(ids)}): {e}")
+    return written
 
 
 def flush_access_stamps_now() -> int:
@@ -806,7 +814,8 @@ def _enqueue_access_stamps(ids) -> None:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return  # no loop -> skip; sync callers don't need this
-    _access_pending.update(i for i in ids if i)
+    store = str(resolve_db_path(None))  # the reader's store, resolved in ITS context
+    _access_pending.update((store, i) for i in ids if i)
     if _access_flusher_task is None or _access_flusher_task.done():
         _access_flusher_task = loop.create_task(_access_stamp_flusher())
 

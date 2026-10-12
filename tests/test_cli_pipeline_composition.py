@@ -194,7 +194,7 @@ def test_flush_never_raises_into_the_caller():
     from memory import db as mdb
 
     mdb._access_pending.clear()
-    mdb._access_pending.add("no-such-id-" + "0" * 20)
+    mdb._access_pending.add((mdb.resolve_db_path(None), "no-such-id-" + "0" * 20))
     mdb.flush_access_stamps_now()  # must not raise
     assert not mdb._access_pending, "pending set was not drained"
 

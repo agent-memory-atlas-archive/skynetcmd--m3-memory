@@ -174,7 +174,8 @@ def test_shutdown_drains_access_stamps_and_ends_the_flusher(monkeypatch):
     task = asyncio.run_coroutine_threadsafe(_queue(), loop).result(timeout=10)
     M3Client._shutdown_loop()  # well inside the 0.25 s tick
 
-    assert written == ["stamp-before-exit"], "a stamp queued before exit was dropped"
+    # Each stamp carries its store (M3_DATABASE design phase 1); the id is what matters here.
+    assert [mid for _store, mid in written] == ["stamp-before-exit"], "a stamp queued before exit was dropped"
     assert not db._access_pending
     assert task is not None and task.done(), "the flusher task was left pending on a closed loop"
 

@@ -21,6 +21,15 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Reads from a named store or `--database` record their access in that
+  store.** A search stamped "last accessed" in the store the process first read
+  from, so a memory read from another store never had it recorded: grading it
+  with `memory_grade` was refused as stale, and decay did not see the use. A
+  store chosen for a call also takes precedence over `M3_DATABASE` now.
+  **Affected:** installs that use `--store`, `--database` or several stores ·
+  **Action:** none · **Data status:** access counts for those stores were not
+  recorded until now; nothing else changed.
+
 - **The session-start capture check works on a PostgreSQL primary store.** It
   reported "capture status UNKNOWN" at every session start and could leave
   empty SQLite files behind; it now reads when the chatlog last wrote, from the

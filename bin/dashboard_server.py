@@ -748,10 +748,11 @@ class DbScopeMiddleware(BaseHTTPMiddleware):
     `set_active_db_env` are covered once, and a handler added later is covered
     without remembering to opt in.
 
-    ⚠ This binds ONLY when `M3_DATABASE` is unset in the environment, because
-    `resolve_db_path()` resolves `explicit > M3_DATABASE > ContextVar`: an
-    operator who pinned the env var deliberately (single-store deployment,
-    `M3_DATABASE=...` in a unit file) must keep winning. In that case the
+    ⚠ This binds ONLY when `M3_DATABASE` is unset in the environment: an
+    operator who pinned it deliberately (single-store deployment,
+    `M3_DATABASE=...` in a unit file) must keep winning, and since the
+    ContextVar now OUTRANKS that env var in `resolve_db_path()` (M3_DATABASE
+    design, 2026-10-12), this yield is what keeps the pin. In that case the
     selector is moot anyway -- every request already resolves to the pinned
     store -- so yielding to it is correct rather than a silent downgrade.
     """
