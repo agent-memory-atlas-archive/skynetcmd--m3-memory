@@ -56,7 +56,9 @@ def main() -> None:
         print(f"first-class signal on the result: confidence={md.get('confidence')}, valid_from={md.get('valid_from')}")
 
     # 4) FORGETTING: commanded delete (GDPR Art. 17) — mem0 has no forget verb.
-    # memory.forget()   # uncomment to wipe this user's memories
+    # Two steps: forget() returns a plan and a token; forget(confirm=token, compliance=...) erases.
+    # plan = memory.forget()["plan"]
+    # memory.forget(confirm=plan["token"], compliance={"legal_basis": "...", "verified_by": "..."})
 
 
 if __name__ == "__main__":

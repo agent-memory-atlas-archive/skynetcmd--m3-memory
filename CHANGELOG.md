@@ -390,11 +390,13 @@ the policy is forward-going only.
   `hard=true` and a curation plan's `delete_hard` soft-delete and return a notice
   naming `gdpr_forget`; expired memories are soft-deleted instead of removed;
   LangGraph `delete_thread` marks the thread deleted. The dashboard's Hard Delete
-  and GDPR purge show the erasure plan and ask for the compliance record.
+  and GDPR purge show the erasure plan and ask for the compliance record; the
+  LangChain `Memory.forget()` returns the plan, and erases when called again
+  with `confirm=` and `compliance=`.
   **Affected:** all installs; callers of `gdpr_forget`, of `hard=true`, of
-  `delete_hard`, and of the dashboard's Hard Delete or GDPR purge · **Action:**
-  call `gdpr_forget` twice (plan, then confirm with the token and the compliance
-  record); nothing else · **Data status:** from this release, expiry and
+  `delete_hard`, of `Memory.forget()`, and of the dashboard's Hard Delete or GDPR
+  purge · **Action:** call `gdpr_forget` (or `forget()`) twice: plan, then confirm
+  with the token and the compliance record; nothing else · **Data status:** from this release, expiry and
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 

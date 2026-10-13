@@ -134,9 +134,14 @@ def test_extras_supersede_forget_related():
     rel = m.related(first)
     assert "graph" in rel
 
-    forgotten = m.forget(user_id="alex")
+    # GDPR erasure takes two steps: the plan erases nothing...
+    planned = m.forget(user_id="alex")
+    assert planned["planned_user"] == "alex" and "forgotten_user" not in planned
+    assert m.get_all(user_id="alex")["results"] != []
+    # ...the confirmation with the token and the compliance record erases.
+    record = dict.fromkeys(planned["plan"]["requires"], "test")
+    forgotten = m.forget(user_id="alex", confirm=planned["plan"]["token"], compliance=record)
     assert forgotten["forgotten_user"] == "alex"
-    # after forget, alex has nothing
     assert m.get_all(user_id="alex")["results"] == []
 
 

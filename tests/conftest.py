@@ -1923,9 +1923,7 @@ def gdpr_erase(**target) -> dict:
     mm = importlib.import_module("memory_maintenance")
     plan = mm.gdpr_forget_impl(**target)
     assert isinstance(plan, dict) and plan["step"] == "plan" and not plan["erased"], plan
-    done = mm.gdpr_forget_impl(
-        **target, confirm=plan["token"], compliance={"legal_basis": "test", "verified_by": "test"}
-    )
+    done = mm.gdpr_forget_impl(**target, confirm=plan["token"], compliance=dict.fromkeys(plan["requires"], "test"))
     assert isinstance(done, dict) and done["erased"], done
     return done
 

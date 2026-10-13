@@ -1505,8 +1505,8 @@ def gdpr_export_impl(user_id: str) -> str:
 
 _GDPR_PLAN_TTL_S = 900  # a plan's token is good for 15 minutes
 _GDPR_REQUIRED_COMPLIANCE = ("legal_basis", "verified_by")
-# Tables erased by memory id (and, for a data subject, also by user_id). One list
-# feeds both the plan's counts and the erasure, so they cannot disagree.
+_GDPR_CHUNK = 500  # explicit memory_ids per statement, well under every backend's bind limit
+# Tables erased by memory id (and, for a data subject, also by user_id).
 _GDPR_BY_MEMORY = (
     ("memory_embeddings", "memory_id", None),
     ("memory_history", "memory_id", None),
@@ -1517,16 +1517,36 @@ _GDPR_BY_MEMORY = (
 _LG_OF_USER = "SELECT thread_id, checkpoint_ns, checkpoint_id FROM m3_lg_checkpoints WHERE user_id = {p}"
 
 
-def _gdpr_scope(_d, ids, id_col, user_id, user_col):
-    """WHERE clause + params selecting a table's rows for this erasure."""
-    parts, params = [], []
-    if ids:
-        parts.append(f"{id_col} IN ({_d.placeholder(len(ids))})")
-        params += ids
-    if user_id and user_col:
-        parts.append(f"{user_col} = {_d.param()}")
-        params.append(user_id)
-    return " OR ".join(parts), params
+def _gdpr_statements(_d, user_id, item_ids):
+    """Every (table, where, params) an erasure touches, dependents before
+    memory_items. ONE list feeds the plan's counts and the erasure, so they cannot
+    disagree. A data subject's memories are named by ONE subquery (one bind, however
+    many there are); explicit memory_ids go in chunks, so no statement exceeds a
+    backend's bind limit. memory_items itself is deleted by user_id, not by a
+    subquery on its own table (MariaDB rejects that form)."""
+    p = _d.param()
+    if user_id:
+        sets = [(f"(SELECT id FROM memory_items WHERE user_id = {p})", [user_id])]
+    else:
+        sets = [(f"({_d.placeholder(len(c))})", list(c)) for c in batched(item_ids, _GDPR_CHUNK)]
+    out = []
+    for table, id_col, user_col in _GDPR_BY_MEMORY:
+        for expr, params in sets:
+            where, args = f"{id_col} IN {expr}", list(params)
+            if user_id and user_col:
+                where, args = f"{where} OR {user_col} = {p}", [*args, user_id]
+            out.append((table, where, args))
+    for expr, params in sets:
+        out.append(("memory_relationships", f"from_id IN {expr} OR to_id IN {expr}", [*params, *params]))
+    if user_id:
+        out.append(
+            ("m3_lg_writes", f"(thread_id, checkpoint_ns, checkpoint_id) IN ({_LG_OF_USER.format(p=p)})", [user_id])
+        )
+        out.append(("m3_lg_checkpoints", f"user_id = {p}", [user_id]))
+        out.append(("memory_items", f"user_id = {p}", [user_id]))
+    else:
+        out += [("memory_items", f"id IN {expr}", params) for expr, params in sets]
+    return out
 
 
 def _gdpr_try(db, sql, params):
@@ -1548,34 +1568,19 @@ def _gdpr_plan(db, _d, user_id, memory_ids):
     """(item_ids, counts): what an erasure of this target removes, table by table."""
     _p = _d.param()
     if user_id:
-        rows = db.execute(f"SELECT id FROM memory_items WHERE user_id = {_p} ORDER BY id", (user_id,)).fetchall()
+        rows = db.execute(f"SELECT id FROM memory_items WHERE user_id = {_p}", (user_id,)).fetchall()
     else:
-        rows = db.execute(
-            f"SELECT id FROM memory_items WHERE id IN ({_d.placeholder(len(memory_ids))}) ORDER BY id",
-            list(memory_ids),
-        ).fetchall()
-    item_ids = [r["id"] for r in rows]
-    counts: dict[str, int] = {"memory_items": len(item_ids)}
-
-    def _count(table, where, params):
-        if not where:
-            return
+        rows = []
+        for c in batched(memory_ids, _GDPR_CHUNK):
+            rows += db.execute(
+                f"SELECT id FROM memory_items WHERE id IN ({_d.placeholder(len(c))})", list(c)
+            ).fetchall()
+    item_ids = sorted(r["id"] for r in rows)
+    counts: dict[str, int] = {}
+    for table, where, params in _gdpr_statements(_d, user_id, item_ids):
         cur = _gdpr_try(db, f"SELECT COUNT(*) AS n FROM {table} WHERE {where}", params)
         if cur is not None:
-            counts[table] = int(cur.fetchone()["n"])
-
-    for table, id_col, user_col in _GDPR_BY_MEMORY:
-        _count(table, *_gdpr_scope(_d, item_ids, id_col, user_id, user_col))
-    if item_ids:
-        ph = _d.placeholder(len(item_ids))
-        _count("memory_relationships", f"from_id IN ({ph}) OR to_id IN ({ph})", item_ids + item_ids)
-    if user_id:
-        _count("m3_lg_checkpoints", f"user_id = {_p}", [user_id])
-        _count(
-            "m3_lg_writes",
-            f"(thread_id, checkpoint_ns, checkpoint_id) IN ({_LG_OF_USER.format(p=_p)})",
-            [user_id],
-        )
+            counts[table] = counts.get(table, 0) + int(cur.fetchone()["n"])
     return item_ids, counts
 
 
@@ -1584,7 +1589,8 @@ def _gdpr_digest(user_id, memory_ids, item_ids) -> str:
     import json as _json
 
     body = _json.dumps({"user_id": user_id, "memory_ids": sorted(memory_ids or []), "items": item_ids}, sort_keys=True)
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+    # Binds a confirmation to its plan; not a security control (FIPS boundary).
+    return hashlib.sha256(body.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 def _gdpr_ids_arg(memory_ids) -> list[str]:
@@ -1682,6 +1688,7 @@ def gdpr_forget_impl(
             "not_found": sorted(set(ids_requested) - set(item_ids)),
             "token": token,
             "expires_at": datetime.fromtimestamp(exp, UTC).isoformat(),
+            "requires": list(_GDPR_REQUIRED_COMPLIANCE),
             "next": (
                 "nothing is erased yet. To erase, call gdpr_forget again with the same target, "
                 f"confirm='{token}', and compliance holding {' and '.join(_GDPR_REQUIRED_COMPLIANCE)}."
@@ -1698,20 +1705,35 @@ def gdpr_forget_impl(
     except ValueError:
         return "Error: confirm is not a token from gdpr_forget's plan step. Nothing was erased."
     if time.time() > exp:
-        return "Error: the plan's token expired; run gdpr_forget without confirm for a new plan. Nothing was erased."
+        return (
+            f"Error: the plan's token expired at {datetime.fromtimestamp(exp, UTC).isoformat()} "
+            f"(request {req_id}); run gdpr_forget without confirm for a new plan. Nothing was erased."
+        )
 
     with _db() as db:
         cur = _gdpr_try(
             db,
-            f"SELECT status, subject_id FROM gdpr_requests WHERE id = {_p} AND request_type = 'forget'",
+            f"SELECT status, subject_id, items_affected FROM gdpr_requests WHERE id = {_p} AND request_type = 'forget'",
             (req_id,),
         )
         row = cur.fetchone() if cur is not None else None
         if row is None or row["status"] != "planned" or row["subject_id"] != subject:
-            return "Error: no open erasure plan for this token and target (unknown, already used, or another target). Nothing was erased."
+            observed = (
+                "no such request"
+                if row is None
+                else f"status={row['status']}, planned for {row['subject_id']!r} (this call: {subject!r})"
+            )
+            return (
+                f"Error: no open erasure plan for request {req_id} ({observed}). "
+                "Run gdpr_forget without confirm for a new plan. Nothing was erased."
+            )
         item_ids, counts = _gdpr_plan(db, _d, user_id, ids_requested)
         if _gdpr_digest(user_id, ids_requested, item_ids) != digest:
-            return "Error: the memories to erase changed since the plan; run gdpr_forget without confirm for a new plan. Nothing was erased."
+            return (
+                f"Error: the memories to erase changed since the plan (request {req_id}: planned "
+                f"{row['items_affected']}, now {len(item_ids)}); run gdpr_forget without confirm for a "
+                "new plan. Nothing was erased."
+            )
 
         # WIKI erasure hook (Art. 17 derived content): before the relationship
         # delete removes the `consolidates` edges, mark every synthesis derived from
@@ -1762,27 +1784,11 @@ def gdpr_forget_impl(
                 )
                 wiki_ledger_summary = {"error": repr(_e)}
 
-        # Explicit enumeration, never reliance on a cascade firing. Optional tables
-        # absent on an older store are skipped (_gdpr_try).
-        for table, id_col, user_col in _GDPR_BY_MEMORY:
-            where, params = _gdpr_scope(_d, item_ids, id_col, user_id, user_col)
-            if where:
-                _gdpr_try(db, f"DELETE FROM {table} WHERE {where}", params)
-        if item_ids:
-            ph = _d.placeholder(len(item_ids))
-            db.execute(
-                f"DELETE FROM memory_relationships WHERE from_id IN ({ph}) OR to_id IN ({ph})",
-                item_ids + item_ids,
-            )
-        if user_id:
-            _gdpr_try(
-                db,
-                f"DELETE FROM m3_lg_writes WHERE (thread_id, checkpoint_ns, checkpoint_id) IN ({_LG_OF_USER.format(p=_p)})",
-                (user_id,),
-            )
-            _gdpr_try(db, f"DELETE FROM m3_lg_checkpoints WHERE user_id = {_p}", (user_id,))
-        if item_ids:
-            db.execute(f"DELETE FROM memory_items WHERE id IN ({_d.placeholder(len(item_ids))})", item_ids)
+        # Explicit enumeration, never reliance on a cascade firing; the same
+        # statements the plan counted. Optional tables absent on an older store
+        # are skipped (_gdpr_try); any other failure aborts the whole erasure.
+        for table, where, params in _gdpr_statements(_d, user_id, item_ids):
+            _gdpr_try(db, f"DELETE FROM {table} WHERE {where}", params)
         db.execute(
             f"UPDATE gdpr_requests SET status = 'completed', items_affected = {_p}, completed_at = {_d.now()} "
             f"WHERE id = {_p}",

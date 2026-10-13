@@ -2905,6 +2905,11 @@ async def audit_hard_delete(memory_id: str, request: Request):
         return _CARD_ERR.format(mid=mid, msg=f"No memory {mid} to erase.")
     rows = "".join(f"<li><code>{html.escape(t)}</code>: {n}</li>" for t, n in plan["counts"].items() if n)
     field = 'class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;"'
+    # The required compliance keys come from the plan (gdpr_forget owns them).
+    required_inputs = "".join(
+        f'<input type="text" name="{html.escape(k)}" {field} placeholder="{html.escape(k)} (required)" required>'
+        for k in plan["requires"]
+    )
     return f"""
     <div class="timeline-group-card" id="card-{mid}" style="border-color: rgba(239, 68, 68, 0.4); padding: 1.5rem;">
         <span style="color: hsl(15, 100%, 65%); font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">GDPR erasure (Art. 17) — nothing erased yet</span>
@@ -2914,9 +2919,8 @@ async def audit_hard_delete(memory_id: str, request: Request):
               hx-confirm="This permanently erases the memory and cannot be undone. Erase now?"
               style="display: flex; flex-direction: column; gap: 0.5rem;">
             <input type="hidden" name="confirm" value="{html.escape(plan["token"])}">
-            <input type="text" name="legal_basis" {field} placeholder="Legal basis (Art. 17(1)) — required" required>
-            <input type="text" name="verified_by" {field} placeholder="Identity verified by (who / how) — required" required>
-            <input type="text" name="reason" {field} placeholder="Reason / notes">
+            {required_inputs}
+            <input type="text" name="reason" {field} placeholder="reason (optional)">
             <button class="m3-btn m3-btn-danger" type="submit">Erase (GDPR Art. 17)</button>
         </form>
         <p style="font-size: 0.75rem; color: hsl(210, 10%, 60%);">The plan expires at {html.escape(plan["expires_at"])}. Soft delete is the reversible alternative.</p>
@@ -2925,17 +2929,11 @@ async def audit_hard_delete(memory_id: str, request: Request):
 
 
 @app.post("/api/audit/hard-delete/{memory_id}/confirm", response_class=HTMLResponse)
-async def audit_hard_delete_confirm(
-    memory_id: str,
-    request: Request,
-    confirm: str = Form(""),
-    legal_basis: str = Form(""),
-    verified_by: str = Form(""),
-    reason: str = Form(""),
-):
+async def audit_hard_delete_confirm(memory_id: str, request: Request):
     """GDPR erasure step 2 for one memory: gdpr_forget with the plan's token and the
-    compliance record. gdpr_forget refuses (and erases nothing) on a stale token,
-    a changed target or a missing record; the refusal is shown as is."""
+    compliance record (every other form field). gdpr_forget refuses (and erases
+    nothing) on a stale token, a changed target or a missing record; the refusal is
+    shown as is."""
     import html
 
     selected_db = request.cookies.get("selected_db", "main")
@@ -2943,11 +2941,9 @@ async def audit_hard_delete_confirm(
     set_active_db_env(selected_db)
 
     mid = html.escape(memory_id)
-    compliance = {
-        k: v.strip()
-        for k, v in {"legal_basis": legal_basis, "verified_by": verified_by, "reason": reason}.items()
-        if v.strip()
-    }
+    form = await request.form()
+    confirm = str(form.get("confirm", ""))
+    compliance = {k: str(v).strip() for k, v in form.items() if k != "confirm" and str(v).strip()}
     out = gdpr_forget_impl(memory_ids=[memory_id], confirm=confirm, compliance=compliance)
     if isinstance(out, str):
         return _CARD_ERR.format(mid=mid, msg=html.escape(out))

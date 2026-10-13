@@ -359,7 +359,9 @@ memory.supersede(old_id, "I switched to Rust")
 memory.search("stack", as_of="2026-01-01")
 
 # 3) FORGETTING — commanded erase (GDPR Article 17); mem0 has no forget verb.
-memory.forget()                          # wipe THIS user's memories (forget(user_id=…) for another)
+plan = memory.forget()["plan"]          # step 1: counts + token; nothing erased (forget(user_id=…) for another)
+memory.forget(confirm=plan["token"],     # step 2: erase, with the compliance record GDPR requires
+              compliance={"legal_basis": "consent withdrawn", "verified_by": "support ticket 123"})
 
 # 4) GRAPH retrieval — go beyond vector similarity. (Search is ALWAYS hybrid
 #    FTS5 + vector + MMR — there is no vector-only mode to opt into.)

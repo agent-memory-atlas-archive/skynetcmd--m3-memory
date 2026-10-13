@@ -57,14 +57,35 @@ class M3ExtrasMixin:
         return {"old_id": old_id, "new_id": mapping.parse_written_id(raw)}
 
     # ── commanded forgetting (§0b unmet-need #3 — mem0 has NO forget verb) ────
-    def forget(self, *, user_id: str | None = None, **_ignored: Any) -> dict:
-        """GDPR Art. 17 hard-erase EVERY memory for a user (irreversible).
+    def forget(
+        self,
+        *,
+        user_id: str | None = None,
+        confirm: str = "",
+        compliance: dict | None = None,
+        **_ignored: Any,
+    ) -> dict:
+        """GDPR Art. 17 erasure of EVERY memory for a user, in gdpr_forget's two
+        steps (the only hard delete in m3).
 
-        The first-class ``forget`` verb mem0's surface lacks. Ungated typed
-        method (§2.1b) — the user invoked it explicitly. ``user_id`` mandatory.
+        ``forget(user_id=...)`` erases nothing: it returns ``{"planned_user", "plan"}``
+        with the plan's counts and token. ``forget(user_id=..., confirm=<token>,
+        compliance={...})`` erases (the record needs the keys in ``plan["requires"]``)
+        and returns ``{"forgotten_user", "result"}``. A refusal raises ValueError
+        with gdpr_forget's message: nothing was erased.
+
+        The first-class ``forget`` verb mem0's surface lacks. Ungated typed method
+        (§2.1b) — the user invoked it explicitly. ``user_id`` mandatory.
         """
         uid = self._require_user(user_id)
-        result = self._client._tool("gdpr_forget", user_id=uid)
+        args: dict[str, Any] = {"user_id": uid}
+        if confirm:
+            args.update(confirm=confirm, compliance=compliance or {})
+        result = self._client._tool("gdpr_forget", **args)
+        if isinstance(result, str):
+            raise ValueError(result)
+        if not result.get("erased"):
+            return {"planned_user": uid, "plan": result}
         return {"forgotten_user": uid, "result": result}
 
     # ── hybrid + graph retrieval (§0b unmet-need #4) ──────────────────────────

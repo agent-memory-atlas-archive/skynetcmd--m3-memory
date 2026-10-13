@@ -124,6 +124,59 @@ def test_memory_ids_erase_exactly_those(subject):
     assert _alive(backend, ids) == {ids[1]}, "a per-item erasure touched another memory"
 
 
+def test_memory_ids_in_several_chunks_are_all_erased(subject, monkeypatch):
+    """Explicit memory_ids go in chunks (bind limits); every chunk is erased."""
+    import memory_maintenance
+
+    backend, _user, ids = subject
+    monkeypatch.setattr(memory_maintenance, "_GDPR_CHUNK", 1)
+    done = gdpr_erase(memory_ids=ids)
+    assert done["items_erased"] == 2 and _alive(backend, ids) == set()
+
+
+def test_a_subjects_langgraph_checkpoints_are_erased_and_no_one_elses(subject):
+    backend, user, _ids = subject
+    other = f"other-{uuid.uuid4().hex[:8]}"
+    thread = f"t-{uuid.uuid4().hex[:8]}"
+    p = _p()
+    with backend.connection() as conn:
+        for owner, ckpt in ((user, "c-mine"), (other, "c-theirs")):
+            conn.execute(
+                "INSERT INTO m3_lg_checkpoints (thread_id, checkpoint_ns, checkpoint_id, user_id, checkpoint, "
+                f"metadata, created_at) VALUES ({p}, '', {p}, {p}, {p}, {p}, '2026-10-13T00:00:00+00:00')",
+                (thread, ckpt, owner, b"\x00", b"\x00"),
+            )
+            conn.execute(
+                "INSERT INTO m3_lg_writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, blob) "
+                f"VALUES ({p}, '', {p}, 'task', 0, 'ch', {p})",
+                (thread, ckpt, b"\x01"),
+            )
+        conn.commit()
+    try:
+        plan = _forget(user_id=user)
+        assert plan["counts"]["m3_lg_checkpoints"] == 1 and plan["counts"]["m3_lg_writes"] == 1, plan["counts"]
+        gdpr_erase(user_id=user)
+        with backend.connection() as conn:
+            left = {
+                r["checkpoint_id"]
+                for r in conn.execute(
+                    f"SELECT checkpoint_id FROM m3_lg_checkpoints WHERE thread_id = {p}", (thread,)
+                ).fetchall()
+            }
+            writes = {
+                r["checkpoint_id"]
+                for r in conn.execute(
+                    f"SELECT checkpoint_id FROM m3_lg_writes WHERE thread_id = {p}", (thread,)
+                ).fetchall()
+            }
+        assert left == {"c-theirs"} and writes == {"c-theirs"}, f"observed checkpoints {left}, writes {writes}"
+    finally:
+        with backend.connection() as conn:
+            conn.execute(f"DELETE FROM m3_lg_writes WHERE thread_id = {p}", (thread,))
+            conn.execute(f"DELETE FROM m3_lg_checkpoints WHERE thread_id = {p}", (thread,))
+            conn.commit()
+
+
 def test_exactly_one_target():
     assert "exactly one" in _forget()
     assert "exactly one" in _forget(user_id="u", memory_ids=["x"])

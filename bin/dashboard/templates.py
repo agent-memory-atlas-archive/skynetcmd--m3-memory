@@ -1889,11 +1889,6 @@ INDEX_HTML = """
             const uid = document.getElementById("gdprUserId").value;
             const fb = document.getElementById("gdprFeedback");
             const fields = gdprFields();
-            if (!fields.legal_basis || !fields.verified_by) {
-                fb.style.color = "var(--m3-neon-amber)";
-                fb.innerText = "An erasure needs a compliance record: fill in Legal basis and Verified by.";
-                return;
-            }
             const post = async (extra) => {
                 const fd = new FormData();
                 fd.append("user_id", uid);
@@ -1906,6 +1901,13 @@ INDEX_HTML = """
                 fb.innerText = "Planning the erasure (nothing is erased yet)...";
                 const plan = await post({});
                 if (plan.error) { fb.style.color = "var(--m3-neon-amber)"; fb.innerText = plan.error; return; }
+                // The required compliance keys come from the plan (gdpr_forget owns them).
+                const missing = plan.requires.filter((k) => !fields[k]);
+                if (missing.length) {
+                    fb.style.color = "var(--m3-neon-amber)";
+                    fb.innerText = `An erasure needs a compliance record; missing: ${missing.join(", ")}. Nothing was erased.`;
+                    return;
+                }
                 const lines = Object.entries(plan.counts).map(([t, n]) => `  ${t}: ${n}`).join("\n");
                 if (!confirm(`GDPR erasure for '${uid}' permanently erases:\n${lines}\n\nThis cannot be undone. Erase now?`)) {
                     fb.innerText = "Cancelled. Nothing was erased.";
@@ -1919,7 +1921,7 @@ INDEX_HTML = """
                 fb.innerText = `Erased ${done.items_erased} memories for '${uid}' (request ${done.request_id}).`;
             } catch(e) {
                 fb.style.color = "var(--m3-neon-amber)";
-                fb.innerText = "The erasure request failed; nothing is known to be erased. " + e;
+                fb.innerText = "The erasure request did not complete (" + e + "). It may or may not have erased: check the audit trail before retrying.";
             }
         }
 
