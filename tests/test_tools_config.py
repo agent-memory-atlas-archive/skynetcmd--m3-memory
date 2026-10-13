@@ -62,7 +62,7 @@ def test_env_beats_the_config_file(_clean_env, monkeypatch):
     monkeypatch.setenv(tc.ENV_STARTUP, "chatlog_search," + ",".join(tc.ESCAPE_HATCH))
     names, source = tc.resolve_startup_tools()
     assert names[0] == "chatlog_search"
-    assert source.startswith(tc.ENV_STARTUP)
+    assert tc.ENV_STARTUP in source  # the registry's origin, e.g. env-legacy:M3_TOOLS_STARTUP
 
 
 def test_lazy_off_beats_everything(_clean_env, m3_settings):

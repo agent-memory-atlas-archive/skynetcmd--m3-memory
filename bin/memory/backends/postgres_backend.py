@@ -396,11 +396,15 @@ def _pg_tool(name: str) -> str:
     """
     import shutil
 
-    explicit = _m3cfg.setting(f"db.postgres.{name}")
+    explicit = _m3cfg.setting(f"db.postgres.{name}")  # a path key: parse_path
     if explicit:
-        if os.path.isfile(Path(explicit)):
-            return str(Path(explicit).absolute())
-        raise SnapshotError(f"db.postgres.{name} = {str(explicit)!r} is not a file.")
+        tool = Path(str(explicit))
+        if os.path.isfile(tool):
+            return str(tool.absolute())
+        raise SnapshotError(
+            f"observed: db.postgres.{name} = {str(explicit)!r} (from {_m3cfg.origin_of(f'db.postgres.{name}')}) "
+            f"is not a file. fix: point it at the {name} executable, or remove it to search PATH."
+        )
     if name == "pg_restore" and (_dump := _m3cfg.setting("db.postgres.pg_dump")):
         sibling = shutil.which("pg_restore", path=str(Path(_dump).parent))
         if sibling:

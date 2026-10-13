@@ -251,7 +251,7 @@ def _config_args_placeholder(template_path: str) -> tuple[str, str]:
     and the rendered file is exactly what it was before the placeholder existed."""
     args = roots.located_config_args()
     if template_path.endswith(".plist"):
-        from xml.sax.saxutils import escape
+        from xml.sax.saxutils import escape  # nosec B406 — escapes output; parses nothing
 
         return "[M3_CONFIG_ARGS]\n", "".join(f"        <string>{escape(a)}</string>\n" for a in args)
     # systemd ExecStart: double quotes keep a path with spaces one argument.

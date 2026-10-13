@@ -128,12 +128,6 @@ def _load_file() -> dict:
     return data
 
 
-def _source(name: str, env_name: str) -> str:
-    """Where registry key ``name`` was set, for `m3 doctor`: ``<ENV> env`` or the file."""
-    origin = _m3cfg.origin_of(name)
-    return f"{env_name} env" if origin.startswith(("env", "dotenv")) else origin.removeprefix("file:")
-
-
 def resolve_startup_tools() -> tuple[list[str] | None, str]:
     """Resolve the startup set.
 
@@ -146,17 +140,17 @@ def resolve_startup_tools() -> tuple[list[str] | None, str]:
     they cannot fix (section 3: observable, not guessed).
     """
     if not _m3cfg.setting("tools.lazy"):
-        return None, f"{_source('tools.lazy', ENV_LAZY)}: tools.lazy = false (all tools)"
+        return None, f"{_m3cfg.origin_of('tools.lazy')}: tools.lazy = false (all tools)"
 
     # tools.startup (m3_config.toml, or the legacy M3_TOOLS_STARTUP) outranks the file.
     names = _m3cfg.setting("tools.startup")
     if names is not None:
         if not names:
             raise ToolsConfigError(
-                f"tools.startup ({_source('tools.startup', ENV_STARTUP)}) lists no tools. Remove it to "
+                f"tools.startup ({_m3cfg.origin_of('tools.startup')}) lists no tools. Remove it to "
                 f"use the shipped default, or name at least one tool."
             )
-        return _with_escape_hatch(list(names)), _source("tools.startup", ENV_STARTUP)
+        return _with_escape_hatch(list(names)), _m3cfg.origin_of("tools.startup")
 
     data = _load_file()
     if "startup_tools" in data:

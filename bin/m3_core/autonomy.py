@@ -71,8 +71,9 @@ def autonomy_flag(config_key: str) -> bool:
         pass  # not yet seeded -> the registry is the intended fallback
     except Exception as e:
         logger.warning(
-            "Cognitive-loop autonomy config %s is unreadable/malformed (%s) — "
-            "falling back to %s from m3_config.toml / its default until fixed.",
+            "observed: cognitive-loop autonomy config %s is unreadable (%s). %s comes "
+            "from m3_config.toml, else its legacy env name, else off, until it is fixed. "
+            "fix: correct the JSON or delete the file.",
             path,
             e,
             name,

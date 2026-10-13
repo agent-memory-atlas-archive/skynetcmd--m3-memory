@@ -67,11 +67,12 @@ def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
                         cfg = _json.load(f) or {}
                 except Exception as e:
                     # §3 never silent: a malformed config would otherwise revert
-                    # the governor to env/defaults invisibly — a bad threshold
+                    # the governor to the registry values invisibly — a bad threshold
                     # edit must be loud so the user knows their tuning isn't live.
                     logger.warning(
-                        "Governor config %s is unreadable/malformed (%s) — "
-                        "falling back to env vars + defaults until fixed.",
+                        "observed: governor config %s is unreadable (%s). The thresholds come "
+                        "from [governor] in m3_config.toml, else M3_GOVERNOR_* (legacy), else "
+                        "85/95, until it is fixed. fix: correct the JSON or delete the file.",
                         _governor_config_path(),
                         e,
                     )
@@ -112,7 +113,7 @@ def ensure_governor_config() -> str:
     """Create <config_root>/.governor_config.json with the CURRENT effective
     thresholds if it does not already exist. Idempotent and race-safe (atomic
     create; never overwrites an existing file). Returns the path. Never raises —
-    a write failure just leaves the system on env+defaults. Call at setup and
+    a write failure just leaves the system on the registry values. Call at setup and
     once at daemon startup; NOT from the per-cycle read path."""
     path = _governor_config_path()
     if os.path.exists(path):
@@ -134,7 +135,7 @@ def ensure_governor_config() -> str:
         atomic_write(path, _json.dumps(payload, indent=2))
         logger.info("Seeded governor config at %s (initial=%d limit=%d)", path, initial, limit)
     except Exception as e:
-        log_swallowed(logger, e, "Could not seed governor config (%s); using env+defaults", e)
+        log_swallowed(logger, e, "Could not seed governor config (%s); using the registry values", e)
     return path
 
 
