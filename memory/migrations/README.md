@@ -59,6 +59,10 @@ Compute each from the directory listing at the time you add a file — never ass
 - **Idempotent DDL both sides:** `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF
   NOT EXISTS`, `ADD COLUMN IF NOT EXISTS` (PG). Both runners wrap a file in one
   transaction, so **no** `BEGIN`/`COMMIT`/`ROLLBACK` inside a migration file.
+  SQLite has no `ADD COLUMN IF NOT EXISTS`: when a store already has the column,
+  the SQLite runner skips that one `ADD COLUMN` (or an already-existing
+  `CREATE`) and applies every other statement in the file; any other error
+  rolls the whole file back.
 - **SQLite file forms** (both supported, sorted by numeric prefix): `NNN_name.sql`
   (legacy, up-only), or the explicit `NNN_name.up.sql` + `NNN_name.down.sql` pair.
   Prefer the explicit pair.

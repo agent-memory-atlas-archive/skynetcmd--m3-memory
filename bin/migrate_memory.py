@@ -592,6 +592,62 @@ def _run_sql_transaction(conn, filepath: str):
         raise
 
 
+_ADD_COLUMN_RE = re.compile(r"(?is)^\s*(?:--[^\n]*\n\s*)*ALTER\s+TABLE\s+\S+\s+ADD\s+")
+_CREATE_RE = re.compile(r"(?is)^\s*(?:--[^\n]*\n\s*)*CREATE\s+")
+
+
+def _sql_statements(sql: str) -> list[str]:
+    """Split a migration script into complete statements (sqlite3 decides where a
+    statement ends, so trigger bodies with inner semicolons stay whole). A trailing
+    fragment of only comments/whitespace is dropped."""
+    out, buf = [], ""
+    for line in sql.splitlines(keepends=True):
+        buf += line
+        if sqlite3.complete_statement(buf):
+            out.append(buf)
+            buf = ""
+    if re.sub(r"--[^\n]*", "", buf).strip():
+        out.append(buf)  # incomplete: let execute() report it
+    return out
+
+
+def _run_sql_tolerating_existing(conn, filepath: str) -> list[str]:
+    """Apply a migration statement by statement, skipping ONLY an ``ADD COLUMN``
+    whose column exists or a ``CREATE`` whose object exists, so every other
+    statement still runs. Returns the skipped statements' first lines. Any other
+    error rolls the whole file back and raises.
+
+    Why: the file-level path rolls back EVERYTHING on such an error. Marking the
+    version applied after that silently dropped the file's other statements (038's
+    index on stores a runtime fallback had already given the column).
+    """
+    with open(filepath, encoding="utf-8") as f:
+        sql_script = f.read()
+    _validate_migration_sql(filepath, sql_script)
+    skipped: list[str] = []
+    conn.execute("SAVEPOINT mig_apply")
+    try:
+        for stmt in _sql_statements(sql_script):
+            try:
+                conn.execute(stmt)
+            except sqlite3.OperationalError as e:
+                err = str(e).lower()
+                if ("duplicate column name" in err and _ADD_COLUMN_RE.match(stmt)) or (
+                    "already exists" in err and _CREATE_RE.match(stmt)
+                ):
+                    skipped.append(
+                        next(ln for ln in stmt.splitlines() if ln.strip() and not ln.lstrip().startswith("--")).strip()
+                    )
+                    continue
+                raise
+        conn.execute("RELEASE SAVEPOINT mig_apply")
+    except sqlite3.Error:
+        conn.execute("ROLLBACK TO SAVEPOINT mig_apply")
+        conn.execute("RELEASE SAVEPOINT mig_apply")
+        raise
+    return skipped
+
+
 _FORBIDDEN_STATEMENTS_RE = re.compile(r"(?im)^\s*(COMMIT|ROLLBACK|BEGIN|END\s+TRANSACTION)\b")
 
 
@@ -631,15 +687,16 @@ def apply_migration(conn, version: int, name: str, up_path: str):
             pass
         err = str(e).lower()
         if "duplicate column name" in err or "already exists" in err:
-            # Preserve legacy idempotency: schema already has what this migration adds
-            logger.warning(
-                f"v{version:03d} partial-apply detected ({e}); marking applied. Inspect schema if this recurs."
-            )
+            # The store already has part of what this migration adds (a runtime
+            # fallback, or an interrupted earlier run). Apply the rest statement by
+            # statement; only the already-present ADD COLUMN / CREATE is skipped.
+            skipped = _run_sql_tolerating_existing(conn, up_path)
             conn.execute(
                 "INSERT OR IGNORE INTO schema_versions (version, filename) VALUES (?, ?)",
                 (version, os.path.basename(up_path)),
             )
             conn.commit()
+            logger.warning(f"v{version:03d}: already present, skipped: {skipped}; every other statement applied.")
         else:
             logger.error(f"Failed to apply v{version:03d}: {e}")
             raise

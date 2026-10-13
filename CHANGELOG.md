@@ -21,6 +21,14 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **An upgrade no longer drops the rest of a migration when a column already
+  exists.** On SQLite, a migration that adds a column the store already had was
+  rolled back whole and still recorded as applied, so its other statements never
+  ran; migration 055 restores the one index this lost. Only the existing column is
+  now skipped.
+  **Affected:** SQLite stores upgraded across a migration whose column was already
+  present · **Action:** none · **Data status:** none; a missing index is restored.
+
 - **The chatlog title and embedding backfill scripts find the databases under
   the engine root.** With no `--core-db`/`--chatlog-db` they looked in
   `<checkout>/memory`, so run from elsewhere they found nothing, and from a dev
