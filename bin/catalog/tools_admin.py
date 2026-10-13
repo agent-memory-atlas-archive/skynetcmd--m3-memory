@@ -175,31 +175,47 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="gdpr_forget",
-        description="Right to be forgotten — hard-deletes ALL data for a user_id including memories, embeddings, relationships, and history.",
+        description=(
+            "Right to be forgotten (GDPR Art. 17): the ONLY hard delete in m3 (every other delete "
+            "is a soft delete). Two steps. 1) Call with user_id (a data subject) OR memory_ids "
+            "(specific memories): nothing is erased; returns a plan (counts per table) and a token "
+            "valid 15 minutes. 2) Call again with the same target, confirm=<token>, and compliance "
+            "holding legal_basis and verified_by: erases the memories with their embeddings, "
+            "relationships, history, read-access log, archived copies and (for a data subject) "
+            "LangGraph checkpoints. Refused if the token expired or the memories changed since the plan."
+        ),
         parameters={
             "type": "object",
             "properties": {
-                "user_id": {"type": "string", "description": "Data subject id to forget."},
+                "user_id": {"type": "string", "description": "Data subject to erase (or pass memory_ids)."},
+                "memory_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific memories to erase (or pass user_id). Full UUIDs.",
+                },
+                "confirm": {
+                    "type": "string",
+                    "description": "Step 2 only: the token from step 1's plan. Without it nothing is erased.",
+                    "default": "",
+                },
                 "compliance": {
                     "type": "object",
                     "description": (
-                        "Optional operator-supplied record of the erasure's "
-                        "program-layer context, logged to the tamper-evident audit "
-                        "trail (not required; only the operator knows these). "
-                        "Recognized keys: legal_basis (Art. 17(1) ground), reason, "
-                        "verified_by, verification_method, authorized_by, "
-                        "external_ref (case/ticket #), retained_note (Art. 17(3) "
-                        "exemption). Program-level record-keeping remains the "
-                        "operator's responsibility — see docs/COMPLIANCE.md."
+                        "Required to confirm (step 2): the operator's record of the erasure, logged "
+                        "to the tamper-evident audit trail. Required keys: legal_basis (Art. 17(1) "
+                        "ground), verified_by (who confirmed the requester's identity). Also "
+                        "recognized: reason, verification_method, authorized_by, external_ref "
+                        "(case/ticket #), retained_note (Art. 17(3) exemption). Program-level "
+                        "record-keeping remains the operator's responsibility (docs/COMPLIANCE.md)."
                     ),
                     "additionalProperties": True,
                 },
             },
-            "required": ["user_id"],
+            "required": [],
         },
         impl=memory_maintenance.gdpr_forget_impl,
         is_async=False,
-        validators=(_gdpr_user_id_validator,),
+        validators=(),
         default_allowed=False,
         inject_agent_id=False,
     ),

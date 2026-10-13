@@ -18,7 +18,8 @@ separate row — often under a different `user_id` (the wiki compiles under its 
 scope), so the erasure cascade never reaches it. Left alone, the page would keep
 rendering prose derived from data the subject asked to be forgotten.
 
-m3 closes that gap automatically. During `gdpr_forget`, **before** the cascade
+m3 closes that gap automatically. During `gdpr_forget`'s confirm step (the plan
+step erases and restricts nothing), **before** the cascade
 removes the `consolidates` provenance edges, m3 scans them for syntheses derived
 from the erased member and marks each one `restricted`:
 

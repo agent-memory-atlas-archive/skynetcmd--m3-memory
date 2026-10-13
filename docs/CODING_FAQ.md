@@ -95,7 +95,10 @@ can surface low-value memories as candidates, but removal is a decision a person
 or an explicitly-invoked tool makes. `memory_restore` exists to bring back
 anything an automated pass soft-deleted in the past, and it refuses to touch
 deliberate deletions — overriding a human's delete with a machine's restore is
-the same category error in reverse.
+the same category error in reverse. Expiry (`expires_at`) and per-agent
+retention limits act on rules someone set, and they too only soft-delete: the
+row is kept whole. Nothing automatic destroys data; the one hard delete is a
+confirmed GDPR erasure (`gdpr_forget`).
 
 ---
 
@@ -243,7 +246,7 @@ Rust service and a TypeScript frontend without forking.
 These are real and on the roadmap — not design boundaries:
 
 - **Pinning and expiry are not yet honoured at search time.** They govern the
-  maintenance passes, so an expired-but-not-yet-archived memory is still retrievable.
+  maintenance passes, so an expired memory is still retrievable until the next pass soft-deletes it.
 - **The "was this memory used?" signal is opt-in.** `memory_grade` is the
   deliberate version and depends on the caller choosing to send a verdict after
   answering. Low uptake means *less* reinforcement, never wrong reinforcement.

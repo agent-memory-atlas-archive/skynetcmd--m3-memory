@@ -85,14 +85,15 @@ def test_apply_memory_plan_runs_on_pg(pg_seeded):
         "update": [{"id": ids[0], "title": "CB0-updated"}],
         "link": [{"from_id": ids[0], "to_id": ids[1], "relationship_type": "related"}],
         "delete": [ids[2]],  # soft
-        "delete_hard": [ids[3]],  # hard
+        "delete_hard": [ids[3]],  # a soft delete too: hard delete is GDPR-only
     }
     out = apply_memory_plan(plan)
     assert out["errors"] == [], out["errors"]
     assert out["summary"]["updated"] == 1
     assert out["summary"]["linked"] == 1
-    assert out["summary"]["deleted_soft"] == 1
-    assert out["summary"]["deleted_hard"] == 1
+    assert out["summary"]["deleted_soft"] == 2
+    assert out["summary"]["deleted_hard"] == 0
+    assert "gdpr_forget" in out["summary"]["notice"]
 
     with b.connection() as c:
         cur = c.cursor()
@@ -100,8 +101,8 @@ def test_apply_memory_plan_runs_on_pg(pg_seeded):
         assert cur.fetchone()[0] == "CB0-updated"
         cur.execute("SELECT is_deleted FROM memory_items WHERE id=%s", (ids[2],))
         assert cur.fetchone()[0] == 1  # soft-deleted
-        cur.execute("SELECT count(*) FROM memory_items WHERE id=%s", (ids[3],))
-        assert cur.fetchone()[0] == 0  # hard-deleted
+        cur.execute("SELECT is_deleted FROM memory_items WHERE id=%s", (ids[3],))
+        assert cur.fetchone()[0] == 1  # soft-deleted, the row stays
         cur.execute(
             "SELECT count(*) FROM memory_relationships WHERE from_id=%s AND to_id=%s",
             (ids[0], ids[1]),

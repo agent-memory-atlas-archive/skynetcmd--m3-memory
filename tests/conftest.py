@@ -1914,6 +1914,22 @@ def drain_read_log() -> None:
         db._read_log_pending.clear()
 
 
+def gdpr_erase(**target) -> dict:
+    """A GDPR erasure the way an operator runs it: the plan, then the confirmation
+    with its token and a compliance record. ``target`` is ``user_id=`` or
+    ``memory_ids=``. The one way a test erases: gdpr_forget is the only hard delete."""
+    import importlib
+
+    mm = importlib.import_module("memory_maintenance")
+    plan = mm.gdpr_forget_impl(**target)
+    assert isinstance(plan, dict) and plan["step"] == "plan" and not plan["erased"], plan
+    done = mm.gdpr_forget_impl(
+        **target, confirm=plan["token"], compliance={"legal_basis": "test", "verified_by": "test"}
+    )
+    assert isinstance(done, dict) and done["erased"], done
+    return done
+
+
 # Minimal memory_items schema sufficient for chatlog writes. Embeddings and
 # FTS5 tables are created lazily by specific fixtures that need them.
 #
@@ -2026,7 +2042,7 @@ def create_memory_items_schema(db_path) -> None:
 # track automatically — no manual schema duplication.
 #
 # Implementation: a session-scoped template DB is built ONCE per pytest run by
-# invoking `bin/migrate_memory.py up --yes --target main` against a fresh DB.
+# invoking `bin/migrate_memory.py --database DB up --yes --target main` on a fresh DB.
 # Per-test copies are bytewise file-copies — fast (~ms) instead of paying the
 # subprocess + 31-migration cost per test.
 
@@ -2046,7 +2062,6 @@ def _build_template_db() -> Path:
     migrate_script = repo_root / "bin" / "migrate_memory.py"
 
     env = _os.environ.copy()
-    env["M3_DATABASE"] = str(template_db)
     # The migrator's backup step writes to get_m3_engine_root()/backups. It does
     # NOT honor M3_BACKUP_DIR (prompt_backup_dir reads only the engine root + the
     # saved config value), so the previous M3_BACKUP_DIR override here was a
@@ -2056,7 +2071,7 @@ def _build_template_db() -> Path:
     env["M3_MEMORY_ROOT"] = str(tmp_root)
 
     result = subprocess.run(
-        [sys.executable, str(migrate_script), "up", "--yes", "--target", "main"],
+        [sys.executable, str(migrate_script), "--database", str(template_db), "up", "--yes", "--target", "main"],
         env=env,
         capture_output=True,
         text=True,

@@ -141,7 +141,7 @@ Before trusting any AI-generated description of m3:
 <td valign="top" width="45%"><b>❌ MYTH: m3 uses Riemannian Langevin Dynamics for memory aging</b></td>
 <td valign="top" width="55%"><p><strong>✅ Fact:</strong> m3's lifecycle is built on plain decay + retention policies:
 - Configurable <code>decay_rate</code> per memory
-- <code>expires_at</code> for hard expiry
+- <code>expires_at</code> for expiry (a soft delete; the row is kept)
 - <code>mcp__m3_memory__memory_set_retention</code> for per-agent retention rules
 - Periodic <code>mcp__m3_memory__memory_maintenance</code> for orphan pruning and dedup</p>
 <p>No SDEs, no manifolds. Just rule-based maintenance running on a SQLite database.</p></td>

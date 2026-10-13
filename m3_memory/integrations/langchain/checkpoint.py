@@ -59,41 +59,11 @@ from .m3client import M3Client
 _UNSCOPED_LIST_CAP = 1000
 
 
-# ── schema (integration-owned, self-healed on first use) ─────────────────────
-# Two tables, both parameterized-only. Checkpoints are keyed by the LangGraph
-# triple; writes hang off a checkpoint by (task_id, idx). BLOB columns hold the
-# serde output verbatim.
-def _schema(d) -> list[str]:
-    """The integration's two tables, in the active backend's DDL."""
-    blob = d.blob_type()
-    return [
-        f"""CREATE TABLE IF NOT EXISTS m3_lg_checkpoints (
-    thread_id      TEXT NOT NULL,
-    checkpoint_ns  TEXT NOT NULL DEFAULT '',
-    checkpoint_id  TEXT NOT NULL,
-    parent_id      TEXT,
-    user_id        TEXT NOT NULL DEFAULT '',
-    type           TEXT,
-    metadata_type  TEXT,
-    checkpoint     {blob} NOT NULL,
-    metadata       {blob} NOT NULL,
-    created_at     TEXT NOT NULL,
-    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
-)""",
-        """CREATE INDEX IF NOT EXISTS ix_m3_lg_ckpt_thread
-    ON m3_lg_checkpoints (thread_id, checkpoint_ns, created_at DESC)""",
-        f"""CREATE TABLE IF NOT EXISTS m3_lg_writes (
-    thread_id      TEXT NOT NULL,
-    checkpoint_ns  TEXT NOT NULL DEFAULT '',
-    checkpoint_id  TEXT NOT NULL,
-    task_id        TEXT NOT NULL,
-    idx            INTEGER NOT NULL,
-    channel        TEXT NOT NULL,
-    type           TEXT,
-    blob           {blob} NOT NULL,
-    PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
-)""",
-    ]
+# ── schema ────────────────────────────────────────────────────────────────────
+# Owned by migrations 054 (SQLite) / pg_063 (PostgreSQL): m3 schemas change only
+# through migrations. The integration issues no DDL; opening the store applies any
+# pending migration. Checkpoints are keyed by the LangGraph triple; writes hang off
+# a checkpoint by (task_id, idx); deleted_at marks a soft-deleted thread.
 
 
 def _dialect():
@@ -135,9 +105,8 @@ class M3Saver(BaseCheckpointSaver):
     async def _ensure_schema_async(self) -> None:
         from memory.db import _db
 
-        with _db() as db:
-            for stmt in _schema(_dialect()):
-                db.execute(stmt)
+        with _db():  # the store's first open applies pending migrations (054 / pg_063)
+            pass
 
     # ── version scheme (opaque monotonic string, like the sqlite saver) ───────
     @override
@@ -214,15 +183,15 @@ class M3Saver(BaseCheckpointSaver):
         d = _dialect()
         upsert = d.on_conflict_update(
             "(thread_id, checkpoint_ns, checkpoint_id)",
-            ["parent_id", "user_id", "type", "metadata_type", "checkpoint", "metadata", "created_at"],
+            ["parent_id", "user_id", "type", "metadata_type", "checkpoint", "metadata", "created_at", "deleted_at"],
         )
         with _db() as db:
             db.execute(
                 "INSERT INTO m3_lg_checkpoints "
                 "(thread_id, checkpoint_ns, checkpoint_id, parent_id, user_id, "
-                " type, metadata_type, checkpoint, metadata, created_at) "
-                f"VALUES ({d.placeholder(10)}) {upsert}",
-                (thread_id, ns, ckpt_id, parent_id, user_id, c_type, m_type, c_blob, m_blob, created_at),
+                " type, metadata_type, checkpoint, metadata, created_at, deleted_at) "
+                f"VALUES ({d.placeholder(11)}) {upsert}",
+                (thread_id, ns, ckpt_id, parent_id, user_id, c_type, m_type, c_blob, m_blob, created_at, None),
             )
 
     @override
@@ -338,7 +307,7 @@ class M3Saver(BaseCheckpointSaver):
         user_id = conf.get("user_id")
 
         _p = _dialect().param()
-        where = [f"thread_id = {_p}", f"checkpoint_ns = {_p}"]
+        where = [f"thread_id = {_p}", f"checkpoint_ns = {_p}", "deleted_at IS NULL"]
         params: list[Any] = [thread_id, ns]
         if ckpt_id:
             where.append(f"checkpoint_id = {_p}")
@@ -439,7 +408,7 @@ class M3Saver(BaseCheckpointSaver):
 
         conf = _cfg(config)  # _cfg tolerates None
         _p = _dialect().param()
-        where: list[str] = []
+        where: list[str] = ["deleted_at IS NULL"]
         params: list[Any] = []
         if conf.get("thread_id"):
             where.append(f"thread_id = {_p}")
@@ -491,7 +460,10 @@ class M3Saver(BaseCheckpointSaver):
                 out.append(self._row_to_tuple(row, writes))
         return out
 
-    # ── DELETE: drop a whole thread (checkpoints + writes) ────────────────────
+    # ── DELETE: soft-delete a whole thread ────────────────────────────────────
+    # Hard delete is GDPR-only (memory.deletion): the thread's checkpoints get
+    # deleted_at and drop out of every read; their writes hang off them and go
+    # with them. gdpr_forget erases a user's checkpoints for real.
     @override
     def delete_thread(self, thread_id: str) -> None:
         self._ensure_schema()
@@ -506,9 +478,13 @@ class M3Saver(BaseCheckpointSaver):
         await self._delete_thread_async(thread_id)
 
     async def _delete_thread_async(self, thread_id: str) -> None:
+        from datetime import UTC, datetime
+
         from memory.db import _db
 
         _p = _dialect().param()
         with _db() as db:
-            db.execute(f"DELETE FROM m3_lg_writes WHERE thread_id = {_p}", (thread_id,))
-            db.execute(f"DELETE FROM m3_lg_checkpoints WHERE thread_id = {_p}", (thread_id,))
+            db.execute(
+                f"UPDATE m3_lg_checkpoints SET deleted_at = {_p} WHERE thread_id = {_p} AND deleted_at IS NULL",
+                (datetime.now(UTC).isoformat(), thread_id),
+            )

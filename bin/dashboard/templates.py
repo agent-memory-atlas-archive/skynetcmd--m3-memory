@@ -1392,15 +1392,14 @@ INDEX_HTML = """
                     </div>
                     <button class="m3-btn" style="width: 100%; font-size: 0.85rem;" onclick="exportGDPR()">Export User Data (Art. 20)</button>
 
-                    <!-- Optional program-layer record for the erasure. Collapsed by
-                         default so a casual single-user purge isn't burdened; a
-                         multi-tenant operator can fill it for a defensible audit
-                         record (written to the tamper-evident audit trail). -->
-                    <details style="font-size: 0.8rem; margin: 0.25rem 0;">
-                        <summary style="cursor: pointer; color: hsl(210, 15%, 65%);">Compliance details (optional)</summary>
+                    <!-- The compliance record an erasure requires (legal basis and
+                         verified-by), written to the tamper-evident audit trail.
+                         GDPR erasure is the only hard delete in m3. -->
+                    <details open style="font-size: 0.8rem; margin: 0.25rem 0;">
+                        <summary style="cursor: pointer; color: hsl(210, 15%, 65%);">Compliance record (legal basis and verified-by required)</summary>
                         <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
                             <select id="gdprLegalBasis" class="m3-select" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
-                                <option value="">Legal basis (Art. 17(1)) — optional</option>
+                                <option value="">Legal basis (Art. 17(1)) — required</option>
                                 <option value="a) no longer necessary">a) No longer necessary</option>
                                 <option value="b) consent withdrawn">b) Consent withdrawn</option>
                                 <option value="c) objection (Art. 21)">c) Objection (Art. 21)</option>
@@ -1409,7 +1408,7 @@ INDEX_HTML = """
                                 <option value="f) child's data">f) Child's data</option>
                             </select>
                             <input type="text" id="gdprReason" class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;" placeholder="Reason / notes">
-                            <input type="text" id="gdprVerifiedBy" class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;" placeholder="Identity verified by (who / how)">
+                            <input type="text" id="gdprVerifiedBy" class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;" placeholder="Identity verified by (who / how) — required">
                             <input type="text" id="gdprAuthorizedBy" class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;" placeholder="Authorized by (operator / DPO)">
                             <input type="text" id="gdprExternalRef" class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;" placeholder="External ref (case / ticket #)">
                             <input type="text" id="gdprRetainedNote" class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;" placeholder="Retained under exemption (Art. 17(3)) — note">
@@ -1870,39 +1869,57 @@ INDEX_HTML = """
             }, 1000);
         }
 
+        // GDPR erasure: the ONLY hard delete, in two steps (plan, then confirm with
+        // a compliance record). gdprFields() reads the compliance inputs.
+        function gdprFields() {
+            const cmap = {
+                legal_basis: "gdprLegalBasis", reason: "gdprReason",
+                verified_by: "gdprVerifiedBy", authorized_by: "gdprAuthorizedBy",
+                external_ref: "gdprExternalRef", retained_note: "gdprRetainedNote"
+            };
+            const out = {};
+            for (const [field, id] of Object.entries(cmap)) {
+                const el = document.getElementById(id);
+                if (el && el.value.trim()) out[field] = el.value.trim();
+            }
+            return out;
+        }
+
         async function forgetGDPR() {
             const uid = document.getElementById("gdprUserId").value;
             const fb = document.getElementById("gdprFeedback");
-            if (!confirm(`Are you absolutely sure you want to completely purge user data for '${uid}'? This hard-deletes all memories, vectors, and graph edges recursively.`)) {
+            const fields = gdprFields();
+            if (!fields.legal_basis || !fields.verified_by) {
+                fb.style.color = "var(--m3-neon-amber)";
+                fb.innerText = "An erasure needs a compliance record: fill in Legal basis and Verified by.";
                 return;
             }
-
-            fb.style.color = "var(--m3-neon-amber)";
-            fb.innerText = "Purging memory layers...";
+            const post = async (extra) => {
+                const fd = new FormData();
+                fd.append("user_id", uid);
+                for (const [k, v] of Object.entries(extra)) fd.append(k, v);
+                const res = await fetch("/api/gdpr/forget", { method: "POST", body: fd });
+                return res.json();
+            };
             try {
-                const formData = new FormData();
-                formData.append("user_id", uid);
-                // Optional program-layer compliance fields (sent only if filled).
-                const cmap = {
-                    legal_basis: "gdprLegalBasis", reason: "gdprReason",
-                    verified_by: "gdprVerifiedBy", authorized_by: "gdprAuthorizedBy",
-                    external_ref: "gdprExternalRef", retained_note: "gdprRetainedNote"
-                };
-                for (const [field, id] of Object.entries(cmap)) {
-                    const el = document.getElementById(id);
-                    if (el && el.value.trim()) formData.append(field, el.value.trim());
+                fb.style.color = "var(--m3-neon-cyan)";
+                fb.innerText = "Planning the erasure (nothing is erased yet)...";
+                const plan = await post({});
+                if (plan.error) { fb.style.color = "var(--m3-neon-amber)"; fb.innerText = plan.error; return; }
+                const lines = Object.entries(plan.counts).map(([t, n]) => `  ${t}: ${n}`).join("\n");
+                if (!confirm(`GDPR erasure for '${uid}' permanently erases:\n${lines}\n\nThis cannot be undone. Erase now?`)) {
+                    fb.innerText = "Cancelled. Nothing was erased.";
+                    return;
                 }
-
-                const res = await fetch("/api/gdpr/forget", {
-                    method: "POST",
-                    body: formData
-                });
-                const msg = await res.text();
+                fb.style.color = "var(--m3-neon-amber)";
+                fb.innerText = "Erasing...";
+                const done = await post({ confirm: plan.token, ...fields });
+                if (done.error) { fb.innerText = done.error; return; }
                 fb.style.color = "var(--m3-neon-emerald)";
-                fb.innerText = msg;
+                fb.innerText = `Erased ${done.items_erased} memories for '${uid}' (request ${done.request_id}).`;
             } catch(e) {
                 fb.style.color = "var(--m3-neon-amber)";
-                fb.innerText = "Failed to purge user.";
+                fb.innerText = "The erasure request failed; nothing is known to be erased. " + e;
             }
         }
 

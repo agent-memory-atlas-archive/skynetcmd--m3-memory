@@ -58,6 +58,10 @@ New `memory_delete_bulk_impl(ids, hard=False)` in `bin/memory_core.py`.
 - Input dedup: same id passed twice is processed once.
 - Returns `{succeeded, not_found, mode}` instead of N text lines.
 
+> **Since superseded:** `hard=True` no longer destroys anything — it is accepted
+> but soft-deletes, with a notice. Hard delete is GDPR-only (`gdpr_forget`, plan
+> then confirm).
+
 Destructive-gated via `ToolSpec(default_allowed=False)` in
 `bin/mcp_tool_catalog.py` — same gate as the single-id `memory_delete`,
 only exposed when `MCP_PROXY_ALLOW_DESTRUCTIVE` is set on the proxy.

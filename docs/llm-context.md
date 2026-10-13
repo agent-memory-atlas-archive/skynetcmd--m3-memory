@@ -43,8 +43,8 @@ The real tools:
 | Fetch one memory by id | `memory_get` |
 | Correct/replace a belief with new truth | `memory_supersede` |
 | See how a memory changed over time | `memory_history` |
-| Delete a memory | `memory_delete` (soft/hard) |
-| GDPR erasure (all data for a subject) | `gdpr_forget` |
+| Delete a memory | `memory_delete` (always soft; `hard=true` stays soft) |
+| GDPR erasure (a subject's data, or specific memories) — the only hard delete | `gdpr_forget` (plan, then confirm with token + compliance) |
 | GDPR export (portability) | `gdpr_export` |
 | Save a verbatim conversation turn | `chatlog_write` |
 | Search past conversation turns | `chatlog_search` |
@@ -67,7 +67,7 @@ The real tools:
    and a `supersedes` edge recorded) — not `memory_delete` + re-add. History stays
    auditable via `memory_history`.
 3. **Pin protects against aging, not correction.** `memory_pin` exempts a memory
-   from decay, expiry archival and retention soft-deletes — but a pinned memory can STILL be
+   from decay, expiry and retention soft-deletes — but a pinned memory can STILL be
    superseded when it becomes wrong. Pin means "don't let this rot," not "never
    update this."
 4. **Scope deliberately.** Memories carry a `scope` (`agent`/`session`/`user`/`org`)

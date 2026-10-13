@@ -300,7 +300,7 @@ entities.
 | Need deeper understanding of connections | `memory_graph` |
 | Session start / agent register returns refresh hint | `memory_refresh_queue` |
 | User asks to forget a specific memory | `memory_delete` (soft-deletes: kept and recoverable) |
-| User asks to erase ALL their data | `gdpr_forget` (hard-deletes everything for that `user_id`; the GDPR erasure path) |
+| User asks to erase ALL their data | `gdpr_forget` (the only hard delete; two steps: plan, then confirm with the token and a compliance record) |
 | Need full context on a specific memory | `memory_get` or `memory_suggest` |
 | Memory seems cluttered or inconsistent | Trust the Autonomous Cognitive Loop to resolve |
 
@@ -414,7 +414,7 @@ Recommended as a safer alternative to manual `adaptive_k` tuning.
 |------|-------------|
 | `memory_get(id)` | Retrieve full memory by UUID |
 | `memory_update(id, ...)` | Update content, title, metadata, importance, `refresh_on`, `refresh_reason`, or `conversation_id`. Each change is recorded to `memory_history`. Pass the literal string `"clear"` for `refresh_on` / `refresh_reason` / `conversation_id` to NULL the column; empty string = no change. |
-| `memory_delete(id)` | Soft-delete (default, recoverable) or `hard=True` (cascade deletes embeddings, relationships, history) |
+| `memory_delete(id)` | Soft-delete (kept and recoverable). `hard=True` is accepted but still soft-deletes, with a notice: hard delete is GDPR-only (`gdpr_forget`). |
 | `memory_verify(id)` | Check content integrity — re-computes SHA-256 and compares to stored hash |
 | `memory_refresh_queue(agent_id, limit, include_future)` | List memories whose `refresh_on` has arrived. Read-only. Pass `include_future=True` to see all memories with a refresh date set, not just overdue ones. Call this at session start and at logical breakpoints. |
 
@@ -439,7 +439,7 @@ Recommended as a safer alternative to manual `adaptive_k` tuning.
 
 | Tool | When to Use |
 |------|-------------|
-| `memory_maintenance()` | Run decay, expiry archival (expired rows are copied to `memory_archive`, then leave the live store), orphan-embedding pruning, retention enforcement (soft-delete). Call periodically or when system feels sluggish. |
+| `memory_maintenance()` | Run decay, expiry (expired rows are soft-deleted: kept whole and recoverable), orphan-embedding pruning, retention enforcement (soft-delete). Call periodically or when system feels sluggish. |
 | `memory_dedup(threshold, dry_run)` | Find near-duplicate memories. Use `dry_run=True` first to preview. |
 | `memory_consolidate(type_filter, agent_filter, threshold)` | Merge old memories of the same type into LLM-generated summaries. Use when a category has too many items. |
 | `memory_set_retention(agent_id, max_memories, ttl_days)` | Set per-agent retention limits. Enforced automatically by `memory_maintenance`. |
@@ -451,8 +451,8 @@ Recommended as a safer alternative to manual `adaptive_k` tuning.
 #### Grading what you actually used
 
 `memory_maintenance` no longer archives low-importance memories — low-value
-memories are deranked, not removed. (Rows past their `expires_at` are archived
-and leave the live store; per-agent retention limits soft-delete.) What decides "low-value" is partly **you**: whether a
+memories are deranked, not removed. (Rows past their `expires_at` and rows over
+per-agent retention limits are soft-deleted, never destroyed.) What decides "low-value" is partly **you**: whether a
 retrieved memory actually contributed to your answer.
 
 **Call `memory_grade` after you answer, not while you read.** Grading at
@@ -483,7 +483,7 @@ memory_grade(grades=[
 | Tool | When to Use |
 |------|-------------|
 | `gdpr_export(user_id)` | User requests their data — returns all memories as JSON |
-| `gdpr_forget(user_id)` | User requests deletion — hard-deletes everything (memories, embeddings, relationships, history) |
+| `gdpr_forget(user_id \| memory_ids)` | GDPR erasure — the only hard delete. Step 1 returns a plan (per-table counts) and a 15-minute `token`, erasing nothing; step 2 repeats the call with `confirm=<token>` and `compliance={"legal_basis": …, "verified_by": …}` and erases memories, embeddings, relationships, history, and the read log. |
 | `memory_export(agent_filter, type_filter, since)` | Export memories as portable JSON for backup or migration |
 | `memory_import(data)` | Import from a previous export. UPSERT semantics — safe to re-run. |
 

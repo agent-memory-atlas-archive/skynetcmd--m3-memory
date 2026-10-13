@@ -206,11 +206,13 @@ def test_pinned_row_not_expiry_purged_unpinned_is(tmp_path):
         pin_database(None)
 
     conn = sqlite3.connect(str(db))
-    remaining_ids = {r[0] for r in conn.execute("SELECT id FROM memory_items")}
+    remaining_ids = {r[0] for r in conn.execute("SELECT id FROM memory_items WHERE is_deleted = 0")}
+    unpinned = conn.execute("SELECT is_deleted FROM memory_items WHERE id = 'unpinned-id'").fetchone()
     conn.close()
 
-    assert "pinned-id" in remaining_ids  # survived expiry purge
-    assert "unpinned-id" not in remaining_ids  # purged
+    assert "pinned-id" in remaining_ids  # pinned: exempt from expiry
+    assert "unpinned-id" not in remaining_ids  # expired: soft-deleted
+    assert unpinned == (1,), f"observed {unpinned!r}: expiry must soft-delete (the row stays); hard delete is GDPR-only"
 
 
 # ── old-DB tolerance (pinned column absent) ──────────────────────────────────
@@ -245,9 +247,9 @@ def test_decay_and_expiry_tolerate_missing_pinned_column(tmp_path):
         pin_database(None)
 
     conn = sqlite3.connect(str(db))
-    remaining_ids = {r[0] for r in conn.execute("SELECT id FROM memory_items")}
+    remaining_ids = {r[0] for r in conn.execute("SELECT id FROM memory_items WHERE is_deleted = 0")}
     conn.close()
-    # Fallback path ran the original (non-pinned) query: expired row purged.
+    # Fallback path ran the original (non-pinned) query: expired row soft-deleted.
     assert "old-schema-id" not in remaining_ids
 
 

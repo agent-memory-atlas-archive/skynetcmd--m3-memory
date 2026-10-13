@@ -84,8 +84,8 @@ QUERIES = [
 ]
 
 K_VALUES = [8, 20, 50]
-N_TIMED = 8       # timed runs per (query, k)
-WARMUP = 1        # untimed warmup runs per (query, k)
+N_TIMED = 8  # timed runs per (query, k)
+WARMUP = 1  # untimed warmup runs per (query, k)
 
 
 # ---------------------------------------------------------------------------
@@ -127,11 +127,15 @@ def run_worker(arm: str) -> int:
     missing = [q for q, (v, _) in vec_cache.items() if not v]
     if missing:
         # No embedder available for these queries -> cannot isolate scoring path.
-        print(json.dumps({
-            "error": "embedder unavailable",
-            "missing_count": len(missing),
-            "total": len(QUERIES),
-        }))
+        print(
+            json.dumps(
+                {
+                    "error": "embedder unavailable",
+                    "missing_count": len(missing),
+                    "total": len(QUERIES),
+                }
+            )
+        )
         return 3
 
     # --- Monkeypatch _embed -> pure dict lookup (timed window excludes embed) ---
@@ -146,7 +150,7 @@ def run_worker(arm: str) -> int:
 
     # --- Run the query set ---
     results = {}  # k -> { query -> {median, p95, n} }
-    sanity = {}   # query -> [top ids]  (only for first query, content-free)
+    sanity = {}  # query -> [top ids]  (only for first query, content-free)
 
     async def _bench():
         for k in K_VALUES:
@@ -154,24 +158,19 @@ def run_worker(arm: str) -> int:
             for q in QUERIES:
                 # warmup (untimed)
                 for _ in range(WARMUP):
-                    await mc.memory_search_scored_impl(
-                        q, mmr=True, k=k, search_mode="hybrid", vector_weight=0.7
-                    )
+                    await mc.memory_search_scored_impl(q, mmr=True, k=k, search_mode="hybrid", vector_weight=0.7)
                 samples = []
                 last_rows = None
                 for _ in range(N_TIMED):
                     t0 = time.perf_counter()
-                    rows = await mc.memory_search_scored_impl(
-                        q, mmr=True, k=k, search_mode="hybrid", vector_weight=0.7
-                    )
+                    rows = await mc.memory_search_scored_impl(q, mmr=True, k=k, search_mode="hybrid", vector_weight=0.7)
                     t1 = time.perf_counter()
                     samples.append((t1 - t0) * 1000.0)
                     last_rows = rows
                 samples.sort()
                 med = statistics.median(samples)
                 p95 = samples[min(len(samples) - 1, int(round(0.95 * (len(samples) - 1))))]
-                results[k][q] = {"median_ms": med, "p95_ms": p95, "n": len(samples),
-                                 "n_results": len(last_rows or [])}
+                results[k][q] = {"median_ms": med, "p95_ms": p95, "n": len(samples), "n_results": len(last_rows or [])}
                 # capture sanity ids at k=8 for every query
                 if k == K_VALUES[0]:
                     ids = []
@@ -185,12 +184,16 @@ def run_worker(arm: str) -> int:
 
     asyncio.run(_bench())
 
-    print(json.dumps({
-        "arm": arm,
-        "rust_active": rust_active,
-        "results": results,
-        "sanity": sanity,
-    }))
+    print(
+        json.dumps(
+            {
+                "arm": arm,
+                "rust_active": rust_active,
+                "results": results,
+                "sanity": sanity,
+            }
+        )
+    )
     return 0
 
 
@@ -206,7 +209,9 @@ def _spawn(arm: str) -> dict:
         env["M3_CORE_RS_DISABLE"] = "1"
     proc = subprocess.run(
         [sys.executable, str(Path(__file__).resolve()), "--arm", arm],
-        env=env, capture_output=True, text=True,
+        env=env,
+        capture_output=True,
+        text=True,
     )
     # The worker prints exactly one JSON line on stdout; logs may go to stderr.
     out = proc.stdout.strip()
@@ -216,14 +221,15 @@ def _spawn(arm: str) -> dict:
         if ln.startswith("{"):
             line = ln
     if not line:
-        return {"error": "no JSON from worker",
-                "returncode": proc.returncode,
-                "stderr_tail": proc.stderr.strip()[-800:]}
+        return {
+            "error": "no JSON from worker",
+            "returncode": proc.returncode,
+            "stderr_tail": proc.stderr.strip()[-800:],
+        }
     try:
         return json.loads(line)
     except Exception as e:
-        return {"error": f"bad JSON from worker: {e}",
-                "stderr_tail": proc.stderr.strip()[-800:]}
+        return {"error": f"bad JSON from worker: {e}", "stderr_tail": proc.stderr.strip()[-800:]}
 
 
 def main() -> int:
@@ -261,8 +267,7 @@ def main() -> int:
             if res.get("stderr_tail"):
                 print("  stderr tail:\n  " + res["stderr_tail"].replace("\n", "\n  "))
             if res.get("missing_count"):
-                print(f"  embedder produced no vectors for "
-                      f"{res['missing_count']}/{res['total']} queries.")
+                print(f"  embedder produced no vectors for {res['missing_count']}/{res['total']} queries.")
             return 1
 
     # ---- Sanity check: do the two arms agree on result IDs? ----
@@ -297,8 +302,7 @@ def main() -> int:
             print(f"       rust top-ids: {rid}")
             print(f"       py   top-ids: {pid}")
     if order_divergence:
-        print(f"  ~  {len(order_divergence)}/{len(QUERIES)} queries: identical ID set, "
-              "different rank order.")
+        print(f"  ~  {len(order_divergence)}/{len(QUERIES)} queries: identical ID set, different rank order.")
         print("  ~  Benign — float32 round-off boundary between Rust and numpy cosine")
         print("  ~  on near-tied scores. Deterministic per-arm; not a correctness defect.")
         for q, rid, pid in order_divergence:
@@ -308,8 +312,10 @@ def main() -> int:
     if not set_divergence and not order_divergence:
         print(f"  OK — all {len(QUERIES)} queries return identical result count and order")
     elif not set_divergence:
-        print(f"  OK at the set level — all {len(QUERIES)} queries return the same "
-              "result IDs (see order-only notes above)")
+        print(
+            f"  OK at the set level — all {len(QUERIES)} queries return the same "
+            "result IDs (see order-only notes above)"
+        )
         print("       and identical top-5 IDs in both arms. Parity holds.")
 
     # ---- Aggregate timing table ----
@@ -323,6 +329,7 @@ def main() -> int:
     summary_rows = []
     for k in K_VALUES:
         ks = str(k)
+
         # per-arm aggregate across the query set: p50/p95 of per-query medians
         def agg(res):
             meds = sorted(res["results"][ks][q]["median_ms"] for q in QUERIES)
@@ -330,6 +337,7 @@ def main() -> int:
             p50 = statistics.median(meds)
             idx95 = min(len(p95s) - 1, int(round(0.95 * (len(p95s) - 1))))
             return p50, p95s[idx95]
+
         r_p50, r_p95 = agg(rust)
         p_p50, p_p95 = agg(py)
         speedup = p_p50 / r_p50 if r_p50 else float("nan")
@@ -340,8 +348,7 @@ def main() -> int:
 
     print("\nSUMMARY")
     for k, r_p50, p_p50, sp in summary_rows:
-        print(f"  k={k:>3}: rust p50={r_p50:.3f}ms  python p50={p_p50:.3f}ms  "
-              f"-> {sp:.2f}x end-to-end")
+        print(f"  k={k:>3}: rust p50={r_p50:.3f}ms  python p50={p_p50:.3f}ms  -> {sp:.2f}x end-to-end")
     best = max(summary_rows, key=lambda r: r[3])
     print(f"\n  Best end-to-end speedup: {best[3]:.2f}x at k={best[0]}.")
     print("  CAVEAT (Amdahl): this is the FULL search path — FTS5, SQLite I/O,")

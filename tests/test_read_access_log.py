@@ -12,6 +12,8 @@ import uuid
 
 import pytest
 
+from conftest import gdpr_erase
+
 
 def _p():
     from memory.backends import dialect
@@ -100,14 +102,14 @@ def test_switched_off_it_records_nothing(mem, m3_settings):
 def test_gdpr_export_includes_and_gdpr_forget_erases_the_subjects_rows(mem):
     import memory_core
     from memory.db import flush_read_log
-    from memory_maintenance import gdpr_export_impl, gdpr_forget_impl
+    from memory_maintenance import gdpr_export_impl
 
     backend, mid, user = mem
     memory_core.memory_get_impl(mid)
     flush_read_log()
     exported = json.loads(gdpr_export_impl(user))
     assert [a["memory_id"] for a in exported["access_log"]] == [mid]
-    gdpr_forget_impl(user)
+    gdpr_erase(user_id=user)
     assert _log(backend, mid) == [], "gdpr_forget left the subject's read log behind"
 
 

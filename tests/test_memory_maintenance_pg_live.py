@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import use_backend
+from conftest import gdpr_erase, use_backend
 
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
@@ -225,7 +225,7 @@ def test_archive_and_gdpr_erasure_on_pg(pg):
     assert rows[0]["user_id"] == uid
 
     # GDPR forget must purge the tombstone too.
-    MM.gdpr_forget_impl(uid)
+    gdpr_erase(user_id=uid)
     with _db() as db:
         after = db.execute(f"SELECT COUNT(*) AS c FROM memory_archive WHERE user_id = {p}", (uid,)).fetchone()
     assert (after["c"] if hasattr(after, "keys") else after[0]) == 0

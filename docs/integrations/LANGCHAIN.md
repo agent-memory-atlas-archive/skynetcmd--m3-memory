@@ -242,7 +242,10 @@ list(graph.get_state_history(cfg))             # every super-step — replay / t
 A checkpoint is opaque graph state, not knowledge, so `M3Saver` stores it in its
 own tables and deliberately **bypasses** m3's embedder and contradiction pipeline
 (two checkpoints of a thread aren't contradictions to reconcile). An optional
-`user_id` in `configurable` scopes reads to that user's threads. Sync and async
+`user_id` in `configurable` scopes reads to that user's threads. The tables are
+created by m3's migrations (054 on SQLite, pg_063 on PostgreSQL).
+`delete_thread` soft-deletes (sets `deleted_at`; the thread stops resolving but
+is kept); a data subject's checkpoints are erased only by `gdpr_forget`. Sync and async
 (`aget_tuple` / `aput` / `alist`) are both implemented. See a runnable end-to-end
 example in [`examples/langchain-agent/graph_checkpointer.py`](../../examples/langchain-agent/graph_checkpointer.py).
 

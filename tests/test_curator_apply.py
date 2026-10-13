@@ -140,8 +140,9 @@ def test_memory_plan_combined_sections(scratch_db):
     assert conn.execute("SELECT importance FROM memory_items WHERE id=?", (ids[3],)).fetchone()[0] == 0.9
 
 
-def test_memory_plan_hard_delete(scratch_db):
-    """delete_hard cascades to memory_embeddings + memory_relationships."""
+def test_memory_plan_delete_hard_is_a_soft_delete(scratch_db):
+    """Hard delete is GDPR-only: delete_hard soft-deletes, keeps the embeddings, and
+    its result carries the notice naming gdpr_forget."""
     import curator_apply
 
     ids = scratch_db["ids"]
@@ -157,11 +158,12 @@ def test_memory_plan_hard_delete(scratch_db):
     out = curator_apply.apply_memory_plan(plan)
     assert out["errors"] == []
     assert out["delete_hard"]["succeeded"] == [ids[0]]
+    assert out["delete_hard"]["mode"] == "soft"
+    assert "gdpr_forget" in out["delete_hard"]["notice"]
 
     conn = sqlite3.connect(scratch_db["path"])
-    # Item row gone (cascade), not just soft-deleted.
-    assert conn.execute("SELECT COUNT(*) FROM memory_items WHERE id=?", (ids[0],)).fetchone()[0] == 0
-    assert conn.execute("SELECT COUNT(*) FROM memory_embeddings WHERE memory_id=?", (ids[0],)).fetchone()[0] == 0
+    assert conn.execute("SELECT is_deleted FROM memory_items WHERE id=?", (ids[0],)).fetchone() == (1,)
+    assert conn.execute("SELECT COUNT(*) FROM memory_embeddings WHERE memory_id=?", (ids[0],)).fetchone()[0] == 1
 
 
 def test_memory_plan_string_ids_in_delete_section(scratch_db):

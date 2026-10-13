@@ -192,8 +192,8 @@ TOOLS: list[ToolSpec] = [
             "as_of-filtered search still sees it valid before the supersession "
             "point — it is only dropped from default search. Fields you omit "
             "(type, title, importance, scope) are inherited from the old memory, "
-            "so pass only what changed. To hard-delete instead, that is a "
-            "separate gated tool (memory_delete). "
+            "so pass only what changed. To remove it instead, memory_delete "
+            "soft-deletes (hard delete is GDPR-only: gdpr_forget). "
             "old_id MUST be the full UUID — a prefix is rejected (full UUID "
             "required for mutation safety; memory_get accepts a prefix, this "
             "does not). Pass content to create a NEW successor memory, or "
@@ -819,8 +819,8 @@ TOOLS: list[ToolSpec] = [
             "Deterministically apply a memory.db curator plan in ONE call. "
             "No LLM in the loop — the apply phase is a pure function over the "
             "structured plan. Replaces the agent-driven APPLY-mode loop. "
-            "Plan sections: delete (soft, list of UUIDs), delete_hard (cascade, "
-            "list of UUIDs), link (list of {from_id, to_id, relationship_type}), "
+            "Plan sections: delete (soft, list of UUIDs), delete_hard (also a soft "
+            "delete, with a notice: hard delete is GDPR-only), link (list of {from_id, to_id, relationship_type}), "
             "update (list of {id, importance, metadata, ...}). Any section may "
             "be omitted. Returns structured per-section results + summary."
         ),
@@ -849,7 +849,8 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_delete",
         description=(
-            "Deletes a MemoryItem (soft or hard). id MUST be the full UUID — a "
+            "Soft-deletes a MemoryItem (kept and recoverable; memory_restore). "
+            "Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a "
             "prefix is rejected (full UUID required for mutation safety; "
             "memory_get accepts a prefix, this does not)."
         ),
@@ -860,7 +861,7 @@ TOOLS: list[ToolSpec] = [
                     "type": "string",
                     "description": "FULL UUID of the memory (not an 8-char prefix — a prefix is rejected for mutation safety).",
                 },
-                "hard": {"type": "boolean", "description": "Hard delete (permanent).", "default": False},
+                "hard": {"type": "boolean", "description": "Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget).", "default": False},
             },
             "required": ["id"],
         },
@@ -873,9 +874,9 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_delete_bulk",
         description=(
-            "Deletes a list of MemoryItems (soft or hard) in one transaction per chunk. "
-            "Use for curation/dedup passes deleting many items; falls back to per-id "
-            "memory_delete behavior with the same hard-cascade semantics. Returns a "
+            "Soft-deletes a list of MemoryItems in one transaction per chunk "
+            "(kept and recoverable). Use for curation/dedup passes; same semantics "
+            "as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a "
             "structured {succeeded, not_found, mode} dict."
         ),
         parameters={
@@ -886,7 +887,7 @@ TOOLS: list[ToolSpec] = [
                     "items": {"type": "string"},
                     "description": "List of memory item UUIDs to delete.",
                 },
-                "hard": {"type": "boolean", "description": "Hard delete (permanent).", "default": False},
+                "hard": {"type": "boolean", "description": "Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget).", "default": False},
             },
             "required": ["ids"],
         },
@@ -903,7 +904,7 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "decay": {"type": "boolean", "description": "Apply importance decay.", "default": True},
-                "purge_expired": {"type": "boolean", "description": "Archive expired items to memory_archive, then remove them from the live store.", "default": True},
+                "purge_expired": {"type": "boolean", "description": "Soft-delete expired items (kept and recoverable; pinned items are exempt).", "default": True},
                 "prune_orphan_embeddings": {
                     "type": "boolean",
                     "description": "Remove orphaned embeddings.",

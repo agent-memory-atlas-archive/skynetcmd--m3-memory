@@ -497,7 +497,7 @@ Both stores share one plan schema (an absent key is a no-op):
 
 | Store | Sections |
 |---|---|
-| memory | `delete` (soft), `delete_hard` (cascade), `link`, `update` |
+| memory | `delete` (soft), `delete_hard` (also soft, with a notice: hard delete is GDPR-only), `link`, `update` |
 | chatlog | `decay` (derank), `dedup` (keep; soft-delete drops), `promote` (copy), `prune` (soft-delete) |
 
 Errors never cross the boundary as exceptions — each section reports its own
@@ -553,6 +553,6 @@ Every search accepts `user_id` and `scope` filters.
 
 ## 🇪🇺 GDPR Compliance
 
-- **Article 17 (Right to Be Forgotten):** `gdpr_forget` hard-deletes all data for a user — memories, embeddings, relationships, history, sync queue
+- **Article 17 (Right to Be Forgotten):** `gdpr_forget` is m3's only hard delete — two steps (plan with a 15-minute token, then confirm with a compliance record carrying `legal_basis` and `verified_by`); erases a user's (or specific memories') items, embeddings, relationships, history, read log, sync-queue rows, archived copies, and LangGraph checkpoints. Every other delete is soft.
 - **Article 20 (Data Portability):** `gdpr_export` returns all memories as portable JSON
 - Audit trail in `gdpr_requests` table with timestamps and item counts

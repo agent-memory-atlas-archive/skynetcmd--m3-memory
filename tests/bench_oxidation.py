@@ -142,10 +142,7 @@ if USING_REAL_VECTORS:
     VEC_SOURCE = f"REAL ({len(_real)} vectors from memory/agent_memory.db, dim={DIM})"
 else:
     rng = np.random.default_rng(20260514)
-    VEC_POOL = [
-        rng.standard_normal(DIM).astype(np.float32).tolist()
-        for _ in range(SEARCH_ROW_CAP + 16)
-    ]
+    VEC_POOL = [rng.standard_normal(DIM).astype(np.float32).tolist() for _ in range(SEARCH_ROW_CAP + 16)]
     VEC_SOURCE = f"SYNTHETIC ({len(VEC_POOL)} random float32 vectors, dim={DIM})"
 
 
@@ -224,12 +221,11 @@ def record(op, size, py_med, py_p95, rs_med, rs_p95, unit="us"):
     speedup = (py_med / rs_med) if rs_med > 0 else float("inf")
     RESULTS.append((op, size, py_med, py_p95, rs_med, rs_p95, speedup, unit))
     div = 1000.0 if unit == "ms" else 1.0
-    verdict = "rust wins" if speedup >= 1.05 else (
-        "PY wins" if speedup <= 0.95 else "break-even")
+    verdict = "rust wins" if speedup >= 1.05 else ("PY wins" if speedup <= 0.95 else "break-even")
     print(
         f"  {op:<22} {size:<14} "
-        f"py {py_med/div:9.3f}/{py_p95/div:9.3f}  "
-        f"rs {rs_med/div:9.3f}/{rs_p95/div:9.3f} {unit}  "
+        f"py {py_med / div:9.3f}/{py_p95 / div:9.3f}  "
+        f"rs {rs_med / div:9.3f}/{rs_p95 / div:9.3f} {unit}  "
         f"x{speedup:6.2f}  [{verdict}]"
     )
 
@@ -259,20 +255,17 @@ _a, _b = take_vecs(2)
 _rs_c = m3_core_rs.cosine(_a, _b)
 _py_c = py_cosine(_a, _b)
 if abs(_rs_c - _py_c) < FLOAT_TOL:
-    print(f"  cosine       OK  |rust - py| = {abs(_rs_c - _py_c):.2e} < {FLOAT_TOL}  "
-          f"(rust={_rs_c:.6f})")
+    print(f"  cosine       OK  |rust - py| = {abs(_rs_c - _py_c):.2e} < {FLOAT_TOL}  (rust={_rs_c:.6f})")
 else:
     _sane = False
-    print(f"  cosine       !!! MISMATCH  rust={_rs_c}  py={_py_c}  "
-          f"diff={abs(_rs_c - _py_c):.2e}")
+    print(f"  cosine       !!! MISMATCH  rust={_rs_c}  py={_py_c}  diff={abs(_rs_c - _py_c):.2e}")
 
 # batch cosine
 _q = take_vecs(1)[0]
 _corp = take_vecs(64)
 _rs_bc = m3_core_rs.cosine_batch(_q, _corp)
 _py_bc = py_batch_cosine(_q, _corp)
-_bc_ok = len(_rs_bc) == len(_py_bc) and all(
-    abs(r - p) < FLOAT_TOL for r, p in zip(_rs_bc, _py_bc))
+_bc_ok = len(_rs_bc) == len(_py_bc) and all(abs(r - p) < FLOAT_TOL for r, p in zip(_rs_bc, _py_bc))
 if _bc_ok:
     print(f"  cosine_batch OK  all {len(_rs_bc)} scores agree within {FLOAT_TOL}")
 else:
@@ -347,7 +340,9 @@ for pool in (24, 150):
 print()
 
 # --- 5. displacement guard -------------------------------------------------
-print("[5] displacement guard  (Rust: enforce_displacement_guard  |  Python: _enforce_expansion_displacement_guard replica)")
+print(
+    "[5] displacement guard  (Rust: enforce_displacement_guard  |  Python: _enforce_expansion_displacement_guard replica)"
+)
 for n in (10, 100):
     # alternating expansion/primary with descending scores -- exercises swaps
     items = [(float(n - i), (i % 2 == 0)) for i in range(n)]
@@ -376,8 +371,7 @@ clean_turn = (
     "against the candidate pool, then MMR reranks for diversity, then the "
     "displacement guard protects the top ranks. " * 6
 )
-for label, text in [("dirty ~%dch" % len(dirty_turn), dirty_turn),
-                    ("clean ~%dch" % len(clean_turn), clean_turn)]:
+for label, text in [("dirty ~%dch" % len(dirty_turn), dirty_turn), ("clean ~%dch" % len(clean_turn), clean_turn)]:
     # warm both compile caches
     py_scrub(text, RED_CFG)
     m3_core_rs.scrub(text, RED_CFG)
@@ -397,14 +391,8 @@ print(f"{'operation':<22}{'input size':<18}{'py median':>13}{'rs median':>13}{'s
 print("-" * 100)
 for op, size, py_med, py_p95, rs_med, rs_p95, speedup, unit in RESULTS:
     div = 1000.0 if unit == "ms" else 1.0
-    verdict = "rust faster" if speedup >= 1.05 else (
-        "PYTHON faster" if speedup <= 0.95 else "break-even")
-    print(
-        f"{op:<22}{size:<18}"
-        f"{py_med/div:>10.3f}{unit:<3}"
-        f"{rs_med/div:>10.3f}{unit:<3}"
-        f"{speedup:>9.2f}x  {verdict}"
-    )
+    verdict = "rust faster" if speedup >= 1.05 else ("PYTHON faster" if speedup <= 0.95 else "break-even")
+    print(f"{op:<22}{size:<18}{py_med / div:>10.3f}{unit:<3}{rs_med / div:>10.3f}{unit:<3}{speedup:>9.2f}x  {verdict}")
 print("-" * 100)
 print(f"vectors: {VEC_SOURCE}")
 print(f"sanity checks: {'ALL PASSED' if _sane else 'FAILED -- numbers unreliable'}")

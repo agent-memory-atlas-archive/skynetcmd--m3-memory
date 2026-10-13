@@ -22,7 +22,7 @@ treated as a no-op):
     {
         # memory.db plan
         "delete":   ["<uuid>", ...]                          # soft delete
-        "delete_hard": ["<uuid>", ...]                       # cascade delete
+        "delete_hard": ["<uuid>", ...]                       # soft delete + notice (hard is GDPR-only)
         "link":     [{"from_id": ..., "to_id": ...,
                       "relationship_type": "related"}, ...]
         "update":   [{"id": ..., "importance": 0.9, ...}, ...]
@@ -59,7 +59,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 def apply_memory_plan(plan: dict) -> dict:
     """Deterministically apply a memory.db curation plan.
 
-    Sections honored: delete (soft), delete_hard (cascade), link, update.
+    Sections honored: delete (soft), delete_hard (soft, with the GDPR-only notice:
+    gdpr_forget is the only hard delete), link, update.
     Any section may be omitted or empty; result reports per-section counts.
     """
     # Backend-agnostic: this delegates entirely to memory_core's bulk impls
@@ -87,7 +88,7 @@ def apply_memory_plan(plan: dict) -> dict:
         except Exception as e:  # noqa: BLE001 — surface, don't propagate
             out["errors"].append({"section": "delete", "error": f"{type(e).__name__}: {e}"})
 
-    # Hard-delete
+    # delete_hard: a soft delete whose result carries the GDPR-only notice
     hard_ids = _coerce_id_list(plan.get("delete_hard"))
     if hard_ids:
         try:
@@ -119,10 +120,13 @@ def apply_memory_plan(plan: dict) -> dict:
 
 def _summarize_memory(out: dict) -> dict:
     s = {"deleted_soft": 0, "deleted_hard": 0, "linked": 0, "updated": 0}
-    if out["delete"]:
-        s["deleted_soft"] = len(out["delete"].get("succeeded", []))
-    if out["delete_hard"]:
-        s["deleted_hard"] = len(out["delete_hard"].get("succeeded", []))
+    # delete_hard soft-deletes too (hard delete is GDPR-only), so it counts as soft
+    # and deleted_hard stays 0: the summary reports what happened, not what was asked.
+    for section in ("delete", "delete_hard"):
+        if out[section]:
+            s["deleted_soft"] += len(out[section].get("succeeded", []))
+    if out["delete_hard"] and out["delete_hard"].get("notice"):
+        s["notice"] = out["delete_hard"]["notice"]
     if out["link"]:
         s["linked"] = len(out["link"].get("created", []))
     if out["update"]:

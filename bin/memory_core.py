@@ -960,31 +960,30 @@ def memory_unpin_impl(id: str) -> str:
 
 
 def memory_delete_impl(id, hard=False):
-    """Deletes a MemoryItem (soft or hard). Implements cascade for hard delete (C5)."""
+    """Soft-delete a MemoryItem (kept and recoverable). ``hard=True`` is honoured
+    as a soft delete with a notice: GDPR erasure (gdpr_forget) is the only hard
+    delete (memory.deletion)."""
     from memory.backends import dialect as _dialect
+    from memory.deletion import hard_delete_requested
 
+    notice = hard_delete_requested("memory_delete") if hard else None
     _p = _dialect().param()
     with _db() as db:
         row = db.execute(f"SELECT id, content FROM memory_items WHERE id = {_p}", (id,)).fetchone()
         if not row:
             return f"Error: item {id} not found"
         _record_history(id, "delete", row["content"], None, "content", db=db)
-        if hard:
-            db.execute(f"DELETE FROM memory_embeddings WHERE memory_id = {_p}", (id,))
-            db.execute(f"DELETE FROM memory_relationships WHERE from_id = {_p} OR to_id = {_p}", (id, id))
-            db.execute(f"DELETE FROM memory_items WHERE id = {_p}", (id,))
-        else:
-            db.execute(
-                f"UPDATE memory_items SET is_deleted = 1, updated_at = {_p} WHERE id = {_p}",
-                (datetime.now(UTC).isoformat(), id),
-            )
+        db.execute(
+            f"UPDATE memory_items SET is_deleted = 1, updated_at = {_p} WHERE id = {_p}",
+            (datetime.now(UTC).isoformat(), id),
+        )
     try:
         from audit_trail import write_audit_entry
 
-        write_audit_entry(action="memory_delete", target_id=id, metadata={"hard": hard})
+        write_audit_entry(action="memory_delete", target_id=id, metadata={"hard": False, "hard_requested": hard})
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for delete: {e}")
-    return f"{'Hard' if hard else 'Soft'}-deleted: {id}"
+    return f"Soft-deleted: {id}" + (f" ({notice})" if notice else "")
 
 
 # SQLite's default SQLITE_MAX_VARIABLE_NUMBER is 999 on older builds, 32766
@@ -1013,23 +1012,27 @@ def memory_delete_bulk_impl(ids, hard=False):
 
     Args:
         ids: iterable of memory_item UUID strings.
-        hard: if True, cascade-delete (memory_embeddings, memory_relationships,
-              memory_items). If False (default), soft-delete (tombstone).
+        hard: honoured as a soft delete with a notice; GDPR erasure
+              (gdpr_forget) is the only hard delete (memory.deletion).
 
     Returns:
         dict: {
-          "succeeded": [list of ids successfully deleted],
+          "succeeded": [list of ids soft-deleted],
           "not_found": [list of ids that did not exist],
-          "mode": "hard" | "soft",
+          "mode": "soft",
+          "notice": present when hard=True was requested,
         }
 
     Note: this is a destructive tool (default_allowed=False in the MCP
     catalog). The MCP proxy only exposes it when M3_MCP_PROXY_ALLOW_DESTRUCTIVE
     is set, matching `memory_delete`'s gating.
     """
+    from memory.deletion import hard_delete_requested
+
+    notice = hard_delete_requested("memory_delete_bulk") if hard else None
     id_list = list(dict.fromkeys(ids or []))  # dedupe while preserving order
     if not id_list:
-        return {"succeeded": [], "not_found": [], "mode": "hard" if hard else "soft"}
+        return {"succeeded": [], "not_found": [], "mode": "soft", **({"notice": notice} if notice else {})}
 
     succeeded: list[str] = []
     not_found: list[str] = []
@@ -1062,25 +1065,10 @@ def memory_delete_bulk_impl(ids, hard=False):
                 _record_history(row["id"], "delete", row["content"], None, "content", db=db)
 
             ph_existing = _d.placeholder(len(existing_ids))
-            if hard:
-                db.execute(
-                    f"DELETE FROM memory_embeddings WHERE memory_id IN ({ph_existing})",
-                    existing_ids,
-                )
-                # memory_relationships matches on EITHER from_id or to_id.
-                db.execute(
-                    f"DELETE FROM memory_relationships WHERE from_id IN ({ph_existing}) OR to_id IN ({ph_existing})",
-                    existing_ids + existing_ids,
-                )
-                db.execute(
-                    f"DELETE FROM memory_items WHERE id IN ({ph_existing})",
-                    existing_ids,
-                )
-            else:
-                db.execute(
-                    f"UPDATE memory_items SET is_deleted = 1, updated_at = {p} WHERE id IN ({ph_existing})",
-                    [now_iso, *existing_ids],
-                )
+            db.execute(
+                f"UPDATE memory_items SET is_deleted = 1, updated_at = {p} WHERE id IN ({ph_existing})",
+                [now_iso, *existing_ids],
+            )
 
             succeeded.extend(existing_ids)
 
@@ -1090,7 +1078,7 @@ def memory_delete_bulk_impl(ids, hard=False):
         write_audit_entry(
             action="memory_delete_bulk",
             target_id="bulk",
-            metadata={"ids": id_list, "hard": hard, "succeeded": succeeded, "not_found": not_found},
+            metadata={"ids": id_list, "hard": False, "hard_requested": hard, "succeeded": succeeded, "not_found": not_found},
         )
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for bulk delete: {e}")
@@ -1098,7 +1086,8 @@ def memory_delete_bulk_impl(ids, hard=False):
     return {
         "succeeded": succeeded,
         "not_found": not_found,
-        "mode": "hard" if hard else "soft",
+        "mode": "soft",
+        **({"notice": notice} if notice else {}),
     }
 
 

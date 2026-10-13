@@ -10,11 +10,11 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 
 | Name | Category | Description |
 | --- | --- | --- |
-| `curate_memory_apply` | Memory Operations | Deterministically apply a memory.db curator plan in ONE call. No LLM in the loop — the apply phase is a pure function over the structured plan. Replaces the agent-driven APPLY-mode loop. Plan sections: delete (soft, list of UUIDs), delete_hard (cascade, list of UUIDs), link (list of {from_id, to_id, relationship_type}), update (list of {id, importance, metadata, ...}). Any section may be omitted. Returns structured per-section results + summary. |
+| `curate_memory_apply` | Memory Operations | Deterministically apply a memory.db curator plan in ONE call. No LLM in the loop — the apply phase is a pure function over the structured plan. Replaces the agent-driven APPLY-mode loop. Plan sections: delete (soft, list of UUIDs), delete_hard (also a soft delete, with a notice: hard delete is GDPR-only), link (list of {from_id, to_id, relationship_type}), update (list of {id, importance, metadata, ...}). Any section may be omitted. Returns structured per-section results + summary. |
 | `memory_count_entities` | Memory Operations | Count distinct entities mentioned in a single conversation. Direct-index aggregation — no LLM, no embedding. Use this for 'how many distinct X did I mention' inventory questions where top-k embedding retrieval would miss instances spread thinly across many turns. Returns {count, conversation_id, entity_type, pattern}. |
 | `memory_count_mentions` | Memory Operations | Per-entity mention frequency within a single conversation, sorted DESC by count. Use for 'what are the most-mentioned X' or 'rank entities by frequency.' Returns {total, rows: [{entity_id, canonical_name, entity_type, mention_count}, ...]}. |
-| `memory_delete` | Memory Operations | Deletes a MemoryItem (soft or hard). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). |
-| `memory_delete_bulk` | Memory Operations | Deletes a list of MemoryItems (soft or hard) in one transaction per chunk. Use for curation/dedup passes deleting many items; falls back to per-id memory_delete behavior with the same hard-cascade semantics. Returns a structured {succeeded, not_found, mode} dict. |
+| `memory_delete` | Memory Operations | Soft-deletes a MemoryItem (kept and recoverable; memory_restore). Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). |
+| `memory_delete_bulk` | Memory Operations | Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable). Use for curation/dedup passes; same semantics as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a structured {succeeded, not_found, mode} dict. |
 | `memory_feedback` | Memory Operations | Provide feedback on a memory item to improve quality. |
 | `memory_feedback_stats` | Memory Operations | How often graded feedback is landing versus being rejected as stale. The feedback window is deliberately tight, so this makes 'is it too tight for my agents?' a measurement rather than a guess — a high rejection rate means the window needs widening in .governor_config.json, not that the feedback was wrong. |
 | `memory_get` | Memory Operations | Retrieves a full MemoryItem; accepts full UUID or 8-char prefix; ambiguous prefixes return an error. |
@@ -29,7 +29,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `memory_search_scored` | Memory Operations | Structured hybrid FTS5+vector+MMR search. Returns ranked rows [(score, item)] with content + metadata (id, valid_from, conversation_id, user_id) — NOT formatted text. Use when a caller needs parseable rows rather than an LLM-readable block (e.g. a memory-provider backend). Empty query + type_filter = filter-only listing. Same bench-data gate as memory_search. |
 | `memory_search_slim` | Memory Operations | Search memory (semantic + keyword). Common parameters only. For filters (user_id, scope, as_of, variant, recency_bias, explain, routing) call memory_search via m3_call, or load the memory domain with tools_load_domain. |
 | `memory_suggest` | Memory Operations | Preview which memories would be retrieved for a query, with score breakdowns explaining why each was selected. |
-| `memory_supersede` | Memory Operations | Explicitly supersede an existing memory with a new one. Use this to record an intentional update — 'this fact replaces that specific memory' — when you know the old memory's id. Unlike memory_write's automatic contradiction detection (a cosine + title heuristic that may link the wrong prior memory or none at all), this targets the given old_id deterministically. Non-destructive: the old memory is retained, its validity interval is closed (is_deleted=1, valid_to set), and a 'supersedes' edge is recorded new -> old. The old memory stays retrievable by id and via memory_history, and as_of-filtered search still sees it valid before the supersession point — it is only dropped from default search. Fields you omit (type, title, importance, scope) are inherited from the old memory, so pass only what changed. To hard-delete instead, that is a separate gated tool (memory_delete). old_id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). Pass content to create a NEW successor memory, or replacement_id (a full UUID) to retire old_id into an EXISTING active memory without creating anything: use that to clean up duplicates, since writing a fresh successor per duplicate multiplies them. Exactly one of the two. |
+| `memory_supersede` | Memory Operations | Explicitly supersede an existing memory with a new one. Use this to record an intentional update — 'this fact replaces that specific memory' — when you know the old memory's id. Unlike memory_write's automatic contradiction detection (a cosine + title heuristic that may link the wrong prior memory or none at all), this targets the given old_id deterministically. Non-destructive: the old memory is retained, its validity interval is closed (is_deleted=1, valid_to set), and a 'supersedes' edge is recorded new -> old. The old memory stays retrievable by id and via memory_history, and as_of-filtered search still sees it valid before the supersession point — it is only dropped from default search. Fields you omit (type, title, importance, scope) are inherited from the old memory, so pass only what changed. To remove it instead, memory_delete soft-deletes (hard delete is GDPR-only: gdpr_forget). old_id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). Pass content to create a NEW successor memory, or replacement_id (a full UUID) to retire old_id into an EXISTING active memory without creating anything: use that to clean up duplicates, since writing a fresh successor per duplicate multiplies them. Exactly one of the two. |
 | `memory_supersede_slim` | Memory Operations | Replace an existing memory with a corrected one, preserving the audit link. Common parameters only. For scope, user_id, validity windows, variant or embedding control, call memory_supersede via m3_call, or load the memory domain with tools_load_domain. |
 | `memory_unpin` | Memory Operations | Unpin a memory, restoring normal decay/expiry/retention handling. |
 | `memory_update` | Memory Operations | Updates a MemoryItem by ID. |
@@ -52,7 +52,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `conversation_summarize` | Conversations | Summarize a conversation into key points using the local LLM. |
 | `task_assign` | Task Management | Assign a task to an owner. Sets state=in_progress and notifies the new owner. |
 | `task_create` | Task Management | Create a new task in 'pending' state. Returns task id. |
-| `task_delete` | Task Management | Delete a task. Soft-delete (default) sets a tombstone that propagates via pg_sync to the warehouse and peers. Hard-delete removes the row locally and requires a prior soft-delete. |
+| `task_delete` | Task Management | Soft-delete a task: sets a tombstone that propagates via pg_sync to the warehouse and peers. Hard delete is GDPR-only (gdpr_forget). |
 | `task_get` | Task Management | Get full record for one task. |
 | `task_list` | Task Management | List tasks with optional filters. Newest updated first. |
 | `task_set_result` | Task Management | Set the result memory pointer for a task. Does NOT change state. |
@@ -123,7 +123,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `tools_list_domains` | Lifecycle & Maintenance | List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin) and their tool counts. Call `tools_load_domain` to expose a domain's full tool surface. |
 | `tools_load_domain` | Lifecycle & Maintenance | Register a tool domain's full surface for the current MCP session. Use when you need tools beyond the essentials (chatlog_search, chatlog_status, files_search, m3_call, memory_get, memory_search, memory_supersede, memory_write). Valid domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin. |
 | `gdpr_export` | Data Governance | Export all memories for a data subject (GDPR data portability). Returns JSON with all memory items for the given user_id. |
-| `gdpr_forget` | Data Governance | Right to be forgotten — hard-deletes ALL data for a user_id including memories, embeddings, relationships, and history. |
+| `gdpr_forget` | Data Governance | Right to be forgotten (GDPR Art. 17): the ONLY hard delete in m3 (every other delete is a soft delete). Two steps. 1) Call with user_id (a data subject) OR memory_ids (specific memories): nothing is erased; returns a plan (counts per table) and a token valid 15 minutes. 2) Call again with the same target, confirm=<token>, and compliance holding legal_basis and verified_by: erases the memories with their embeddings, relationships, history, read-access log, archived copies and (for a data subject) LangGraph checkpoints. Refused if the token expired or the memories changed since the plan. |
 | `memory_export` | Data Governance | Export memories as portable JSON. Filter by agent, type, or date. |
 | `memory_import` | Data Governance | Import memories from a JSON export. UPSERT semantics — safe to re-run. |
 | `embedder_status` | Infrastructure Operations | Check the status of the local sovereign embedder server (default port 8082, override via M3_EMBED_FALLBACK_URL). |
@@ -136,7 +136,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 
 ### `curate_memory_apply`
 
-Deterministically apply a memory.db curator plan in ONE call. No LLM in the loop — the apply phase is a pure function over the structured plan. Replaces the agent-driven APPLY-mode loop. Plan sections: delete (soft, list of UUIDs), delete_hard (cascade, list of UUIDs), link (list of {from_id, to_id, relationship_type}), update (list of {id, importance, metadata, ...}). Any section may be omitted. Returns structured per-section results + summary.
+Deterministically apply a memory.db curator plan in ONE call. No LLM in the loop — the apply phase is a pure function over the structured plan. Replaces the agent-driven APPLY-mode loop. Plan sections: delete (soft, list of UUIDs), delete_hard (also a soft delete, with a notice: hard delete is GDPR-only), link (list of {from_id, to_id, relationship_type}), update (list of {id, importance, metadata, ...}). Any section may be omitted. Returns structured per-section results + summary.
 
 **Source:** mcp_tool_catalog.py
 
@@ -186,7 +186,7 @@ Per-entity mention frequency within a single conversation, sorted DESC by count.
 
 ### `memory_delete`
 
-Deletes a MemoryItem (soft or hard). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not).
+Soft-deletes a MemoryItem (kept and recoverable; memory_restore). Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not).
 
 **Source:** mcp_tool_catalog.py
 
@@ -195,14 +195,14 @@ Deletes a MemoryItem (soft or hard). id MUST be the full UUID — a prefix is re
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `id` | `string` | Yes | FULL UUID of the memory (not an 8-char prefix — a prefix is rejected for mutation safety). | `-` |
-| `hard` | `boolean` | No | Hard delete (permanent). | `False` |
+| `hard` | `boolean` | No | Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget). | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_delete_bulk`
 
-Deletes a list of MemoryItems (soft or hard) in one transaction per chunk. Use for curation/dedup passes deleting many items; falls back to per-id memory_delete behavior with the same hard-cascade semantics. Returns a structured {succeeded, not_found, mode} dict.
+Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable). Use for curation/dedup passes; same semantics as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a structured {succeeded, not_found, mode} dict.
 
 **Source:** mcp_tool_catalog.py
 
@@ -211,7 +211,7 @@ Deletes a list of MemoryItems (soft or hard) in one transaction per chunk. Use f
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `ids` | `array` | Yes | List of memory item UUIDs to delete. | `-` |
-| `hard` | `boolean` | No | Hard delete (permanent). | `False` |
+| `hard` | `boolean` | No | Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget). | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -525,7 +525,7 @@ Preview which memories would be retrieved for a query, with score breakdowns exp
 
 ### `memory_supersede`
 
-Explicitly supersede an existing memory with a new one. Use this to record an intentional update — 'this fact replaces that specific memory' — when you know the old memory's id. Unlike memory_write's automatic contradiction detection (a cosine + title heuristic that may link the wrong prior memory or none at all), this targets the given old_id deterministically. Non-destructive: the old memory is retained, its validity interval is closed (is_deleted=1, valid_to set), and a 'supersedes' edge is recorded new -> old. The old memory stays retrievable by id and via memory_history, and as_of-filtered search still sees it valid before the supersession point — it is only dropped from default search. Fields you omit (type, title, importance, scope) are inherited from the old memory, so pass only what changed. To hard-delete instead, that is a separate gated tool (memory_delete). old_id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). Pass content to create a NEW successor memory, or replacement_id (a full UUID) to retire old_id into an EXISTING active memory without creating anything: use that to clean up duplicates, since writing a fresh successor per duplicate multiplies them. Exactly one of the two.
+Explicitly supersede an existing memory with a new one. Use this to record an intentional update — 'this fact replaces that specific memory' — when you know the old memory's id. Unlike memory_write's automatic contradiction detection (a cosine + title heuristic that may link the wrong prior memory or none at all), this targets the given old_id deterministically. Non-destructive: the old memory is retained, its validity interval is closed (is_deleted=1, valid_to set), and a 'supersedes' edge is recorded new -> old. The old memory stays retrievable by id and via memory_history, and as_of-filtered search still sees it valid before the supersession point — it is only dropped from default search. Fields you omit (type, title, importance, scope) are inherited from the old memory, so pass only what changed. To remove it instead, memory_delete soft-deletes (hard delete is GDPR-only: gdpr_forget). old_id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). Pass content to create a NEW successor memory, or replacement_id (a full UUID) to retire old_id into an EXISTING active memory without creating anything: use that to clean up duplicates, since writing a fresh successor per duplicate multiplies them. Exactly one of the two.
 
 **Source:** mcp_tool_catalog.py
 
@@ -985,7 +985,7 @@ Create a new task in 'pending' state. Returns task id.
 
 ### `task_delete`
 
-Delete a task. Soft-delete (default) sets a tombstone that propagates via pg_sync to the warehouse and peers. Hard-delete removes the row locally and requires a prior soft-delete.
+Soft-delete a task: sets a tombstone that propagates via pg_sync to the warehouse and peers. Hard delete is GDPR-only (gdpr_forget).
 
 **Source:** mcp_tool_catalog.py
 
@@ -994,7 +994,7 @@ Delete a task. Soft-delete (default) sets a tombstone that propagates via pg_syn
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `task_id` | `string` | Yes | Task UUID. | `-` |
-| `hard` | `boolean` | No | If true, permanently remove an already-tombstoned row from local SQLite. | `False` |
+| `hard` | `boolean` | No | Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget). | `False` |
 | `actor` | `string` | No | Actor performing the delete (audit log). | `` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
@@ -2159,7 +2159,7 @@ Runs maintenance tasks on the memory store.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `decay` | `boolean` | No | Apply importance decay. | `True` |
-| `purge_expired` | `boolean` | No | Archive expired items to memory_archive, then remove them from the live store. | `True` |
+| `purge_expired` | `boolean` | No | Soft-delete expired items (kept and recoverable; pinned items are exempt). | `True` |
 | `prune_orphan_embeddings` | `boolean` | No | Remove orphaned embeddings. | `True` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
@@ -2233,7 +2233,7 @@ Export all memories for a data subject (GDPR data portability). Returns JSON wit
 
 ### `gdpr_forget`
 
-Right to be forgotten — hard-deletes ALL data for a user_id including memories, embeddings, relationships, and history.
+Right to be forgotten (GDPR Art. 17): the ONLY hard delete in m3 (every other delete is a soft delete). Two steps. 1) Call with user_id (a data subject) OR memory_ids (specific memories): nothing is erased; returns a plan (counts per table) and a token valid 15 minutes. 2) Call again with the same target, confirm=<token>, and compliance holding legal_basis and verified_by: erases the memories with their embeddings, relationships, history, read-access log, archived copies and (for a data subject) LangGraph checkpoints. Refused if the token expired or the memories changed since the plan.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2241,8 +2241,10 @@ Right to be forgotten — hard-deletes ALL data for a user_id including memories
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `user_id` | `string` | Yes | Data subject id to forget. | `-` |
-| `compliance` | `object` | No | Optional operator-supplied record of the erasure's program-layer context, logged to the tamper-evident audit trail (not required; only the operator knows these). Recognized keys: legal_basis (Art. 17(1) ground), reason, verified_by, verification_method, authorized_by, external_ref (case/ticket #), retained_note (Art. 17(3) exemption). Program-level record-keeping remains the operator's responsibility — see docs/COMPLIANCE.md. | `-` |
+| `user_id` | `string` | No | Data subject to erase (or pass memory_ids). | `-` |
+| `memory_ids` | `array` | No | Specific memories to erase (or pass user_id). Full UUIDs. | `-` |
+| `confirm` | `string` | No | Step 2 only: the token from step 1's plan. Without it nothing is erased. | `` |
+| `compliance` | `object` | No | Required to confirm (step 2): the operator's record of the erasure, logged to the tamper-evident audit trail. Required keys: legal_basis (Art. 17(1) ground), verified_by (who confirmed the requester's identity). Also recognized: reason, verification_method, authorized_by, external_ref (case/ticket #), retained_note (Art. 17(3) exemption). Program-level record-keeping remains the operator's responsibility (docs/COMPLIANCE.md). | `-` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |

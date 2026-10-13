@@ -154,7 +154,7 @@ async def run_benchmark():
 
     print("\n--- Cleaning up test data ---")
     for mid in seeded_ids:
-        memory_delete_impl(mid, hard=True)
+        memory_delete_impl(mid)
 
     if avg_mrr >= 0.5:
         print("\n✅ Benchmark PASSED (MRR >= 0.5)")

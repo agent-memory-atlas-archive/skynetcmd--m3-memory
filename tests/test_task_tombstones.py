@@ -116,19 +116,19 @@ def test_double_soft_delete_is_idempotent(fresh_task):
     assert "already soft-deleted" in second
 
 
-def test_hard_delete_requires_prior_soft_delete(fresh_task):
+def test_hard_true_is_a_soft_delete_that_says_gdpr_forget(fresh_task):
+    """Hard delete is GDPR-only: hard=True tombstones like the default and says how
+    to erase, and the row stays."""
     task_id = fresh_task
 
-    err = task_delete_impl(task_id, hard=True)
-    assert "must be soft-deleted" in err
-
-    task_delete_impl(task_id)
-    ok = task_delete_impl(task_id, hard=True)
-    assert "hard-deleted" in ok
+    out = task_delete_impl(task_id, hard=True)
+    assert "soft-deleted" in out and "gdpr_forget" in out, out
+    again = task_delete_impl(task_id, hard=True)
+    assert "already soft-deleted" in again and "gdpr_forget" in again, again
 
     with _db() as db:
-        row = db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    assert row is None
+        row = db.execute("SELECT deleted_at FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    assert row is not None and row["deleted_at"], "the task row must survive, tombstoned"
 
 
 def test_task_update_rejects_tombstoned_task(fresh_task):

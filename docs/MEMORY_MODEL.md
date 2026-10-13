@@ -84,7 +84,8 @@ Memory isn't write-once-keep-forever:
 - **Dedup / consolidate** — `memory_dedup_impl`, `memory_consolidate_impl`: near-
   duplicates merge; aged low-order groups roll up into higher-order `belief` memories.
 - **Retention / revocation** — `memory_set_retention_impl`, and GDPR erasure via
-  `gdpr_forget_impl` (hard-deletes all of a user's data across tables).
+  `gdpr_forget_impl` (m3's only hard delete: plan, then confirm; erases a user's
+  data, or specific memories, across tables).
 
 *Deep dive:* [CORE_FEATURES.md](CORE_FEATURES.md), [COMPLIANCE.md](COMPLIANCE.md).
 

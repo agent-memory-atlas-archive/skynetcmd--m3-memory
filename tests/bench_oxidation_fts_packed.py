@@ -76,9 +76,7 @@ def _py_sanitize_for_searchable(text):
 
 
 def py_compile_fts_query(query, mode):
-    is_exact_query = (query.startswith('"') and query.endswith('"')) or (
-        query.startswith("'") and query.endswith("'")
-    )
+    is_exact_query = (query.startswith('"') and query.endswith('"')) or (query.startswith("'") and query.endswith("'"))
     if is_exact_query:
         inner = query[1:-1].replace('"', '""')
         return f'"{inner}"', True
@@ -179,10 +177,12 @@ def record(op, size, py_med, py_p95, rs_med, rs_p95, unit="us"):
     RESULTS.append((op, size, py_med, py_p95, rs_med, rs_p95, speedup, unit))
     div = 1000.0 if unit == "ms" else 1.0
     verdict = "rust wins" if speedup >= 1.05 else ("PY wins" if speedup <= 0.95 else "break-even")
-    print(f"  {op:<24} {size:<14} "
-          f"py {py_med/div:9.3f}/{py_p95/div:9.3f}  "
-          f"rs {rs_med/div:9.3f}/{rs_p95/div:9.3f} {unit}  "
-          f"x{speedup:7.2f}  [{verdict}]")
+    print(
+        f"  {op:<24} {size:<14} "
+        f"py {py_med / div:9.3f}/{py_p95 / div:9.3f}  "
+        f"rs {rs_med / div:9.3f}/{rs_p95 / div:9.3f} {unit}  "
+        f"x{speedup:7.2f}  [{verdict}]"
+    )
 
 
 # --------------------------------------------------------------------------
@@ -190,6 +190,7 @@ def record(op, size, py_med, py_p95, rs_med, rs_p95, unit="us"):
 # --------------------------------------------------------------------------
 def load_real_blobs(n_wanted):
     import sqlite3
+
     db = os.path.join(os.path.dirname(_HERE), "memory", "agent_memory.db")
     if not os.path.exists(db):
         return None
@@ -225,8 +226,10 @@ def take_blobs(n):
 
 
 # realistic text corpus for FTS / jaccard
-_WORDS = ("retrieval embedding cosine memory bitemporal sqlite vector index "
-          "redaction oxidation jaccard hybrid ranking session temporal").split()
+_WORDS = (
+    "retrieval embedding cosine memory bitemporal sqlite vector index "
+    "redaction oxidation jaccard hybrid ranking session temporal"
+).split()
 
 
 def make_query(seed, n):
@@ -244,14 +247,23 @@ _sane = True
 # Capability map: an installed wheel may be STALE and miss newer functions
 # (the oxidation_probe doctor check reports this). Bench only what's present;
 # print a SKIP line for the rest instead of crashing on AttributeError.
-HAVE = {fn: hasattr(m3_core_rs, fn) for fn in (
-    "sanitize_fts", "compile_fts_query", "token_jaccard",
-    "token_jaccard_batch", "cosine_batch_packed", "mmr_rerank_scored_packed",
-)}
+HAVE = {
+    fn: hasattr(m3_core_rs, fn)
+    for fn in (
+        "sanitize_fts",
+        "compile_fts_query",
+        "token_jaccard",
+        "token_jaccard_batch",
+        "cosine_batch_packed",
+        "mmr_rerank_scored_packed",
+    )
+}
 _missing = [fn for fn, ok in HAVE.items() if not ok]
 if _missing:
-    print(f"  NOTE: installed wheel is missing {len(_missing)} function(s) "
-          f"(STALE wheel) — skipping: {', '.join(_missing)}")
+    print(
+        f"  NOTE: installed wheel is missing {len(_missing)} function(s) "
+        f"(STALE wheel) — skipping: {', '.join(_missing)}"
+    )
     print("        rebuild from m3-core-rs source to bench these.\n")
 
 _q = "alpha OR beta AND (gamma) NEAR delta?!"
@@ -260,7 +272,9 @@ if HAVE["sanitize_fts"]:
         print(f"  sanitize_fts        OK  ('{m3_core_rs.sanitize_fts(_q, 500)}')")
     else:
         _sane = False
-        print(f"  sanitize_fts        !!! MISMATCH rust='{m3_core_rs.sanitize_fts(_q,500)}' py='{py_sanitize_fts(_q,500)}'")
+        print(
+            f"  sanitize_fts        !!! MISMATCH rust='{m3_core_rs.sanitize_fts(_q, 500)}' py='{py_sanitize_fts(_q, 500)}'"
+        )
 
 if HAVE["compile_fts_query"]:
     for _mode in ("fts5", "hybrid"):
@@ -278,7 +292,9 @@ if HAVE["token_jaccard"]:
         print(f"  token_jaccard       OK  (rust={m3_core_rs.token_jaccard(_a, _b):.4f})")
     else:
         _sane = False
-        print(f"  token_jaccard       !!! MISMATCH rust={m3_core_rs.token_jaccard(_a,_b)} py={py_token_jaccard(_a,_b)}")
+        print(
+            f"  token_jaccard       !!! MISMATCH rust={m3_core_rs.token_jaccard(_a, _b)} py={py_token_jaccard(_a, _b)}"
+        )
 
 if HAVE["token_jaccard_batch"]:
     _cands = [make_query(i, 8) for i in range(32)]
@@ -372,8 +388,11 @@ if HAVE["cosine_batch_packed"]:
     print("[5] cosine_batch_packed  (Rust: cosine_batch_packed  |  Python: struct.unpack + cosine loop)")
     for n in (100, 1000, 5000):
         blobs = take_blobs(n)
-        py_med, py_p95, _ = bench(lambda bl=blobs: py_cosine_batch_packed(qv, bl, DIM), target_seconds=0.5,
-                                  max_iters=(200 if n >= 5000 else 2_000_000))
+        py_med, py_p95, _ = bench(
+            lambda bl=blobs: py_cosine_batch_packed(qv, bl, DIM),
+            target_seconds=0.5,
+            max_iters=(200 if n >= 5000 else 2_000_000),
+        )
         rs_med, rs_p95, _ = bench(lambda bl=blobs: m3_core_rs.cosine_batch_packed(qv, bl, DIM))
         unit = "ms" if py_med > 1000 or rs_med > 1000 else "us"
         record("cosine_batch_packed", f"corpus={n}", py_med, py_p95, rs_med, rs_p95, unit)
@@ -390,10 +409,13 @@ if HAVE["mmr_rerank_scored_packed"]:
         py_max = 50 if pool >= 150 else 500
         py_med, py_p95, _ = bench(
             lambda bl=blobs, r=relevance, kk=k: py_mmr_packed(r, bl, DIM, MMR_LAMBDA, kk, True),
-            target_seconds=0.5, max_iters=py_max)
+            target_seconds=0.5,
+            max_iters=py_max,
+        )
         rs_med, rs_p95, _ = bench(
             lambda f=flat, r=relevance, kk=k: m3_core_rs.mmr_rerank_scored_packed(r, f, DIM, MMR_LAMBDA, kk, True),
-            target_seconds=0.5)
+            target_seconds=0.5,
+        )
         unit = "ms" if py_med > 1000 or rs_med > 1000 else "us"
         record("mmr_rerank_scored_packed", f"pool={pool},k={k}", py_med, py_p95, rs_med, rs_p95, unit)
     print()
@@ -409,7 +431,7 @@ print("-" * 100)
 for op, size, py_med, py_p95, rs_med, rs_p95, speedup, unit in RESULTS:
     div = 1000.0 if unit == "ms" else 1.0
     verdict = "rust faster" if speedup >= 1.05 else ("PYTHON faster" if speedup <= 0.95 else "break-even")
-    print(f"{op:<26}{size:<18}{py_med/div:>10.3f}{unit:<3}{rs_med/div:>10.3f}{unit:<3}{speedup:>9.2f}x  {verdict}")
+    print(f"{op:<26}{size:<18}{py_med / div:>10.3f}{unit:<3}{rs_med / div:>10.3f}{unit:<3}{speedup:>9.2f}x  {verdict}")
 print("-" * 100)
 print(f"vectors: {VEC_SOURCE}")
 print(f"sanity checks: {'ALL PASSED' if _sane else 'FAILED -- numbers unreliable'}")

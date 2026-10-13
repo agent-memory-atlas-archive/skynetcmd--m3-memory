@@ -83,14 +83,14 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="task_delete",
-        description="Delete a task. Soft-delete (default) sets a tombstone that propagates via pg_sync to the warehouse and peers. Hard-delete removes the row locally and requires a prior soft-delete.",
+        description="Soft-delete a task: sets a tombstone that propagates via pg_sync to the warehouse and peers. Hard delete is GDPR-only (gdpr_forget).",
         parameters={
             "type": "object",
             "properties": {
                 "task_id": {"type": "string", "description": "Task UUID."},
                 "hard": {
                     "type": "boolean",
-                    "description": "If true, permanently remove an already-tombstoned row from local SQLite.",
+                    "description": "Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget).",
                     "default": False,
                 },
                 "actor": {"type": "string", "description": "Actor performing the delete (audit log).", "default": ""},

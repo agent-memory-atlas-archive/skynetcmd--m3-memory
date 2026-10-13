@@ -98,7 +98,17 @@
       "args": [
         {
           "name": "user_id",
-          "required": true,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "memory_ids",
+          "required": false,
+          "type": "array"
+        },
+        {
+          "name": "confirm",
+          "required": false,
           "type": "string"
         },
         {
@@ -115,7 +125,7 @@
       "destructive": true,
       "domain": "admin",
       "name": "gdpr_forget",
-      "summary": "Right to be forgotten \u2014 hard-deletes ALL data for a user_id including memories, embeddings, relatio\u2026"
+      "summary": "Right to be forgotten (GDPR Art."
     },
     {
       "args": [
@@ -2153,7 +2163,7 @@
       "destructive": true,
       "domain": "memory",
       "name": "memory_delete",
-      "summary": "Deletes a MemoryItem (soft or hard)."
+      "summary": "Soft-deletes a MemoryItem (kept and recoverable; memory_restore)."
     },
     {
       "args": [
@@ -2176,7 +2186,7 @@
       "destructive": true,
       "domain": "memory",
       "name": "memory_delete_bulk",
-      "summary": "Deletes a list of MemoryItems (soft or hard) in one transaction per chunk."
+      "summary": "Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable)."
     },
     {
       "args": [
@@ -3837,7 +3847,7 @@
       "destructive": false,
       "domain": "tasks",
       "name": "task_delete",
-      "summary": "Delete a task."
+      "summary": "Soft-delete a task: sets a tombstone that propagates via pg_sync to the warehouse and peers."
     },
     {
       "args": [

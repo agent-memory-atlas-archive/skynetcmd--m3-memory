@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import gdpr_erase
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "bin"))
 
@@ -224,5 +226,5 @@ def test_gdpr_forget_removes_surface_rows_by_user(monkeypatch):
     except Exception:
         pass
 
-    M.gdpr_forget_impl("victim")
+    gdpr_erase(user_id="victim")
     assert db.execute("SELECT COUNT(*) FROM bypass_surface WHERE user_id='victim'").fetchone()[0] == 0

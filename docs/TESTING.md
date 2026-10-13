@@ -74,7 +74,7 @@ need LM Studio, a populated DB, or a real embedding endpoint).
 | `test_pg_sync_fk_safety.py` | 3 | FK-safe embedding sync: parent presence, orphan deferral |
 | `test_recency_bonus.py` | 8 | Recency-bonus scoring, date interpolation, undated handling, stable tie-break |
 | `test_slm_intent.py` | 11 | Gate off → None, profile loader, search-dir stacking, label matching |
-| `test_task_tombstones.py` | 7 | Soft/hard delete, visibility, tombstone persistence, update rejection |
+| `test_task_tombstones.py` | 7 | Soft delete (`hard=True` stays soft), visibility, tombstone persistence, update rejection |
 
 ### Running
 

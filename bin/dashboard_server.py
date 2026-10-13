@@ -2664,12 +2664,12 @@ def render_audit_card(memory_id: str, db: Any) -> str:
         </button>
         <button class="m3-btn" style="background: hsla(15, 100%, 55%, 0.25); color: hsl(15, 100%, 80%); border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
                 hx-post="/api/audit/hard-delete/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML"
-                hx-confirm="CRITICAL: Are you sure you want to HARD-delete this memory and purge its vectors?">
-            Hard Delete
+                >
+            Hard Delete (GDPR)
         </button>
         """
     else:
-        # Deleted but can resolve or hard delete
+        # Deleted: restore it, or erase it (GDPR, two steps)
         actions_html = f"""
         <button class="m3-btn" style="background: hsla(145, 100%, 45%, 0.15); color: var(--m3-neon-emerald); border: 1px solid rgba(16, 185, 129, 0.25); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
                 hx-post="/api/audit/resolve/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML">
@@ -2677,8 +2677,8 @@ def render_audit_card(memory_id: str, db: Any) -> str:
         </button>
         <button class="m3-btn" style="background: hsla(15, 100%, 55%, 0.25); color: hsl(15, 100%, 80%); border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
                 hx-post="/api/audit/hard-delete/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML"
-                hx-confirm="CRITICAL: Are you sure you want to HARD-delete this memory and purge its vectors?">
-            Hard Delete (Purge)
+                >
+            Hard Delete (GDPR)
         </button>
         """
 
@@ -2880,21 +2880,83 @@ async def audit_soft_delete(memory_id: str, request: Request):
             return render_audit_card(memory_id, db)
 
 
+_CARD_ERR = (
+    '<div class="timeline-group-card" id="card-{mid}" style="border-color: rgba(239, 68, 68, 0.4); '
+    'padding: 1.5rem;"><p style="color: hsl(15, 100%, 70%);">{msg}</p></div>'
+)
+
+
 @app.post("/api/audit/hard-delete/{memory_id}", response_class=HTMLResponse)
 async def audit_hard_delete(memory_id: str, request: Request):
+    """Hard delete is GDPR erasure (the only hard delete in m3), step 1: show what
+    erasing this memory removes, and a form for the compliance record that step 2
+    requires. Nothing is erased here."""
+    import html
+
     selected_db = request.cookies.get("selected_db", "main")
     get_active_db_path(request)
     set_active_db_env(selected_db)
 
-    from memory_core import memory_delete_impl
-
-    memory_delete_impl(memory_id, hard=True)
-
+    mid = html.escape(memory_id)
+    plan = gdpr_forget_impl(memory_ids=[memory_id])
+    if isinstance(plan, str):
+        return _CARD_ERR.format(mid=mid, msg=html.escape(plan))
+    if not plan["counts"].get("memory_items"):
+        return _CARD_ERR.format(mid=mid, msg=f"No memory {mid} to erase.")
+    rows = "".join(f"<li><code>{html.escape(t)}</code>: {n}</li>" for t, n in plan["counts"].items() if n)
+    field = 'class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;"'
     return f"""
-    <div class="timeline-group-card" id="card-{memory_id}" style="border-color: rgba(239, 68, 68, 0.4); background: hsla(15, 100%, 50%, 0.05); text-align: center; padding: 2rem;">
-        <span style="color: hsl(15, 100%, 65%); font-size: 1.5rem; display: block; margin-bottom: 0.5rem;">💀 Memory Purged</span>
+    <div class="timeline-group-card" id="card-{mid}" style="border-color: rgba(239, 68, 68, 0.4); padding: 1.5rem;">
+        <span style="color: hsl(15, 100%, 65%); font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">GDPR erasure (Art. 17) — nothing erased yet</span>
+        <p style="font-size: 0.85rem; color: hsl(210, 10%, 75%);">Erasing memory <code>{mid}</code> permanently removes:</p>
+        <ul style="font-size: 0.8rem;">{rows}</ul>
+        <form hx-post="/api/audit/hard-delete/{mid}/confirm" hx-target="#card-{mid}" hx-swap="outerHTML"
+              hx-confirm="This permanently erases the memory and cannot be undone. Erase now?"
+              style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <input type="hidden" name="confirm" value="{html.escape(plan["token"])}">
+            <input type="text" name="legal_basis" {field} placeholder="Legal basis (Art. 17(1)) — required" required>
+            <input type="text" name="verified_by" {field} placeholder="Identity verified by (who / how) — required" required>
+            <input type="text" name="reason" {field} placeholder="Reason / notes">
+            <button class="m3-btn m3-btn-danger" type="submit">Erase (GDPR Art. 17)</button>
+        </form>
+        <p style="font-size: 0.75rem; color: hsl(210, 10%, 60%);">The plan expires at {html.escape(plan["expires_at"])}. Soft delete is the reversible alternative.</p>
+    </div>
+    """
+
+
+@app.post("/api/audit/hard-delete/{memory_id}/confirm", response_class=HTMLResponse)
+async def audit_hard_delete_confirm(
+    memory_id: str,
+    request: Request,
+    confirm: str = Form(""),
+    legal_basis: str = Form(""),
+    verified_by: str = Form(""),
+    reason: str = Form(""),
+):
+    """GDPR erasure step 2 for one memory: gdpr_forget with the plan's token and the
+    compliance record. gdpr_forget refuses (and erases nothing) on a stale token,
+    a changed target or a missing record; the refusal is shown as is."""
+    import html
+
+    selected_db = request.cookies.get("selected_db", "main")
+    get_active_db_path(request)
+    set_active_db_env(selected_db)
+
+    mid = html.escape(memory_id)
+    compliance = {
+        k: v.strip()
+        for k, v in {"legal_basis": legal_basis, "verified_by": verified_by, "reason": reason}.items()
+        if v.strip()
+    }
+    out = gdpr_forget_impl(memory_ids=[memory_id], confirm=confirm, compliance=compliance)
+    if isinstance(out, str):
+        return _CARD_ERR.format(mid=mid, msg=html.escape(out))
+    return f"""
+    <div class="timeline-group-card" id="card-{mid}" style="border-color: rgba(239, 68, 68, 0.4); background: hsla(15, 100%, 50%, 0.05); text-align: center; padding: 2rem;">
+        <span style="color: hsl(15, 100%, 65%); font-size: 1.3rem; display: block; margin-bottom: 0.5rem;">Memory erased (GDPR Art. 17)</span>
         <p style="font-size: 0.85rem; color: hsl(210, 10%, 75%);">
-            Memory ID <code style="color: #fff;">{memory_id}</code> and all associated vector embeddings have been completely purged from the core layers (GDPR Article 17 hard-delete).
+            Memory <code style="color: #fff;">{mid}</code> and everything holding its content were erased
+            (request <code>{html.escape(out["request_id"])}</code>, recorded in the audit trail).
         </p>
     </div>
     """
@@ -2919,6 +2981,7 @@ async def export_gdpr_data(user_id: str = "default"):
 @app.post("/api/gdpr/forget")
 async def forget_gdpr_data(
     user_id: str = Form(...),
+    confirm: str = Form(""),
     legal_basis: str = Form(""),
     reason: str = Form(""),
     verified_by: str = Form(""),
@@ -2926,31 +2989,30 @@ async def forget_gdpr_data(
     external_ref: str = Form(""),
     retained_note: str = Form(""),
 ):
-    """Invokes core gdpr_forget_impl under Article 17.
-
-    The optional program-layer fields (legal basis, reason, who verified/authorized
-    the request, an external case ref, and any retained-under-exemption note) are
-    passed through to the tamper-evident audit trail. They're optional so casual
-    single-user purges aren't burdened; a multi-tenant operator can build a
-    defensible record. m3 does not verify or enforce these — see docs/COMPLIANCE.md.
-    """
+    """gdpr_forget_impl (Art. 17) in its two steps: without ``confirm`` it returns
+    the erasure plan and a token; with the token and a compliance record
+    (legal_basis and verified_by required) it erases. JSON either way: the plan or
+    result dict, or {"error": ...} with status 400. m3 does not verify the record's
+    contents (docs/COMPLIANCE.md)."""
+    compliance = {
+        k: v.strip()
+        for k, v in {
+            "legal_basis": legal_basis,
+            "reason": reason,
+            "verified_by": verified_by,
+            "authorized_by": authorized_by,
+            "external_ref": external_ref,
+            "retained_note": retained_note,
+        }.items()
+        if v and v.strip()
+    } or None
     try:
-        compliance = {
-            k: v.strip()
-            for k, v in {
-                "legal_basis": legal_basis,
-                "reason": reason,
-                "verified_by": verified_by,
-                "authorized_by": authorized_by,
-                "external_ref": external_ref,
-                "retained_note": retained_note,
-            }.items()
-            if v and v.strip()
-        } or None
-        msg = gdpr_forget_impl(user_id, compliance=compliance)
-        return HTMLResponse(content=f"GDPR Purge Successful: {msg}", status_code=200)
-    except Exception as e:
-        return HTMLResponse(content=f"Purge Failed: {e!s}", status_code=500)
+        out = gdpr_forget_impl(user_id=user_id, compliance=compliance, confirm=confirm)
+    except Exception as e:  # noqa: BLE001 — reported to the operator, not swallowed
+        return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=500)
+    if isinstance(out, str):
+        return JSONResponse({"error": out}, status_code=400)
+    return JSONResponse(out)
 
 
 active_task: dict[str, Any] = {

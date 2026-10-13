@@ -19,31 +19,56 @@ personal data (a shared or multi-tenant deployment).
 
 | Capability | Tool / mechanism |
 |---|---|
-| **Right to erasure** (Art. 17) | `gdpr_forget` — hard-deletes all data for a `user_id`: memories, embeddings, relationships, history, and materialized surfaces. |
+| **Right to erasure** (Art. 17) | `gdpr_forget` — the **only hard delete in m3**, in two steps (plan, then confirm). Erases all data for a `user_id` (or specific `memory_ids`): memories, embeddings, relationships, history, the read-access log, materialized surfaces, archived copies, and (for a data subject) their LangGraph checkpoints. Every other delete in m3 is a soft delete. |
 | **Right to portability** (Art. 20) | `gdpr_export` — exports a user's memories as portable JSON. |
 | **Proof the erasure happened** | A record in `gdpr_requests` (subject, request type, item count, requested/completed timestamps) **and** an entry in the **tamper-evident, hash-chained audit trail**. |
-| **Optional program-layer record** | `gdpr_forget`'s `compliance` field (see below) captures the erasure's context in the audit trail when the operator supplies it. |
+| **Program-layer record** | `gdpr_forget`'s `compliance` field (see below) captures the erasure's context in the audit trail. `legal_basis` and `verified_by` are required to confirm. |
 | **No lingering copies in the wiki** | `m3 wiki generate` prunes pages for memories that no longer exist, so erased content does not survive in a previously-generated vault. |
 | **No cloud, no telemetry** | Data stays on operator-controlled hardware; there is no third-party processor to notify by default. |
 
-### The optional `compliance` record
+### Two steps: plan, then confirm
 
-`gdpr_forget` accepts an optional `compliance` object, logged verbatim to the audit
-trail. It is **not required** and **not verified** — it lets an operator capture the
-context an auditor expects, in the same tamper-evident log as the erasure itself:
+1. **Plan.** `gdpr_forget(user_id="…")` for a data subject, or
+   `gdpr_forget(memory_ids=["…", "…"])` for specific memories. Erases **nothing**;
+   returns per-table counts and a `token` valid for 15 minutes (recorded in
+   `gdpr_requests` as `planned`).
+2. **Confirm.** The same call plus `confirm=<token>` and a `compliance` record
+   holding `legal_basis` and `verified_by`.
+
+```python
+plan = gdpr_forget(user_id="alice")              # erases nothing
+gdpr_forget(user_id="alice", confirm=plan["token"],
+            compliance={"legal_basis": "b) consent withdrawn",
+                        "verified_by": "DPO Jane",
+                        "external_ref": "TICKET-42"})
+```
+
+The confirm is **refused, erasing nothing**, if the token is unknown, already used
+or expired, if the memories to erase changed since the plan, or if `compliance`
+lacks a required key. Run step 1 again for a fresh plan.
+
+> **Breaking change:** a one-call `gdpr_forget` now returns the plan instead of
+> erasing, and `compliance` (formerly optional) must carry `legal_basis` and
+> `verified_by` to confirm.
+
+### The `compliance` record
+
+`compliance` is logged verbatim to the audit trail. It is **not verified** — it
+records the context an auditor expects, in the same tamper-evident log as the
+erasure itself:
 
 | Field | Purpose |
 |---|---|
-| `legal_basis` | Which Art. 17(1) ground applies (a–f). |
+| `legal_basis` | **Required.** Which Art. 17(1) ground applies (a–f). |
 | `reason` | Free-text rationale. |
-| `verified_by` / `verification_method` | Who confirmed the requester's identity, and how. |
+| `verified_by` / `verification_method` | Who confirmed the requester's identity (`verified_by` **required**), and how. |
 | `authorized_by` | Operator / DPO who approved the erasure. |
 | `external_ref` | Case / ticket number linking to your DSAR record. |
 | `retained_note` | What (if anything) was retained under an Art. 17(3) exemption, and why. |
 
-Via MCP: `gdpr_forget(user_id="…", compliance={"legal_basis": "b) consent withdrawn", "authorized_by": "DPO Jane", "external_ref": "TICKET-42"})`.
-The web dashboard's GDPR panel exposes the same fields under **Compliance details
-(optional)**.
+The web dashboard runs the same two steps: the GDPR panel's **Purge User Records**
+and a memory card's **Hard Delete (GDPR)** show the erasure plan, then confirm
+through a compliance form whose legal basis and verified-by fields are required.
 
 ---
 
@@ -91,7 +116,7 @@ regulated multi-tenant deployment.
 `gdpr_forget` erases the subject's **data** but deliberately keeps a **record that
 the erasure occurred** — required to *demonstrate* compliance under the
 accountability principle (Art. 5(2)). Retained: the `user_id` (as the subject of
-the request), timestamps, item count, request id, your optional `compliance`
+the request), timestamps, item count, request id, your `compliance`
 fields, and the tamper-evident chain. **Not** retained: the memories, their
 content, embeddings, relationships, or history. Keeping proof-of-deletion is
 permitted; it is not "still holding their data."

@@ -30,8 +30,8 @@ _Write, retrieve, version, and reconcile long-term agent memory._
 | `memory_count_entities` | Count distinct entities mentioned in a single conversation. | default-allowed |
 | `memory_count_mentions` | Per-entity mention frequency within a single conversation, sorted DESC by count. | default-allowed |
 | `memory_dedup` | Find (and optionally soft-delete) near-duplicate memory items by cosine similarity over embeddings. | default-allowed |
-| `memory_delete` | Deletes a MemoryItem (soft or hard). | ⚠️ opt-in required |
-| `memory_delete_bulk` | Deletes a list of MemoryItems (soft or hard) in one transaction per chunk. | ⚠️ opt-in required |
+| `memory_delete` | Soft-deletes a MemoryItem (kept and recoverable; memory_restore). | ⚠️ opt-in required |
+| `memory_delete_bulk` | Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable). | ⚠️ opt-in required |
 | `memory_export` | Export memories as portable JSON. | ⚠️ opt-in required |
 | `memory_feedback` | Provide feedback on a memory item to improve quality. | default-allowed |
 | `memory_feedback_stats` | How often graded feedback is landing versus being rejected as stale. | default-allowed |
@@ -157,7 +157,7 @@ _Track and coordinate agent tasks and their state._
 |---|---|---|
 | `task_assign` | Assign a task to an owner. | default-allowed |
 | `task_create` | Create a new task in 'pending' state. | default-allowed |
-| `task_delete` | Delete a task. | default-allowed |
+| `task_delete` | Soft-delete a task: sets a tombstone that propagates via pg_sync to the warehouse and peers. | default-allowed |
 | `task_get` | Get full record for one task. | default-allowed |
 | `task_list` | List tasks with optional filters. | default-allowed |
 | `task_set_result` | Set the result memory pointer for a task. | default-allowed |
@@ -187,7 +187,7 @@ _Maintenance, cross-store sync, import/export, and lifecycle ops._
 | `extract_entities` | Accepts raw text, extracts entities and relationship predicates based on the configured pluggable e… | default-allowed |
 | `extract_pending` | Extract pending entities from the queue. | ⚠️ opt-in required |
 | `gdpr_export` | Export all memories for a data subject (GDPR data portability). | ⚠️ opt-in required |
-| `gdpr_forget` | Right to be forgotten — hard-deletes ALL data for a user_id including memories, embeddings, relatio… | ⚠️ opt-in required |
+| `gdpr_forget` | Right to be forgotten (GDPR Art. | ⚠️ opt-in required |
 | `m3_call` | Invoke ANY m3 catalog tool by name without loading its domain — the low-token path to the full tool… | default-allowed |
 | `m3_help_capabilities` | Discover m3-memory tool capabilities, parameters, and availability. | default-allowed |
 | `m3_index` | List m3 catalog tools (optionally one domain) as structured rows: name, domain, one-line summary, d… | default-allowed |

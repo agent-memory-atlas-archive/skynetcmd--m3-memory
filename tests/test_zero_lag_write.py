@@ -62,15 +62,10 @@ async def test_write_defers_and_is_fast_without_embedder(monkeypatch, tmp_path):
     """A write with no fast embedder returns quickly, marks deferral, and leaves
     NO embedding row (so embed_backfill will pick it up by construction)."""
     import memory_core as mc
-    import migrate_memory
     from m3_sdk import active_database
 
     db = str(tmp_path / "zerolag.db")
-    pin_database(db)
-    try:
-        migrate_memory.run_migrations(db)
-    except Exception:
-        pass
+    pin_database(db)  # the write below opens it; _db() applies the migrations
 
     # Force "no fast embedder". The write path calls
     # `_embed_mod.fast_embedder_available()`, where _embed_mod is whatever object

@@ -2,7 +2,8 @@
 
 It refused on PostgreSQL (require_sqlite_backend): BLOB columns, executescript
 and INSERT OR REPLACE. The schema, the upserts and the binds now come from the
-dialect; this pins put / get_tuple / list / put_writes / delete_thread on each.
+dialect; this pins put / get_tuple / list / put_writes / delete_thread (a soft delete)
+on each.
 """
 
 from __future__ import annotations
@@ -71,3 +72,13 @@ def test_checkpoints_round_trip(each_backend):
 
     saver.delete_thread(thread)
     assert saver.get_tuple(_cfg(thread)) is None, f"observed: thread survived delete {where}"
+    assert list(saver.list(_cfg(thread))) == [], f"observed: a deleted thread still lists {where}"
+
+    # A SOFT delete: hard delete is GDPR-only, so the rows stay, stamped.
+    from memory.backends import dialect
+    from memory.db import _db
+
+    _p = dialect().param()
+    with _db() as db:
+        rows = db.execute(f"SELECT deleted_at FROM m3_lg_checkpoints WHERE thread_id = {_p}", (thread,)).fetchall()
+    assert len(rows) == 2 and all(r[0] for r in rows), f"observed: {len(rows)} rows, deleted_at {rows!r} {where}"

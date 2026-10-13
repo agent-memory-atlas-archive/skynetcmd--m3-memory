@@ -27,8 +27,8 @@ Updates a MemoryItem by ID. Records audit trail.
 - **Args**: `id` (str, required), `content` (str), `title` (str), `metadata` (JSON), `importance` (float), `reembed` (bool), `refresh_on` (ISO 8601)
 
 ### `memory_delete`
-Deletes a MemoryItem (soft or hard).
-- **Args**: `id` (str, required), `hard` (bool, default false)
+Soft-deletes a MemoryItem (kept and recoverable via `memory_restore`). Hard delete is GDPR-only: use [`gdpr_forget`](#gdpr_forget).
+- **Args**: `id` (str, required), `hard` (bool, default false) — accepted, never destructive: still a soft delete, with a notice.
 
 ### `memory_verify`
 Verify content integrity by comparing stored hash with computed hash. Returns OK if content hasn't been tampered with.
@@ -91,8 +91,8 @@ Partial update for a task. Validates state transitions. On terminal state, sets 
 - **Args**: `task_id` (str, required), `state` (str), `description` (str), `metadata` (dict), `actor` (str)
 
 ### `task_delete`
-Delete a task (soft or hard).
-- **Args**: `task_id` (str, required), `hard` (bool), `actor` (str)
+Soft-delete a task (a tombstone that propagates via sync). Hard delete is GDPR-only: use [`gdpr_forget`](#gdpr_forget).
+- **Args**: `task_id` (str, required), `hard` (bool) — accepted, never destructive: still a soft delete, with a notice; `actor` (str)
 
 ### `task_set_result`
 Set the result memory pointer for a task. Does NOT change state.
@@ -215,7 +215,7 @@ Re-apply redaction to existing chat_log rows.
 ## Lifecycle & Maintenance
 
 ### `memory_maintenance`
-Run decay, expiry archival (expired rows are copied to `memory_archive`, then leave the live store), orphan-embedding pruning, and retention enforcement (soft-delete).
+Run decay, expiry (expired rows are soft-deleted: kept whole and recoverable; pinned rows exempt), orphan-embedding pruning, and retention enforcement (soft-delete).
 - **Args**: `decay` (bool), `purge_expired` (bool), `prune_orphan_embeddings` (bool)
 
 ### `memory_dedup`
@@ -239,13 +239,34 @@ Export all memories for a user as portable JSON (Article 20).
 - **Args**: `user_id` (str, required)
 
 ### `gdpr_forget`
-Hard-delete all data for a user (Article 17) and log the erasure to the
-tamper-evident audit trail (subject, timestamps, item count).
-- **Args**: `user_id` (str, required); `compliance` (object, optional) — an
-  operator-supplied record of the erasure's program-layer context, logged verbatim
-  to the audit trail. Recognized keys: `legal_basis` (Art. 17(1) ground), `reason`,
-  `verified_by`, `verification_method`, `authorized_by`, `external_ref`
-  (case/ticket #), `retained_note` (Art. 17(3) exemption).
+Erase (hard-delete) a data subject's data or specific memories (Article 17) and
+log the erasure to the tamper-evident audit trail (subject, timestamps, item
+count). The **only hard delete in m3**, in two steps:
+1. **Plan** — call with `user_id` or `memory_ids`. Erases nothing; returns per-table
+   `counts` and a `token` valid 15 minutes (recorded in `gdpr_requests` as `planned`).
+2. **Confirm** — the same call plus `confirm=<token>` and `compliance` holding
+   `legal_basis` and `verified_by`. Refused (nothing erased) if the token is
+   unknown, used or expired, the memories to erase changed since the plan, or a
+   required compliance key is missing.
+
+Erases the items and their embeddings, relationships, history, read-access log,
+bypass-surface rows, archived copies, and (for a data subject) LangGraph
+checkpoints; restricts derived wiki syntheses ([WIKI_GDPR.md](WIKI_GDPR.md)).
+
+```python
+plan = gdpr_forget(user_id="alice")    # or memory_ids=["<uuid>", ...]
+gdpr_forget(user_id="alice", confirm=plan["token"],
+            compliance={"legal_basis": "b) consent withdrawn", "verified_by": "DPO Jane"})
+```
+- **Args**: `user_id` (str) **or** `memory_ids` (list of full UUIDs) — exactly one;
+  `confirm` (str, step 2) — the plan's token; `compliance` (object, required to
+  confirm) — the operator's record of the erasure's program-layer context, logged
+  verbatim to the audit trail. Required keys: `legal_basis` (Art. 17(1) ground),
+  `verified_by`. Also recognized: `reason`, `verification_method`,
+  `authorized_by`, `external_ref` (case/ticket #), `retained_note` (Art. 17(3)
+  exemption).
+- **Breaking change:** a one-call `gdpr_forget` returns the plan instead of
+  erasing; `compliance` was optional and now needs `legal_basis` and `verified_by`.
 - **Scope**: this tool performs and records the *technical* erasure. The
   *program-level* record-keeping GDPR expects — identity verification, legal-basis
   determination, exemption analysis, third-party notification (Art. 19), and

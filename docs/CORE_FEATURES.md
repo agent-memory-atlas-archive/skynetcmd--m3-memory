@@ -51,7 +51,7 @@ Memories aren't isolated — they form a web. m3 automatically links related mem
 Left alone, memory systems accumulate noise. m3 fights entropy:
 
 - **Importance decay** — memories fade at 0.5%/day after 7 days unless reinforced by access or feedback
-- **Auto-archival** — low-importance items (< 0.05) older than 30 days are moved to cold storage
+- **Expiry** — items past their `expires_at` are soft-deleted (kept whole, recoverable); low-importance items are deranked, never removed
 - **Per-agent retention** — set max memory count and TTL per agent; enforced automatically
 - **Multi-layered consolidation** — when memory groups grow too large, the local LLM merges old items into summaries, preserving knowledge while reducing clutter
 - **Deduplication** — configurable cosine threshold catches near-duplicates across the last 1000 items
@@ -115,7 +115,7 @@ All LLM features use your local model by default — zero API costs, and no data
 
 ### 🇪🇺 GDPR-Ready
 
-- **Article 17 (Right to Be Forgotten):** `gdpr_forget` hard-deletes all data for a user — memories, embeddings, relationships, history, sync queue. One tool call.
+- **Article 17 (Right to Be Forgotten):** `gdpr_forget` hard-deletes all data for a user (or specific memories) — memories, embeddings, relationships, history, sync queue. It is m3's only hard delete and takes two steps: a plan (erases nothing, returns a 15-minute token), then a confirm with that token and a compliance record (`legal_basis`, `verified_by`).
 - **Article 20 (Data Portability):** `gdpr_export` returns all memories for a user as portable JSON.
 - **Audit trail:** Every request logged in `gdpr_requests` table with timestamps and item counts.
 
@@ -167,7 +167,7 @@ Hourly automated sync.
 Every feature is tested — not just the happy path (the suite runs with
 `filterwarnings=error`, so a new warning fails the build):
 
-- Memory CRUD with soft and hard delete (cascade verification)
+- Memory CRUD with soft delete (`hard=true` stays soft; hard delete is GDPR-only)
 - Hybrid search with FTS and semantic fallback
 - Contradiction detection and automatic supersession
 - Content integrity (tamper detection, poisoning rejection)

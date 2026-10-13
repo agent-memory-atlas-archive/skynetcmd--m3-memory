@@ -1581,17 +1581,16 @@ def task_get_impl(task_id: str, include_deleted: bool = False) -> str:
 
 
 def task_delete_impl(task_id: str, hard: bool = False, actor: str = "") -> str:
-    """Delete a task.
+    """Soft-delete a task: sets `deleted_at` so pg_sync propagates the tombstone
+    to the warehouse and peers on the next run. The row stays and is filtered
+    out of reads.
 
-    Soft-delete (default): sets `deleted_at` so pg_sync propagates the
-    tombstone to the warehouse and peers on the next run. The row stays
-    in local SQLite and is filtered out of reads.
-
-    Hard-delete: only allowed once the row is already tombstoned. Removes
-    the row from local SQLite. Note that sync is UPSERT-only, so a hard
-    delete on one peer does NOT remove the row on other peers — they
-    converge via the soft-delete tombstone.
+    ``hard=True`` is honoured as a soft delete with a notice: GDPR erasure
+    (gdpr_forget) is the only hard delete (memory.deletion).
     """
+    from memory.deletion import hard_delete_requested
+
+    notice = f" ({hard_delete_requested('task_delete')})" if hard else ""
     now = datetime.now(UTC).isoformat()
     with _db() as db:
         p = dialect().param()
@@ -1600,23 +1599,13 @@ def task_delete_impl(task_id: str, hard: bool = False, actor: str = "") -> str:
         if not row:
             return f"Error: task '{task_id}' not found"
 
-        if hard:
-            if row["deleted_at"] is None:
-                return (
-                    f"Error: task '{task_id}' must be soft-deleted before hard-delete. "
-                    "Call task_delete with hard=False first."
-                )
-            db.execute(f"DELETE FROM tasks WHERE id = {p}", (task_id,))
-            _record_history(task_id, "task_deleted", row["state"], "hard_deleted", "deleted_at", actor or "system")
-            return f"Task {task_id} hard-deleted"
-
         if row["deleted_at"] is not None:
-            return f"Task {task_id} already soft-deleted at {row['deleted_at']}"
+            return f"Task {task_id} already soft-deleted at {row['deleted_at']}{notice}"
 
         db.execute(f"UPDATE tasks SET deleted_at = {p}, updated_at = {p} WHERE id = {p}", (now, now, task_id))
 
     _record_history(task_id, "task_deleted", row["state"], "soft_deleted", "deleted_at", actor or "system")
-    return f"Task {task_id} soft-deleted (tombstone will sync on next pg_sync run)"
+    return f"Task {task_id} soft-deleted (tombstone will sync on next pg_sync run){notice}"
 
 
 def task_list_impl(

@@ -381,6 +381,30 @@ the policy is forward-going only.
 
 ### Changed
 
+- **Hard delete is GDPR-only, and `gdpr_forget` takes two steps.** The first
+  call (`user_id`, or the new `memory_ids` for specific memories) erases nothing:
+  it returns what would be erased and a token valid for 15 minutes. The second
+  call adds `confirm=<token>` and a compliance record with `legal_basis` and
+  `verified_by`, and erases. Every other delete is now a soft delete (kept and
+  recoverable): `memory_delete` / `memory_delete_bulk` / `task_delete` with
+  `hard=true` and a curation plan's `delete_hard` soft-delete and return a notice
+  naming `gdpr_forget`; expired memories are soft-deleted instead of removed;
+  LangGraph `delete_thread` marks the thread deleted. The dashboard's Hard Delete
+  and GDPR purge show the erasure plan and ask for the compliance record.
+  **Affected:** all installs; callers of `gdpr_forget`, of `hard=true`, of
+  `delete_hard`, and of the dashboard's Hard Delete or GDPR purge · **Action:**
+  call `gdpr_forget` twice (plan, then confirm with the token and the compliance
+  record); nothing else · **Data status:** from this release, expiry and
+  `hard=true` keep the rows (soft-deleted) instead of removing them; existing
+  data is unchanged.
+
+- **The LangGraph checkpointer's tables are created by migrations.** Migration
+  054 (SQLite) / pg_063 (PostgreSQL) creates them on a new store and brings an
+  existing store's tables forward with their checkpoints.
+  **Affected:** installs using the LangGraph checkpointer · **Action:** none ·
+  **Data status:** none; existing checkpoints are kept and a `deleted_at` column
+  is added.
+
 - **`M3_DATABASE` is a legacy setting; use `--database` or `--store`.** m3 no
   longer sets it for itself. It is still read when nothing else names the
   database, with a warning, until a later release removes it. A `--database`

@@ -22,6 +22,8 @@ import uuid
 import pytest
 from m3_core.paths import pin_database
 
+from conftest import gdpr_erase
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 
@@ -119,7 +121,7 @@ def test_gdpr_forget_erases_archived_rows(main_db):
             db.commit()
     assert len(_archive_rows("WHERE user_id = ?", (uid,))) == 1
 
-    MM.gdpr_forget_impl(uid)
+    gdpr_erase(user_id=uid)
 
     # Both the live item AND the archived tombstone are gone.
     assert _archive_rows("WHERE user_id = ?", (uid,)) == []

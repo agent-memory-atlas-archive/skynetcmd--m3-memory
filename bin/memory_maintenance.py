@@ -1275,29 +1275,23 @@ def memory_maintenance_impl(
             if r_count or d_count:
                 report.append(f"Confidence: reaggregated {r_count}, decayed {d_count} toward neutral")
         if purge_expired:
-            try:
-                with _savepoint(db):
-                    expired = db.execute(
-                        f"SELECT id FROM memory_items WHERE expires_at < {_p} AND COALESCE(pinned, 0) = 0",
-                        (now,),
-                    ).fetchall()
-            except Exception as e:  # noqa: BLE001 — pre-pinned-column DB
-                if not _is_missing_schema(e):
-                    raise
-                expired = db.execute(f"SELECT id FROM memory_items WHERE expires_at < {_p}", (now,)).fetchall()
-            for row in expired:
-                _transfer_to_archive(row[0], "expired", db)
+            # Expiry SOFT-deletes (kept whole and recoverable): GDPR erasure is the
+            # only hard delete (memory.deletion). Pinned rows are exempt.
             try:
                 with _savepoint(db):
                     res = db.execute(
-                        f"DELETE FROM memory_items WHERE expires_at < {_p} AND COALESCE(pinned, 0) = 0",
-                        (now,),
+                        f"UPDATE memory_items SET is_deleted = 1, updated_at = {_p} "
+                        f"WHERE expires_at < {_p} AND is_deleted = 0 AND COALESCE(pinned, 0) = 0",
+                        (now, now),
                     )
             except Exception as e:  # noqa: BLE001 — pre-pinned-column DB
                 if not _is_missing_schema(e):
                     raise
-                res = db.execute(f"DELETE FROM memory_items WHERE expires_at < {_p}", (now,))
-            report.append(f"Purged {res.rowcount} expired")
+                res = db.execute(
+                    f"UPDATE memory_items SET is_deleted = 1, updated_at = {_p} WHERE expires_at < {_p} AND is_deleted = 0",
+                    (now, now),
+                )
+            report.append(f"Soft-deleted {res.rowcount} expired")
         if prune_orphan_embeddings:
             res = db.execute("DELETE FROM memory_embeddings WHERE memory_id NOT IN (SELECT id FROM memory_items)")
             report.append(f"Pruned {res.rowcount} orphans")
@@ -1509,38 +1503,139 @@ def gdpr_export_impl(user_id: str) -> str:
     )
 
 
-def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> str:
-    """Right to be forgotten (GDPR Article 17). Hard-deletes all data for a user_id.
+_GDPR_PLAN_TTL_S = 900  # a plan's token is good for 15 minutes
+_GDPR_REQUIRED_COMPLIANCE = ("legal_basis", "verified_by")
+# Tables erased by memory id (and, for a data subject, also by user_id). One list
+# feeds both the plan's counts and the erasure, so they cannot disagree.
+_GDPR_BY_MEMORY = (
+    ("memory_embeddings", "memory_id", None),
+    ("memory_history", "memory_id", None),
+    ("memory_access_log", "memory_id", "user_id"),
+    ("bypass_surface", "memory_id", "user_id"),
+    ("memory_archive", "id", "user_id"),
+)
+_LG_OF_USER = "SELECT thread_id, checkpoint_ns, checkpoint_id FROM m3_lg_checkpoints WHERE user_id = {p}"
 
-    Backend-aware: seam (_db()) + dialected placeholders / now() so the cascade
-    delete runs on PostgreSQL as well as SQLite. The bypass_surface guard catches
-    the backend-specific "table absent" error (sqlite3.OperationalError /
-    psycopg2 UndefinedTable) rather than only the SQLite one.
 
-    `compliance` is an OPTIONAL operator-supplied record of the erasure's
-    program-layer context — the fields a DPO/auditor expects to see under the
-    accountability principle (Art. 5(2)) but that only the operator knows:
-    `legal_basis` (Art. 17(1) ground), `reason`, `verified_by` /
-    `verification_method` (who confirmed the requester's identity + how),
-    `authorized_by`, `external_ref` (case/ticket #), `retained_note` (what was
-    kept under an Art. 17(3) exemption). Stored verbatim in the tamper-evident
-    audit trail entry for this erasure. It does NOT make m3 a DSAR platform or a
-    compliance program — it just captures more when the operator provides it. See
-    docs/COMPLIANCE.md: program-level record-keeping is the operator's
-    responsibility. Accepts a dict or a JSON string; unknown keys are kept as-is.
-    NOTE: these fields are logged ONLY to the audit trail (the compliance record);
-    they are never surfaced elsewhere (wiki, export)."""
+def _gdpr_scope(_d, ids, id_col, user_id, user_col):
+    """WHERE clause + params selecting a table's rows for this erasure."""
+    parts, params = [], []
+    if ids:
+        parts.append(f"{id_col} IN ({_d.placeholder(len(ids))})")
+        params += ids
+    if user_id and user_col:
+        parts.append(f"{user_col} = {_d.param()}")
+        params.append(user_id)
+    return " OR ".join(parts), params
+
+
+def _gdpr_try(db, sql, params):
+    """Run one statement in a savepoint; None ONLY when its table is absent (an
+    older store: nothing there). Any other failure raises: an erasure that skips
+    a table it could not write would leave personal data behind, silently."""
+    from memory.db import savepoint
+
+    try:
+        with savepoint(db):
+            return db.execute(sql, params)
+    except Exception as e:
+        if not _is_missing_schema(e):
+            raise
+        return None
+
+
+def _gdpr_plan(db, _d, user_id, memory_ids):
+    """(item_ids, counts): what an erasure of this target removes, table by table."""
+    _p = _d.param()
+    if user_id:
+        rows = db.execute(f"SELECT id FROM memory_items WHERE user_id = {_p} ORDER BY id", (user_id,)).fetchall()
+    else:
+        rows = db.execute(
+            f"SELECT id FROM memory_items WHERE id IN ({_d.placeholder(len(memory_ids))}) ORDER BY id",
+            list(memory_ids),
+        ).fetchall()
+    item_ids = [r["id"] for r in rows]
+    counts: dict[str, int] = {"memory_items": len(item_ids)}
+
+    def _count(table, where, params):
+        if not where:
+            return
+        cur = _gdpr_try(db, f"SELECT COUNT(*) AS n FROM {table} WHERE {where}", params)
+        if cur is not None:
+            counts[table] = int(cur.fetchone()["n"])
+
+    for table, id_col, user_col in _GDPR_BY_MEMORY:
+        _count(table, *_gdpr_scope(_d, item_ids, id_col, user_id, user_col))
+    if item_ids:
+        ph = _d.placeholder(len(item_ids))
+        _count("memory_relationships", f"from_id IN ({ph}) OR to_id IN ({ph})", item_ids + item_ids)
+    if user_id:
+        _count("m3_lg_checkpoints", f"user_id = {_p}", [user_id])
+        _count(
+            "m3_lg_writes",
+            f"(thread_id, checkpoint_ns, checkpoint_id) IN ({_LG_OF_USER.format(p=_p)})",
+            [user_id],
+        )
+    return item_ids, counts
+
+
+def _gdpr_digest(user_id, memory_ids, item_ids) -> str:
+    import hashlib
     import json as _json
+
+    body = _json.dumps({"user_id": user_id, "memory_ids": sorted(memory_ids or []), "items": item_ids}, sort_keys=True)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+
+
+def _gdpr_ids_arg(memory_ids) -> list[str]:
+    if isinstance(memory_ids, str):
+        memory_ids = memory_ids.split(",")
+    return [str(i).strip() for i in (memory_ids or []) if str(i).strip()]
+
+
+def gdpr_forget_impl(
+    user_id: str = "",
+    compliance: "dict | str | None" = None,
+    memory_ids: "list[str] | str | None" = None,
+    confirm: str = "",
+) -> "dict | str":
+    """Right to be forgotten (GDPR Article 17): the ONLY hard delete in m3.
+
+    Two steps, so an erasure is never one careless call (user decision 2026-10-13):
+
+    1. **Plan** — ``gdpr_forget(user_id=...)`` for a data subject, or
+       ``gdpr_forget(memory_ids=[...])`` for specific memories. Erases NOTHING;
+       returns what would be erased, table by table, and a token valid for 15
+       minutes. The plan is recorded in ``gdpr_requests`` (status ``planned``).
+    2. **Confirm** — the same call plus ``confirm=<token>`` and ``compliance``
+       holding at least ``legal_basis`` and ``verified_by``. Refused when the token
+       is unknown, used or expired, or when the memories to erase changed since
+       the plan (run step 1 again).
+
+    Every other delete in m3 is a soft delete (memory.deletion).
+
+    The erasure covers the items and everything that holds their content or
+    points at them: embeddings, relationships, history, the read-access log,
+    bypass-surface rows, archived copies, and (for a data subject) their LangGraph
+    checkpoints. Wiki syntheses derived from an erased member are restricted and
+    the compile ledger's cached membership is flushed (Art. 17 derived content).
+
+    ``compliance`` is the operator's record of the erasure's program-layer context
+    (Art. 5(2) accountability): ``legal_basis`` (Art. 17(1) ground), ``reason``,
+    ``verified_by`` / ``verification_method``, ``authorized_by``, ``external_ref``,
+    ``retained_note`` (Art. 17(3) exemption). Stored verbatim in the tamper-evident
+    audit trail, never surfaced elsewhere. It does NOT make m3 a DSAR platform —
+    program-level record-keeping is the operator's (docs/COMPLIANCE.md). A dict or
+    a JSON string; unknown keys are kept.
+    """
+    import json as _json
+    import time
     import uuid
 
-    if not user_id or not user_id.strip():
-        return "Error: user_id is required"
-    # Land queued audit rows BEFORE this function opens its write transaction (a
-    # flush inside it would wait on that lock), so they are erased below too.
-    from memory.db import flush_read_log
-
-    flush_read_log()
-    # Normalize compliance to a dict; tolerate a JSON string (CLI/HTTP callers).
+    user_id = (user_id or "").strip()
+    ids_requested = _gdpr_ids_arg(memory_ids)
+    if bool(user_id) == bool(ids_requested):
+        return "Error: pass exactly one of user_id (a data subject) or memory_ids (specific memories)"
     if isinstance(compliance, str):
         try:
             compliance = _json.loads(compliance) if compliance.strip() else None
@@ -1548,172 +1643,167 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
             compliance = {"note": compliance}  # keep raw text rather than lose it
     if compliance is not None and not isinstance(compliance, dict):
         compliance = None
+
+    # Land queued audit rows BEFORE the write transaction (a flush inside it would
+    # wait on that lock), so they are counted and erased below too.
+    from memory.db import flush_read_log
+
+    flush_read_log()
     from memory.backends import dialect
 
     _d = dialect()
     _p = _d.param()
+    subject = user_id or f"memory_ids:{len(ids_requested)}"
 
-    req_id = str(uuid.uuid4())
-    total_deleted = 0
+    if not confirm:
+        with _db() as db:
+            item_ids, counts = _gdpr_plan(db, _d, user_id, ids_requested)
+            req_id = str(uuid.uuid4())
+            exp = int(time.time()) + _GDPR_PLAN_TTL_S
+            if (
+                _gdpr_try(
+                    db,
+                    "INSERT INTO gdpr_requests (id, subject_id, request_type, status, items_affected) "
+                    f"VALUES ({_p}, {_p}, 'forget', 'planned', {_p})",
+                    (req_id, subject, len(item_ids)),
+                )
+                is None
+            ):
+                return (
+                    "Error: cannot record the erasure plan: the gdpr_requests table is missing from this store. "
+                    "inspect: run the migrations (m3 doctor --fix)"
+                )
+        token = f"{req_id}.{exp}.{_gdpr_digest(user_id, ids_requested, item_ids)}"
+        return {
+            "step": "plan",
+            "erased": False,
+            "target": {"user_id": user_id} if user_id else {"memory_ids": ids_requested},
+            "counts": counts,
+            "not_found": sorted(set(ids_requested) - set(item_ids)),
+            "token": token,
+            "expires_at": datetime.fromtimestamp(exp, UTC).isoformat(),
+            "next": (
+                "nothing is erased yet. To erase, call gdpr_forget again with the same target, "
+                f"confirm='{token}', and compliance holding {' and '.join(_GDPR_REQUIRED_COMPLIANCE)}."
+            ),
+        }
+
+    # ── step 2: confirm ────────────────────────────────────────────────────────
+    missing = [k for k in _GDPR_REQUIRED_COMPLIANCE if not str((compliance or {}).get(k, "")).strip()]
+    if missing:
+        return f"Error: an erasure needs a compliance record; missing: {', '.join(missing)}. Nothing was erased."
+    try:
+        req_id, exp_s, digest = confirm.strip().split(".")
+        exp = int(exp_s)
+    except ValueError:
+        return "Error: confirm is not a token from gdpr_forget's plan step. Nothing was erased."
+    if time.time() > exp:
+        return "Error: the plan's token expired; run gdpr_forget without confirm for a new plan. Nothing was erased."
 
     with _db() as db:
-        # Count items before deletion
-        count_row = db.execute(f"SELECT COUNT(*) as cnt FROM memory_items WHERE user_id = {_p}", (user_id,)).fetchone()
-        total_deleted = count_row["cnt"] if count_row else 0
+        cur = _gdpr_try(
+            db,
+            f"SELECT status, subject_id FROM gdpr_requests WHERE id = {_p} AND request_type = 'forget'",
+            (req_id,),
+        )
+        row = cur.fetchone() if cur is not None else None
+        if row is None or row["status"] != "planned" or row["subject_id"] != subject:
+            return "Error: no open erasure plan for this token and target (unknown, already used, or another target). Nothing was erased."
+        item_ids, counts = _gdpr_plan(db, _d, user_id, ids_requested)
+        if _gdpr_digest(user_id, ids_requested, item_ids) != digest:
+            return "Error: the memories to erase changed since the plan; run gdpr_forget without confirm for a new plan. Nothing was erased."
 
-        # Get all memory IDs for cascade deletion
-        item_ids = [
-            r["id"] for r in db.execute(f"SELECT id FROM memory_items WHERE user_id = {_p}", (user_id,)).fetchall()
-        ]
-
-        # WIKI erasure hook (Art. 17 derived-content): before the cascade removes
-        # the `consolidates` edges, mark every synthesis derived from an erased
-        # member `restricted` so it stops rendering immediately. The prose is NOT
-        # deleted — the erased member may have been redundant; a later review
-        # (follow-on d4ab42c9) decides. Must run BEFORE the relationship delete
-        # below, which would otherwise sever the synthesis→member link the scan
-        # reads. Best-effort import (wiki is an optional extra), but a scan failure
-        # is logged, never silently swallowed — a synthesis left rendering after
-        # its source is erased is a compliance breach.
+        # WIKI erasure hook (Art. 17 derived content): before the relationship
+        # delete removes the `consolidates` edges, mark every synthesis derived from
+        # an erased member `restricted` so it stops rendering. The prose is NOT
+        # deleted (the member may have been redundant; follow-on d4ab42c9 decides).
+        # Best-effort import (wiki is an optional extra), but a failure is logged,
+        # never swallowed: a synthesis left rendering after its source is erased is
+        # a compliance breach.
         wiki_erasure_summary = None
+        wiki_ledger_summary = None
         if item_ids:
-            try:
-                import os as _os
-                import sys as _sys
+            import logging
+            import os as _os
+            import sys as _sys
 
-                _bin = _os.path.dirname(_os.path.abspath(__file__))
-                if _bin not in _sys.path:
-                    _sys.path.insert(0, _bin)
+            _bin = _os.path.dirname(_os.path.abspath(__file__))
+            if _bin not in _sys.path:
+                _sys.path.insert(0, _bin)
+            try:
                 from wiki.erasure import restrict_derived_on_erasure
 
-                _erased_at = datetime.now(UTC).isoformat()
-                wiki_erasure_summary = restrict_derived_on_erasure(db, _d, item_ids, timestamp=_erased_at)
+                wiki_erasure_summary = restrict_derived_on_erasure(
+                    db, _d, item_ids, timestamp=datetime.now(UTC).isoformat()
+                )
             except Exception as _e:  # pragma: no cover - defensive
-                import logging
-
                 logging.getLogger("m3.gdpr").warning(
-                    "wiki erasure hook failed for user %s: %r — derived syntheses may still render; review manually",
-                    user_id,
+                    "wiki erasure hook failed for %s: %r — derived syntheses may still render; review manually",
+                    subject,
                     _e,
                 )
                 wiki_erasure_summary = {"error": repr(_e)}
-
-        # WIKI LEDGER erasure scan (Art. 17, plan G2): the compile ledger's
-        # `cluster_members` cache may hold an erased UUID. Scan it, record the
-        # erasure on the affected `cluster_run` rows (accumulating id + count +
-        # timestamps), and FLUSH those runs' cached membership. The run row
-        # survives — so WHY the data is gone outlasts the data. `cluster_members`
-        # stores UUIDs only (never content), so the table itself holds no personal
-        # data; this closes the cache. A failure is surfaced, never swallowed: an
-        # un-flushed cache holding an erased id is a compliance gap. Guarded so an
-        # un-migrated DB (tables absent) degrades gracefully.
-        wiki_ledger_summary = None
-        if item_ids:
+            # WIKI LEDGER (plan G2): the compile ledger's `cluster_members` cache may
+            # hold an erased UUID; record the erasure on the affected runs and flush
+            # their cached membership. The run row survives, so WHY the data is gone
+            # outlasts the data. A failure is surfaced, never swallowed.
             try:
                 from wiki.ledger import scan_and_flush_on_erasure
 
-                _led_at = datetime.now(UTC).isoformat()
-                wiki_ledger_summary = scan_and_flush_on_erasure(db, _d, item_ids, timestamp=_led_at)
+                wiki_ledger_summary = scan_and_flush_on_erasure(
+                    db, _d, item_ids, timestamp=datetime.now(UTC).isoformat()
+                )
             except Exception as _e:  # pragma: no cover - defensive
-                import logging
-
                 logging.getLogger("m3.gdpr").warning(
-                    "wiki ledger erasure scan failed for user %s: %r — a cluster "
-                    "membership cache may still hold the erased id; review manually",
-                    user_id,
+                    "wiki ledger erasure scan failed for %s: %r — a cluster membership cache may "
+                    "still hold the erased id; review manually",
+                    subject,
                     _e,
                 )
                 wiki_ledger_summary = {"error": repr(_e)}
 
-        # The read-access audit log (migration 053): the subject's rows are personal
-        # data too. By user_id AND by the forgotten memories. Guarded: absent on a
-        # store below 053.
-        from memory.db import savepoint as _sp_log
-
-        try:
-            with _sp_log(db):
-                db.execute(f"DELETE FROM memory_access_log WHERE user_id = {_p}", (user_id,))
-                if item_ids:
-                    db.execute(
-                        f"DELETE FROM memory_access_log WHERE memory_id IN ({_d.placeholder(len(item_ids))})",
-                        item_ids,
-                    )
-        except Exception:  # noqa: BLE001 — table absent (pre-053): nothing to erase
-            pass
+        # Explicit enumeration, never reliance on a cascade firing. Optional tables
+        # absent on an older store are skipped (_gdpr_try).
+        for table, id_col, user_col in _GDPR_BY_MEMORY:
+            where, params = _gdpr_scope(_d, item_ids, id_col, user_id, user_col)
+            if where:
+                _gdpr_try(db, f"DELETE FROM {table} WHERE {where}", params)
         if item_ids:
-            placeholders = _d.placeholder(len(item_ids))
-            # Delete embeddings
-            db.execute(f"DELETE FROM memory_embeddings WHERE memory_id IN ({placeholders})", item_ids)
-            # Delete relationships
+            ph = _d.placeholder(len(item_ids))
             db.execute(
-                f"DELETE FROM memory_relationships WHERE from_id IN ({placeholders}) OR to_id IN ({placeholders})",
+                f"DELETE FROM memory_relationships WHERE from_id IN ({ph}) OR to_id IN ({ph})",
                 item_ids + item_ids,
             )
-            # Delete history
-            db.execute(f"DELETE FROM memory_history WHERE memory_id IN ({placeholders})", item_ids)
-            # Delete materialized bypass-surface rows (ADR-0001 §7/§9). The surface FK
-            # cascades, but gdpr_forget purges by EXPLICIT enumeration and must not rely
-            # on cascade firing — so delete here too. Guarded: table may not exist on a
-            # DB migrated below v033. By memory_id (the surfaced pointer) AND user_id.
-            from memory.db import savepoint as _savepoint
-
-            try:
-                with _savepoint(db):
-                    db.execute(f"DELETE FROM bypass_surface WHERE memory_id IN ({placeholders})", item_ids)
-                    db.execute(f"DELETE FROM bypass_surface WHERE user_id = {_p}", (user_id,))
-            except Exception:
-                # table absent (pre-v033 SQLite, or not-yet-migrated PG) — nothing
-                # to purge. Broadened from sqlite3.OperationalError so a PG
-                # UndefinedTable doesn't abort the forget. savepoint keeps the outer
-                # forget transaction usable on PG after the caught miss.
-                pass
-            # Erase archived tombstones too (migration 042). The archive keeps
-            # content + user_id, so an erased user's data would SURVIVE in the
-            # tombstone unless purged here — a compliance breach. By memory_id (the
-            # archived id, == the original) AND user_id. Guarded for a pre-042 DB.
-            try:
-                with _savepoint(db):
-                    db.execute(f"DELETE FROM memory_archive WHERE id IN ({placeholders})", item_ids)
-                    db.execute(f"DELETE FROM memory_archive WHERE user_id = {_p}", (user_id,))
-            except Exception:
-                pass  # memory_archive absent (pre-042) — nothing archived to erase
-            # Hard-delete the items themselves
-            db.execute(f"DELETE FROM memory_items WHERE user_id = {_p}", (user_id,))
-
-        try:
-            db.execute(
-                "INSERT INTO gdpr_requests (id, subject_id, request_type, status, items_affected, completed_at) "
-                f"VALUES ({_p}, {_p}, 'forget', 'completed', {_p}, {_d.now()})",
-                (req_id, user_id, total_deleted),
+        if user_id:
+            _gdpr_try(
+                db,
+                f"DELETE FROM m3_lg_writes WHERE (thread_id, checkpoint_ns, checkpoint_id) IN ({_LG_OF_USER.format(p=_p)})",
+                (user_id,),
             )
-        except Exception:
-            pass  # gdpr_requests table may not exist yet
+            _gdpr_try(db, f"DELETE FROM m3_lg_checkpoints WHERE user_id = {_p}", (user_id,))
+        if item_ids:
+            db.execute(f"DELETE FROM memory_items WHERE id IN ({_d.placeholder(len(item_ids))})", item_ids)
+        db.execute(
+            f"UPDATE gdpr_requests SET status = 'completed', items_affected = {_p}, completed_at = {_d.now()} "
+            f"WHERE id = {_p}",
+            (len(item_ids), req_id),
+        )
 
     try:
         from audit_trail import write_audit_entry
 
-        audit_meta = {"request_id": req_id, "items_affected": total_deleted}
-        if compliance:
-            # Operator-supplied program-layer record (legal_basis, reason,
-            # verified_by, authorized_by, external_ref, …) — captured verbatim.
-            audit_meta["compliance"] = compliance
+        audit_meta = {"request_id": req_id, "items_affected": len(item_ids), "counts": counts, "compliance": compliance}
+        if not user_id:
+            audit_meta["memory_ids"] = item_ids
         if wiki_erasure_summary:
-            # Derived-content record: how many wiki syntheses were restricted
-            # because they quoted an erased member (Art. 17 derived-content trail).
             audit_meta["wiki_restricted"] = wiki_erasure_summary
         if wiki_ledger_summary:
-            # Cache-invalidation record: which cluster_run rows were flagged and had
-            # their membership cache flushed because they cached the erased id (G2).
             audit_meta["wiki_ledger_flush"] = wiki_ledger_summary
-        write_audit_entry(
-            action="gdpr_forget",
-            target_id=user_id,
-            metadata=audit_meta,
-        )
+        write_audit_entry(action="gdpr_forget", target_id=subject, metadata=audit_meta)
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for gdpr_forget: {e}")
 
-    return f"GDPR forget completed: {total_deleted} items hard-deleted for user_id={user_id} (request: {req_id})"
+    return {"step": "erased", "erased": True, "request_id": req_id, "items_erased": len(item_ids), "counts": counts}
 
 
 def memory_set_retention_impl(agent_id: str, max_memories: int = 1000, ttl_days: int = 0, auto_archive: int = 1) -> str:

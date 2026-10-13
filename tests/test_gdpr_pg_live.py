@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import use_backend
+from conftest import gdpr_erase, use_backend
 
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
@@ -99,13 +99,12 @@ def test_gdpr_export_on_pg(pg):
 
 
 def test_gdpr_forget_on_pg(pg):
-    import memory_maintenance as mm
 
     uid = f"subj-{uuid.uuid4()}"
     _seed(pg, uid, 4)
     try:
-        out = mm.gdpr_forget_impl(uid)
-        assert "4" in out or "forget" in out.lower()  # tolerant of message shape
+        out = gdpr_erase(user_id=uid)
+        assert out["items_erased"] == 4, out
         # All the user's memory_items must be hard-deleted.
         with pg.connection() as c:
             cur = c.cursor()

@@ -98,6 +98,9 @@ _SHARED_CORE_TABLES = {
     # per-backend.)
     "sync_watermarks",
     "sync_locks",
+    # The LangGraph checkpointer's tables, migration-owned since 054 / pg_063.
+    "m3_lg_checkpoints",
+    "m3_lg_writes",
 }
 
 

@@ -8,7 +8,7 @@ storage backend) and runs as a **windowless background service** on
 
 > **Loopback-only, no authentication.** The dashboard binds to `127.0.0.1` and
 > is intended for local, single-user use. It can read *and mutate* memory
-> (edit, soft/hard-delete, GDPR export/forget), so **do not expose it to a
+> (edit, soft-delete, GDPR export/erasure), so **do not expose it to a
 > network** without putting your own authentication in front of it.
 
 ---
@@ -92,7 +92,11 @@ A curated, card-based view of memories and entities for browsing and curation.
 
 ### Conflict & Audit Log
 The memory history timeline: overrides, resolutions, contradictions, and
-soft/hard-delete — plus GDPR export/forget. All actions go through m3's
+soft-delete — plus GDPR export/forget. **Hard Delete (GDPR)** on a memory card is
+GDPR erasure (m3's only hard delete): it shows the erasure plan and a compliance
+form (legal basis and verified by, both required); submitting confirms it via
+`gdpr_forget`. The GDPR panel's **Purge User Records** runs the same two steps for
+a whole data subject. All actions go through m3's
 backend-agnostic core, so they behave identically on any storage backend.
 
 ### System Health

@@ -1,8 +1,8 @@
 ---
 tool: bin/curator_apply.py
-sha1: c54d6398eba3
-mtime_utc: 2026-10-10T21:05:17.189248+00:00
-generated_utc: 2026-10-10T21:05:29.434350+00:00
+sha1: efe41ed8d799
+mtime_utc: 2026-10-13T00:31:44.128041+00:00
+generated_utc: 2026-10-13T00:36:58.879304+00:00
 private: false
 ---
 
@@ -34,7 +34,7 @@ treated as a no-op):
     {
         # memory.db plan
         "delete":   ["<uuid>", ...]                          # soft delete
-        "delete_hard": ["<uuid>", ...]                       # cascade delete
+        "delete_hard": ["<uuid>", ...]                       # soft delete + notice (hard is GDPR-only)
         "link":     [{"from_id": ..., "to_id": ...,
                       "relationship_type": "related"}, ...]
         "update":   [{"id": ..., "importance": 0.9, ...}, ...]
@@ -53,7 +53,7 @@ the boundary; per-section errors surface in the result.
 
 ## Entry points
 
-- `def main()` (line 354)
+- `def main()` (line 358)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -89,7 +89,7 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 280)
+- `sqlite3.connect()  → `db_path`` (line 284)
 
 
 ---

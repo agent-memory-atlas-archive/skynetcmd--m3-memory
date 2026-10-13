@@ -390,7 +390,7 @@ Always-on: when `metadata.temporal_anchors` is supplied, resolved ISO dates are 
 | Memory CRUD | 1-5 | Write (embed/no-embed), get, update, scoping, session auto-expire |
 | Search | 4, 20 | Hybrid FTS+semantic, scope filtering, semantic fallback |
 | Conversations | 6-7 | Start, append, messages ordering, search, relationship creation |
-| Delete | 8-9 | Soft-delete (recoverable), hard-delete (cascade to embeddings, relationships, sync queue) |
+| Delete | 8-9 | Soft-delete (recoverable); `hard=true` stays soft (hard delete is GDPR-only) |
 | Sync | 10, 12-14, 16-18 | PostgreSQL delta sync, conflict schema, sync_status |
 | Integrity & Safety | 15, 25-28, 34-35 | Content hash (SHA-256), FTS sanitization, audit trail, tamper detection, poisoning rejection, schema validation |
 | Knowledge Graph | 21-24, 26 | History events, link creation, duplicate rejection, graph traversal, contradiction detection |
