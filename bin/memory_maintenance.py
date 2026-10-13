@@ -573,7 +573,7 @@ def _clamp_feedback_window(minutes: int) -> int:
 
 
 def memory_restore_impl(memory_id=None, reason=None, dry_run=True, limit=1000):
-    """Bring back memories an AUTONOMOUS pass removed. Never user deletions.
+    """Bring back memories an AUTONOMOUS pass soft-deleted. Never user deletions.
 
     ⚠ WHY THIS EXISTS. Until now a background sweep soft-deleted every memory
     under an importance threshold: 5,001 of them, all stamped
@@ -1130,7 +1130,10 @@ def memory_lifecycle_summary_impl(window_days: int = 7, top_n: int = 5) -> dict:
 
 
 def _enforce_retention_policies(db):
-    """Enforce per-agent memory limits and TTLs from agent_retention_policies table."""
+    """Enforce per-agent memory limits and TTLs from agent_retention_policies table.
+
+    Both soft-delete (is_deleted = 1); max-count excess is also archived first
+    when the policy's auto_archive is set. Rows are kept and recoverable."""
     from memory.backends import dialect as _dialect
     from memory.db import savepoint as _savepoint
 
@@ -1336,7 +1339,7 @@ def memory_maintenance_impl(
         # Low-importance memories older than 30 days: SURFACED, NOT DELETED.
         #
         # ⚠ THIS PASS USED TO SOFT-DELETE. It selected `importance < 0.05` and set
-        # is_deleted = 1 on every match -- 5,001 memories were removed this way
+        # is_deleted = 1 on every match -- 5,001 memories were soft-deleted this way
         # before the behaviour was changed. An autonomous background sweep does
         # not get to decide a deletion; forgetting is deranking, and removal is a
         # decision a human or an explicitly-invoked tool makes.

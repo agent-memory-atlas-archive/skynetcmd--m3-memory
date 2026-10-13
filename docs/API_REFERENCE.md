@@ -215,15 +215,15 @@ Re-apply redaction to existing chat_log rows.
 ## Lifecycle & Maintenance
 
 ### `memory_maintenance`
-Run decay, expiry purge, orphan pruning, auto-archival, and retention enforcement.
+Run decay, expiry archival (expired rows are copied to `memory_archive`, then leave the live store), orphan-embedding pruning, and retention enforcement (soft-delete).
 - **Args**: `decay` (bool), `purge_expired` (bool), `prune_orphan_embeddings` (bool)
 
 ### `memory_dedup`
-Find and optionally remove near-duplicate memories.
+Find and optionally soft-delete (kept and recoverable) near-duplicate memories.
 - **Args**: `threshold` (float, default 0.92), `dry_run` (bool, default true)
 
 ### `memory_consolidate`
-Merge groups of old memories into LLM-generated summaries.
+Merge groups of old memories into LLM-generated summaries (sources are soft-deleted and linked via `consolidates`).
 - **Args**: `type_filter` (str), `agent_filter` (str), `threshold` (int)
 
 ### `memory_set_retention`

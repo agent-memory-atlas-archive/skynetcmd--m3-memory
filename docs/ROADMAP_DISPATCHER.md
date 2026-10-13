@@ -235,7 +235,7 @@ are wrong for the same underlying reason: each is somebody else's space.
   lowers importance and sets `valid_to` on content it judges ephemeral —
   explicitly transient ids, status snapshots and tool-result-only JSON, which is
   precisely the shape of machine deliberation — and the curation path can
-  hard-delete rows. A queue pruned against a target that later decays leaves a
+  soft-delete rows (prune, dedup), taking them out of retrieval. A queue pruned against a target that later decays leaves a
   pointer to nothing, and the failure is silent.
 
 So: two tables, one store. `notifications` holds lightweight delivery state and
@@ -248,7 +248,7 @@ cross-store dangling-reference problem disappears instead of being managed.
 The name matters more than it looks. `chat_log` is already load-bearing in two
 different ways — a table family (`chat_log_items`, …) and a row-type value that
 `chatlog_decay` scopes every query to — so a dispatch table named `*_chatlog`
-would sit one careless `LIKE` away from a curation pass that hard-deletes rows.
+would sit one careless `LIKE` away from a curation pass that soft-deletes rows.
 `deliberation_log` names the content and cannot be mistaken for user chat by a
 human or a pattern match.
 

@@ -299,8 +299,8 @@ entities.
 | Typo, metadata, or refresh fix on an existing memory | `memory_update` |
 | Need deeper understanding of connections | `memory_graph` |
 | Session start / agent register returns refresh hint | `memory_refresh_queue` |
-| User asks to forget a specific memory | `memory_delete` |
-| User asks to erase ALL their data | `gdpr_forget` (hard-deletes everything for that `user_id`) |
+| User asks to forget a specific memory | `memory_delete` (soft-deletes: kept and recoverable) |
+| User asks to erase ALL their data | `gdpr_forget` (hard-deletes everything for that `user_id`; the GDPR erasure path) |
 | Need full context on a specific memory | `memory_get` or `memory_suggest` |
 | Memory seems cluttered or inconsistent | Trust the Autonomous Cognitive Loop to resolve |
 
@@ -439,20 +439,20 @@ Recommended as a safer alternative to manual `adaptive_k` tuning.
 
 | Tool | When to Use |
 |------|-------------|
-| `memory_maintenance()` | Run decay, expiry purge, orphan pruning, auto-archival, retention enforcement. Call periodically or when system feels sluggish. |
+| `memory_maintenance()` | Run decay, expiry archival (expired rows are copied to `memory_archive`, then leave the live store), orphan-embedding pruning, retention enforcement (soft-delete). Call periodically or when system feels sluggish. |
 | `memory_dedup(threshold, dry_run)` | Find near-duplicate memories. Use `dry_run=True` first to preview. |
 | `memory_consolidate(type_filter, agent_filter, threshold)` | Merge old memories of the same type into LLM-generated summaries. Use when a category has too many items. |
 | `memory_set_retention(agent_id, max_memories, ttl_days)` | Set per-agent retention limits. Enforced automatically by `memory_maintenance`. |
 | `memory_feedback(memory_id, feedback)` | One memory, one verdict. `useful` raises importance, `misleading` lowers it, `not_useful` records a retrieval miss without changing importance. For a whole result set, use `memory_grade` instead. |
 | `memory_grade(grades, window_minutes)` | **Grade a result set after answering** — see below. |
 | `memory_feedback_stats()` | In-window vs. out-of-window grade counts. Read this before widening the feedback window. |
-| `memory_restore(memory_id, reason, dry_run)` | Bring back memories an *autonomous* pass removed. Refuses deliberate deletions. `dry_run=True` by default. |
+| `memory_restore(memory_id, reason, dry_run)` | Bring back memories an *autonomous* pass soft-deleted. Refuses deliberate deletions. `dry_run=True` by default. |
 
 #### Grading what you actually used
 
 `memory_maintenance` no longer archives low-importance memories — low-value
-memories are deranked, not removed. (Expiry purges and per-agent retention
-limits still delete.) What decides "low-value" is partly **you**: whether a
+memories are deranked, not removed. (Rows past their `expires_at` are archived
+and leave the live store; per-agent retention limits soft-delete.) What decides "low-value" is partly **you**: whether a
 retrieved memory actually contributed to your answer.
 
 **Call `memory_grade` after you answer, not while you read.** Grading at

@@ -67,7 +67,7 @@ The real tools:
    and a `supersedes` edge recorded) — not `memory_delete` + re-add. History stays
    auditable via `memory_history`.
 3. **Pin protects against aging, not correction.** `memory_pin` exempts a memory
-   from decay/expiry/retention purges — but a pinned memory can STILL be
+   from decay, expiry archival and retention soft-deletes — but a pinned memory can STILL be
    superseded when it becomes wrong. Pin means "don't let this rot," not "never
    update this."
 4. **Scope deliberately.** Memories carry a `scope` (`agent`/`session`/`user`/`org`)

@@ -948,7 +948,7 @@ def _set_pinned(id, val) -> str:
 
 
 def memory_pin_impl(id: str) -> str:
-    """Pin a memory: exempt it from decay, expiry, and retention purges.
+    """Pin a memory: exempt it from decay, expiry archival, and retention soft-deletes.
     Accepts either a 36-char UUID or an 8-char prefix (see memory_get_impl)."""
     return _set_pinned(id, 1)
 

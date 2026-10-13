@@ -46,7 +46,9 @@ require `MCP_PROXY_ALLOW_DESTRUCTIVE=1` whether reached directly or via `m3_call
 For low-stakes cleanup, prefer the **non-destructive** alternative rather than
 enabling destructive ops — e.g. `memory_supersede` closes a memory's validity and
 drops it from default search without hard-deleting it (it stays retrievable by id /
-`as_of`). Only set the env flag when you genuinely mean to hard-delete.
+`as_of`). Only set the env flag when you genuinely mean to delete: `memory_delete`
+soft-deletes by default (kept and recoverable); `gdpr_forget` is the GDPR erasure
+and hard-deletes.
 
 ### Q: I changed `bin/mcp_tool_catalog.py`. What else do I have to update?
 

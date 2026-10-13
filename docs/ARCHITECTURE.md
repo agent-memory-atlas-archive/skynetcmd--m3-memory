@@ -498,7 +498,7 @@ Both stores share one plan schema (an absent key is a no-op):
 | Store | Sections |
 |---|---|
 | memory | `delete` (soft), `delete_hard` (cascade), `link`, `update` |
-| chatlog | `decay`, `dedup` (keep/drop), `promote`, `prune` |
+| chatlog | `decay` (derank), `dedup` (keep; soft-delete drops), `promote` (copy), `prune` (soft-delete) |
 
 Errors never cross the boundary as exceptions — each section reports its own
 outcome, so a partial failure is visible rather than aborting the batch. Reached

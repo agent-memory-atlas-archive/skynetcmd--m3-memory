@@ -22,9 +22,11 @@ TOOLS: list[ToolSpec] = [
         description=(
             "Deterministically apply a chatlog.db curator plan in ONE call. "
             "No LLM in the loop. Plan sections: decay (True/dict to run "
-            "chatlog_decay), dedup (list of {keep_id, drop_ids}), promote "
-            "(list of {ids, target_type}), prune (list of {conversation_id, "
-            "reason}). Any section may be omitted. Returns structured per-"
+            "chatlog_decay; deranks, never deletes), dedup (list of {keep_id, "
+            "drop_ids}; drops are soft-deleted), promote (list of {ids, "
+            "target_type}; copies, source kept), prune (list of {conversation_id, "
+            "reason}; soft-deletes the conversation's turns). Any section may be "
+            "omitted. Returns structured per-"
             "section results + summary."
         ),
         parameters={

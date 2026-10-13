@@ -1806,9 +1806,9 @@ the policy is forward-going only.
 - **`memory_feedback_stats`** — the in-window and out-of-window grade counts, so
   the feedback window can be tuned on evidence rather than guessed.
   **Affected:** operators tuning the feedback window · **Action:** none · **Data status:** none — a new read-only tool.
-- **`memory_restore`** — brings back memories an autonomous pass removed. It
+- **`memory_restore`** — brings back memories an autonomous pass soft-deleted. It
   refuses to touch deliberate deletions.
-  **Affected:** installs where the earlier autonomous pass soft-deleted memories · **Action:** run `memory_restore` to recover them · **Data status:** **recovery available.** Memories removed by the old autonomous pass can be brought back; it refuses to touch deliberate deletions.
+  **Affected:** installs where the earlier autonomous pass soft-deleted memories · **Action:** run `memory_restore` to recover them · **Data status:** **recovery available.** Memories soft-deleted by the old autonomous pass can be brought back; it refuses to touch deliberate deletions.
 - **`importance_raw`**, the undecayed baseline, and `apply_decay=False` for
   point-in-time and audit reads. Decay overwrites importance in place, so
   without it a faded memory carried no record of its original weight.
@@ -1837,11 +1837,11 @@ the policy is forward-going only.
   which restores the previous output byte-for-byte. Tools called over MCP are
   unaffected — their default is unchanged.
   **Affected:** ⚠ **breaking for scripts** — thirteen listing and search tools that previously printed a rendered summary · **Action:** update any script that parsed the rendered text to consume the `{count, items}` JSON · **Data status:** none — an output-format change.
-- **An autonomous maintenance pass no longer deletes.** It previously
+- **An autonomous maintenance pass no longer soft-deletes.** It previously
   soft-deleted every memory under an importance threshold older than 30 days.
   Forgetting is now deranking; removal is a person's decision. The pass reports
   candidates instead, and `memory_restore` recovers what earlier passes took.
-  **Affected:** all installs · **Action:** upgrade; use `memory_restore` to recover anything the old pass removed · **Data status:** **recoverable loss.** The previous pass soft-deleted every memory under an importance threshold older than 30 days; forgetting is now deranking, and the removals are restorable.
+  **Affected:** all installs · **Action:** upgrade; use `memory_restore` to recover anything the old pass soft-deleted · **Data status:** **recoverable loss.** The previous pass soft-deleted every memory under an importance threshold older than 30 days; forgetting is now deranking, and the removals are restorable.
 - **`memory_feedback` honours every verdict it advertises.** `not_useful` and
   `misleading` were accepted, reported as applied, and discarded. The three now
   act as the distinct claims they are: `useful` raises importance, `misleading`
@@ -5743,7 +5743,7 @@ See [ROADMAP.md](docs/ROADMAP.md) for the broader observability plan.
   bitemporal, confidence-scored, self-maintaining knowledge base to the real
   schema columns and functions, plus a README "Memory model at a glance".
 - **Pinned / protected memories.** `memory_pin` / `memory_unpin` exempt a
-  memory from decay, expiry, and retention purges ("this is canon") — schema
+  memory from decay, expiry archival, and retention soft-deletes ("this is canon") — schema
   migration `037_pinned`.
 - **Opt-in cross-agent isolation.** Passing `requesting_agent` to the search
   tools (or `M3_ENFORCE_AGENT_ISOLATION=1`) restricts a search to the caller's

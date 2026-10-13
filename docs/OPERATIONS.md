@@ -98,8 +98,8 @@ memory_unpin(id=<uuid-or-8char-prefix>)
 |---|---|
 | Importance decay | exempt — importance held steady |
 | Confidence decay-toward-neutral | exempt |
-| Expiry purge (`expires_at`) | exempt — never purged |
-| Retention TTL / max-count purge | exempt — never auto-archived |
+| Expiry archival (`expires_at`) | exempt — never archived out of the live store |
+| Retention TTL / max-count soft-delete | exempt — never soft-deleted or auto-archived |
 
 **What a pin does *not* protect against — correction by new truth:**
 
@@ -124,7 +124,7 @@ Run maintenance deliberately rather than only on the background cognitive loop:
   a dry run to see what would merge before committing.
 - **`memory_consolidate`** — merge overlapping notes into a single stronger memory.
 - **`memory_maintenance`** — the lifecycle pass: importance decay, confidence
-  reinforcement, expiry purge, retention enforcement. Pinned rows (§4) are
+  reinforcement, expiry archival, retention enforcement (soft-delete). Pinned rows (§4) are
   skipped by every stage.
 
 Curation subagents exist for larger passes (`curate-memory`, `curate-chatlog`)

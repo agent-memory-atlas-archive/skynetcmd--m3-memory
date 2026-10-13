@@ -47,9 +47,9 @@ _Write, retrieve, version, and reconcile long-term agent memory._
 | `memory_link` | Creates a directional link between two memory items. | default-allowed |
 | `memory_link_bulk` | Create many memory_relationships rows in one transaction per chunk. | default-allowed |
 | `memory_maintenance` | Runs maintenance tasks on the memory store. | ⚠️ opt-in required |
-| `memory_pin` | Pin a memory to exempt it from decay, expiry, and retention purges. | default-allowed |
+| `memory_pin` | Pin a memory to exempt it from decay, expiry archival, and retention soft-deletes. | default-allowed |
 | `memory_refresh_queue` | List memories whose refresh_on timestamp has arrived and need review. | default-allowed |
-| `memory_restore` | Restore memories that an AUTONOMOUS maintenance pass removed. | ⚠️ opt-in required |
+| `memory_restore` | Restore memories that an AUTONOMOUS maintenance pass soft-deleted. | ⚠️ opt-in required |
 | `memory_search` | Search across memory items using semantic similarity or keyword matching. | default-allowed |
 | `memory_search_multi_db` | Search across multiple SQLite databases (e.g. | ⚠️ opt-in required |
 | `memory_search_routed` | Temporal-aware routed retrieval. | ⚠️ opt-in required |

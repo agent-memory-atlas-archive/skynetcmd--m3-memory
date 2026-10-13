@@ -903,7 +903,7 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "decay": {"type": "boolean", "description": "Apply importance decay.", "default": True},
-                "purge_expired": {"type": "boolean", "description": "Delete expired items.", "default": True},
+                "purge_expired": {"type": "boolean", "description": "Archive expired items to memory_archive, then remove them from the live store.", "default": True},
                 "prune_orphan_embeddings": {
                     "type": "boolean",
                     "description": "Remove orphaned embeddings.",
@@ -1021,11 +1021,11 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_restore",
         description=(
-            "Restore memories that an AUTONOMOUS maintenance pass removed. Until "
+            "Restore memories that an AUTONOMOUS maintenance pass soft-deleted. Until "
             "2026-09-19 a background sweep soft-deleted every memory under an "
             "importance threshold (5,001 of them, all stamped "
             "archive_reason='low_importance'); that sweep now only reports "
-            "candidates. Only autonomously-removed memories are eligible — a "
+            "candidates. Only autonomously soft-deleted memories are eligible — a "
             "deliberate user deletion stays deleted. Restores in place (the live "
             "row is still there with is_deleted=1) at the archive-candidate "
             "importance, so the memory is searchable again but still ranked low. "
@@ -1253,10 +1253,10 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_pin",
         description=(
-            "Pin a memory to exempt it from decay, expiry, and retention "
-            "purges. Pinned memories are never auto-archived, never "
-            "importance/confidence-decayed, and never expiry- or "
-            "TTL-purged by memory_maintenance — use for facts that must "
+            "Pin a memory to exempt it from decay, expiry archival, and "
+            "retention soft-deletes. Pinned memories are never auto-archived, never "
+            "importance/confidence-decayed, and never expiry-archived or "
+            "TTL-soft-deleted by memory_maintenance — use for facts that must "
             "survive indefinitely regardless of access recency."
         ),
         parameters={

@@ -21,8 +21,8 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `memory_grade` | Memory Operations | Grade retrieved memories AFTER using them — the signal that separates USED from merely RETRIEVED. Call this ONCE after answering, with a verdict per memory you were shown: grades=[{memory_id, verdict}] where verdict is 'helpful' or 'unhelpful'. Do NOT grade at retrieval time: rating a memory you have not used yet is relevance-on-sight, which is roughly what the ranker already computed. Counts are stored separately (never a net) so a contested memory stays distinguishable from an ignored one. Only accepted while the memory was retrieved within the feedback window (default 5 minutes); a late grade is reported as applied=false with a reason rather than silently dropped. |
 | `memory_lifecycle_summary` | Memory Operations | Windowed summary of lifecycle & contradiction activity over the last `window_days` days: counts of create/update/delete/supersede events, corroboration vs contradiction events, and the most-revised / most-contradicted memories. Read-only aggregate over memory_history (mig 009) + memory_corroborations (mig 036). Answers 'what did the memory system do to itself?' and 'we updated this belief N times'. Degrades gracefully on pre-036 DBs (contradiction counts = 0). |
 | `memory_link_bulk` | Memory Operations | Create many memory_relationships rows in one transaction per chunk. Use for curation passes adding many LINK edges (device pairs, supersession chains, etc.). Validates existence of every referenced memory_id; skips duplicates without raising. Returns a structured {created, skipped_missing, skipped_duplicate, total} dict. |
-| `memory_pin` | Memory Operations | Pin a memory to exempt it from decay, expiry, and retention purges. Pinned memories are never auto-archived, never importance/confidence-decayed, and never expiry- or TTL-purged by memory_maintenance — use for facts that must survive indefinitely regardless of access recency. |
-| `memory_restore` | Memory Operations | Restore memories that an AUTONOMOUS maintenance pass removed. Until 2026-09-19 a background sweep soft-deleted every memory under an importance threshold (5,001 of them, all stamped archive_reason='low_importance'); that sweep now only reports candidates. Only autonomously-removed memories are eligible — a deliberate user deletion stays deleted. Restores in place (the live row is still there with is_deleted=1) at the archive-candidate importance, so the memory is searchable again but still ranked low. Defaults to dry_run=True. |
+| `memory_pin` | Memory Operations | Pin a memory to exempt it from decay, expiry archival, and retention soft-deletes. Pinned memories are never auto-archived, never importance/confidence-decayed, and never expiry-archived or TTL-soft-deleted by memory_maintenance — use for facts that must survive indefinitely regardless of access recency. |
+| `memory_restore` | Memory Operations | Restore memories that an AUTONOMOUS maintenance pass soft-deleted. Until 2026-09-19 a background sweep soft-deleted every memory under an importance threshold (5,001 of them, all stamped archive_reason='low_importance'); that sweep now only reports candidates. Only autonomously soft-deleted memories are eligible — a deliberate user deletion stays deleted. Restores in place (the live row is still there with is_deleted=1) at the archive-candidate importance, so the memory is searchable again but still ranked low. Defaults to dry_run=True. |
 | `memory_search` | Memory Operations | Search across memory items using semantic similarity or keyword matching. Filter by user_id and scope for isolation. |
 | `memory_search_multi_db` | Memory Operations | Search across multiple SQLite databases (e.g. agent_memory.db AND agent_chatlog.db) in one call. Each DB is searched independently via hybrid FTS5+vector search and the top results are merged by score. Returns the global top-K with each item tagged with its source database. Caveat: FTS5 BM25 scores depend on per-DB corpus stats so cross-DB ranks are approximate; works well for small fan-out (typically 2-5 DBs sharing the same embed_model). |
 | `memory_search_routed` | Memory Operations | Temporal-aware routed retrieval. Routes temporal queries to verbatim search at k+temporal_k_bump; non-temporal queries to (optionally fact-fused) max-kind search at k. Pass fact_variant for two-tier fact-fusion. Optional graph_depth and expand_sessions add post-retrieval neighbor expansion. |
@@ -83,7 +83,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `chatlog_status` | Chat Log System | One-call health summary of the chat log subsystem: mode, DB paths, row counts, queue depth, spill files, embed backlog, hook timestamps, redaction state, warnings. |
 | `chatlog_write` | Chat Log System | Append one chat turn to the chat log DB. Provenance (host_agent, provider, model_id, conversation_id) is required. Writes are async-queued — returns the row id immediately. |
 | `chatlog_write_bulk` | Chat Log System | Bulk-append N chat turns. Each item needs the same required fields as chatlog_write. |
-| `curate_chatlog_apply` | Chat Log System | Deterministically apply a chatlog.db curator plan in ONE call. No LLM in the loop. Plan sections: decay (True/dict to run chatlog_decay), dedup (list of {keep_id, drop_ids}), promote (list of {ids, target_type}), prune (list of {conversation_id, reason}). Any section may be omitted. Returns structured per-section results + summary. |
+| `curate_chatlog_apply` | Chat Log System | Deterministically apply a chatlog.db curator plan in ONE call. No LLM in the loop. Plan sections: decay (True/dict to run chatlog_decay; deranks, never deletes), dedup (list of {keep_id, drop_ids}; drops are soft-deleted), promote (list of {ids, target_type}; copies, source kept), prune (list of {conversation_id, reason}; soft-deletes the conversation's turns). Any section may be omitted. Returns structured per-section results + summary. |
 | `files_corpus_create` | Files Memory | Register a new corpus with optional default overrides. `default=True` marks this corpus as the installation's default (clears the flag on any prior default in the same transaction). |
 | `files_corpus_delete` | Files Memory | Delete a corpus's settings row. Cascade=True also deletes every file_node in the corpus -- DESTRUCTIVE. Without cascade, refuses when the corpus has file_nodes. |
 | `files_corpus_get` | Files Memory | Fetch a single corpus's settings + counts. |
@@ -311,7 +311,7 @@ Create many memory_relationships rows in one transaction per chunk. Use for cura
 
 ### `memory_pin`
 
-Pin a memory to exempt it from decay, expiry, and retention purges. Pinned memories are never auto-archived, never importance/confidence-decayed, and never expiry- or TTL-purged by memory_maintenance — use for facts that must survive indefinitely regardless of access recency.
+Pin a memory to exempt it from decay, expiry archival, and retention soft-deletes. Pinned memories are never auto-archived, never importance/confidence-decayed, and never expiry-archived or TTL-soft-deleted by memory_maintenance — use for facts that must survive indefinitely regardless of access recency.
 
 **Source:** mcp_tool_catalog.py
 
@@ -326,7 +326,7 @@ Pin a memory to exempt it from decay, expiry, and retention purges. Pinned memor
 
 ### `memory_restore`
 
-Restore memories that an AUTONOMOUS maintenance pass removed. Until 2026-09-19 a background sweep soft-deleted every memory under an importance threshold (5,001 of them, all stamped archive_reason='low_importance'); that sweep now only reports candidates. Only autonomously-removed memories are eligible — a deliberate user deletion stays deleted. Restores in place (the live row is still there with is_deleted=1) at the archive-candidate importance, so the memory is searchable again but still ranked low. Defaults to dry_run=True.
+Restore memories that an AUTONOMOUS maintenance pass soft-deleted. Until 2026-09-19 a background sweep soft-deleted every memory under an importance threshold (5,001 of them, all stamped archive_reason='low_importance'); that sweep now only reports candidates. Only autonomously soft-deleted memories are eligible — a deliberate user deletion stays deleted. Restores in place (the live row is still there with is_deleted=1) at the archive-candidate importance, so the memory is searchable again but still ranked low. Defaults to dry_run=True.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1541,7 +1541,7 @@ Bulk-append N chat turns. Each item needs the same required fields as chatlog_wr
 
 ### `curate_chatlog_apply`
 
-Deterministically apply a chatlog.db curator plan in ONE call. No LLM in the loop. Plan sections: decay (True/dict to run chatlog_decay), dedup (list of {keep_id, drop_ids}), promote (list of {ids, target_type}), prune (list of {conversation_id, reason}). Any section may be omitted. Returns structured per-section results + summary.
+Deterministically apply a chatlog.db curator plan in ONE call. No LLM in the loop. Plan sections: decay (True/dict to run chatlog_decay; deranks, never deletes), dedup (list of {keep_id, drop_ids}; drops are soft-deleted), promote (list of {ids, target_type}; copies, source kept), prune (list of {conversation_id, reason}; soft-deletes the conversation's turns). Any section may be omitted. Returns structured per-section results + summary.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2159,7 +2159,7 @@ Runs maintenance tasks on the memory store.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `decay` | `boolean` | No | Apply importance decay. | `True` |
-| `purge_expired` | `boolean` | No | Delete expired items. | `True` |
+| `purge_expired` | `boolean` | No | Archive expired items to memory_archive, then remove them from the live store. | `True` |
 | `prune_orphan_embeddings` | `boolean` | No | Remove orphaned embeddings. | `True` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |

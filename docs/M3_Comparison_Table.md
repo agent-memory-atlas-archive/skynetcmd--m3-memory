@@ -163,7 +163,7 @@ For the developer-tool decision (Mem0, Letta, Zep, LangChain Memory), see the [d
 
 **Why it matters:** Agents make mistakes. Without bitemporal logic and undo, every error becomes permanent or requires destructive overwrites that lose context.
 
-**m3 standing:** SOTA — full bitemporal model. There is no one-call undo: a superseded fact is closed (not erased), stays queryable via `as_of`, and every change is recorded in `memory_history`; `memory_restore` brings back memories removed by autonomous maintenance.
+**m3 standing:** SOTA — full bitemporal model. There is no one-call undo: a superseded fact is closed (not erased), stays queryable via `as_of`, and every change is recorded in `memory_history`; `memory_restore` brings back memories soft-deleted by autonomous maintenance.
 
 **Cohort context:** Memento offers Merkle-style audit (different shape, also strong). Mem0 has no undo; mistakes there are sticky.
 

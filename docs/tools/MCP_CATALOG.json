@@ -2579,7 +2579,7 @@
       "destructive": false,
       "domain": "memory",
       "name": "memory_pin",
-      "summary": "Pin a memory to exempt it from decay, expiry, and retention purges."
+      "summary": "Pin a memory to exempt it from decay, expiry archival, and retention soft-deletes."
     },
     {
       "args": [
@@ -2645,7 +2645,7 @@
       "destructive": true,
       "domain": "memory",
       "name": "memory_restore",
-      "summary": "Restore memories that an AUTONOMOUS maintenance pass removed."
+      "summary": "Restore memories that an AUTONOMOUS maintenance pass soft-deleted."
     },
     {
       "args": [
