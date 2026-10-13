@@ -100,6 +100,11 @@ _SLIM: dict[str, tuple[tuple[str, ...], str]] = {
 # no benefit. A tool whose only justification is saving tokens, that costs more
 # tokens, has no reason to exist.
 
+# Behaviour a slim variant fixes for its shared impl (spec.fixed_args). The search
+# handle `grade_with` costs a few dozen tokens per call; the slim search omits it
+# (memory credit loop part A, user decision 2026-10-12, Q4).
+_FIXED: dict[str, dict[str, object]] = {"memory_search": {"grade_with": False}}
+
 _SOURCES = {t.name: t for t in (*_MEMORY_TOOLS, *_CHATLOG_TOOLS)}
 
 
@@ -152,6 +157,7 @@ def _slim_of(name: str) -> ToolSpec:
         validators=src.validators,
         default_allowed=src.default_allowed,
         inject_agent_id=src.inject_agent_id,
+        fixed_args={**src.fixed_args, **_FIXED.get(name, {})},
     )
 
 

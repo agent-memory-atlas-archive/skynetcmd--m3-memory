@@ -304,6 +304,24 @@ def test_a_fresh_grade_lands_on_pg(pg):
     assert _get(mid, "helpful_count") == 1
 
 
+def test_the_daily_grading_record_accumulates_on_pg(pg):
+    """Credit loop part A: memory_grade_daily is written through the dialect's
+    on_conflict_add (an additive upsert), so a second grade adds to today's row."""
+    import memory_maintenance as MM
+
+    uid = f"dyn-{uuid.uuid4().hex[:8]}"
+    fresh = _write(uid, type="note", content="fresh-a", importance=0.5)
+    stale = _write(uid, type="note", content="stale-a", importance=0.5)
+    _set(fresh, last_accessed_at=dt.datetime.now(dt.UTC).isoformat())
+    _set(stale, last_accessed_at=(dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)).isoformat())
+    before = MM.memory_feedback_stats_impl()["today"]
+    MM.memory_grade_impl(grades=[{"memory_id": fresh, "verdict": "helpful"}])
+    MM.memory_grade_impl(grades=[{"memory_id": stale, "verdict": "helpful"}])
+    today = MM.memory_feedback_stats_impl()["today"]
+    assert today["accepted"] - before["accepted"] == 1
+    assert today["rejected_stale"] - before["rejected_stale"] == 1
+
+
 def test_a_stale_grade_is_rejected_on_pg(pg):
     import memory_maintenance as MM
 

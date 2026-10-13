@@ -1437,7 +1437,7 @@
     },
     "memory_search_impl": {
       "kind": "async_function",
-      "signature": "(query, k=8, type_filter='', agent_filter='', search_mode='hybrid', include_scratchpad=False, user_id='', scope='', as_of='', explain=False, conversation_id='', recency_bias=0.0, adaptive_k=False, variant='', intent_hint='', mmr=True, requesting_agent='', as_records=False, _depth=0)",
+      "signature": "(query, k=8, type_filter='', agent_filter='', search_mode='hybrid', include_scratchpad=False, user_id='', scope='', as_of='', explain=False, conversation_id='', recency_bias=0.0, adaptive_k=False, variant='', intent_hint='', mmr=True, requesting_agent='', as_records=False, grade_with=True, _depth=0)",
       "value_repr": null
     },
     "memory_search_multi_db_impl": {

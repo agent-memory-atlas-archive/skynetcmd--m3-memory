@@ -141,6 +141,8 @@ def validate_args(spec: ToolSpec, args: dict) -> tuple[dict, str | None]:
             return args, result
         if isinstance(result, dict):
             args = result
+    if spec.fixed_args:
+        args = {**args, **spec.fixed_args}
     return args, None
 
 

@@ -424,6 +424,16 @@ the policy is forward-going only.
   **Affected:** installs that enable an autonomous pass · **Action:** none;
   prefer `[autonomy]` in `m3_config.toml` · **Data status:** none.
 
+- **Agents are asked to grade the memories they used, and grading is measured.**
+  The server instructions ask an agent to call `memory_grade` (through `m3_call`)
+  after answering. `memory_search` ends its results with `grade_with: [...]`, the
+  ids it showed (`memory_search_slim` omits it). Graded verdicts are recorded per
+  UTC day: `memory_feedback_stats` adds `today` and `last_7_days`, and
+  `memory_lifecycle_summary` adds a `grading` block. Ranking is unchanged.
+  **Affected:** all installs (migration 058 / pg_065 adds a small table) ·
+  **Action:** none · **Data status:** new table `memory_grade_daily`; no
+  existing data changed.
+
 - **Three more settings move to `m3_config.toml`; `M3Context.get_setting` is
   deprecated.** `identity.default_user_id` (legacy `M3_DEFAULT_USER_ID`, the
   LangChain / mem0 tenancy default) and `db.postgres.pg_restore` (legacy

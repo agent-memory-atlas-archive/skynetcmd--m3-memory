@@ -2650,6 +2650,7 @@ async def memory_search_impl(
     mmr=True,
     requesting_agent="",
     as_records=False,
+    grade_with=True,
     _depth=0,
 ):
     _resolve_mc_callbacks()  # bind memory_core callbacks on first call
@@ -2720,6 +2721,11 @@ async def memory_search_impl(
 
         lines.append(f"Content:\n{content}\n")
     lines.append("-" * 40)
+    # The ids shown, so the agent can grade them after answering without
+    # re-collecting them (memory credit loop part A). *_slim omits it.
+    _shown = [item["id"] for _s, item in ranked] if grade_with else None
+    if _shown:
+        lines.append("grade_with: " + json.dumps(_shown))
     # `ranked` is (score, item) pairs; the score is computed here and exists
     # nowhere else, so it must ride each record or a records caller loses the
     # ranking entirely. `_explanation` is included only when explain=True, the
@@ -2731,4 +2737,6 @@ async def memory_search_impl(
         if explain and "_explanation" in _item:
             _rec["explanation"] = _item["_explanation"]
         _items.append(_rec)
-    return _records.emit("\n".join(lines), _records.as_records_payload(_items, query=query), as_records)
+    return _records.emit(
+        "\n".join(lines), _records.as_records_payload(_items, query=query, grade_with=_shown), as_records
+    )

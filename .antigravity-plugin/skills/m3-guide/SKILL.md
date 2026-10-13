@@ -26,6 +26,10 @@ session boundary. Never degrade quietly to flat files.
 
 - **Search first.** `memory_search` before re-deriving anything about this user,
   project, or machine. A settled decision re-litigated is a bug reintroduced.
+- **Grade what you used.** After answering with retrieved memories, grade them
+  once: `m3_call("memory_grade", {"grades": [{"memory_id": "<id>", "verdict":
+  "helpful"}, ...]})` — `helpful` if you relied on it, `unhelpful` if it was shown
+  but did not help. `memory_search` lists the ids in `grade_with`.
 - **Write as you go.** If it took effort to learn and will matter later,
   `memory_write` it — decisions, corrections, runbooks, preferences.
 - **Update, don't duplicate.** Search before writing; prefer `memory_update` or

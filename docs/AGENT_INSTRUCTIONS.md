@@ -466,6 +466,12 @@ memory_grade(grades=[
 ])
 ```
 
+`memory_grade` is not in the startup tool set; call it through `m3_call`:
+`m3_call("memory_grade", {"grades": [...]})`. `memory_search` ends its results with
+`grade_with: [...]`, the ids it showed (`memory_search_slim` omits it to stay small).
+`memory_lifecycle_summary` reports a `grading` block, and `memory_feedback_stats`
+reports today's and the last 7 days' verdicts, which survive a restart.
+
 - **Bulk, one call per answer.** Ten memories is one call, not ten.
 - **Voluntary.** Low uptake means less reinforcement, never wrong
   reinforcement — so grade when you are confident and skip when you are not.

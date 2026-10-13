@@ -40,6 +40,12 @@ this user, project, or machine. If memory contradicts what you think you remembe
 from context, trust memory — context degrades across session boundaries, memory \
 does not.
 
+GRADE WHAT YOU USED. After answering with memories you retrieved, grade them \
+once: m3_call("memory_grade", {"grades": [{"memory_id": "<id>", "verdict": \
+"helpful"}, ...]}). helpful if you relied on it, unhelpful if it was shown but \
+did not help; memory_search lists the ids in grade_with. It is how m3 learns \
+which memories matter.
+
 WRITE AS YOU GO. Persist decisions, corrections, runbooks, and user preferences \
 with memory_write. Prefer updating or memory_supersede over creating a \
 near-duplicate.

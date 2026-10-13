@@ -163,6 +163,19 @@ class Dialect:
         assigns = ", ".join(f"{c} = excluded.{c}" for c in set_columns)
         return f"ON CONFLICT {conflict_target} DO UPDATE SET {assigns}"
 
+    def on_conflict_add(self, conflict_target: str, table: str, add_columns: list[str]) -> str:
+        """Trailing UPSERT clause: on conflict, ADD the would-be-inserted values to
+        the existing row's (a counter row: ``n = t.n + excluded.n``).
+
+        Both backends spell it ``ON CONFLICT (...) DO UPDATE SET c = t.c +
+        excluded.c`` (SQLite 3.24+, PostgreSQL 9.5+); the table name qualifies the
+        existing row. A backend with another spelling overrides this.
+        """
+        if not add_columns:
+            raise ValueError("on_conflict_add needs at least one column")
+        assigns = ", ".join(f"{c} = {table}.{c} + excluded.{c}" for c in add_columns)
+        return f"ON CONFLICT {conflict_target} DO UPDATE SET {assigns}"
+
     # -- time ----------------------------------------------------------------
     def now(self) -> str:
         """SQL expression for "current timestamp", for use inside statements.

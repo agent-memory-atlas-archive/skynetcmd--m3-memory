@@ -492,10 +492,48 @@ _FEEDBACK_WINDOW_CFG_TTL = 5.0
 _FEEDBACK_WINDOW_MINUTES_MAX = 1440
 _fb_window_cache: dict = {"ts": 0.0, "mtime": None, "minutes": None}
 
-# Rejection counter, process-local. Not persisted: this answers "is the window
-# too tight for THIS deployment's agents", which is a live operational question,
-# and a counter that survives restarts would blend old tuning with new.
+# Rejection counter, process-local: "is the window too tight for THIS process's
+# agents", a live operational question. The durable record is per UTC day in
+# memory_grade_daily (migration 058, credit loop part A): per day, so a tuning
+# change shows as a change between days instead of blending into one total.
 _FEEDBACK_WINDOW_REJECTIONS = {"accepted": 0, "rejected": 0}
+
+
+def _utc_day(days_ago: int = 0) -> str:
+    """A UTC date as YYYY-MM-DD (the memory_grade_daily key)."""
+    return (datetime.now(UTC).date() - timedelta(days=days_ago)).isoformat()
+
+
+def _record_grade_day(db, accepted: int, rejected: int) -> None:
+    """Add today's accepted / stale-rejected verdicts to memory_grade_daily."""
+    from memory.backends import dialect as _dialect
+
+    _d = _dialect()
+    _p = _d.param()
+    db.execute(
+        f"INSERT INTO memory_grade_daily (day, accepted, rejected_stale) VALUES ({_p}, {_p}, {_p}) "
+        + _d.on_conflict_add("(day)", "memory_grade_daily", ["accepted", "rejected_stale"]),
+        (_utc_day(), accepted, rejected),
+    )
+
+
+def _grade_days(db, window_days: int) -> dict:
+    """memory_grade_daily totals over the last ``window_days`` UTC days (today included)."""
+    from memory.backends import dialect as _dialect
+
+    _p = _dialect().param()
+    row = db.execute(
+        f"SELECT COALESCE(SUM(accepted), 0) AS a, COALESCE(SUM(rejected_stale), 0) AS r "
+        f"FROM memory_grade_daily WHERE day >= {_p}",
+        (_utc_day(window_days - 1),),
+    ).fetchone()
+    a, r = int(row["a"]), int(row["r"])
+    return {
+        "window_days": window_days,
+        "accepted": a,
+        "rejected_stale": r,
+        "rejection_rate": round(r / (a + r), 4) if a + r else 0.0,
+    }
 
 
 def _feedback_window_minutes(now: float | None = None) -> int:
@@ -767,6 +805,8 @@ def memory_grade_impl(grades=None, window_minutes=None):
                     f"UPDATE memory_items SET {col} = COALESCE({col}, 0) + 1 WHERE id IN ({cph})",
                     tuple(chunk),
                 )
+        if accepted or rejected:
+            _record_grade_day(db, len(accepted), len(rejected))
 
     _FEEDBACK_WINDOW_REJECTIONS["accepted"] += len(accepted)
     _FEEDBACK_WINDOW_REJECTIONS["rejected"] += len(rejected)
@@ -808,17 +848,22 @@ def memory_feedback_stats_impl():
     this the default would be untunable in practice (§5: a knob nobody can
     evaluate is not a knob).
 
-    Process-local and not persisted: it answers a live operational question, and
-    a counter surviving restarts would blend old tuning with new.
+    The top-level counts are this process's (a live question: is the window
+    right now?). ``today`` and ``last_7_days`` come from memory_grade_daily, so
+    they survive a restart (credit loop part A).
     """
     a = _FEEDBACK_WINDOW_REJECTIONS["accepted"]
     r = _FEEDBACK_WINDOW_REJECTIONS["rejected"]
     total = a + r
+    with _db() as db:
+        today, week = _grade_days(db, 1), _grade_days(db, 7)
     return {
         "ok": True,
         "accepted": a,
         "rejected_stale": r,
         "rejection_rate": round(r / total, 4) if total else 0.0,
+        "today": today,
+        "last_7_days": week,
         "window_minutes": _feedback_window_minutes(),
         "note": (
             "a high rejection rate means the window is too tight for this "
@@ -1060,6 +1105,7 @@ def memory_lifecycle_summary_impl(window_days: int = 7, top_n: int = 5) -> dict:
         "corroboration": {"corroborated": 0, "contradicted": 0},
         "top_contradicted": [],
         "most_revised": [],
+        "grading": {"graded_memories": 0, "helpful_total": 0, "unhelpful_total": 0},
     }
     from memory.db import tolerant_schema as _tolerant
 
@@ -1126,6 +1172,20 @@ def memory_lifecycle_summary_impl(window_days: int = 7, top_n: int = 5) -> dict:
                         (window_days, top_n),
                     )
                 ]
+
+        # Grading (memory credit loop part A): memories ever graded, the two counters
+        # (all time, never netted), and verdicts accepted / rejected in the window.
+        with _tolerant(db):
+            row = db.execute(
+                "SELECT COUNT(*) AS g, COALESCE(SUM(helpful_count), 0) AS h, "
+                "COALESCE(SUM(unhelpful_count), 0) AS u FROM memory_items "
+                "WHERE COALESCE(helpful_count, 0) + COALESCE(unhelpful_count, 0) > 0"
+            ).fetchone()
+            out["grading"].update(
+                graded_memories=int(row["g"]), helpful_total=int(row["h"]), unhelpful_total=int(row["u"])
+            )
+        with _tolerant(db):
+            out["grading"]["window"] = _grade_days(db, window_days)
     return out
 
 

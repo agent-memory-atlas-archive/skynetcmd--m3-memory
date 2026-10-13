@@ -7,8 +7,9 @@ the catalog/ subpackage split.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 from .lazy import LazyModuleProxy
 
@@ -160,3 +161,8 @@ class ToolSpec:
     # (GPU/batch/network) so they don't hit the fast-fail cap; a per-call
     # `timeout` arg still overrides this. <= 0 disables the timeout.
     timeout_s: float | None = None
+    # Arguments every call passes to impl, hidden from the schema and overriding the
+    # caller's: how a variant that shares its impl (a *_slim tool) varies behaviour
+    # without a second code path. Merged by dispatch.validate_args, the one choke
+    # point every call path (MCP, m3_call, CLI) goes through.
+    fixed_args: Mapping[str, Any] = field(default_factory=dict)

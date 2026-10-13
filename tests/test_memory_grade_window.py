@@ -286,6 +286,26 @@ def test_rejection_rate_is_measurable(store):
     assert stats["rejection_rate"] == pytest.approx(0.5)
 
 
+def test_the_grading_record_survives_a_restart(store):
+    """Credit loop part A: the process counter resets with the process; the daily
+    record in the store does not."""
+    mm.memory_grade_impl(grades=[{"memory_id": store(accessed_minutes_ago=0), "verdict": "helpful"}])
+    mm.memory_grade_impl(grades=[{"memory_id": store(accessed_minutes_ago=90), "verdict": "helpful"}])
+    mm._FEEDBACK_WINDOW_REJECTIONS.update({"accepted": 0, "rejected": 0})  # a restart
+    stats = mm.memory_feedback_stats_impl()
+    assert stats["accepted"] == 0
+    assert stats["today"]["accepted"] == 1 and stats["today"]["rejected_stale"] == 1
+    assert stats["last_7_days"]["rejection_rate"] == pytest.approx(0.5)
+
+
+def test_the_lifecycle_summary_reports_grading(store):
+    mid = store(accessed_minutes_ago=0)
+    mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])
+    g = mm.memory_lifecycle_summary_impl(window_days=7)["grading"]
+    assert g["graded_memories"] == 1 and g["helpful_total"] == 1 and g["unhelpful_total"] == 0
+    assert g["window"]["accepted"] == 1
+
+
 def test_window_default_is_five_minutes_and_configurable():
     assert mm._FEEDBACK_WINDOW_MINUTES_DEFAULT == 5
     assert mm._feedback_window_minutes() >= 1
