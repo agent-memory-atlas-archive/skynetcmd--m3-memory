@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_core.py
-sha1: 175df970e282
-mtime_utc: 2026-10-13T00:55:35.518481+00:00
-generated_utc: 2026-10-13T00:57:48.718544+00:00
+sha1: bdb6feab76c5
+mtime_utc: 2026-10-13T16:43:04.872051+00:00
+generated_utc: 2026-10-13T16:43:05.750708+00:00
 private: false
 ---
 
@@ -33,7 +33,7 @@ honored. Kwargs:
 
 | Kwarg | Default | Default behavior |
 |---|---|---|
-| `enrich` | `None` | Inherit env gates `M3_INGEST_AUTO_TITLE` and `M3_INGEST_AUTO_ENTITIES`. `True` forces both on, `False` forces both off. |
+| `enrich` | `None` | Inherit the settings `ingest.auto_title` and `ingest.auto_entities`. `True` forces both on, `False` forces both off. |
 | `check_contradictions` | `None` | OFF (bulk default differs from single-insert to protect throughput on large imports). `True` enables bounded contradiction check (Semaphore(8)), `False` explicit off. |
 | `emit_conversation` | `None` | ON when items carry `conversation_id` and `type=='message'`. `False` disables event/window/gist emitters. Sub-emitters are additionally gated by env vars `M3_INGEST_EVENT_ROWS`, `M3_INGEST_WINDOW_CHUNKS`, `M3_INGEST_GIST_ROWS`. |
 | `variant` | `None` | No default variant tag. When set, acts as fallback when an item doesn't carry its own `variant`. Per-item `variant` always wins. |
@@ -44,7 +44,7 @@ Of these, only `variant` is exposed on the MCP `memory_write` schema and via
 
 ---
 
-## Env-var gates read
+## Settings read (`[ingest]` in m3_config.toml; legacy env names)
 
 Ingest: `M3_INGEST_AUTO_TITLE`, `M3_INGEST_AUTO_ENTITIES`,
 `M3_INGEST_EVENT_ROWS`, `M3_INGEST_WINDOW_CHUNKS`, `M3_INGEST_GIST_ROWS`,

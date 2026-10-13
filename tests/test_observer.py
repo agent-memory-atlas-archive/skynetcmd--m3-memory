@@ -344,7 +344,7 @@ def test_call_observer_openai_fallback():
     assert usage["tokens_out"] == 0
 
 
-def test_write_observation_populates_three_dates(bench_db, monkeypatch):
+def test_write_observation_populates_three_dates(bench_db, monkeypatch, m3_settings):
     """write_observation should set valid_from = referenced_date and store
     the audit fields (observation_date, relative_date, supersedes_hint) in
     metadata_json."""
@@ -354,7 +354,7 @@ def test_write_observation_populates_three_dates(bench_db, monkeypatch):
     # Bypass _ensure_sync_tables which tries to invoke migrate_memory.py
     # — known fail in unit-test isolation due to migration 002's BEGIN.
     monkeypatch.setattr(memory_core, "_ensure_sync_tables", lambda *a, **kw: None)
-    monkeypatch.setenv("M3_OBSERVER_NO_EMBED", "1")
+    m3_settings({"observer.no_embed": True})
 
     obs = {
         "text": "User started yoga in March 2024.",
@@ -395,13 +395,13 @@ def test_write_observation_populates_three_dates(bench_db, monkeypatch):
     conn.close()
 
 
-def test_write_observation_falls_back_to_observation_date_when_referenced_null(bench_db, monkeypatch):
+def test_write_observation_falls_back_to_observation_date_when_referenced_null(bench_db, monkeypatch, m3_settings):
     """Timeless facts (referenced_date=null) should still set a valid_from."""
     import memory_core
     import run_observer
 
     monkeypatch.setattr(memory_core, "_ensure_sync_tables", lambda *a, **kw: None)
-    monkeypatch.setenv("M3_OBSERVER_NO_EMBED", "1")
+    m3_settings({"observer.no_embed": True})
 
     obs = {
         "text": "User likes spicy food.",

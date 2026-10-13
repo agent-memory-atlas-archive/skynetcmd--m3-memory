@@ -400,7 +400,7 @@ async def memory_write_impl(
     # Opt-in ingest-time enrichment (env-gated, fail-open).
     title = await _maybe_auto_title(content or "", title)
     title = _augment_title_with_role(title, metadata)
-    if _ingest_llm_enabled("M3_INGEST_AUTO_ENTITIES"):
+    if _ingest_llm_enabled("ingest.auto_entities"):
         ents = await _maybe_auto_entities(content or "")
         if ents:
             try:
@@ -1264,7 +1264,7 @@ async def memory_write_bulk_impl(
     benchmark / import paths where per-item contradiction detection would
     dominate wall-clock. Returns a list of item_ids (or empty string on failure).
 
-    enrich=None means "inherit env gates" (M3_INGEST_AUTO_TITLE, M3_INGEST_AUTO_ENTITIES).
+    enrich=None means "inherit the settings" ingest.auto_title / ingest.auto_entities.
     True forces on, False forces off.
 
     check_contradictions=None means "off by default in bulk" (perf), True enables,
@@ -1397,7 +1397,7 @@ async def memory_write_bulk_impl(
         # else: enrich is False, skip auto-title
 
         # Auto-entities: similar gating pattern
-        if enrich is True or (enrich is None and _ingest_llm_enabled("M3_INGEST_AUTO_ENTITIES")):
+        if enrich is True or (enrich is None and _ingest_llm_enabled("ingest.auto_entities")):
             ents = await _maybe_auto_entities(p["content"], force=(enrich is True))
             if ents:
                 try:

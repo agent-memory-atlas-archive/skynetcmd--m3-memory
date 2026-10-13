@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import uuid
 from datetime import UTC, datetime
 from typing import cast
@@ -65,6 +64,7 @@ _AUTO_ENTITIES_CACHE: dict[str, list[str]] = {}
 # memory_core but left these module-level objects behind. memory_core
 # now re-exports the names through `_resolve_mc_callbacks()` so legacy
 # patching still works.
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
 from .config import FACT_ENRICH_CONCURRENCY
@@ -73,8 +73,10 @@ _FACT_ENRICH_SEM: asyncio.Semaphore = asyncio.Semaphore(FACT_ENRICH_CONCURRENCY)
 _PENDING_FACT_TASKS: set[asyncio.Task] = set()
 
 
-def _ingest_llm_enabled(flag: str) -> bool:
-    return os.environ.get(flag, "0").strip().lower() in ("1", "true", "yes", "on")
+def _ingest_llm_enabled(key: str) -> bool:
+    """An ingest-time LLM gate (``ingest.auto_title`` / ``ingest.auto_entities``),
+    from m3_config.toml or its legacy env name through the registry."""
+    return bool(_m3cfg.setting(key))
 
 
 async def _auto_classify(content: str, title: str) -> str:
@@ -180,7 +182,7 @@ async def _maybe_auto_title(content: str, title: str, force: bool = False) -> st
     check — callers that want to force LLM enrichment for a specific
     pipeline variant can opt in regardless of M3_INGEST_AUTO_TITLE.
     """
-    if not force and not _ingest_llm_enabled("M3_INGEST_AUTO_TITLE"):
+    if not force and not _ingest_llm_enabled("ingest.auto_title"):
         return title
     if not content:
         return title
@@ -247,7 +249,7 @@ async def _maybe_auto_entities(content: str, force: bool = False) -> list[str]:
     Pass `force=True` to bypass the env gate — callers that want per-variant
     LLM enrichment can opt in regardless of M3_INGEST_AUTO_ENTITIES.
     """
-    if not force and not _ingest_llm_enabled("M3_INGEST_AUTO_ENTITIES"):
+    if not force and not _ingest_llm_enabled("ingest.auto_entities"):
         return []
     if not content:
         return []

@@ -60,13 +60,6 @@ from slm_intent import load_profile  # noqa: E402
 PROFILE_NAME = _m3cfg.setting("observer.profile")
 
 
-def _ingest_llm_enabled_from_env(flag: str) -> bool:
-    """Truthy-string check on env. Mirrors memory_core._ingest_llm_enabled
-    without importing it (keeps run_observer importable when memory_core
-    fails to load — e.g. test fixtures with stubbed schemas)."""
-    return os.environ.get(flag, "0").strip().lower() in ("1", "true", "yes", "on")
-
-
 # Greedy regex to grab the outer JSON object including nested braces.
 JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 # ISO-8601 date validator. Accepts both "2023-05-22" and "2023/05/22"
@@ -388,10 +381,10 @@ async def write_observation(
     if session_id:
         md["session_id"] = session_id
     valid_from = obs["referenced_date"] or obs["observation_date"]
-    # When M3_OBSERVER_NO_EMBED is set, skip the embedding pass. Used by unit
-    # tests that don't have the embedding endpoint available; in production
-    # / bench mode the default embed=True path runs (needed for retrieval).
-    embed = not _ingest_llm_enabled_from_env("M3_OBSERVER_NO_EMBED")
+    # observer.no_embed (legacy M3_OBSERVER_NO_EMBED) skips the embedding pass;
+    # in production / bench mode the default embed=True path runs (needed for
+    # retrieval).
+    embed = not _m3cfg.setting("observer.no_embed")
     result = await mc.memory_write_impl(
         type="observation",
         content=obs["text"],
