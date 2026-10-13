@@ -27,7 +27,9 @@ the policy is forward-going only.
   ran; migration 055 restores the one index this lost. Only the existing column is
   now skipped.
   **Affected:** SQLite stores upgraded across a migration whose column was already
-  present · **Action:** none · **Data status:** none; a missing index is restored.
+  present · **Action:** none ·
+  **Data status:** none; an index that speeds up entity extraction is re-created
+  where it was missing.
 
 - **The chatlog title and embedding backfill scripts find the databases under
   the engine root.** With no `--core-db`/`--chatlog-db` they looked in
