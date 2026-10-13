@@ -543,6 +543,20 @@ def origin_of(name: str) -> str:
     return current().origin(key)
 
 
+def file_value(name: str) -> ConfigValue | None:
+    """Key ``name``'s value when m3_config.toml, a command-line flag or a test
+    override set it; None when it would come from the environment, a legacy file
+    or the default. For readers that keep a legacy JSON file BETWEEN m3_config.toml
+    and the environment (the autonomy toggles, the governor thresholds; <dynamic>
+    design Q2, 2026-10-13): file_value, else the JSON file, else setting()."""
+    key = REGISTRY.get(name)
+    if key is None:
+        raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
+    snap = current()
+    origin = snap.origin(key)
+    return snap[key] if origin.startswith("file:") or origin in ("cli", "override") else None
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class EnvDisagreement:
     """An environment variable whose value contradicts m3_config.toml."""

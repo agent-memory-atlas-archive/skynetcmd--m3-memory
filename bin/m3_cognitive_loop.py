@@ -1562,11 +1562,11 @@ async def run_chatlog_prune_pass(args):
     if not _due("chatlog_prune", float(getattr(args, "interval", 300) or 300)):
         logger.debug("chatlog-prune: throttled (ran within the last interval). Skipping.")
         return
-    # Config file > env > default (see consolidate_beliefs): a bare env gate is
+    # m3_config.toml > config file > default (see consolidate_beliefs): a bare env gate is
     # dead under launchd/systemd, which don't inherit shell env (DESIGN §3).
     from m3_core.autonomy import autonomy_flag
 
-    apply = autonomy_flag("chatlog_prune_auto", "M3_CHATLOG_PRUNE_AUTO")
+    apply = autonomy_flag("chatlog_prune_auto")
     logger.info("Starting chatlog noise-prune pass (apply=%s)...", apply)
     try:
         from types import SimpleNamespace

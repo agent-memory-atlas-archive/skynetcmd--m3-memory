@@ -31,7 +31,7 @@
       "properties": {
         "chatlog_prune_auto": {
           "type": "boolean",
-          "description": "Let the loop prune the chatlog without review (today .cognitive_loop_config.json wins).",
+          "description": "Let the loop prune the chatlog without review.",
           "default": false
         },
         "consolidation_auto": {

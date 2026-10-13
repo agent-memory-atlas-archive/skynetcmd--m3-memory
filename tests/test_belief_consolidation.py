@@ -47,7 +47,7 @@ def _consolidation_on(monkeypatch):
     (m3_core.autonomy), not env, so stub the reader."""
     from m3_core import autonomy
 
-    monkeypatch.setattr(autonomy, "autonomy_flag", lambda name, env_name=None, *a, **k: name == "consolidation_auto")
+    monkeypatch.setattr(autonomy, "autonomy_flag", lambda name: name == "consolidation_auto")
 
 
 def _patch_db(monkeypatch, db_path):
@@ -186,7 +186,7 @@ async def test_protected_types_never_consolidated(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path):
+async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path, m3_settings):
     """--apply WITHOUT M3_CONSOLIDATION_AUTO=1 must still be a dry-run (safe
     scheduled no-op)."""
     db = tmp_path / "t.db"
@@ -196,7 +196,7 @@ async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path):
         conn.commit()
     mm = _patch_db(monkeypatch, db)
     _patch_llm(monkeypatch, mm)
-    monkeypatch.delenv("M3_CONSOLIDATION_AUTO", raising=False)
+    m3_settings({"autonomy.consolidation_auto": False})
 
     import consolidate_beliefs
 

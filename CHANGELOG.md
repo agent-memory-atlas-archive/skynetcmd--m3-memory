@@ -417,6 +417,13 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **`[autonomy]` in `m3_config.toml` sets the loop's autonomous-write toggles.**
+  `consolidation_auto` and `chatlog_prune_auto` now resolve `m3_config.toml`
+  first, then `.cognitive_loop_config.json`, then `M3_CONSOLIDATION_AUTO` /
+  `M3_CHATLOG_PRUNE_AUTO` (read by the settings registry), then off.
+  **Affected:** installs that enable an autonomous pass · **Action:** none;
+  prefer `[autonomy]` in `m3_config.toml` · **Data status:** none.
+
 - **No secret is read from the environment, in two more places.** The dashboard's
   cloud health probe no longer falls back to an exported API key when the secret
   chain fails; it reports the cause. `m3 serve --generate-token` no longer warns that an

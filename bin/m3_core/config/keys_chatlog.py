@@ -168,7 +168,7 @@ CHATLOG: list[Key] = [
     _str(
         "loop.distill_model", ("M3_DISTILL_MODEL",), "slm", "Procedure distillation model: slm, llm, or a profile name."
     ),
-    # ── [autonomy] (today .cognitive_loop_config.json wins for consolidation_auto) ──
+    # ── [autonomy]: this table, then .cognitive_loop_config.json, then the env name (autonomy.py) ──
     _flag(
         "autonomy.consolidation_auto",
         ("M3_CONSOLIDATION_AUTO",),
@@ -183,7 +183,7 @@ CHATLOG: list[Key] = [
         "autonomy.chatlog_prune_auto",
         ("M3_CHATLOG_PRUNE_AUTO",),
         False,
-        "Let the loop prune the chatlog without review (today .cognitive_loop_config.json wins).",
+        "Let the loop prune the chatlog without review.",
         legacy=_truthy4,
     ),
     # Read through wrappers the env gate could not see until 2026-10-09

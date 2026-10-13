@@ -17,7 +17,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
-| `chatlog_prune_auto` | boolean | `false` | `M3_CHATLOG_PRUNE_AUTO` | restart to apply; Let the loop prune the chatlog without review (today .cognitive_loop_config.json wins). |
+| `chatlog_prune_auto` | boolean | `false` | `M3_CHATLOG_PRUNE_AUTO` | restart to apply; Let the loop prune the chatlog without review. |
 | `consolidation_auto` | boolean | `false` | `M3_CONSOLIDATION_AUTO` | restart to apply; Let the loop apply belief consolidation without review. |
 | `distill_auto` | boolean | `false` | `M3_DISTILL_AUTO` | restart to apply; Let the loop apply distilled procedures without review. |
 
