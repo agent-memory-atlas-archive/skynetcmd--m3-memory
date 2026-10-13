@@ -182,6 +182,9 @@ def test_baseline_and_lower_versions_ignored(tmp_path):
     # A pg_039 file must be ignored (owned by the baseline).
     (tmp_path / "pg_39_old.up.sql").write_text("SELECT 1;", encoding="utf-8")
     (tmp_path / "pg_900_ok.up.sql").write_text("SELECT 1;", encoding="utf-8")
-    migs = migrate_pg.discover_migrations(str(tmp_path))
+    migs = migrate_pg.discover_migrations(str(tmp_path), baseline=migrate_pg._BASELINE_VERSION)
     assert 39 not in migs
     assert 900 in migs
+    # Another chain (the dispatch schema's) has no baseline file: its low
+    # versions are runner-owned, so the main chain's cutoff must not hide them.
+    assert 39 in migrate_pg.discover_migrations(str(tmp_path))

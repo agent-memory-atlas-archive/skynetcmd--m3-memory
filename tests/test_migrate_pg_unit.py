@@ -36,7 +36,7 @@ class TestDiscovery:
         (tmp_path / "pg_39_baseline.up.sql").write_text("SELECT 1;", encoding="utf-8")  # <= baseline
         (tmp_path / "040_sqlite_style.up.sql").write_text("SELECT 1;", encoding="utf-8")  # no pg_ prefix
         (tmp_path / "pg_40_ok.up.sql").write_text("SELECT 1;", encoding="utf-8")
-        migs = migrate_pg.discover_migrations(str(tmp_path))
+        migs = migrate_pg.discover_migrations(str(tmp_path), baseline=migrate_pg._BASELINE_VERSION)
         assert list(migs) == [40]  # only the valid, > baseline, pg_-prefixed one
 
     def test_empty_dir(self, tmp_path):

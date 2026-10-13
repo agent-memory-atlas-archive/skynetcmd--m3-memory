@@ -94,11 +94,17 @@ def _connect(dsn: str):
 
 
 # ── Discovery ────────────────────────────────────────────────────────────────
-def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR):
+def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR, baseline: int | None = None):
     """Return {version: {'name', 'up': path|None, 'down': path|None}} for every
     pg_NNN_*.sql file. Only versions > the cumulative baseline (39) are runner-
     owned; the baseline file itself (pg_primary_v1.sql) has no NNN prefix and is
-    ignored here. Sorted glob so duplicate-prefix resolution is deterministic."""
+    ignored here. Sorted glob so duplicate-prefix resolution is deterministic.
+
+    ``baseline``: the version a chain's baseline file already covers. The default
+    applies the main chain's (39) to the main directory only; any other chain (the
+    dispatch schema's) has no baseline file, so its pg_001 is runner-owned."""
+    if baseline is None:
+        baseline = _BASELINE_VERSION if os.path.abspath(migrations_dir) == os.path.abspath(_PG_MIGRATIONS_DIR) else 0
     out: dict[int, dict[str, str | None]] = {}
     seen: dict[tuple[int, str], str] = {}
     for filepath in sorted(glob.glob(os.path.join(migrations_dir, "pg_*.sql"))):
@@ -108,10 +114,8 @@ def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR):
             # pg_primary_v1.sql and pg_warehouse_*.sql intentionally don't match.
             continue
         version = int(m.group(1))
-        if version <= _BASELINE_VERSION:
-            logger.warning(
-                f"Ignoring {fname}: version {version} <= baseline {_BASELINE_VERSION} (owned by pg_primary_v1.sql)."
-            )
+        if version <= baseline:
+            logger.warning(f"Ignoring {fname}: version {version} <= baseline {baseline} (owned by pg_primary_v1.sql).")
             continue
         name = m.group(2)
         direction = m.group(3) or "up"
@@ -132,14 +136,22 @@ def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR):
 
 
 # ── Version tracking ─────────────────────────────────────────────────────────
-def get_applied_versions(conn) -> list[int]:
-    """Integer version markers from schema_versions (skips non-numeric bench
-    labels), or [] if the table is absent (baseline not yet applied)."""
+def _qident(name: str) -> str:
+    """A schema name as a quoted SQL identifier (operator-supplied: never raw)."""
+    return '"' + name.replace('"', '""') + '"'
+
+
+def get_applied_versions(conn, schema: str = "public") -> list[int]:
+    """Integer version markers from ``<schema>.schema_versions`` (skips non-numeric
+    bench labels), or [] if the table is absent (baseline not yet applied). Each
+    chain keeps its own table: the dispatch schema's versions are not the main
+    store's."""
+    table = f"{_qident(schema)}.schema_versions"
     cur = conn.cursor()
-    cur.execute("SELECT to_regclass('public.schema_versions')")
+    cur.execute("SELECT to_regclass(%s)", (table,))
     if cur.fetchone()[0] is None:
         return []
-    cur.execute("SELECT version FROM schema_versions ORDER BY version")
+    cur.execute(f"SELECT version FROM {table} ORDER BY version")
     out: list[int] = []
     for (v,) in cur.fetchall():
         try:
@@ -213,25 +225,48 @@ def revert_migration(conn, version: int, down_path: str) -> None:
 
 
 # ── Programmatic entry (used by the backend's ensure_schema) ─────────────────
-def run_pending_pg_migrations(conn, migrations_dir: str = _PG_MIGRATIONS_DIR) -> list[int]:
+def run_pending_pg_migrations(conn, migrations_dir: str = _PG_MIGRATIONS_DIR, schema: str | None = None) -> list[int]:
     """Apply every pending pg_NNN migration (> current applied version) in order,
     on an already-open connection. Returns the list of versions applied (possibly
     empty). Raises on the first failure (that file rolled back; earlier ones stay
-    committed). Idempotent — a second call with nothing pending returns []."""
+    committed). Idempotent — a second call with nothing pending returns [].
+
+    ``schema``: a chain that lives in its own schema (the dispatch store). The
+    schema is created if absent and the files run with it as the SESSION
+    search_path (a LOCAL one would end at each file's commit), so their unqualified
+    DDL and the version stamps land there; the previous search_path is restored."""
     migs = discover_migrations(migrations_dir)
     if not migs:
         return []
-    applied = set(get_applied_versions(conn))
-    pending = [v for v in sorted(migs) if v not in applied]
-    done: list[int] = []
-    for v in pending:
-        up = migs[v]["up"]
-        if not up:
-            logger.error(f"pg migration v{v} has no up file — stopping.")
-            break
-        apply_migration(conn, v, up)
-        done.append(v)
-    return done
+    prev_path = None
+    if schema is not None:
+        cur = conn.cursor()
+        cur.execute("SHOW search_path")
+        prev_path = cur.fetchone()[0]
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {_qident(schema)}")
+        cur.execute(f"SET search_path TO {_qident(schema)}")
+        conn.commit()
+    try:
+        applied = set(get_applied_versions(conn, schema or "public"))
+        pending = [v for v in sorted(migs) if v not in applied]
+        done: list[int] = []
+        for v in pending:
+            up = migs[v]["up"]
+            if not up:
+                logger.error(f"pg migration v{v} has no up file — stopping.")
+                break
+            apply_migration(conn, v, up)
+            done.append(v)
+        return done
+    finally:
+        if prev_path is not None:
+            try:
+                conn.rollback()  # leave no aborted transaction behind a failure
+                cur = conn.cursor()
+                cur.execute(f"SET search_path TO {prev_path}")
+                conn.commit()
+            except Exception:  # noqa: BLE001 -- restoring must not mask the real error
+                logger.warning("could not restore search_path to %r after the %s migrations", prev_path, schema)
 
 
 # ── CLI subcommands ──────────────────────────────────────────────────────────

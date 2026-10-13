@@ -417,6 +417,14 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **The agent dispatch store is migrated like the others.** `migrate_memory up
+  --target dispatch` brings it to the current schema, `--target all` includes an
+  existing dispatch store, and the first send migrates it through the same
+  runner, on SQLite and in its PostgreSQL schema, so later dispatch migrations
+  reach existing installs.
+  **Affected:** installs that use agent dispatch · **Action:** none ·
+  **Data status:** none.
+
 - **Entity-extraction status comes from migrations on every store.** Chatlog
   migrations 008/009 add the `status` column and its index; main migration 055
   restores that index on stores where it was missing, so processed turns are

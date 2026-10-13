@@ -728,20 +728,11 @@ def _ensure_dispatch_schema_pg(conn) -> None:
         if schema in _DISPATCH_PG_READY:
             return
 
-        boot = Path(dispatch_migrations_dir()) / "postgres" / "pg_001_bootstrap.up.sql"
-        with boot.open(encoding="utf-8") as fh:
-            ddl = fh.read()
+        # The dispatch chain's own runner, in its own schema with its own
+        # schema_versions, so a later pg_002 reaches existing stores too.
+        import migrate_pg
 
-        cur = conn.cursor()
-        # Identifier, not a bind parameter — a placeholder cannot name a schema.
-        # dispatch_pg_schema() is operator-supplied, so quote it rather than
-        # interpolating raw: an unquoted name would also fold case and break on
-        # a hyphen.
-        safe = '"' + schema.replace('"', '""') + '"'
-        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {safe}")
-        cur.execute(f"SET LOCAL search_path TO {safe}")
-        cur.execute(ddl)
-        conn.commit()
+        migrate_pg.run_pending_pg_migrations(conn, str(Path(dispatch_migrations_dir()) / "postgres"), schema=schema)
         _DISPATCH_PG_READY.add(schema)
     except Exception as exc:  # noqa: BLE001 -- a send must not die because the
         # bootstrap could not run; the caller's INSERT raises a clear
@@ -762,56 +753,43 @@ def _ensure_dispatch_schema_pg(conn) -> None:
         )
 
 
+_DISPATCH_MIGRATED: set[str] = set()
+
+
 def _ensure_dispatch_schema(conn) -> None:
-    """Create the dispatch schema on first use, if it is not there yet.
+    """Bring the SQLite dispatch store to its current schema through the migration
+    runner (``migrate_memory.apply_pending`` over the dispatch chain), once per
+    store file per process.
 
-    The dispatch store is bootstrapped from its OWN migrations, and nothing
-    guarantees that has happened before the first send: a fresh install, a
-    restored engine root, or an operator who set M3_DISPATCH_DB to a new path
-    all arrive here with an empty file.
-
-    Without this a send raises "no such table: notification_dispatch". That is
-    loud, which is right, but it is also AVOIDABLE -- the store is ours to
-    create and the DDL ships with the code. Creating it is strictly better than
-    failing a send that could have succeeded.
-
-    Cheap to call: the bootstrap is `CREATE TABLE IF NOT EXISTS` throughout, and
-    the presence probe below short-circuits before reading the file at all on
-    every subsequent call.
-
-    ⚠ NOT a substitute for the migration runner. This applies exactly the
-    bootstrap, never a later migration -- a store that exists but is BEHIND is
-    the runner's problem, and silently patching it here would hide a real
-    version skew.
+    The store may not exist yet at the first send (a fresh install, a restored
+    engine root, a new M3_DISPATCH_DB), and an existing store may be BEHIND: both
+    are the runner's job. It used to execute 001 itself and return whenever the
+    table existed, so a later migration could never have reached an existing store
+    (m3 schemas change only through migrations, user decision 2026-10-13).
     """
-    # `sqlite_master` is correct here: this function is SQLite-only by
-    # construction. get_dispatch_conn returns at its server-backend branch
-    # before reaching either call site, and PostgreSQL is bootstrapped by
-    # _ensure_dispatch_schema_pg above. A portable probe would suggest this
-    # runs on both backends, which it does not.
+    # SQLite-only by construction: get_dispatch_conn returns at its server-backend
+    # branch before reaching here; PostgreSQL is _ensure_dispatch_schema_pg.
     try:
-        present = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='notification_dispatch'"
-        ).fetchone()
-        if present:
+        key = conn.execute("PRAGMA database_list").fetchone()[2] or ":memory:"
+        if key in _DISPATCH_MIGRATED:
             return
+        import migrate_memory
+
         from m3_core.paths import dispatch_migrations_dir
 
-        boot = Path(dispatch_migrations_dir()) / "001_bootstrap.up.sql"
-        with boot.open(encoding="utf-8") as fh:
-            conn.executescript(fh.read())
-        conn.commit()
+        migrate_memory.apply_pending(conn, dispatch_migrations_dir())
+        _DISPATCH_MIGRATED.add(key)
     except Exception as exc:  # noqa: BLE001 -- a send must not die because the
-        # bootstrap could not run; the caller's INSERT will raise a clear
+        # migration could not run; the caller's INSERT will raise a clear
         # "no such table" immediately after, which is the honest error.
         import logging
 
         logging.getLogger("memory_core").warning(
-            "could not bootstrap the dispatch store. "
+            "could not migrate the dispatch store. "
             f"observed: {type(exc).__name__}: {exc}. "
             "possible: the migrations directory is missing, or the store is "
             "read-only. "
-            "inspect: memory/dispatch_migrations/001_bootstrap.up.sql"
+            "inspect: memory/dispatch_migrations/, python bin/migrate_memory.py up --target dispatch"
         )
 
 

@@ -177,6 +177,28 @@ def _classify_db(db_path: str) -> str:
     return "unknown"
 
 
+def _dispatch_targets(explicit: bool) -> list[MigrationTarget]:
+    """The dispatch store as a target. ``explicit`` (``--target dispatch``) migrates
+    it even when the file does not exist yet (the first-send bootstrap); under
+    ``all`` only an EXISTING store is included, so an upgrade does not create a
+    store nobody has used. A file that is not a dispatch store is refused."""
+    from m3_core.paths import dispatch_migrations_dir, resolve_dispatch_db
+
+    path = os.path.abspath(resolve_dispatch_db())
+    if not explicit and not os.path.exists(path):
+        return []
+    kind = _classify_db(path)
+    if kind not in ("dispatch", "empty"):
+        logger.error(
+            "Refusing to apply dispatch migrations to %s: schema fingerprint says kind=%s. "
+            "inspect: M3_DISPATCH_DB / the dispatch store path",
+            path,
+            kind,
+        )
+        return []
+    return [MigrationTarget(name="dispatch", db_path=path, migrations_dir=dispatch_migrations_dir())]
+
+
 def targets(selected: str = "all") -> list[MigrationTarget]:
     """
     Returns a list of MigrationTarget objects based on selection.
@@ -232,6 +254,9 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
 
     if selected == "main":
         return [main_target] if main_target else []
+
+    if selected == "dispatch":
+        return _dispatch_targets(explicit=True)
 
     if selected == "all" or selected == "chatlog":
         result: list[MigrationTarget] = []
@@ -307,6 +332,8 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
                 logger.error("Cannot use --target chatlog without chatlog_config module.")
                 return []
 
+        if selected == "all":
+            result.extend(_dispatch_targets(explicit=False))
         return result
 
     logger.error(f"Unknown target selection: {selected}")
@@ -670,6 +697,22 @@ def _validate_migration_sql(filepath: str, sql: str) -> None:
         )
 
 
+def apply_pending(conn, migrations_dir: str) -> list[int]:
+    """Apply every pending migration in ``migrations_dir`` to an open connection,
+    with no prompt and no backup: for a store being CREATED (the dispatch store's
+    first send), where there is nothing to back up and no one to ask. The same
+    discovery and apply_migration as ``up``, so it is the one runner, not another.
+    Returns the versions applied."""
+    init_migrations_table(conn)
+    applied = set(get_applied_versions(conn))
+    done: list[int] = []
+    for v, entry in sorted(discover_migrations(migrations_dir).items()):
+        if v not in applied and entry["up"]:
+            apply_migration(conn, v, entry["name"], entry["up"])
+            done.append(v)
+    return done
+
+
 def apply_migration(conn, version: int, name: str, up_path: str):
     logger.info(f"Applying migration {version:03d}: {os.path.basename(up_path)}")
     try:
@@ -819,6 +862,9 @@ def _print_pending_plan(pending: list[int], migs: dict, direction: str) -> None:
     print("\n--- end of plan ---\n")
 
 
+_FAMILY = {"main": "core memories", "chatlog": "chat log", "dispatch": "agent dispatch"}
+
+
 def cmd_up(args):
     target_list = targets(args.target)
     if not target_list:
@@ -877,7 +923,7 @@ def cmd_up(args):
             # user knows exactly which DB file is about to be modified.
             if not _confirm(
                 f"\nApply {len(pending)} migration(s) to '{target.name}' "
-                f"(family: core memories) DB at {target.db_path}?"
+                f"(family: {_FAMILY.get(target.name, target.name)}) DB at {target.db_path}?"
                 if target.name == "main"
                 else f"\nApply {len(pending)} migration(s) to '{target.name}' "
                 f"(family: chatlog memories) DB at {target.db_path}?",
@@ -1068,14 +1114,15 @@ def build_parser():
     sp = sub.add_parser("status", help="Show current version and pending migrations")
     sp.add_argument(
         "--target",
-        choices=["main", "chatlog", "all"],
+        choices=["main", "chatlog", "dispatch", "all"],
         default="all",
         help="Memory FAMILY to migrate (NOT a git branch): "
         "'main' = core memories DB (default agent_memory.db, "
         "overridable via --database / M3_DATABASE); "
         "'chatlog' = chatlog memories DB (default "
         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'all' = both. Default: all configured.",
+        "'dispatch' = the agent dispatch store; "
+        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
     )
     sp.set_defaults(func=cmd_status)
 
@@ -1083,14 +1130,15 @@ def build_parser():
     sp.add_argument("--to", type=int, default=None, help="Apply up to this version (default: latest)")
     sp.add_argument(
         "--target",
-        choices=["main", "chatlog", "all"],
+        choices=["main", "chatlog", "dispatch", "all"],
         default="all",
         help="Memory FAMILY to migrate (NOT a git branch): "
         "'main' = core memories DB (default agent_memory.db, "
         "overridable via --database / M3_DATABASE); "
         "'chatlog' = chatlog memories DB (default "
         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'all' = both. Default: all configured.",
+        "'dispatch' = the agent dispatch store; "
+        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
     )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     sp.add_argument("--dry-run", action="store_true", help="Print the plan + DDL without applying anything")
@@ -1100,14 +1148,15 @@ def build_parser():
     sp.add_argument("--to", type=int, required=True, help="Roll back to this version")
     sp.add_argument(
         "--target",
-        choices=["main", "chatlog", "all"],
+        choices=["main", "chatlog", "dispatch", "all"],
         default="all",
         help="Memory FAMILY to migrate (NOT a git branch): "
         "'main' = core memories DB (default agent_memory.db, "
         "overridable via --database / M3_DATABASE); "
         "'chatlog' = chatlog memories DB (default "
         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'all' = both. Default: all configured.",
+        "'dispatch' = the agent dispatch store; "
+        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
     )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     sp.add_argument("--dry-run", action="store_true", help="Print the plan + DDL without reverting anything")
@@ -1117,14 +1166,15 @@ def build_parser():
     sp.add_argument("--to", type=int, default=None, help="Plan up to this version (default: latest)")
     sp.add_argument(
         "--target",
-        choices=["main", "chatlog", "all"],
+        choices=["main", "chatlog", "dispatch", "all"],
         default="all",
         help="Memory FAMILY to migrate (NOT a git branch): "
         "'main' = core memories DB (default agent_memory.db, "
         "overridable via --database / M3_DATABASE); "
         "'chatlog' = chatlog memories DB (default "
         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'all' = both. Default: all configured.",
+        "'dispatch' = the agent dispatch store; "
+        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
     )
     sp.set_defaults(func=cmd_plan)
 
@@ -1132,14 +1182,15 @@ def build_parser():
     sp.add_argument("--out", type=str, default=None, help="Backup directory (overrides saved default)")
     sp.add_argument(
         "--target",
-        choices=["main", "chatlog", "all"],
+        choices=["main", "chatlog", "dispatch", "all"],
         default="all",
         help="Memory FAMILY to migrate (NOT a git branch): "
         "'main' = core memories DB (default agent_memory.db, "
         "overridable via --database / M3_DATABASE); "
         "'chatlog' = chatlog memories DB (default "
         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'all' = both. Default: all configured.",
+        "'dispatch' = the agent dispatch store; "
+        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
     )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip interactive prompts")
     sp.set_defaults(func=cmd_backup)
@@ -1148,7 +1199,7 @@ def build_parser():
     sp.add_argument("path", help="Path to the backup .db file")
     sp.add_argument(
         "--target",
-        choices=["main", "chatlog", "all"],
+        choices=["main", "chatlog", "dispatch", "all"],
         default="main",
         help="Which DB target to restore (default: main; use chatlog for chat log DB)",
     )
