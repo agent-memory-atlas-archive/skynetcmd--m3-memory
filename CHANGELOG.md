@@ -407,6 +407,13 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **Entity-extraction status comes from migrations on every store.** Chatlog
+  migrations 008/009 add the `status` column and its index; main migration 055
+  restores that index on stores where it was missing, so processed turns are
+  skipped by an index lookup there too.
+  **Affected:** installs that run entity extraction · **Action:** none ·
+  **Data status:** none.
+
 - **A chatlog store gets its enrichment queues from its own migration (007).**
   The enrichment drain no longer replays a main-store migration against it at
   runtime; schemas change only through migrations.

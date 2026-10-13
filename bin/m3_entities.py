@@ -534,25 +534,6 @@ def _load_conv_list(path: Path) -> set[str]:
     return out
 
 
-def _ensure_extraction_status_column(conn) -> None:
-    """Idempotently add entity_extraction_queue.status TEXT (SQLite runtime DDL).
-    'status' is 'done' (processed: entities emitted OR legitimately empty) or
-    'failed'. On PostgreSQL this column is created by migration pg_041 (schema is
-    migration-managed), and PRAGMA table_info is SQLite-only, so this is a no-op on
-    PG. Best-effort — an already-migrated DB is a no-op on both backends."""
-    from memory.backends import active_backend
-
-    if active_backend().name != "sqlite":
-        return  # PG: status column comes from pg_041, not runtime DDL
-    try:
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(entity_extraction_queue)")}
-        if cols and "status" not in cols:
-            conn.execute("ALTER TABLE entity_extraction_queue ADD COLUMN status TEXT")
-            conn.commit()
-    except Exception:  # noqa: BLE001 — never break the caller
-        pass
-
-
 def _query_eligible_rows(
     db_path: Path,
     type_allowlist: tuple[str, ...],
@@ -728,7 +709,6 @@ async def _run_db(
             _d = dialect()
             _p = _d.param()
             with mc._db() as qc:
-                _ensure_extraction_status_column(qc)
                 qc.execute(
                     f"""INSERT INTO entity_extraction_queue
                            (memory_id, attempts, last_error, last_attempt_at, status)
@@ -766,7 +746,6 @@ async def _run_db(
             _d = dialect()
             _p = _d.param()
             with mc._db() as qc:
-                _ensure_extraction_status_column(qc)
                 qc.execute(
                     f"""INSERT INTO entity_extraction_queue
                            (memory_id, attempts, last_error, last_attempt_at, status)
@@ -816,7 +795,6 @@ async def _run_db(
             _d = dialect()
             _p = _d.param()
             with mc._db() as qc:
-                _ensure_extraction_status_column(qc)
                 qc.executemany(
                     f"""INSERT INTO entity_extraction_queue
                            (memory_id, attempts, last_error, last_attempt_at, status)

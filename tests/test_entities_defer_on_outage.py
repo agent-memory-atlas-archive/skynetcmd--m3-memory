@@ -59,7 +59,6 @@ def harness(monkeypatch):
         yield _RecordingConn(writes)
 
     monkeypatch.setattr(m3_entities.mc, "_db", fake_db)
-    monkeypatch.setattr(m3_entities, "_ensure_extraction_status_column", lambda qc: None)
     monkeypatch.setattr(m3_entities, "_query_eligible_rows", lambda *a, **k: list(ROWS))
 
     calls = []

@@ -13,10 +13,9 @@
 -- can skip it; failed rows keep status='failed'/NULL and stay retry-eligible.
 --
 -- Pure additive: existing queue rows default to NULL status (treated as
--- retry-eligible, i.e. today's behavior). A runtime ADD COLUMN fallback
--- (m3_entities.py::_ensure_extraction_status_column) also creates it so a DB
--- touched before migrating degrades gracefully — this migration is the
--- authoritative source of the column.
+-- retry-eligible, i.e. today's behavior). This migration is the only source of
+-- the column (a runtime fallback existed until 2026-10-13; 055 restores the index
+-- where that fallback made the ALTER roll this file back).
 --
 --   status  TEXT  — 'done' = processed (entities or empty); 'failed' = last
 --                   attempt errored; NULL = never processed (retry-eligible).

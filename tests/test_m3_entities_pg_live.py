@@ -87,7 +87,6 @@ def test_query_eligible_rows_on_pg(pg):
 def test_extraction_queue_upsert_on_pg(pg):
     """The queue UPSERT both writer closures share: table-qualified attempts must
     increment the EXISTING row (bare 'attempts' is ambiguous → errors on PG)."""
-    import m3_entities as me
     import memory_core as mc
     from memory.backends import active_backend
 
@@ -110,7 +109,6 @@ def test_extraction_queue_upsert_on_pg(pg):
             f"last_attempt_at=excluded.last_attempt_at, status='failed'"
         )
         with mc._db() as qc:
-            me._ensure_extraction_status_column(qc)  # no-op on PG
             qc.execute(upsert, (mid, "e1"))
             qc.execute(upsert, (mid, "e2"))  # conflict → attempts increments
             qc.commit()

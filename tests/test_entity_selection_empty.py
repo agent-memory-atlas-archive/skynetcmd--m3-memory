@@ -36,7 +36,7 @@ def _seed(path: str, with_queue: bool = True) -> None:
         c.execute(
             "CREATE TABLE entity_extraction_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,"
             " memory_id TEXT UNIQUE, enqueued_at TEXT, attempts INTEGER DEFAULT 0,"
-            " last_error TEXT, last_attempt_at TEXT)"
+            " last_error TEXT, last_attempt_at TEXT, status TEXT)"  # the migrated shape (038)
         )
     c.commit()
     c.close()
@@ -52,7 +52,6 @@ def test_processed_empty_turn_not_reselected(tmp_path):
 
     # empty-turn processed-empty → status='done'; rich-turn emitted an entity.
     conn = sqlite3.connect(db)
-    E._ensure_extraction_status_column(conn)
     conn.execute(
         "INSERT INTO entity_extraction_queue(memory_id,attempts,last_attempt_at,status)"
         " VALUES('empty-turn',1,'now','done')"
@@ -70,7 +69,6 @@ def test_failed_turn_under_cap_stays_eligible_for_retry(tmp_path):
     db = str(tmp_path / "ent.db")
     _seed(db)
     conn = sqlite3.connect(db)
-    E._ensure_extraction_status_column(conn)
     # A failed row still under MAX_ENTITY_ATTEMPTS must remain eligible —
     # transient failures (LM Studio OOM-reload 500s) should retry.
     conn.execute(
@@ -91,7 +89,6 @@ def test_failed_turn_past_cap_not_reselected(tmp_path):
     db = str(tmp_path / "ent.db")
     _seed(db)
     conn = sqlite3.connect(db)
-    E._ensure_extraction_status_column(conn)
     conn.execute(
         "INSERT INTO entity_extraction_queue(memory_id,attempts,last_attempt_at,status)"
         " VALUES('empty-turn',?,'now','failed')",
@@ -112,7 +109,6 @@ def test_ctx_error_turn_not_reselected(tmp_path):
     db = str(tmp_path / "ent.db")
     _seed(db)
     conn = sqlite3.connect(db)
-    E._ensure_extraction_status_column(conn)
     conn.execute(
         "INSERT INTO entity_extraction_queue(memory_id,attempts,last_attempt_at,status)"
         " VALUES('empty-turn',1,'now','ctx_error')"
@@ -123,15 +119,18 @@ def test_ctx_error_turn_not_reselected(tmp_path):
     assert "empty-turn" not in eligible, "ctx_error turn was re-selected (loop bug)"
 
 
-def test_ensure_status_column_idempotent(tmp_path):
-    db = str(tmp_path / "ent.db")
-    _seed(db)
-    conn = sqlite3.connect(db)
-    E._ensure_extraction_status_column(conn)
-    E._ensure_extraction_status_column(conn)  # twice → no error
-    cols = [r[1] for r in conn.execute("PRAGMA table_info(entity_extraction_queue)")]
+def test_the_migrations_own_the_status_column_and_its_index(tmp_path):
+    """038 adds the column and 055 guarantees its index (038's could be rolled back
+    as already-applied); there is no runtime backstop."""
+    from conftest import create_full_main_schema
+
+    db = tmp_path / "ent.db"
+    create_full_main_schema(db)
+    with sqlite3.connect(str(db)) as conn:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(entity_extraction_queue)")]
+        idx = {r[1] for r in conn.execute("PRAGMA index_list(entity_extraction_queue)")}
     assert cols.count("status") == 1
-    conn.close()
+    assert "idx_eeq_status_done" in idx
 
 
 def test_old_db_without_queue_table_degrades(tmp_path):
