@@ -629,6 +629,26 @@ def test_cloud_missing_key_is_auth_failed(monkeypatch):
     assert "OPENAI_API_KEY" in out["detail"]
 
 
+def test_cloud_key_resolver_failure_never_falls_back_to_env(monkeypatch):
+    """A secret is never read from the environment (m3 9cbed0af): when the chain
+    raises, the probe reports the cause instead of using an exported key."""
+    import auth_utils
+    import dashboard.health as H
+    import httpx
+
+    def _boom(svc):
+        raise RuntimeError("keyring locked")
+
+    monkeypatch.setattr(auth_utils, "get_api_key", _boom)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env")
+    monkeypatch.setattr(
+        httpx, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not call the API with an env key"))
+    )
+    out = H._probe_cloud_endpoint("https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY", 0.3, 4.0)
+    assert out["auth_missing"] and not out["reachable"]
+    assert "keyring locked" in out["detail"]
+
+
 def test_cloud_rejected_key_is_auth_failed(monkeypatch):
     """A resolvable key that the API rejects (401) → auth_rejected."""
     import auth_utils

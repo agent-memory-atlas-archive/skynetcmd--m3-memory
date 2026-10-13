@@ -1137,9 +1137,7 @@ def _cmd_serve_generate_token(args: argparse.Namespace) -> int:
         # set_api_key raises when AGENT_OS_MASTER_KEY is absent from the keyring.
         # Surface the remediation, not a traceback.
         print(
-            f"Error: could not store the token: {e}\n"
-            "  The vault needs AGENT_OS_MASTER_KEY in your OS keyring.\n"
-            f"  Alternatively export it for this process:  {auth.SECRET_NAME}=<token>",
+            f"Error: could not store the token: {e}\n  The vault needs AGENT_OS_MASTER_KEY in your OS keyring.",
             file=sys.stderr,
         )
         return 1
@@ -1156,21 +1154,9 @@ def _cmd_serve_generate_token(args: argparse.Namespace) -> int:
         "\nEnter the value EXACTLY as shown -- Claude sends it verbatim and adds no\n"
         '"Bearer " prefix of its own; a bare token is rejected with 401.'
     )
-
-    # get_api_key reads os.environ FIRST, so an env var set in this shell wins over
-    # what was just written to the vault -- the server would then require a
-    # different token than the one printed here.
-    #
-    # Printed to stdout, not stderr, deliberately: this warning is only meaningful
-    # directly beneath the token it contradicts, and interleaving two streams puts
-    # it above the token (or into a different pipe) exactly when it matters most.
-    if os.environ.get(auth.SECRET_NAME):
-        sys.stdout.flush()
-        print(
-            f"\nWARNING: {auth.SECRET_NAME} is ALSO set in this environment, and the\n"
-            "environment takes precedence over the vault. The server will expect the\n"
-            "ENV value, NOT the token above. Unset it, or keep using its value."
-        )
+    # No env check here: a secret is never read from the environment (m3 9cbed0af),
+    # so an exported M3_SERVE_TOKEN cannot override the token above; `m3 doctor`
+    # names a leftover one.
     return 0
 
 

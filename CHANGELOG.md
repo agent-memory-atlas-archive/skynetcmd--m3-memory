@@ -417,6 +417,14 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **No secret is read from the environment, in two more places.** The dashboard's
+  cloud health probe no longer falls back to an exported API key when the secret
+  chain fails; it reports the cause. `m3 serve --generate-token` no longer warns that an
+  exported `M3_SERVE_TOKEN` overrides the vault (it does not), nor suggests
+  exporting one.
+  **Affected:** dashboard health on cloud LLM profiles; `m3 serve` token setup ·
+  **Action:** none · **Data status:** none.
+
 - **The chatlog store's environment names are legacy; use `--chatlog-db`.** m3
   no longer sets them itself: `--chatlog-db` (cognitive loop, `migrate_memory`)
   and `chatlog_ingest --db` choose the store for the run in-process. A name still

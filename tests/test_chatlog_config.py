@@ -96,7 +96,6 @@ def test_file_overrides_defaults(tmp_path, monkeypatch):
     )
 
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     chatlog_config.invalidate_cache()
 
@@ -115,7 +114,6 @@ def test_invalidate_cache_forces_reread(tmp_path, monkeypatch):
 
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     chatlog_config.invalidate_cache()
 
     cfg1 = chatlog_config.resolve_config()
@@ -142,7 +140,6 @@ def test_legacy_mode_field_ignored(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     chatlog_config.invalidate_cache()
 
     cfg = chatlog_config.resolve_config()
@@ -159,7 +156,6 @@ def test_chatlog_mode_env_deprecation_does_not_raise(tmp_path, monkeypatch, capl
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     monkeypatch.setenv("CHATLOG_MODE", "separate")
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     # Force re-emit of the warning for this test
     monkeypatch.setattr(chatlog_config, "_MODE_WARN_EMITTED", False)
     chatlog_config.invalidate_cache()
@@ -188,7 +184,6 @@ def test_redaction_spec_config(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     chatlog_config.invalidate_cache()
 
     cfg = chatlog_config.resolve_config()
@@ -207,7 +202,6 @@ def test_defaults_when_no_config(tmp_path, monkeypatch):
     config_path = tmp_path / ".chatlog_config.json"
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     chatlog_config.invalidate_cache()
 
     cfg = chatlog_config.resolve_config()
