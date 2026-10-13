@@ -424,6 +424,15 @@ the policy is forward-going only.
   **Affected:** installs that enable an autonomous pass · **Action:** none;
   prefer `[autonomy]` in `m3_config.toml` · **Data status:** none.
 
+- **`[governor]` in `m3_config.toml` sets the background-work governor.** The
+  load thresholds resolve `m3_config.toml` first, then `.governor_config.json`,
+  then the `M3_GOVERNOR_*` names (read by the settings registry), then the
+  defaults; the free-RAM floors and the file's re-check interval read
+  `m3_config.toml`, then their env names. An out-of-range `M3_GOVERNOR_*` value is
+  now reported at startup instead of clamped.
+  **Affected:** installs that tune the governor · **Action:** none; prefer
+  `[governor]` in `m3_config.toml` · **Data status:** none.
+
 - **No secret is read from the environment, in two more places.** The dashboard's
   cloud health probe no longer falls back to an exported API key when the secret
   chain fails; it reports the cause. `m3 serve --generate-token` no longer warns that an

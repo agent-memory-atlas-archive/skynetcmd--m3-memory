@@ -98,7 +98,7 @@ def _write_cfg(path, payload, mtime):
     os.utime(str(path), (mtime, mtime))
 
 
-def test_governor_thresholds_config_file_overrides(monkeypatch, tmp_path):
+def test_governor_thresholds_config_file_overrides(monkeypatch, tmp_path, m3_settings):
     # Config file is authoritative over env and default, re-parsed only on mtime
     # change.
     cfg_root = tmp_path
@@ -106,8 +106,7 @@ def test_governor_thresholds_config_file_overrides(monkeypatch, tmp_path):
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(cfg_root))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)  # always re-stat
     monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
-    monkeypatch.delenv("M3_GOVERNOR_INITIAL_THRESHOLD", raising=False)
-    monkeypatch.delenv("M3_GOVERNOR_LIMIT_THRESHOLD", raising=False)
+    m3_settings()  # registry defaults only: no env, no m3_config.toml
 
     # No file -> defaults.
     assert m3_sdk._governor_thresholds(now=1.0) == (85, 95)
@@ -121,15 +120,14 @@ def test_governor_thresholds_config_file_overrides(monkeypatch, tmp_path):
     assert m3_sdk._governor_thresholds(now=3.0) == (75, 80)
 
 
-def test_governor_thresholds_skips_reparse_when_unchanged(monkeypatch, tmp_path):
+def test_governor_thresholds_skips_reparse_when_unchanged(monkeypatch, tmp_path, m3_settings):
     # Same mtime -> the file is NOT re-opened/parsed; the cached value is reused.
     cfg_root = tmp_path
     cfg = cfg_root / ".governor_config.json"
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(cfg_root))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)
     monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
-    monkeypatch.delenv("M3_GOVERNOR_INITIAL_THRESHOLD", raising=False)
-    monkeypatch.delenv("M3_GOVERNOR_LIMIT_THRESHOLD", raising=False)
+    m3_settings()  # registry defaults only: no env, no m3_config.toml
 
     _write_cfg(cfg, {"initial_threshold": 40, "limit_threshold": 75}, mtime=1000.0)
     assert m3_sdk._governor_thresholds(now=1.0) == (40, 75)
@@ -152,7 +150,7 @@ def test_governor_thresholds_skips_reparse_when_unchanged(monkeypatch, tmp_path)
     assert opens == []
 
 
-def test_ensure_governor_config_creates_and_is_idempotent(monkeypatch, tmp_path):
+def test_ensure_governor_config_creates_and_is_idempotent(monkeypatch, tmp_path, m3_settings):
     import json
 
     cfg_root = tmp_path
@@ -160,14 +158,13 @@ def test_ensure_governor_config_creates_and_is_idempotent(monkeypatch, tmp_path)
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(cfg_root))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)
     monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
-    monkeypatch.setenv("M3_GOVERNOR_INITIAL_THRESHOLD", "40")
-    monkeypatch.setenv("M3_GOVERNOR_LIMIT_THRESHOLD", "75")
+    m3_settings({"governor.initial_threshold": 40, "governor.limit_threshold": 75})
 
     assert not cfg.exists()
     path = m3_sdk.ensure_governor_config()
     assert cfg.exists()
     data = json.loads(cfg.read_text())
-    # Seeded with the current EFFECTIVE thresholds (here from env).
+    # Seeded with the current EFFECTIVE thresholds (here from m3_config.toml).
     assert data["initial_threshold"] == 40
     assert data["limit_threshold"] == 75
     assert "_comment" in data
@@ -180,13 +177,30 @@ def test_ensure_governor_config_creates_and_is_idempotent(monkeypatch, tmp_path)
 
 
 def test_governor_thresholds_env_fallback(monkeypatch, tmp_path):
-    # No config file -> env var is used over the default.
+    # No config file -> the legacy env name, read by the registry, beats the default.
+    from m3_core.config import settings as st
+
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(tmp_path))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)
     monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
     monkeypatch.setenv("M3_GOVERNOR_INITIAL_THRESHOLD", "30")
     monkeypatch.setenv("M3_GOVERNOR_LIMIT_THRESHOLD", "60")
-    assert m3_sdk._governor_thresholds(now=1.0) == (30, 60)
+    st._reset_for_tests()
+    try:
+        assert m3_sdk._governor_thresholds(now=1.0) == (30, 60)
+    finally:
+        st._reset_for_tests()
+
+
+def test_m3_config_beats_the_governor_file(monkeypatch, tmp_path, m3_settings):
+    # <dynamic> design Q2: m3_config.toml [governor] > .governor_config.json.
+    cfg = tmp_path / ".governor_config.json"
+    monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(tmp_path))
+    monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)
+    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
+    m3_settings({"governor.initial_threshold": 50, "governor.limit_threshold": 70})
+    _write_cfg(cfg, {"initial_threshold": 40, "limit_threshold": 75}, mtime=1000.0)
+    assert m3_sdk._governor_thresholds(now=1.0) == (50, 70)
 
 
 def test_local_llm_url_detection():

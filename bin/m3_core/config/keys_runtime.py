@@ -212,7 +212,8 @@ RUNTIME: list[Key] = [
     _int("loop.throttled_limit", ("M3_GOVERNOR_THROTTLED_LIMIT",), 1, "Items per loop pass under THROTTLED load."),
     # Thresholds read through governor wrappers the env gate could not see until
     # 2026-10-09 (governor.py:137, :176). Today out-of-range values are CLAMPED
-    # silently; the registry rejects them (intended-change list). The file wins today.
+    # silently; the registry rejects them (intended-change list). Order: this table >
+    # .governor_config.json > the env name > default (governor.py).
     _int(
         "governor.initial_threshold",
         ("M3_GOVERNOR_INITIAL_THRESHOLD",),

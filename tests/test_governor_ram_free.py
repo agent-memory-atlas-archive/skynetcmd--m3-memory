@@ -97,11 +97,10 @@ def test_ram_throttle_wins_over_idle_continuous(gov):
     assert _pace(gov, free_gb=3.0, idle_s=300, cpu=1.0, gpu=0.0) == "THROTTLED"
 
 
-# ── env override ──────────────────────────────────────────────────────────────
-def test_env_overrides_thresholds(gov, monkeypatch):
-    """Thresholds are configurable for smaller/larger hosts."""
-    monkeypatch.setenv("M3_GOVERNOR_RAM_HALT_GB", "0.5")
-    monkeypatch.setenv("M3_GOVERNOR_RAM_THROTTLE_GB", "8.0")
+# ── configured thresholds ─────────────────────────────────────────────────────
+def test_configured_thresholds(gov, m3_settings):
+    """Thresholds are configurable for smaller/larger hosts ([governor] in m3_config.toml)."""
+    m3_settings({"governor.ram_halt_gb": 0.5, "governor.ram_throttle_gb": 8.0})
     # 6 GiB free is now below the raised 8 GiB active buffer -> THROTTLED
     assert _pace(gov, free_gb=6.0, idle_s=300) == "THROTTLED"
     # 0.7 GiB free is above the lowered 0.5 GiB halt floor -> not HALTED

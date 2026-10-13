@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from m3_core.paths import get_m3_config_root
 from m3_core.runtime import M3_CORE_RS_DISABLE
@@ -16,7 +17,8 @@ _LAST_USER_INTERACTION = 0.0
 # ── Governor thresholds (live-reloadable) ─────────────────────────────────────
 # INITIAL_LIMIT = load% at/above which background work THROTTLES; LIMIT_THRESHOLD
 # = load% at/above which it HALTS. Resolved at runtime each cycle via
-# _governor_thresholds() with precedence: config file > env var > default. The
+# _governor_thresholds() with precedence: m3_config.toml [governor] > this config
+# file > the registry's legacy env name > default (<dynamic> design Q2). The
 # config file (<config_root>/.governor_config.json) is the cross-platform,
 # RESTART-FREE knob: none of the headless launchers (Windows task / macOS
 # launchd / Linux systemd) reliably inherit shell env, but they all resolve the
@@ -27,7 +29,7 @@ _LAST_USER_INTERACTION = 0.0
 # module constants directly); the live path is _governor_thresholds().
 _GOV_DEFAULT_INITIAL = 85
 _GOV_DEFAULT_LIMIT = 95
-_GOV_CFG_TTL = float(os.environ.get("M3_GOVERNOR_CFG_TTL", "5.0"))
+_GOV_CFG_TTL = float(_m3cfg.setting("governor.config_ttl_s"))
 # mtime tracks the last-parsed file modification time so we only re-read+parse
 # when the file actually changed; `ts` throttles how often we even stat it.
 _gov_cfg_cache: dict[str, Any] = {"ts": 0.0, "mtime": None, "initial": None, "limit": None}
@@ -39,7 +41,8 @@ def _governor_config_path() -> str:
 
 def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
     """Return (initial_threshold, limit_threshold), clamped & sanity-checked.
-    Precedence per value: config file > env var > default.
+    Precedence per value: m3_config.toml > config file > the registry (legacy env
+    name, then default).
 
     The file is only re-read+parsed when its mtime changes — between the stat
     checks (throttled to _GOV_CFG_TTL so we don't stat on every single call) an
@@ -76,21 +79,19 @@ def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
             _gov_cfg_cache["initial"] = cfg.get("initial_threshold")
             _gov_cfg_cache["limit"] = cfg.get("limit_threshold")
 
-    def _resolve(cfg_val, env_name, default):
+    def _resolve(cfg_val, name):
+        pinned = _m3cfg.file_value(name)
+        if pinned is not None:
+            return int(pinned)
         if cfg_val is not None:
             try:
                 return int(cfg_val)
             except (TypeError, ValueError):
                 pass
-        try:
-            return int(os.environ.get(env_name, default))
-        except (TypeError, ValueError):
-            return default
+        return int(_m3cfg.setting(name))
 
-    initial = min(
-        99, max(10, _resolve(_gov_cfg_cache["initial"], "M3_GOVERNOR_INITIAL_THRESHOLD", _GOV_DEFAULT_INITIAL))
-    )
-    limit = min(100, max(20, _resolve(_gov_cfg_cache["limit"], "M3_GOVERNOR_LIMIT_THRESHOLD", _GOV_DEFAULT_LIMIT)))
+    initial = min(99, max(10, _resolve(_gov_cfg_cache["initial"], "governor.initial_threshold")))
+    limit = min(100, max(20, _resolve(_gov_cfg_cache["limit"], "governor.limit_threshold")))
     # Enforce initial < limit.
     if initial >= limit and limit != 100:
         initial = limit - 5
@@ -137,19 +138,11 @@ def ensure_governor_config() -> str:
     return path
 
 
-# Import-time snapshot (back-compat for any reader of the module constants).
-# Env+default ONLY — the config-file path requires get_m3_config_root(), defined
-# later in this module, so reading it here would NameError at import. The live
-# governor path (_governor_thresholds, called per-cycle) picks up the file.
-def _import_time_threshold(env_name: str, default: int, lo: int, hi: int) -> int:
-    try:
-        return min(hi, max(lo, int(os.environ.get(env_name, default))))
-    except (TypeError, ValueError):
-        return default
-
-
-INITIAL_LIMIT = _import_time_threshold("M3_GOVERNOR_INITIAL_THRESHOLD", _GOV_DEFAULT_INITIAL, 10, 99)
-LIMIT_THRESHOLD = _import_time_threshold("M3_GOVERNOR_LIMIT_THRESHOLD", _GOV_DEFAULT_LIMIT, 20, 100)
+# Import-time snapshot (back-compat for any reader of the module constants): the
+# registry's value (m3_config.toml, legacy env name, default). The live governor
+# path (_governor_thresholds, called per-cycle) also honours .governor_config.json.
+INITIAL_LIMIT = int(_m3cfg.setting("governor.initial_threshold"))
+LIMIT_THRESHOLD = int(_m3cfg.setting("governor.limit_threshold"))
 if INITIAL_LIMIT >= LIMIT_THRESHOLD and LIMIT_THRESHOLD != 100:
     INITIAL_LIMIT = LIMIT_THRESHOLD - 5
 
@@ -180,19 +173,12 @@ _RAM_IDLE_RELAX_SECONDS = 1800.0  # 30 min
 
 def _ram_free_thresholds() -> "tuple[float, float, float]":
     """(halt_gb, throttle_gb, idle_throttle_gb): free RAM at/below which we HALT /
-    THROTTLE-while-active / THROTTLE-while-idle. Default 1 / 4 / 2 GiB. Env
-    overrides for smaller/larger hosts."""
-
-    def _f(name: str, default: float) -> float:
-        try:
-            return float(os.environ.get(name, "") or default)
-        except ValueError:
-            return default
-
+    THROTTLE-while-active / THROTTLE-while-idle. Default 1 / 4 / 2 GiB; [governor]
+    in m3_config.toml overrides them for smaller/larger hosts."""
     return (
-        _f("M3_GOVERNOR_RAM_HALT_GB", 1.0),
-        _f("M3_GOVERNOR_RAM_THROTTLE_GB", 4.0),
-        _f("M3_GOVERNOR_RAM_THROTTLE_IDLE_GB", 2.0),
+        float(_m3cfg.setting("governor.ram_halt_gb")),
+        float(_m3cfg.setting("governor.ram_throttle_gb")),
+        float(_m3cfg.setting("governor.ram_throttle_idle_gb")),
     )
 
 
