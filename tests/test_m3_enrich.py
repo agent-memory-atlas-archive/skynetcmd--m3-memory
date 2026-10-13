@@ -1,5 +1,5 @@
 """Tests for bin/m3_enrich.py — argparse, profile resolution, type-allowlist,
-DB resolution, dry-run, _ensure_migration_025 idempotence.
+DB resolution, dry-run, the drain's stores reaching their migrated schema.
 
 Network is mocked or skipped where possible. Tests that need an actual
 DB schema use a minimum-schema fixture similar to test_observer.py.
@@ -21,29 +21,11 @@ sys.path.insert(0, str(REPO / "bin"))
 
 @pytest.fixture
 def stub_db(tmp_path, monkeypatch):
-    """Minimum-schema test DB. Mirrors test_observer.py — bypasses
-    migrate_memory.py since the chain has a known migration-002 issue."""
+    """A main store in the current migrated schema (conftest's template)."""
+    from conftest import create_full_main_schema
+
     db_path = tmp_path / "test.db"
-    conn = sqlite3.connect(str(db_path))
-    conn.executescript("""
-        CREATE TABLE memory_items (
-            id TEXT PRIMARY KEY, type TEXT, title TEXT, content TEXT,
-            metadata_json TEXT, conversation_id TEXT, user_id TEXT,
-            valid_from TEXT, created_at TEXT,
-            is_deleted INTEGER DEFAULT 0,
-            variant TEXT
-        );
-        CREATE TABLE memory_relationships (
-            id TEXT PRIMARY KEY, from_id TEXT, to_id TEXT,
-            relationship_type TEXT, created_at TEXT
-        );
-        CREATE TABLE memory_embeddings (
-            id TEXT PRIMARY KEY, memory_id TEXT, embedding BLOB,
-            embed_model TEXT, dim INTEGER, created_at TEXT
-        );
-    """)
-    conn.commit()
-    conn.close()
+    create_full_main_schema(db_path)
     return db_path
 
 
@@ -310,45 +292,17 @@ def test_load_profile_aborts_on_unknown_name():
     assert "not found" in str(exc.value.code).lower()
 
 
-def test_ensure_migration_025_creates_queues(stub_db, monkeypatch):
-    """_ensure_migration_025 should create observation_queue + reflector_queue
-    on a DB that lacks them. Idempotent on second call."""
-    import m3_enrich
+def test_a_fresh_store_reaches_the_queues_through_its_migrations(tmp_path, monkeypatch):
+    """The drain gets its queues from the store's own migrations (main 025), applied
+    by the runner when the store is opened -- not from a runtime replay."""
+    from enrich.prep import _ensure_migrated
 
-    m3_enrich._ensure_migration_025(stub_db)
-    conn = sqlite3.connect(str(stub_db))
-    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    assert "observation_queue" in tables
-    assert "reflector_queue" in tables
-    # Run again — should be a no-op (idempotent).
-    m3_enrich._ensure_migration_025(stub_db)
-    conn.close()
-
-
-def test_ensure_migration_025_creates_observation_queue_if_missing(tmp_path, monkeypatch):
-    """Chatlog DBs lack observation_queue by default; the helper must
-    add it lazily so the enrich drain path doesn't crash."""
-    import m3_enrich
-
-    db_path = tmp_path / "no_obs_queue.db"
-    conn = sqlite3.connect(str(db_path))
-    # Minimum schema EXCEPT observation_queue. memory_items needs the
-    # columns referenced by migration 025's partial index
-    # (type, user_id, valid_from).
-    conn.executescript("""
-        CREATE TABLE memory_items (
-            id TEXT PRIMARY KEY, type TEXT, content TEXT,
-            user_id TEXT, valid_from TEXT,
-            is_deleted INTEGER DEFAULT 0
-        );
-    """)
-    conn.commit()
-    conn.close()
-    m3_enrich._ensure_migration_025(db_path)
-    conn = sqlite3.connect(str(db_path))
-    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    assert "observation_queue" in tables
-    conn.close()
+    db_path = tmp_path / "fresh.db"
+    _ensure_migrated(db_path)
+    _ensure_migrated(db_path)  # idempotent
+    with sqlite3.connect(str(db_path)) as conn:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"observation_queue", "reflector_queue"}.issubset(tables)
 
 
 def test_query_eligible_groups_groups_by_conversation_id(stub_db):
@@ -468,7 +422,7 @@ def test_observation_enqueue_idempotent(stub_db, monkeypatch):
     # Migrate to add observation_queue / reflector_queue tables.
     import m3_enrich
 
-    m3_enrich._ensure_migration_025(stub_db)
+    m3_enrich._ensure_migrated(stub_db)
 
     import memory_core as mc
 
@@ -509,7 +463,7 @@ def test_drain_queue_mode_handles_empty_queue(stub_db, monkeypatch, capsys):
     set_secret("LM_API_TOKEN", "test-stub-token")
     import m3_enrich
 
-    m3_enrich._ensure_migration_025(stub_db)
+    m3_enrich._ensure_migrated(stub_db)
 
     args = argparse.Namespace(
         profile="enrich_local_qwen",
@@ -620,43 +574,27 @@ def test_every_batch_script_resolves_through_the_one_owner():
         assert mod._resolve_db is resolve_role_db, f"{mod.__name__} has its own _resolve_db"
 
 
-def test_migration_025_skips_a_store_without_memory_items(tmp_path, capsys):
-    """025 indexes memory_items, so it must not run against a chatlog-only store.
-
-    Regression: the drain applies 025 whenever either queue is missing, but the
-    script's last statement indexes ``memory_items``. On a store without that
-    table ``executescript`` aborts PARTWAY THROUGH — the queues it already
-    created are committed, the index is not, and the run dies with
-    ``sqlite3.OperationalError: no such table: main.memory_items``. Observed
-    2026-09-16 on the first drain that got far enough to reach a real DB.
-    """
-    import sqlite3
-
-    from enrich.prep import _ensure_migration_025
+def test_a_chatlog_store_gets_the_queues_from_its_own_lane(tmp_path):
+    """Chatlog migration 007 ports main's 025 into the chatlog lane: the drain once
+    replayed main's file against chatlog stores at runtime, recorded nowhere."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
 
     chatlog = tmp_path / "agent_chatlog.db"
-    sqlite3.connect(str(chatlog)).close()
-
-    _ensure_migration_025(chatlog)  # must not raise
-
-    assert "skipping migration 025" in capsys.readouterr().out
-
-
-def test_migration_025_still_applies_to_a_core_store(tmp_path):
-    """The guard must not disable the migration where it belongs."""
-    import sqlite3
-
-    from enrich.prep import _ensure_migration_025
-
-    core = tmp_path / "agent_memory.db"
-    conn = sqlite3.connect(str(core))
-    conn.execute("CREATE TABLE memory_items (id TEXT, type TEXT, user_id TEXT, valid_from TEXT)")
-    conn.commit()
-    conn.close()
-
-    _ensure_migration_025(core)
-
-    conn = sqlite3.connect(str(core))
-    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    conn.close()
-    assert {"observation_queue", "reflector_queue"}.issubset(tables)
+    script = Path(__file__).resolve().parents[1] / "bin" / "migrate_memory.py"
+    env = dict(os.environ, CHATLOG_DB_PATH=str(chatlog), M3_ENGINE_ROOT=str(tmp_path / "engine"))
+    r = subprocess.run(
+        [sys.executable, str(script), "up", "--yes", "--target", "chatlog"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert r.returncode == 0, r.stderr[-800:]
+    with sqlite3.connect(str(chatlog)) as conn:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        version = conn.execute("SELECT MAX(version) FROM schema_versions").fetchone()[0]
+    assert {"observation_queue", "reflector_queue"}.issubset(tables), tables
+    assert version >= 7

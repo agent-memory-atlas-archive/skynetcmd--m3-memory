@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_core.py
-sha1: 0223b458f746
-mtime_utc: 2026-10-13T00:13:49.950221+00:00
-generated_utc: 2026-10-13T00:30:42.369487+00:00
+sha1: 175df970e282
+mtime_utc: 2026-10-13T00:55:35.518481+00:00
+generated_utc: 2026-10-13T00:57:48.718544+00:00
 private: false
 ---
 
@@ -108,7 +108,6 @@ _(no subprocess / http / sqlite calls detected)_
 - `memory (records)`
 - `memory.backends (dialect)`
 - `memory.config (FACT_ENRICH_CONCURRENCY)`
-- `memory.db (ensure_pinned_column)`
 - `memory.db (record_reads)`
 - `memory.deletion (hard_delete_requested)`
 - `memory.entity (_enable_entity_graph_gate)`

@@ -11,9 +11,9 @@ import sqlite3
 
 import pytest
 
-pytest.importorskip("fastapi")
+from conftest import create_full_main_schema, skip_reason
 
-from conftest import create_full_main_schema  # noqa: E402
+pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [dashboard] extra"))
 
 _PAYLOAD = "<script>alert(1)</script>"
 

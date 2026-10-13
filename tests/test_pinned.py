@@ -1,9 +1,7 @@
-"""Tests for the pinned/protected memory flag (Lever 3a, runtime-DDL).
+"""Tests for the pinned/protected memory flag (Lever 3a).
 
-`memory_items.pinned` is added at runtime (no migration file — see
-bin/memory/db.py::ensure_pinned_column, mirroring
-bin/enrich/prep.py::_ensure_migration_025's inline-DDL fallback). Pinned
-memories are exempt from:
+`memory_items.pinned` comes from migration 037 (PostgreSQL: the base schema);
+m3 schemas change only through migrations. Pinned memories are exempt from:
   - importance decay (memory_maintenance_impl's `decay` block)
   - confidence decay-toward-neutral (_reinforce_confidence)
   - expiry purge (memory_maintenance_impl's `purge_expired` block)
@@ -85,58 +83,29 @@ def _seed(
     conn.execute(sql, params)
 
 
-# ── ensure_pinned_column ─────────────────────────────────────────────────────
+# ── the pinned column ─────────────────────────────────────────────────────
 
 
-def test_ensure_pinned_column_idempotent(tmp_path):
-    # The full schema now carries `pinned` from migration 037, so the runtime
-    # helper is a FALLBACK for a DB that predates 037. Simulate that pre-037 DB
-    # by dropping the column, then verify the helper re-adds it idempotently.
-    from memory.db import ensure_pinned_column
-
+def test_the_migrated_schema_has_the_pinned_column(tmp_path):
+    """Migration 037 owns the column (m3 schemas change only through migrations);
+    there is no runtime backstop to fall back on."""
     db = tmp_path / "t.db"
     _full_db(db)
-    conn = sqlite3.connect(str(db))
-    try:
-        conn.execute("DROP INDEX IF EXISTS idx_memory_items_pinned")  # index refs the col
-        conn.execute("ALTER TABLE memory_items DROP COLUMN pinned")  # → pre-037 state
-        conn.commit()
-        cols_before = {r[1] for r in conn.execute("PRAGMA table_info(memory_items)")}
-        assert "pinned" not in cols_before
-
-        ensure_pinned_column(conn)
-        cols_after = {r[1] for r in conn.execute("PRAGMA table_info(memory_items)")}
-        assert "pinned" in cols_after
-
-        # Second call: no error, column still present exactly once.
-        ensure_pinned_column(conn)
-        cols_second = [r[1] for r in conn.execute("PRAGMA table_info(memory_items)")]
-        assert cols_second.count("pinned") == 1
-    finally:
-        conn.close()
-
-
-def test_ensure_pinned_column_never_raises_on_bogus_conn():
-    """Best-effort contract: a broken/closed connection must not raise out."""
-    from memory.db import ensure_pinned_column
-
-    conn = sqlite3.connect(":memory:")
-    conn.close()
-    ensure_pinned_column(conn)  # must not raise
+    with sqlite3.connect(str(db)) as conn:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(memory_items)")}
+    assert "pinned" in cols
 
 
 # ── decay exemption ──────────────────────────────────────────────────────────
 
 
 def test_pinned_row_survives_importance_decay_unpinned_decays(tmp_path):
-    from memory.db import ensure_pinned_column
     from memory_maintenance import memory_maintenance_impl
 
     db = tmp_path / "t.db"
     _full_db(db)
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
-    ensure_pinned_column(conn)
     _seed(conn, "pinned-id", importance=0.9, created_days_ago=30, pinned=1)
     _seed(conn, "unpinned-id", importance=0.9, created_days_ago=30, pinned=0)
     conn.commit()
@@ -158,14 +127,12 @@ def test_pinned_row_survives_importance_decay_unpinned_decays(tmp_path):
 
 
 def test_pinned_row_survives_confidence_decay(tmp_path):
-    from memory.db import ensure_pinned_column
     from memory_maintenance import _reinforce_confidence
 
     db = tmp_path / "t.db"
     _full_db(db)
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
-    ensure_pinned_column(conn)
     _seed(conn, "pinned-id", confidence=0.95, pinned=1)
     _seed(conn, "unpinned-id", confidence=0.95, pinned=0)
     conn.commit()
@@ -185,14 +152,12 @@ def test_pinned_row_survives_confidence_decay(tmp_path):
 
 
 def test_pinned_row_not_expiry_purged_unpinned_is(tmp_path):
-    from memory.db import ensure_pinned_column
     from memory_maintenance import memory_maintenance_impl
 
     db = tmp_path / "t.db"
     _full_db(db)
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
-    ensure_pinned_column(conn)
     past = "2020-01-01T00:00:00Z"
     _seed(conn, "pinned-id", expires_at=past, pinned=1)
     _seed(conn, "unpinned-id", expires_at=past, pinned=0)
@@ -280,14 +245,12 @@ def test_retention_ttl_tolerates_missing_pinned_column(tmp_path):
 
 
 def test_pinned_row_survives_retention_ttl_unpinned_purged(tmp_path):
-    from memory.db import ensure_pinned_column
     from memory_maintenance import _enforce_retention_policies
 
     db = tmp_path / "t.db"
     _full_db(db)
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
-    ensure_pinned_column(conn)
     _seed(conn, "pinned-id", created_days_ago=999, pinned=1, agent_id="agentX")
     _seed(conn, "unpinned-id", created_days_ago=999, pinned=0, agent_id="agentX")
     conn.execute(
@@ -307,14 +270,12 @@ def test_pinned_row_survives_retention_ttl_unpinned_purged(tmp_path):
 
 
 def test_pinned_row_survives_retention_max_count_unpinned_purged(tmp_path):
-    from memory.db import ensure_pinned_column
     from memory_maintenance import _enforce_retention_policies
 
     db = tmp_path / "t.db"
     _full_db(db)
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
-    ensure_pinned_column(conn)
     # Oldest row is pinned; max_memories=1 would normally purge it as the
     # "excess" (offset past the newest 1) — pinned exemption must save it.
     _seed(conn, "old-pinned", created_days_ago=10, pinned=1, agent_id="agentY")
@@ -412,9 +373,7 @@ def test_pinned_row_can_still_be_superseded(tmp_path, monkeypatch):
     _full_db(db)
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
-    from memory.db import ensure_pinned_column
 
-    ensure_pinned_column(conn)
     old_id = str(uuid.uuid4())
     _seed(conn, old_id, importance=0.9, pinned=1)
     conn.commit()

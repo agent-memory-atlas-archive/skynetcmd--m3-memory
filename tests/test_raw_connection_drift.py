@@ -107,9 +107,6 @@ _EXEMPT = {
     "under `_primary_is_sqlite`, the files count under `_pg_files`, and "
     "_recent_write_count now returns its -1 unknown sentinel on non-SQLite "
     "rather than walking candidate FILE paths that cannot exist on PG.",
-    "bin/enrich/prep.py": "Replays a SQLite-DIALECT migration file (executescript + sqlite_master). "
-    "Returns early on any non-sqlite backend; PG gets these tables from its "
-    "own pg_040 migration. Documented in the function's own docstring.",
     # --- FILES: the raw connect is the SQLite ARM of a real backend branch. ---
     # FILES fully supports PostgreSQL. The sidecar file (files_database.db)
     # exists ONLY on SQLite; on PG the files tables live in a `files` SCHEMA of

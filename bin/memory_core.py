@@ -927,13 +927,7 @@ def _resolve_pin_id(db, ident: str) -> str:
 
 
 def _set_pinned(id, val) -> str:
-    from memory.db import ensure_pinned_column
-
-    with _db() as db:
-        # Ensure column first (idempotent, best-effort) — old DBs get it
-        # lazily on first pin/unpin call even if _lazy_init's bootstrap
-        # somehow missed it.
-        ensure_pinned_column(db)
+    with _db() as db:  # the pinned column comes from migration 037 / the PG base schema
         try:
             full_id = _resolve_pin_id(db, id)
         except ValueError as e:
@@ -1078,7 +1072,13 @@ def memory_delete_bulk_impl(ids, hard=False):
         write_audit_entry(
             action="memory_delete_bulk",
             target_id="bulk",
-            metadata={"ids": id_list, "hard": False, "hard_requested": hard, "succeeded": succeeded, "not_found": not_found},
+            metadata={
+                "ids": id_list,
+                "hard": False,
+                "hard_requested": hard,
+                "succeeded": succeeded,
+                "not_found": not_found,
+            },
         )
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for bulk delete: {e}")

@@ -72,7 +72,7 @@ from enrich.eligibility import _load_conv_list, _query_eligible_groups  # noqa: 
 # Import moved functions from enrich subpackage
 from enrich.prep import (
     BACKUP_DIR,
-    _ensure_migration_025,
+    _ensure_migrated,
     _load_profile_with_path,
     _today,
 )  # noqa: E402
@@ -185,7 +185,7 @@ async def _run_db(
     import sqlite3
 
     pin_database(str(db_path))
-    _ensure_migration_025(db_path)
+    _ensure_migrated(db_path)
     groups = _query_eligible_groups(
         db_path,
         type_allowlist,
@@ -701,9 +701,8 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
         # from the embed targets and stalling the unembedded backlog (#180).
         # The `continue` below is why this wraps the body rather than one call.
         with scoped_db_env(db_path):
-            # Ensure migration 025 (observation_queue/reflector_queue) exists (cheap
-            # idempotent check; no-op on PG where the schema is migration-managed).
-            _ensure_migration_025(db_path)
+            # The store's own migrations create the queues the drain reads.
+            _ensure_migrated(db_path)
             # Count pending rows up-front so we can show what we're about to do.
             # Read-only via the seam (SQLite honors db_path ?mode=ro, PG pools).
             from memory.backends import active_backend as _ab

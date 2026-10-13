@@ -407,6 +407,12 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **A chatlog store gets its enrichment queues from its own migration (007).**
+  The enrichment drain no longer replays a main-store migration against it at
+  runtime; schemas change only through migrations.
+  **Affected:** installs that enrich a separate chatlog store · **Action:** none ·
+  **Data status:** none; queues already present are kept.
+
 - **The LangGraph checkpointer's tables are created by migrations.** Migration
   054 (SQLite) / pg_063 (PostgreSQL) creates them on a new store and brings an
   existing store's tables forward with their checkpoints.

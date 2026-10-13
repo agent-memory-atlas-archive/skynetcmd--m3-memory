@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 84449e1beae6
-mtime_utc: 2026-10-12T23:37:52.719683+00:00
-generated_utc: 2026-10-12T23:37:54.051558+00:00
+sha1: 19e26702f01b
+mtime_utc: 2026-10-13T00:57:18.236114+00:00
+generated_utc: 2026-10-13T00:57:48.585765+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1048)
+- `def main()` (line 1047)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -126,7 +126,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `enrich (ALWAYS_SKIP_TYPES)`
 - `enrich.eligibility (_load_conv_list, _query_eligible_groups)`
-- `enrich.prep (BACKUP_DIR, _ensure_migration_025, _load_profile_with_path, _today)`
+- `enrich.prep (BACKUP_DIR, _ensure_migrated, _load_profile_with_path, _today)`
 - `enrich.rate_limit (_classify_observer_error, _estimate_cost_wall, _RateLimitCascade)`
 - `enrich.report (_print_dry_run, _print_run_summary)`
 - `m3_core.aio (gather_or_cancel)`

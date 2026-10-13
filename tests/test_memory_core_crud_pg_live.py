@@ -9,7 +9,7 @@ PG store and asserts the round-trips — the read side as well as the write side
 
 Historically these raised on PG: raw ``?`` placeholders -> SyntaxError; a raw
 ``INSERT INTO memory_relationships`` omitting the NOT NULL ``id`` PK ->
-NotNullViolation; ``PRAGMA table_info`` in ensure_pinned_column -> aborted txn.
+NotNullViolation; ``PRAGMA table_info`` in a runtime column probe (since removed) -> aborted txn.
 All fixed 2026-07-24; this locks the fix in.
 
 Skips cleanly without a reachable cluster (requires_pg).
@@ -86,7 +86,7 @@ def test_get_verify_update_on_pg(pg):
 
 
 def test_pin_unpin_delete_on_pg(pg):
-    """Exercises ensure_pinned_column (was PRAGMA -> aborted PG txn) + pin/delete."""
+    """Pin, unpin and delete on PG (a runtime PRAGMA probe once aborted the txn here)."""
     import memory_core as MC
 
     uid = f"pin-{uuid.uuid4().hex[:8]}"
