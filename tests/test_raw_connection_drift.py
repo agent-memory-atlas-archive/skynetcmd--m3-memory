@@ -87,7 +87,6 @@ _EXEMPT = {
     "?mode=ro&immutable=1. A foreign file, not m3's store.",
     # --- Self-test harnesses that must NOT share the app's pool. ---
     "bin/test_bulk_parity.py": "Parity harness comparing raw vs seam results — needs the raw side.",
-    "bin/setup_test_db.py": "Builds throwaway fixture databases.",
     # --- Correctly capability-gated already; converting would be wrong. ---
     # Each of these branches on `backend.name == "sqlite"` (the capability form
     # §10a asks for, not `!= "postgres"`) and takes a real PG path in the other

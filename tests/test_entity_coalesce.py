@@ -156,8 +156,11 @@ def test_embed_tier_info_dry_run_no_hint():
 # ── Integration: tmp DB, dry-run (no embedder) ───────────────────────────────
 @pytest.fixture
 def tmp_entity_db(tmp_path, monkeypatch):
-    """A minimal agent_memory.db with an `entities` table + a few rows."""
+    """A migrated agent_memory.db (043 + 057 give the coalescing schema) + a few rows."""
+    from conftest import create_full_main_schema
+
     db = tmp_path / "agent_memory.db"
+    create_full_main_schema(db)
     conn = sqlite3.connect(db, timeout=30)
     # Match production: WAL lets the m3_sdk pool (5 connections) and any test
     # reader coexist without an exclusive-lock fight. A plain journal here makes
@@ -165,21 +168,6 @@ def tmp_entity_db(tmp_path, monkeypatch):
     # CI's slower I/O with "database is locked" (m3_sdk.py:494).
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=30000")
-    conn.executescript(
-        """
-        CREATE TABLE entities (
-            id TEXT PRIMARY KEY, canonical_name TEXT, entity_type TEXT,
-            attributes_json TEXT, valid_from TEXT, valid_to TEXT,
-            content_hash TEXT, created_at TEXT, updated_at TEXT
-        );
-        CREATE TABLE entity_relationships (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            from_entity TEXT NOT NULL, to_entity TEXT NOT NULL,
-            predicate TEXT NOT NULL, confidence REAL DEFAULT 0.85,
-            valid_from TEXT, valid_to TEXT, source_memory_id TEXT, created_at TEXT
-        );
-        """
-    )
     prov = '{"provisional": true, "first_seen_in": "files.db"}'
     rows = [
         # noise -> should quarantine

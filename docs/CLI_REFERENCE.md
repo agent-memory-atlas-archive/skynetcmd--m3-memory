@@ -101,7 +101,7 @@ python bin/setup_test_db.py --database memory/_test.db --force
 M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 ```
 
-`setup_test_db.py` applies every forward migration in `memory/migrations/` (skipping `.down.sql` rollbacks). Pass `--force` to wipe the target before seeding.
+`setup_test_db.py` brings the target to the current schema with m3's migration runner (`migrate_memory.py up`), the same path an install takes. Pass `--force` to wipe the target before seeding.
 
 ---
 

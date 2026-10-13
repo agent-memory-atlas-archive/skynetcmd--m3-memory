@@ -1,39 +1,30 @@
 #!/usr/bin/env python3
 """Seed a fresh SQLite DB with the full m3-memory schema for test isolation.
 
-Applies every forward migration in ``memory/migrations/`` (skipping the
-``.down.sql`` rollback files) so the resulting DB is schema-complete and can
-back the live MCP server, the CLI scripts, and the test suites.
+Brings the store to the current schema with m3's migration runner
+(``migrate_memory.py up``), the same path an install takes, so the result can back
+the live MCP server, the CLI scripts and the test suites.
 
 Usage:
     python bin/setup_test_db.py --database memory/_test.db
-    M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
+    python bin/test_memory_bridge.py --database memory/_test.db
 
-Exits non-zero if any migration fails.
+Exits non-zero if the migrations fail.
 """
 
 from __future__ import annotations
 
 import argparse
-import glob
 import os
-import re
-import sqlite3
+import subprocess
 import sys
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 
 from m3_sdk import add_database_arg, resolve_db_path  # noqa: E402
-from sqlite_pragmas import apply_pragmas, profile_for_db  # noqa: E402
 
-MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "migrations")
-
-# migrate_memory.py wraps each migration in a SAVEPOINT; executescript opens
-# its own implicit transaction instead, so top-level BEGIN / COMMIT confuse
-# it. Strip them.
-_BEGIN_RE = re.compile(r"\bBEGIN\s*(TRANSACTION)?\s*;", re.IGNORECASE)
-_COMMIT_RE = re.compile(r"\bCOMMIT\s*;", re.IGNORECASE)
+MIGRATE = os.path.join(BASE_DIR, "bin", "migrate_memory.py")
 
 
 def main() -> int:
@@ -42,46 +33,28 @@ def main() -> int:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Wipe the target DB file before seeding (default: append to existing).",
+        help="Wipe the target DB file before seeding (default: migrate the existing file).",
     )
     args = parser.parse_args()
 
-    db_path = resolve_db_path(args.database)
+    db_path = str(resolve_db_path(args.database))
     if args.force:
         for suffix in ("", "-wal", "-shm"):
             try:
                 os.remove(db_path + suffix)
             except FileNotFoundError:
                 pass
+    os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
 
-    files = sorted(f for f in glob.glob(os.path.join(MIGRATIONS_DIR, "*.sql")) if not f.endswith(".down.sql"))
-    if not files:
-        print(f"No migrations found in {MIGRATIONS_DIR}", file=sys.stderr)
-        return 1
-
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    # Centralised pragma stack — profile selected by DB basename.
-    apply_pragmas(conn, profile_for_db(db_path))
-    applied = 0
-    failed: list[str] = []
-    for f in files:
-        with open(f, encoding="utf-8") as fh:
-            sql = fh.read()
-        sql = _BEGIN_RE.sub("", sql)
-        sql = _COMMIT_RE.sub("", sql)
-        try:
-            conn.executescript(sql)
-            applied += 1
-        except sqlite3.OperationalError as e:
-            failed.append(f"{os.path.basename(f)}: {e}")
-    conn.commit()
-    conn.close()
-
-    print(f"{applied}/{len(files)} migrations applied to {db_path}")
-    for msg in failed:
-        print(f"  FAIL {msg}", file=sys.stderr)
-    return 0 if not failed else 2
+    # ONE migration runner: a second one (this file used to executescript every
+    # migration itself) cannot skip an already-present column the way the runner
+    # does, keeps no schema_versions, and drifts from what users get.
+    r = subprocess.run([sys.executable, MIGRATE, "--database", db_path, "up", "--yes", "--target", "main"])
+    if r.returncode != 0:
+        print(f"migrations failed for {db_path} (exit {r.returncode}); see the runner's output above", file=sys.stderr)
+        return 2
+    print(f"migrated {db_path} to the current schema")
+    return 0
 
 
 if __name__ == "__main__":

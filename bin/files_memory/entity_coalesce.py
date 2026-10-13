@@ -188,74 +188,9 @@ def _block_key(name: str) -> str:
 # rest of the core store evolves, and how mature multi-backend apps gate schema
 # creation at a controlled lifecycle step rather than from business logic.
 #
-# ensure_schema() remains ONLY as a tolerant guard for the ISOLATED raw-sqlite
-# route (an explicit db_path opens a bare file that never ran the migrations —
-# tests, isolated mutators). On that route it idempotently creates the objects so
-# the caller has a working store. On the SEAM route (path=None) it TRUSTS the
-# migration: SQLite already applied 043 via _lazy_init, and on PG the objects come
-# from pg_048 — so ensure_schema is a no-op there (a fresh PG store that skipped
-# the migration fails LOUD at the first real query with UndefinedTable, the
-# correct signal, rather than app code silently issuing BLOB DDL PG can't run).
-
-
-def ensure_schema(mem: sqlite3.Connection, *, dialect=None) -> None:
-    """Idempotent guard for the ISOLATED raw-sqlite route only (see the module
-    note above). ``dialect`` is the route's dialect (from :func:`_route_dialect`);
-    when it is Postgres this is a NO-OP (pg_048 owns the schema). On SQLite it
-    creates the coalescing objects if absent — needed for an explicit-``db_path``
-    file that never ran migration 043, harmless on a migrated store.
-
-    The embedding cache is named ``entity_coalesce_embeddings`` (module prefix) so
-    it never collides with core migration 032's ``entity_embeddings`` (a different,
-    incompatible schema) — the two subsystems used to share the bare name and
-    clobber each other. Core's table is untouched here."""
-    if dialect is not None and getattr(dialect, "backend", "sqlite") != "sqlite":
-        # PG (and any future non-SQLite backend): schema is migration-owned.
-        return
-    # SQLite route: idempotent additive DDL. Guard the ALTERs with a column probe
-    # (SQLite has no ADD COLUMN IF NOT EXISTS).
-    cols = {r[1] for r in mem.execute("PRAGMA table_info(entities)").fetchall()}
-    if "coalesce_state" not in cols:
-        # 'provisional' | 'quarantined' | 'clustered' | NULL. Indexed so the
-        # working-set filter is a seek, not a full-table JSON scan.
-        mem.execute("ALTER TABLE entities ADD COLUMN coalesce_state TEXT")
-    if "cluster_id" not in cols:
-        mem.execute("ALTER TABLE entities ADD COLUMN cluster_id TEXT")
-    if "resolution_run" not in cols:
-        mem.execute("ALTER TABLE entities ADD COLUMN resolution_run TEXT")
-    mem.execute("CREATE INDEX IF NOT EXISTS idx_entities_coalesce_state ON entities(coalesce_state)")
-    mem.execute("CREATE INDEX IF NOT EXISTS idx_entities_cluster ON entities(cluster_id)")
-
-    mem.execute(
-        """CREATE TABLE IF NOT EXISTS entity_coalesce_candidates (
-            uuid TEXT PRIMARY KEY,
-            entity_a TEXT NOT NULL,
-            entity_b TEXT NOT NULL,
-            name_a TEXT, name_b TEXT,
-            cosine REAL, fuzzy INTEGER,
-            band TEXT,                 -- 'merge' | 'needs_llm'
-            verdict TEXT,              -- 'merge' | 'related_not_same' | 'uncertain' | NULL
-            resolution_run TEXT,
-            detected_at TEXT,
-            reviewed_at TEXT,
-            review_action TEXT,        -- 'merge' | 'related' | 'reject' | 'defer' | 'unapplied'
-            metadata TEXT
-        )"""
-    )
-    mem.execute("CREATE INDEX IF NOT EXISTS idx_ecc_reviewed ON entity_coalesce_candidates(reviewed_at)")
-    # Entity-name embedding cache (persisted; re-runs only embed new/changed —
-    # keyed on name hash). Module-prefixed name so it does NOT collide with core
-    # 032's entity_embeddings.
-    mem.execute(
-        """CREATE TABLE IF NOT EXISTS entity_coalesce_embeddings (
-            entity_id TEXT PRIMARY KEY,
-            name_hash TEXT NOT NULL,
-            embedding BLOB NOT NULL,
-            dim INTEGER NOT NULL,
-            model TEXT,
-            created_at TEXT
-        )"""
-    )
+# There is no runtime DDL here: m3 schemas change only through migrations (user
+# decision 2026-10-13). The chatlog lane has 011; 057 repairs main stores 043
+# never fully reached. An explicit db_path must name a migrated store.
 
 
 def _name_hash(name: str) -> str:
@@ -387,7 +322,6 @@ def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=
     _p = _d.param()
     try:
         with _memory_db(db_path) as mem:
-            ensure_schema(mem, dialect=_d)
             out["prune"] = _quarantine_noise(mem, run_id, dry_run, _p)
 
             ents = mem.execute(
@@ -706,7 +640,6 @@ def apply_coalescence(
     _d = _route_dialect(db_path)
     _p = _d.param()
     with _memory_db(db_path) as mem:
-        ensure_schema(mem, dialect=_d)
         # Transaction owned by the connection (commit on clean exit, rollback on
         # exception) — no raw BEGIN/COMMIT/ROLLBACK. A dry-run makes no writes
         # (every mutation is dry_run-guarded), so the clean-exit commit is a no-op;

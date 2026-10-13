@@ -1,8 +1,8 @@
 ---
 tool: bin/setup_test_db.py
-sha1: 660b84346cb8
-mtime_utc: 2026-10-10T21:05:16.541885+00:00
-generated_utc: 2026-10-12T23:24:27.798661+00:00
+sha1: f2598b45bd4c
+mtime_utc: 2026-10-13T01:42:49.859573+00:00
+generated_utc: 2026-10-13T01:43:09.053015+00:00
 private: false
 ---
 
@@ -12,21 +12,21 @@ private: false
 
 Seed a fresh SQLite DB with the full m3-memory schema for test isolation.
 
-Applies every forward migration in ``memory/migrations/`` (skipping the
-``.down.sql`` rollback files) so the resulting DB is schema-complete and can
-back the live MCP server, the CLI scripts, and the test suites.
+Brings the store to the current schema with m3's migration runner
+(``migrate_memory.py up``), the same path an install takes, so the result can back
+the live MCP server, the CLI scripts and the test suites.
 
 Usage:
     python bin/setup_test_db.py --database memory/_test.db
-    M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
+    python bin/test_memory_bridge.py --database memory/_test.db
 
-Exits non-zero if any migration fails.
+Exits non-zero if the migrations fail.
 
 ---
 
 ## Entry points
 
-- `def main()` (line 39)
+- `def main()` (line 30)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -35,7 +35,7 @@ Exits non-zero if any migration fails.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--force` | Wipe the target DB file before seeding (default: append to existing). | `False` | Appends migrations to existing DB (idempotent). | store_true | Deletes DB + WAL/SHM files, then seeds fresh. |
+| `--force` | Wipe the target DB file before seeding (default: migrate the existing file). | `False` | Appends migrations to existing DB (idempotent). | store_true | Deletes DB + WAL/SHM files, then seeds fresh. |
 | `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
@@ -50,15 +50,14 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `m3_sdk (add_database_arg, resolve_db_path)`
-- `sqlite_pragmas (apply_pragmas, profile_for_db)`
 
 ---
 
 ## Calls OUT (external side-channels)
 
-**sqlite**
+**subprocess**
 
-- `sqlite3.connect()  → `db_path`` (line 63)
+- `subprocess.run()` (line 52)
 
 
 ---
@@ -71,7 +70,7 @@ _(only stdlib)_
 
 ## File dependencies (repo paths referenced)
 
-- `.down.sql`
+_(none detected)_
 
 ---
 

@@ -696,7 +696,10 @@ def apply_migration(conn, version: int, name: str, up_path: str):
                 (version, os.path.basename(up_path)),
             )
             conn.commit()
-            logger.warning(f"v{version:03d}: already present, skipped: {skipped}; every other statement applied.")
+            # INFO, not WARNING: skipping an object that already exists is the
+            # designed outcome (e.g. a repair migration on a store that never
+            # needed it); a warning here would fire on healthy installs.
+            logger.info(f"v{version:03d}: already present, skipped: {skipped}; every other statement applied.")
         else:
             logger.error(f"Failed to apply v{version:03d}: {e}")
             raise
