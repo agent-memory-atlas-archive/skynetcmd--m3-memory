@@ -40,7 +40,6 @@ def _capture_install(monkeypatch, tmp_path, current=""):
     monkeypatch.setattr(sched, "_run", fake_run)
     monkeypatch.setattr(sched, "_venv_python", lambda root, **k: "/venv/bin/python")
     monkeypatch.setattr(sched, "_logs_dir", lambda: str(tmp_path / "logs"))
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "engine"))
     return written
 
 

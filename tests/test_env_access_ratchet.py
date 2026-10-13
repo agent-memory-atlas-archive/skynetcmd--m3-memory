@@ -21,7 +21,7 @@ _BUDGET = 114
 # Sites marked `# env-owner: <why>` (<dynamic> design Q1, 2026-10-13): reading env is
 # their job (root locators, the legacy-name shim, the doctor/import-env scanners).
 _OWNER_BUDGET = 41
-_TESTS_BUDGET = 619
+_TESTS_BUDGET = 601
 
 
 def _cea():

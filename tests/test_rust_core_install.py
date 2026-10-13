@@ -908,7 +908,6 @@ def install_log(monkeypatch, tmp_path):
 
 def test_install_log_records_digest_outcome(monkeypatch, tmp_path, capsys, install_log):
     """A verified download leaves a durable record, not just a console line."""
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     choice, name = _metal_target()
     payload, sums = _release_with_sums({name: GOOD_WHEEL})
     _wire_release(monkeypatch, payload, sums, [GOOD_WHEEL])
@@ -925,7 +924,6 @@ def test_install_log_records_digest_outcome(monkeypatch, tmp_path, capsys, insta
 
 def test_install_log_records_a_mismatch_for_later_analysis(monkeypatch, tmp_path, install_log):
     """The failure a user reports days later must still be on disk."""
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     choice, name = _metal_target()
     payload, sums = _release_with_sums({name: GOOD_WHEEL})
     _wire_release(monkeypatch, payload, sums, [BAD_WHEEL, BAD_WHEEL])
@@ -941,7 +939,6 @@ def test_install_log_records_a_mismatch_for_later_analysis(monkeypatch, tmp_path
 
 def test_install_log_records_the_version_transition(monkeypatch, tmp_path, install_log):
     """The log answers "when did this host move to X" -- as a transition."""
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     monkeypatch.setattr(rci, "installed_rust_core_version", lambda: "3.9.7")
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: False)
     monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
@@ -957,7 +954,6 @@ def test_install_log_records_the_version_transition(monkeypatch, tmp_path, insta
 
 def test_install_log_records_a_total_failure(monkeypatch, tmp_path, install_log):
     """All three tiers failing is precisely what gets investigated later."""
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     monkeypatch.setattr(rci, "installed_rust_core_version", lambda: None)
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: False)
     monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
@@ -978,7 +974,6 @@ def test_install_log_failure_never_breaks_the_install(monkeypatch, tmp_path):
     The same facts already went to stdout/stderr, so only the durable copy is
     lost -- that is not worth failing an otherwise successful upgrade over.
     """
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
 
     # _install_log_path imports Path locally, so patch pathlib itself -- the
     # object the helper will actually resolve at call time.

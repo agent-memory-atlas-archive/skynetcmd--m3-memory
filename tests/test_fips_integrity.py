@@ -630,7 +630,7 @@ class TestSecureWolfsslDiscovery:
         assert cp._trusted_wolfssl_candidates()[0] == os.path.abspath(str(pinned))
         assert cp._resolve_wolfssl_path() == str(pinned)
 
-    def test_resolve_returns_none_when_no_trusted_lib(self, monkeypatch):
+    def test_resolve_returns_none_when_no_trusted_lib(self, monkeypatch, tmp_path):
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
         monkeypatch.delenv("M3_WOLFSSL_LIB", raising=False)
         # M3_LIB_DIR outranks both roots (and the sandbox fixture sets it to the
@@ -640,9 +640,7 @@ class TestSecureWolfsslDiscovery:
         # BOTH roots must move: _m3_lib_dir() prefers M3_CONFIG_ROOT's parent over
         # M3_MEMORY_ROOT, so on a dev box that has a real ~/.m3/lib/wolfssl.dll,
         # redirecting only M3_MEMORY_ROOT leaves the real lib discoverable.
-        import tempfile
-
-        empty = tempfile.mkdtemp(prefix="m3empty-")
+        empty = str(tmp_path / "m3empty")  # pytest reaps it; mkdtemp left one per run
         monkeypatch.setenv("M3_MEMORY_ROOT", empty)
         monkeypatch.setenv("M3_CONFIG_ROOT", os.path.join(empty, "config"))
         # System dirs won't have wolfssl on a test box; expect None.

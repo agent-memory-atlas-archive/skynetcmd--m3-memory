@@ -32,7 +32,6 @@ def test_provider_sha256_matches_hashlib():
 
 def test_audit_trail_uses_provider(monkeypatch, tmp_path):
     """The audit trail's write+verify round-trips through the provider."""
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
     import importlib
 
     import audit_trail
@@ -58,8 +57,6 @@ def test_provider_pbkdf2_matches_cryptography():
 def test_derive_raw_key_round_trips_through_provider(monkeypatch, tmp_path):
     """auth_utils._derive_raw_key now calls provider.pbkdf2_sha256 — verify it
     still produces a usable 32-byte key and that encrypt/decrypt round-trips."""
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
     import importlib
 
     import auth_utils
@@ -75,8 +72,6 @@ def test_derive_raw_key_round_trips_through_provider(monkeypatch, tmp_path):
 def test_fernet_kdf_routes_through_provider(monkeypatch, tmp_path):
     """The legacy Fernet path derives its key via the provider too (the KDF is
     on the boundary even though Fernet itself is legacy)."""
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
     import importlib
 
     import auth_utils

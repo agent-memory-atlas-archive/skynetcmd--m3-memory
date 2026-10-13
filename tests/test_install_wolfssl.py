@@ -25,7 +25,6 @@ def _load():
 def test_install_dir_matches_crypto_provider(monkeypatch, tmp_path):
     """The helper must install where crypto_provider's loader looks (~/.m3/lib),
     honoring the decoupled roots — otherwise the built lib wouldn't be found."""
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
     iw = _load()
     import crypto_provider as cp
 

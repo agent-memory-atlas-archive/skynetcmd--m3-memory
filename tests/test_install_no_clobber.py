@@ -45,10 +45,9 @@ def _populate_db(path, table, value):
 
 @pytest.fixture
 def isolated_roots(tmp_path, monkeypatch):
-    """Point the installer at an isolated decoupled-roots layout under tmp."""
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "engine"))
+    """Point the installer at an isolated decoupled-roots layout under tmp: the
+    sandbox's roots (memory = tmp_path, config = tmp_path/config, engine =
+    tmp_path/engine), which a child process inherits too."""
     import m3_sdk
 
     importlib.reload(m3_sdk)

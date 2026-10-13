@@ -337,7 +337,6 @@ def sovereign(tmp_path, monkeypatch):
     models, config = tmp_path / "models", tmp_path / "config"
     models.mkdir(), config.mkdir(exist_ok=True)  # the sandbox may have made config/
     monkeypatch.setenv("M3_MODELS_ROOT", str(models))
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(config))
     monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
     monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
     monkeypatch.delenv("M3_EMBED_GGUF_AUTODETECT", raising=False)
