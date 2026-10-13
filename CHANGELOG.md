@@ -338,8 +338,8 @@ the policy is forward-going only.
   content, type and user id, and a memory id from the URL, are rendered as text,
   so a memory written with markup in it can no longer run script in the browser
   of whoever opens the audit view; the search query shown back is escaped too.
-  **Affected:** installs that run `m3 dashboard` · **Action:** none · **Data
-  status:** none.
+  **Affected:** installs that run `m3 dashboard` · **Action:** none ·
+  **Data status:** none.
 
 - **m3's API keys and vault secrets no longer reach non-m3 programs.** `pg_dump`,
   `pg_restore` and the pip/uv upgrade step used to inherit every secret set in
