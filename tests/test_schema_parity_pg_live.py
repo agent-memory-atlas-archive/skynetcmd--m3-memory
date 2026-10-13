@@ -101,6 +101,9 @@ _SHARED_CORE_TABLES = {
     # The LangGraph checkpointer's tables, migration-owned since 054 / pg_063.
     "m3_lg_checkpoints",
     "m3_lg_writes",
+    # Created at first use until 056 / pg_064.
+    "session_handoff",
+    "m3_system_cohesion",
 }
 
 

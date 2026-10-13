@@ -844,10 +844,7 @@ def verify_salt_cohesion(conn, where: str) -> None:
         from memory.backends.dialect import dialect_for_connection
 
         p = dialect_for_connection(conn).param()
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS m3_system_cohesion ("
-            "key TEXT PRIMARY KEY, value TEXT, verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
-        )
+        # m3_system_cohesion: main 056 / pg_064, chatlog 010 (migrations own it).
         row = conn.execute(f"SELECT value FROM m3_system_cohesion WHERE key = {p}", ("salt_hash",)).fetchone()
         if row is None:
             conn.execute(f"INSERT INTO m3_system_cohesion (key, value) VALUES ({p}, {p})", ("salt_hash", salt_hash))

@@ -19,11 +19,8 @@ def salt(tmp_path, monkeypatch, each_backend):
     path = tmp_path / ".agent_os_salt"
     path.write_bytes(b"A" * 16)
     monkeypatch.setattr(auth_utils, "device_salt_path", lambda: str(path))
+    # The table comes from the store's migrations (056 / pg_064), not from here.
     with each_backend.connection() as conn:  # the PG test store persists: start clean
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS m3_system_cohesion ("
-            "key TEXT PRIMARY KEY, value TEXT, verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
-        )
         conn.execute("DELETE FROM m3_system_cohesion")
         conn.commit()
     try:
