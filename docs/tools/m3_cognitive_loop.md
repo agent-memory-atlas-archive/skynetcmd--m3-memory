@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_cognitive_loop.py
-sha1: 67dff6444932
-mtime_utc: 2026-10-12T23:24:26.818697+00:00
-generated_utc: 2026-10-12T23:24:27.499689+00:00
+sha1: 2dbb007b04cb
+mtime_utc: 2026-10-13T10:49:02.746237+00:00
+generated_utc: 2026-10-13T10:51:52.658228+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ for m3_enrich and m3_entities.
 | `--concurrency` | SLM concurrency (default: 2) | `2` |  | int |  |
 | `--limit-per-pass` | Max groups/rows per heavy-LLM pass (entity extraction, enrichment, observation drain). Default 4 (override with the M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large catch-up backlog faster on an idle box, WITHOUT editing the flag in a scheduled task). Small enough that one pass is a few-second GPU burst (the governor is only re-checked BETWEEN passes, not within a batch — a 50-item pass once pinned the GPU for ~17 min, so 4 stays ~10x under that). Under THROTTLED load this is shrunk to M3_GOVERNOR_THROTTLED_LIMIT (default 1); when idle the loop also re-ticks immediately if a backlog remains (see the backlog-aware wait below) rather than sleeping the full --interval. Embedding is a separate scheduled task (ChatlogEmbedSweep) and is unaffected. | `max(1, _m3cfg.setting('loop.limit_per_pass'))` |  | int |  |
 | `--database` | Core Memory DB path | None |  | str |  |
-| `--chatlog-db` | Chatlog DB path (Env: CHATLOG_DB_PATH) | None |  | str |  |
+| `--chatlog-db` | Chatlog DB path (default: db_path in .chatlog_config.json) | None |  | str |  |
 | `--profile-entities` | Profile for entities | `entities_local_qwen` |  | str |  |
 | `--profile-enrich` | Profile for enrichment | `enrich_local_qwen` |  | str |  |
 | `--reflector-threshold` | Min observations before Reflector (default: 5) | `5` |  | int |  |
@@ -80,7 +80,7 @@ for m3_enrich and m3_entities.
 
 ## Environment variables read
 
-- `M3_CHATLOG_DB_PATH`
+_(none detected)_
 
 ---
 
@@ -135,7 +135,7 @@ for m3_enrich and m3_entities.
 - `m3_core.errors (log_swallowed)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
-- `m3_core.paths (configured_main_db, pin_database)`
+- `m3_core.paths (configured_main_db, pin_chatlog_db, pin_database)`
 - `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`
 - `memory.backends (active_backend, chatlog_table)`

@@ -1998,13 +1998,10 @@ def isolate_chatlog_env(monkeypatch, tmp_path):
     # CHATLOG_MODE is deprecated / ignored. Scope chatlog + main to tmp so a
     # test run never touches the live store.
     monkeypatch.delenv("CHATLOG_MODE", raising=False)
-    # The M3_-namespaced name, not the legacy CHATLOG_DB_PATH: getenv_compat
-    # reads M3_CHATLOG_DB_PATH first and the old spelling makes m3 log its own
-    # deprecation notice -- 18 times in a full run. A warning that fires when
-    # nothing is wrong trains people to ignore the one that matters (§3).
-    monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db_path))
-    from m3_core.paths import pin_database  # the --database pin, not env (cleared after the test)
+    # The --chatlog-db / --database pins, not env (both cleared after the test).
+    from m3_core.paths import pin_chatlog_db, pin_database
 
+    pin_chatlog_db(str(db_path))
     pin_database(str(main_db_path))
     chatlog_config.invalidate_cache()
 

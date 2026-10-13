@@ -417,6 +417,16 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **The chatlog store's environment names are legacy; use `--chatlog-db`.** m3
+  no longer sets them itself: `--chatlog-db` (cognitive loop, `migrate_memory`)
+  and `chatlog_ingest --db` choose the store for the run in-process. A name still
+  set logs one warning with the fix, and `m3 doctor` and `m3 config import-env`
+  name where it is set. `m3 doctor --fix` no longer renames `CHATLOG_DB_PATH` /
+  `CHATLOG_DB` to their `M3_` spellings.
+  **Affected:** installs or scripts that set a chatlog store env name ·
+  **Action:** pass `--chatlog-db PATH` or set `db_path` in `.chatlog_config.json`;
+  then remove the name · **Data status:** none.
+
 - **One setting decides the chatlog store, for every tool.** The five
   environment names that chose it (`M3_CHATLOG_DB_PATH`, `CHATLOG_DB_PATH`,
   `M3_CHATLOG_DB`, `CHATLOG_DB`, `M3_CHATLOG_DATABASE`) are read in one place, in

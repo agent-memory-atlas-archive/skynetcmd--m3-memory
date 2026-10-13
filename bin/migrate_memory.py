@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
 
-from m3_core.paths import configured_main_db, pin_database  # noqa: E402
+from m3_core.paths import configured_main_db, pin_chatlog_db, pin_database  # noqa: E402
 from m3_core.seams import is_windows
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -296,8 +296,8 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
                         "fingerprint says kind=%s. "
                         "If this is a fresh install and no chatlog data exists, "
                         "delete the file and re-run (`rm %s`). "
-                        "If it contains data you want to keep, set CHATLOG_DB_PATH "
-                        "to a real chatlog DB or omit it to use the default path.",
+                        "If it contains data you want to keep, pass --chatlog-db "
+                        "naming a real chatlog DB (or fix db_path in .chatlog_config.json).",
                         chatlog_path,
                         chatlog_kind,
                         chatlog_path,
@@ -1094,6 +1094,16 @@ def cmd_plan(args):
 # ── Entry point ─────────────────────────────────────────────────────────────
 
 
+_TARGET_HELP = (
+    "Memory FAMILY to migrate (NOT a git branch): "
+    "'main' = core memories DB (default agent_memory.db, overridable via --database); "
+    "'chatlog' = chatlog memories DB (default agent_chatlog.db, overridable via --chatlog-db "
+    "or db_path in .chatlog_config.json); "
+    "'dispatch' = the agent dispatch store; "
+    "'all' = main, chatlog and an existing dispatch store. Default: all configured."
+)
+
+
 def build_parser():
     p = argparse.ArgumentParser(description="m3-memory database migration runner")
     # Top-level --database pins the main database for the run so targets()
@@ -1105,9 +1115,15 @@ def build_parser():
         metavar="PATH",
         help="Override the file path for the 'main' (core memories) target. "
         "Pins it for this run; targets() resolves the main DB from that "
-        "pin. The 'chatlog' target is unaffected — to override "
-        "the chatlog DB path, set M3_CHATLOG_DATABASE in the environment "
-        "before running. Default main DB: memory/agent_memory.db.",
+        "pin. The 'chatlog' target is unaffected (see --chatlog-db). "
+        "Default main DB: agent_memory.db under the engine root.",
+    )
+    p.add_argument(
+        "--chatlog-db",
+        default=None,
+        metavar="PATH",
+        help="Override the file path for the 'chatlog' target for this run. "
+        "Default: db_path in .chatlog_config.json, else agent_chatlog.db under the engine root.",
     )
     sub = p.add_subparsers(dest="command")
 
@@ -1116,13 +1132,7 @@ def build_parser():
         "--target",
         choices=["main", "chatlog", "dispatch", "all"],
         default="all",
-        help="Memory FAMILY to migrate (NOT a git branch): "
-        "'main' = core memories DB (default agent_memory.db, "
-        "overridable via --database / M3_DATABASE); "
-        "'chatlog' = chatlog memories DB (default "
-        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'dispatch' = the agent dispatch store; "
-        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
+        help=_TARGET_HELP,
     )
     sp.set_defaults(func=cmd_status)
 
@@ -1132,13 +1142,7 @@ def build_parser():
         "--target",
         choices=["main", "chatlog", "dispatch", "all"],
         default="all",
-        help="Memory FAMILY to migrate (NOT a git branch): "
-        "'main' = core memories DB (default agent_memory.db, "
-        "overridable via --database / M3_DATABASE); "
-        "'chatlog' = chatlog memories DB (default "
-        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'dispatch' = the agent dispatch store; "
-        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
+        help=_TARGET_HELP,
     )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     sp.add_argument("--dry-run", action="store_true", help="Print the plan + DDL without applying anything")
@@ -1150,13 +1154,7 @@ def build_parser():
         "--target",
         choices=["main", "chatlog", "dispatch", "all"],
         default="all",
-        help="Memory FAMILY to migrate (NOT a git branch): "
-        "'main' = core memories DB (default agent_memory.db, "
-        "overridable via --database / M3_DATABASE); "
-        "'chatlog' = chatlog memories DB (default "
-        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'dispatch' = the agent dispatch store; "
-        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
+        help=_TARGET_HELP,
     )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     sp.add_argument("--dry-run", action="store_true", help="Print the plan + DDL without reverting anything")
@@ -1168,13 +1166,7 @@ def build_parser():
         "--target",
         choices=["main", "chatlog", "dispatch", "all"],
         default="all",
-        help="Memory FAMILY to migrate (NOT a git branch): "
-        "'main' = core memories DB (default agent_memory.db, "
-        "overridable via --database / M3_DATABASE); "
-        "'chatlog' = chatlog memories DB (default "
-        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'dispatch' = the agent dispatch store; "
-        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
+        help=_TARGET_HELP,
     )
     sp.set_defaults(func=cmd_plan)
 
@@ -1184,13 +1176,7 @@ def build_parser():
         "--target",
         choices=["main", "chatlog", "dispatch", "all"],
         default="all",
-        help="Memory FAMILY to migrate (NOT a git branch): "
-        "'main' = core memories DB (default agent_memory.db, "
-        "overridable via --database / M3_DATABASE); "
-        "'chatlog' = chatlog memories DB (default "
-        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-        "'dispatch' = the agent dispatch store; "
-        "'all' = main, chatlog and an existing dispatch store. Default: all configured.",
+        help=_TARGET_HELP,
     )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip interactive prompts")
     sp.set_defaults(func=cmd_backup)
@@ -1222,6 +1208,8 @@ def main():
 
     if args.database:
         pin_database(args.database)
+    if args.chatlog_db:
+        pin_chatlog_db(args.chatlog_db)
 
     # Back-compat: `python migrate_memory.py` with no args == `up` (the old behavior),
     # but now with the new prompts. Scripts that relied on the old no-arg invocation

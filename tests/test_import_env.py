@@ -292,3 +292,15 @@ def test_m3_database_is_named_with_the_fix_and_never_moved(world, capsys):
     out = capsys.readouterr().out
     assert "M3_DATABASE is set in" in out and ".bashrc" in out and "--database PATH" in out and "--store NAME" in out
     assert "M3_DATABASE" not in (world["cfg"].read_text(encoding="utf-8") if world["cfg"].exists() else "")
+
+
+def test_a_chatlog_store_name_is_named_with_the_fix_and_never_moved(world, capsys):
+    """Chatlog design phase 2: the chatlog store's legacy env names are locators
+    too; import-env names them with --chatlog-db / db_path and writes nothing."""
+    _rc(world, "export CHATLOG_DB_PATH=/data/chat.db\n")
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert (
+        "CHATLOG_DB_PATH is set in" in out and "--chatlog-db PATH" in out and "db_path in .chatlog_config.json" in out
+    )
+    assert "CHATLOG_DB_PATH" not in (world["cfg"].read_text(encoding="utf-8") if world["cfg"].exists() else "")

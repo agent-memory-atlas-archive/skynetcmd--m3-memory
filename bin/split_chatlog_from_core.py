@@ -44,7 +44,8 @@ Source (CORE, where chat_log rows currently live), in priority order:
 
 Target (CHATLOG, where they should go), in priority order:
   1. --target <path>
-  2. $M3_CHATLOG_DB_PATH / $CHATLOG_DB_PATH / legacy $CHATLOG_DB env var
+  2. the configured chatlog store (m3_core.paths.configured_chatlog_db: a legacy
+     chatlog env name until N+3)
   3. <engine_root>/agent_chatlog.db  (via m3_core.paths.resolve_engine_file)
 
 The target must already carry the chatlog schema (memory_items,
@@ -126,7 +127,7 @@ def main() -> int:
     require_sqlite_backend("split_chatlog_from_core")  # opens SQLite files directly; refuse on PostgreSQL
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--source", help="CORE memory DB (default: engine agent_memory.db)")
-    ap.add_argument("--target", help="CHATLOG DB (default: $CHATLOG_DB_PATH or engine agent_chatlog.db)")
+    ap.add_argument("--target", help="CHATLOG DB (default: the configured chatlog store, else engine agent_chatlog.db)")
     ap.add_argument("--commit", action="store_true", help="actually copy + delete (default: dry-run)")
     args = ap.parse_args()
 

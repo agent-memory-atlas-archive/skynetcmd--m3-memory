@@ -174,7 +174,8 @@ def test_a_single_sqlite_target_names_both_paths(as_backend, monkeypatch, caplog
     with caplog.at_level(logging.INFO):
         assert [t.name for t in pg_sync.resolve_sync_targets()] == ["main"]
     assert "No separate chatlog target" in caplog.text
-    assert "/m/main.db" in caplog.text and "M3_CHATLOG_DB_PATH" in caplog.text
+    assert "/m/main.db" in caplog.text and "db_path in .chatlog_config.json" in caplog.text
+    assert "M3_CHATLOG_DB_PATH" not in caplog.text  # the fix is the file, not another env name
 
 
 def test_table_names_come_from_the_dialect_not_a_local_literal():

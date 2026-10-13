@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: 3a64cb4255f8
-mtime_utc: 2026-10-12T22:51:17.787625+00:00
-generated_utc: 2026-10-12T23:24:27.160102+00:00
+sha1: 8fa1c4e5bc36
+mtime_utc: 2026-10-13T10:49:46.260154+00:00
+generated_utc: 2026-10-13T10:51:52.339532+00:00
 private: false
 ---
 
@@ -44,7 +44,7 @@ message ids / indices have been ingested so re-invoking on the same transcript
 | `--transcript-path` | Path to the transcript file on disk | — | Reads transcript file at specified path | str | Uses the provided file path as transcript source |
 | `--session-id` | Override conversation_id (defaults to parsed sessionId) | `` | Uses conversation_id parsed from transcript | str | Overrides conversation_id; used if transcript lacks sessionId |
 | `--variant` | Provenance tag (e.g. pre_compact, stop, session_end, test) | None | No variant tag added to rows | str | Tags each ingested row with provided variant value |
-| `--db` | Deprecated: chatlog-only override. Prefer --database. Sets CHATLOG_DB_PATH for the duration of the process. | None | Deprecated alias for --database / CHATLOG_DB_PATH | str | Deprecated alias for --database / CHATLOG_DB_PATH |
+| `--db` | Deprecated: chatlog-only override. Prefer --database. Pins the chatlog store for this process. | None | Deprecated alias for --database / CHATLOG_DB_PATH | str | Deprecated alias for --database / CHATLOG_DB_PATH |
 | `--spill-dir` | Override spill directory for this run (dev smoke tests). Prevents stale spill files from polluting production. | None | Uses configured spill directory | str | Routes spill writes to PATH instead of configured dir (dev smoke tests only) |
 | `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
@@ -56,7 +56,6 @@ message ids / indices have been ingested so re-invoking on the same transcript
 - `COMPUTERNAME`
 - `HOSTNAME`
 - `LOCALAPPDATA`
-- `M3_CHATLOG_DB_PATH`
 - `OPENCODE_DATA_DIR`
 - `USER`
 - `USERNAME`
@@ -87,7 +86,7 @@ message ids / indices have been ingested so re-invoking on the same transcript
 
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.config (settings)`
-- `m3_core.paths (pin_database)`
+- `m3_core.paths (pin_chatlog_db, pin_database)`
 - `m3_core.runtime (utc_iso)`
 - `m3_core.seams (is_windows)`
 - `platform`

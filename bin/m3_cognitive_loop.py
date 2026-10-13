@@ -18,7 +18,7 @@ for m3_enrich and m3_entities.
 """
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
-from m3_core.paths import configured_main_db, pin_database  # noqa: E402
+from m3_core.paths import configured_main_db, pin_chatlog_db, pin_database  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -2111,7 +2111,7 @@ def main():
 
     # Database knobs
     parser.add_argument("--database", default=None, help="Core Memory DB path")
-    parser.add_argument("--chatlog-db", default=None, help="Chatlog DB path (Env: CHATLOG_DB_PATH)")
+    parser.add_argument("--chatlog-db", default=None, help="Chatlog DB path (default: db_path in .chatlog_config.json)")
 
     parser.add_argument("--profile-entities", default="entities_local_qwen", help="Profile for entities")
     parser.add_argument("--profile-enrich", default="enrich_local_qwen", help="Profile for enrichment")
@@ -2266,9 +2266,9 @@ def main():
     args.database = resolve_db_path()
 
     if args.chatlog_db:
-        # Namespaced var → the getenv_compat reader honors it without a
-        # deprecation warning for m3's own internal plumbing.
-        os.environ["M3_CHATLOG_DB_PATH"] = os.path.abspath(args.chatlog_db)
+        # In-process pin: every pass runs in this process, and the Windows re-exec
+        # forwards argv, so no child needs the path in its env.
+        pin_chatlog_db(os.path.abspath(args.chatlog_db))
     args.chatlog_db = chatlog_config.chatlog_db_path()
 
     # Seed .governor_config.json with current defaults if absent, so the live

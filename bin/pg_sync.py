@@ -1668,8 +1668,7 @@ def resolve_sync_targets(main_uri: str | None = None) -> list[SyncTarget]:
         logger.info(
             f"No separate chatlog target: the chatlog resolves to {chat} and "
             f"the main store is {main}, so both sync as one. If they should "
-            f"be separate, pin db_path in .chatlog_config.json or set "
-            f"M3_CHATLOG_DB_PATH."
+            f"be separate, pin db_path in .chatlog_config.json."
         )
     return out
 

@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from m3_core.config import settings as _m3cfg
-from m3_core.paths import pin_database  # noqa: E402
+from m3_core.paths import pin_chatlog_db, pin_database  # noqa: E402
 from m3_core.runtime import utc_iso
 from m3_core.seams import is_windows
 
@@ -885,8 +885,7 @@ async def main() -> int:
     parser.add_argument(
         "--db",
         default=None,
-        help="Deprecated: chatlog-only override. Prefer --database. "
-        "Sets CHATLOG_DB_PATH for the duration of the process.",
+        help="Deprecated: chatlog-only override. Prefer --database. Pins the chatlog store for this process.",
     )
     parser.add_argument(
         "--spill-dir",
@@ -905,17 +904,13 @@ async def main() -> int:
         import chatlog_config
 
         if args.database:
-            # Unified model: --database sets M3_DATABASE so main + chatlog
-            # resolution both see it. CHATLOG_DB_PATH overrides that for the
-            # chatlog-only case (kept for the legacy --db flag).
+            # Unified model: --database pins the main DB, which chatlog resolution
+            # also sees; --db pins the chatlog store alone (the legacy flag).
             pin_database(args.database)
-            logger.info("Overriding DB path via M3_DATABASE: %s", args.database)
+            logger.info("Overriding DB path: %s", args.database)
         if args.db:
-            # Set the namespaced var so the getenv_compat reader picks it up via
-            # the new name (no self-inflicted deprecation warning for m3's own
-            # internal plumbing). The deprecated CHATLOG_DB_PATH still resolves.
-            os.environ["M3_CHATLOG_DB_PATH"] = args.db
-            logger.info("Overriding chatlog DB path via M3_CHATLOG_DB_PATH: %s", args.db)
+            pin_chatlog_db(args.db)  # the chatlog store for this run (in-process; no child inherits env)
+            logger.info("Overriding chatlog DB path: %s", args.db)
         if args.spill_dir:
             chatlog_config.SPILL_DIR = args.spill_dir
             logger.info("Overriding spill dir: %s", args.spill_dir)

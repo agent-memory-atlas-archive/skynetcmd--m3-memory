@@ -1,8 +1,8 @@
 ---
 tool: bin/split_chatlog_from_core.py
-sha1: 655ab3802104
-mtime_utc: 2026-10-13T10:22:46.458635+00:00
-generated_utc: 2026-10-13T10:23:04.753526+00:00
+sha1: 138b9df215d9
+mtime_utc: 2026-10-13T10:49:42.148514+00:00
+generated_utc: 2026-10-13T10:51:52.978315+00:00
 private: false
 ---
 
@@ -53,7 +53,8 @@ Source (CORE, where chat_log rows currently live), in priority order:
 
 Target (CHATLOG, where they should go), in priority order:
   1. --target <path>
-  2. $M3_CHATLOG_DB_PATH / $CHATLOG_DB_PATH / legacy $CHATLOG_DB env var
+  2. the configured chatlog store (m3_core.paths.configured_chatlog_db: a legacy
+     chatlog env name until N+3)
   3. <engine_root>/agent_chatlog.db  (via m3_core.paths.resolve_engine_file)
 
 The target must already carry the chatlog schema (memory_items,
@@ -73,7 +74,7 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 ## Entry points
 
-- `def main()` (line 123)
+- `def main()` (line 124)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -83,7 +84,7 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
 | `--source` | CORE memory DB (default: engine agent_memory.db) | — |  | str |  |
-| `--target` | CHATLOG DB (default: $CHATLOG_DB_PATH or engine agent_chatlog.db) | — |  | str |  |
+| `--target` | CHATLOG DB (default: the configured chatlog store, else engine agent_chatlog.db) | — |  | str |  |
 | `--commit` | actually copy + delete (default: dry-run) | `False` |  | store_true |  |
 
 ---
@@ -104,8 +105,8 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `p`` (line 104)
-- `sqlite3.connect()  → `source`` (line 157)
+- `sqlite3.connect()  → `p`` (line 105)
+- `sqlite3.connect()  → `source`` (line 158)
 
 
 ---

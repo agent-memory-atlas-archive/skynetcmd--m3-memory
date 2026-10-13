@@ -37,8 +37,9 @@ logger = logging.getLogger("M3_SDK")
 # keys live in the registry instead (registry_env_renames(); plan 2D.1).
 DEPRECATED_ENV_RENAMES: dict[str, str] = {
     "AGENT_DB": "M3_AGENT_DB",
-    "CHATLOG_DB": "M3_CHATLOG_DB",
-    "CHATLOG_DB_PATH": "M3_CHATLOG_DB_PATH",
+    # CHATLOG_DB / CHATLOG_DB_PATH are NOT here: renaming them to another env name
+    # is not the fix (chatlog design, 2026-10-13). configured_chatlog_db() warns
+    # with the real one, and doctor / import-env name where they are set.
     "LM_READ_TIMEOUT": "M3_LM_READ_TIMEOUT",
     # CHROMA_BASE_URL is NOT here: the ChromaDB feature was retired, so there is
     # no live getenv_compat call site for it. It moved to RETIRED_ENV_RENAMES so
@@ -244,6 +245,7 @@ _active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar("m3_acti
 _pinned_db: str | None = None
 _pinned_chatlog: str | None = None
 _LEGACY_DB_WARNED = False
+_LEGACY_CHATLOG_WARNED = False
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -869,17 +871,33 @@ def configured_chatlog_db() -> str | None:
     """This process's chatlog store as configured, or None: the ``--chatlog-db``
     pin, else the legacy chatlog env names, read in ONE place (M3_CHATLOG_DB_PATH /
     CHATLOG_DB_PATH, then M3_CHATLOG_DB / CHATLOG_DB, then M3_CHATLOG_DATABASE;
-    honoured until N+3). THE reader for every caller that read one of them."""
+    honoured until N+3, warned once per process). THE reader for every caller that
+    read one of them."""
+    global _LEGACY_CHATLOG_WARNED
     if _pinned_chatlog:
         return _pinned_chatlog
-    # Literal calls, not a loop: the rename-map and locator drift tests find the
-    # legacy names by their call sites.
-    v = (
-        (getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH") or "").strip()
-        or (getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB") or "").strip()
-        or (os.environ.get("M3_CHATLOG_DATABASE") or "").strip()
+    # Literal calls, not a loop: the locator drift test finds the legacy names by
+    # their call sites.
+    found = (
+        ("M3_CHATLOG_DB_PATH", os.environ.get("M3_CHATLOG_DB_PATH")),
+        ("CHATLOG_DB_PATH", os.environ.get("CHATLOG_DB_PATH")),
+        ("M3_CHATLOG_DB", os.environ.get("M3_CHATLOG_DB")),
+        ("CHATLOG_DB", os.environ.get("CHATLOG_DB")),
+        ("M3_CHATLOG_DATABASE", os.environ.get("M3_CHATLOG_DATABASE")),
     )
-    return v or None
+    name, value = next(((n, v.strip()) for n, v in found if v and v.strip()), (None, None))
+    if not value:
+        return None
+    if not _LEGACY_CHATLOG_WARNED:
+        _LEGACY_CHATLOG_WARNED = True
+        logger.warning(
+            "observed: the chatlog store comes from the environment variable %s, which m3 reads "
+            "only until release N+3. fix: pass --chatlog-db PATH to the command, or set db_path in "
+            ".chatlog_config.json; then remove %s.",
+            name,
+            name,
+        )
+    return value
 
 
 def resolve_role_db(arg_path: str | None, role: str, default_name: str) -> Path | None:

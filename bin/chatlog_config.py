@@ -10,7 +10,8 @@ across (what used to be called "hybrid" is just copy=True, which is the
 default).
 
 Resolution order for the chatlog DB path:
-    1. CHATLOG_DB_PATH env var (explicit chatlog-only override, highest priority)
+    1. the configured chatlog store: a script's --chatlog-db pin, else a legacy
+       chatlog env name until N+3 (m3_core.paths.configured_chatlog_db)
     2. active_database() ContextVar (per-call override set by the MCP tool
        dispatcher when a caller passes `database` on a chatlog_* tool)
     3. .chatlog_config.json db_path field, when it pins one
@@ -51,7 +52,7 @@ from sqlite_pragmas import apply_pragmas
 
 logger = logging.getLogger("chatlog_config")
 
-from m3_core.paths import configured_main_db, pin_database  # noqa: E402
+from m3_core.paths import configured_main_db, pin_chatlog_db, pin_database  # noqa: E402
 from m3_sdk import get_m3_config_root, get_m3_engine_root
 
 _M3_CONFIG_ROOT = get_m3_config_root()
@@ -283,9 +284,9 @@ def _warn_if_mode_env_set() -> None:
     if "CHATLOG_MODE" in os.environ:
         logger.warning(
             "CHATLOG_MODE is deprecated and ignored. The chatlog DB path is now "
-            "resolved from CHATLOG_DB_PATH > .chatlog_config.json > the main DB > "
-            "default. Set CHATLOG_DB_PATH equal to your main DB to restore the old "
-            "'integrated' behavior."
+            "resolved from --chatlog-db > .chatlog_config.json db_path > the main DB > "
+            "default. Set db_path in .chatlog_config.json to your main DB to restore "
+            "the old 'integrated' behavior."
         )
     _MODE_WARN_EMITTED = True
 
@@ -386,7 +387,7 @@ def chatlog_db_path() -> str:
 
     Re-resolved on every call so the ContextVar override set by the MCP tool
     dispatcher (when a caller passes `database` on a chatlog_* tool) wins.
-    Order: CHATLOG_DB_PATH env > active_database() ContextVar > pinned
+    Order: configured_chatlog_db() (--chatlog-db pin, legacy env) > active_database() ContextVar > pinned
     .chatlog_config.json db_path > main DB (--database pin, legacy M3_DATABASE) > default. Using the cached config's
     db_path directly would miss the ContextVar since the cache is populated
     at first-call time.
@@ -530,8 +531,8 @@ def chatlog_sqlite_conn():
 
 # ── CLI self-test ─────────────────────────────────────────────────────────────
 def _selftest() -> None:
-    # Env > file > default
-    os.environ.pop("CHATLOG_DB_PATH", None)
+    # Pin > file > default
+    pin_chatlog_db(None)
     pin_database(None)
     invalidate_cache()
     c = resolve_config()
@@ -544,10 +545,10 @@ def _selftest() -> None:
     import tempfile
 
     tmp_db = os.path.join(tempfile.gettempdir(), "alt_chatlog.db")
-    os.environ["CHATLOG_DB_PATH"] = tmp_db
+    pin_chatlog_db(tmp_db)
     invalidate_cache()
     assert resolve_config().db_path == tmp_db
-    os.environ.pop("CHATLOG_DB_PATH")
+    pin_chatlog_db(None)
     invalidate_cache()
 
     print("chatlog_config.py self-tests passed")

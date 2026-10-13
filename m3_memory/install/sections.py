@@ -854,31 +854,49 @@ def _config_env_disagreement_section() -> None:
         )
 
 
-def database_env_leftovers() -> list[str]:
-    """Report lines for every place M3_DATABASE is still set, with the fix; [] when
-    none. m3 reads it only as a legacy name until N+3 and never moves it: a
-    database PATH is a locator, so the fix is a flag or a named store (M3_DATABASE
-    design Q2, 2026-10-12). Shared by `m3 doctor` and `m3 config import-env`."""
+# The legacy env names that LOCATE a store, each with its fix. m3 reads them only
+# until N+3 and never moves them into a file: a database PATH is a locator, so the
+# fix is a flag, a named store or the chatlog config's db_path (M3_DATABASE design
+# Q2, 2026-10-12; chatlog design, 2026-10-13).
+LOCATOR_ENV_FIXES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (
+        ("M3_DATABASE",),
+        "pass --database PATH to the command, or add [stores.<name>] to m3_config.toml and pass --store NAME",
+    ),
+    (
+        ("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH", "M3_CHATLOG_DB", "CHATLOG_DB", "M3_CHATLOG_DATABASE"),
+        "pass --chatlog-db PATH to the command, or set db_path in .chatlog_config.json",
+    ),
+)
+
+
+def locator_env_leftovers() -> list[str]:
+    """Report lines for every place a store-locating legacy env name is still set,
+    with its fix; [] when none. Shared by `m3 doctor` and `m3 config import-env`."""
     from m3_memory.install.env_sources import scan
 
     unchecked: list[str] = []
-    places = sorted({f.place for f in scan(["M3_DATABASE"], unchecked=unchecked) if f.value.strip()})
-    lines = [f"  [i] could not check {u} for M3_DATABASE; inspect it by hand." for u in sorted(set(unchecked))]
-    if places:
-        lines.append(
-            "  [i] M3_DATABASE is set in: "
-            + "; ".join(places)
-            + ". m3 reads it only until release N+3. fix: pass --database PATH to the command, or add "
-            "[stores.<name>] to m3_config.toml and pass --store NAME; then remove it."
-        )
+    found = scan([n for names, _ in LOCATOR_ENV_FIXES for n in names], unchecked=unchecked)
+    lines = [
+        f"  [i] could not check {u} for the legacy store names; inspect it by hand." for u in sorted(set(unchecked))
+    ]
+    for names, fix in LOCATOR_ENV_FIXES:
+        for name in names:
+            places = sorted({f.place for f in found if f.name == name and f.value.strip()})
+            if places:
+                lines.append(
+                    f"  [i] {name} is set in: "
+                    + "; ".join(places)
+                    + f". m3 reads it only until release N+3. fix: {fix}; then remove it."
+                )
     return lines
 
 
 def _database_env_section() -> None:
     try:
-        lines = database_env_leftovers()
+        lines = locator_env_leftovers()
     except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
-        lines = [f"  [!] could not check where M3_DATABASE is set: {e}"]
+        lines = [f"  [!] could not check where the legacy store names are set: {e}"]
     if lines:
         print()
         print("\n".join(lines))

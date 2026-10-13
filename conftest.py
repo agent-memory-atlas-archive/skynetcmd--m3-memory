@@ -43,9 +43,16 @@ def _isolate_db_paths(tmp_path, monkeypatch):
     # cleared: it would point a test at a real store.
     monkeypatch.delenv("M3_DATABASE", raising=False)
     monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
-    # Under the name chatlog tests clear to exercise their own resolution; moving
-    # it waits for the chatlog-path family's own no-env step.
+    # Under the legacy env name, on purpose (chatlog design phase 2, 2026-10-13):
+    # the chatlog has no rank between the env and the unified fallback to the main
+    # store, so a pin here would outrank the tests of the legacy names (and their
+    # delenv), and a default would unify every test's chatlog with its main store.
+    # The legacy-name warning is marked given: this is the sandbox, not a user's
+    # leftover, and a warning that fires when nothing is wrong is a false alarm.
     monkeypatch.setenv("CHATLOG_DB_PATH", str(tmp_chatlog))
+    import m3_core.paths as _paths
+
+    monkeypatch.setattr(_paths, "_LEGACY_CHATLOG_WARNED", True)
     # Also patch memory_core.DB_PATH if already imported, so tests
     # that captured the constant at import time still get the tmp path.
     if "memory_core" in sys.modules:
