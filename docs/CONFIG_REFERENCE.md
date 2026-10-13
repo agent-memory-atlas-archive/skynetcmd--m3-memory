@@ -486,6 +486,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
 | `lazy` | boolean | `true` | `M3_TOOLS_LAZY` | restart to apply; Load MCP tool domains on demand. |
+| `startup` | list of strings | (none) | `M3_TOOLS_STARTUP` | restart to apply; MCP tools registered at session start (must include the escape hatch). Unset: .tools_config.json startup_tools, else the shipped set. |
 | `timeout_s` | number | (none) | `M3_TOOL_TIMEOUT` | restart to apply; Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30. |
 
 ## [wiki.compile]

@@ -227,7 +227,9 @@ _Names7 = Literal[
     "slm.profile_dirs",
 ]
 
-_Names8 = Literal[
+_Names8 = Literal["tools.startup"]
+
+_Names9 = Literal[
     "crypto.backend",
     "dashboard.host",
     "db.backend",
@@ -261,7 +263,7 @@ _Names8 = Literal[
     "wiki.synth.url",
 ]
 
-_Names9 = Literal[
+_Names10 = Literal[
     "AGENT_OS_MASTER_KEY",
     "ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
@@ -337,11 +339,15 @@ def setting(name: _Names7) -> list[str]: ...
 
 
 @overload
-def setting(name: _Names8) -> str: ...
+def setting(name: _Names8) -> list[str] | None: ...
 
 
 @overload
-def setting(name: _Names9) -> str | None: ...
+def setting(name: _Names9) -> str: ...
+
+
+@overload
+def setting(name: _Names10) -> str | None: ...
 
 
 @overload

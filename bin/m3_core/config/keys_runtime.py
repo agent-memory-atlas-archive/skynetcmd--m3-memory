@@ -13,7 +13,18 @@ from __future__ import annotations
 
 import re
 
-from .registry import ConfigValueError, Key, in_range, one_of, parse_bool, parse_float, parse_int, parse_path, parse_str
+from .registry import (
+    ConfigValueError,
+    Key,
+    in_range,
+    one_of,
+    parse_bool,
+    parse_float,
+    parse_int,
+    parse_list,
+    parse_path,
+    parse_str,
+)
 
 
 def _eq1(raw: str) -> bool:
@@ -118,9 +129,18 @@ RUNTIME: list[Key] = [
         legacy=lambda raw: (raw or "").lower() in ("1", "true", "yes"),
     ),
     _str("mcp.proxy_host", ("M3_MCP_PROXY_HOST", "MCP_PROXY_HOST"), "127.0.0.1", "Address the MCP proxy binds."),
-    _flag(
-        "tools.lazy", ("M3_TOOLS_LAZY",), True, "Load MCP tool domains on demand.", legacy=lambda raw: raw != "0"
-    ),  # the bridge's reading (memory_bridge.py:265)
+    # One reading for the bridge and tools_config (they disagreed on "false"/"no"/"off"
+    # until 2026-10-13: the bridge took only "0" as off).
+    _flag("tools.lazy", ("M3_TOOLS_LAZY",), True, "Load MCP tool domains on demand."),
+    Key[list[str]](
+        name="tools.startup",
+        parse=parse_list,
+        default=None,
+        env_names=("M3_TOOLS_STARTUP",),
+        reloadable=False,
+        doc="MCP tools registered at session start (must include the escape hatch). Unset: "
+        ".tools_config.json startup_tools, else the shipped set.",
+    ),
     Key[float](
         name="tools.timeout_s",
         parse=parse_float,

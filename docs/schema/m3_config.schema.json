@@ -1524,6 +1524,13 @@
           "description": "Load MCP tool domains on demand.",
           "default": true
         },
+        "startup": {
+          "type": "array",
+          "description": "MCP tools registered at session start (must include the escape hatch). Unset: .tools_config.json startup_tools, else the shipped set.",
+          "items": {
+            "type": "string"
+          }
+        },
         "timeout_s": {
           "type": "number",
           "description": "Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30."

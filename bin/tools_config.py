@@ -6,10 +6,10 @@ Which tools are registered at startup is user-owned. The full catalog costs
 ~2,216. This module decides which names make up that set.
 
 Resolution order (highest first):
-    1. M3_TOOLS_STARTUP env var — comma-separated tool names, explicit override
+    1. tools.startup — [tools] startup in m3_config.toml (legacy env M3_TOOLS_STARTUP)
     2. .tools_config.json  ->  startup_tools: [...]
     3. Derived default — the shipped set (slim variants + escape hatch)
-    4. M3_TOOLS_LAZY=0 — register EVERYTHING, the pre-slim legacy behavior
+    4. tools.lazy = false (legacy M3_TOOLS_LAZY=0) — register EVERYTHING, the pre-slim legacy behavior
 
 Level 4 is checked first in practice because it is a global off-switch: if a
 user disables lazy loading they want every tool, and a stale startup_tools list
@@ -49,6 +49,8 @@ import difflib
 import json
 import logging
 import os
+
+from m3_core.config import settings as _m3cfg
 
 logger = logging.getLogger("tools_config")
 
@@ -126,13 +128,10 @@ def _load_file() -> dict:
     return data
 
 
-def _split_env(raw: str) -> list[str]:
-    return [part.strip() for part in raw.split(",") if part.strip()]
-
-
-def _lazy_disabled() -> bool:
-    """True when the user asked for the whole catalog (M3_TOOLS_LAZY=0)."""
-    return os.environ.get(ENV_LAZY, "").strip() in ("0", "false", "no", "off")
+def _source(name: str, env_name: str) -> str:
+    """Where registry key ``name`` was set, for `m3 doctor`: ``<ENV> env`` or the file."""
+    origin = _m3cfg.origin_of(name)
+    return f"{env_name} env" if origin.startswith(("env", "dotenv")) else origin.removeprefix("file:")
 
 
 def resolve_startup_tools() -> tuple[list[str] | None, str]:
@@ -146,18 +145,18 @@ def resolve_startup_tools() -> tuple[list[str] | None, str]:
     where the set came from. A resolved set the user cannot explain is a set
     they cannot fix (section 3: observable, not guessed).
     """
-    if _lazy_disabled():
-        return None, f"{ENV_LAZY}=0 (all tools)"
+    if not _m3cfg.setting("tools.lazy"):
+        return None, f"{_source('tools.lazy', ENV_LAZY)}: tools.lazy = false (all tools)"
 
-    raw_env = os.environ.get(ENV_STARTUP, "").strip()
-    if raw_env:
-        names = _split_env(raw_env)
+    # tools.startup (m3_config.toml, or the legacy M3_TOOLS_STARTUP) outranks the file.
+    names = _m3cfg.setting("tools.startup")
+    if names is not None:
         if not names:
             raise ToolsConfigError(
-                f"{ENV_STARTUP} is set but lists no tools. Unset it to use the "
-                f"shipped default, or name at least one tool."
+                f"tools.startup ({_source('tools.startup', ENV_STARTUP)}) lists no tools. Remove it to "
+                f"use the shipped default, or name at least one tool."
             )
-        return _with_escape_hatch(names), f"{ENV_STARTUP} env"
+        return _with_escape_hatch(list(names)), _source("tools.startup", ENV_STARTUP)
 
     data = _load_file()
     if "startup_tools" in data:

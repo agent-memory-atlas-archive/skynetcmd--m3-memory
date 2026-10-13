@@ -424,6 +424,17 @@ the policy is forward-going only.
   **Affected:** installs that enable an autonomous pass · **Action:** none;
   prefer `[autonomy]` in `m3_config.toml` · **Data status:** none.
 
+- **`m3_config.toml` reaches the ingest LLM gates and the startup tool set.**
+  `[ingest] auto_title` / `auto_entities`, `[observer] no_embed`, `[tools] lazy`
+  and the new `[tools] startup` are read through the settings registry, with
+  `M3_INGEST_AUTO_*`, `M3_OBSERVER_NO_EMBED`, `M3_TOOLS_LAZY` and
+  `M3_TOOLS_STARTUP` as legacy names; `[tools] startup` outranks
+  `.tools_config.json`. `M3_TOOLS_LAZY=false` / `no` / `off` now turn lazy
+  loading off in the MCP server too (it honoured only `0`); a value that is not a
+  boolean is reported instead of read as on.
+  **Affected:** installs that set these names · **Action:** none; prefer
+  `m3_config.toml` · **Data status:** none.
+
 - **`[governor]` in `m3_config.toml` sets the background-work governor.** The
   load thresholds resolve `m3_config.toml` first, then `.governor_config.json`,
   then the `M3_GOVERNOR_*` names (read by the settings registry), then the

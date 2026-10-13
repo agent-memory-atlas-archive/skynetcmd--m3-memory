@@ -65,14 +65,36 @@ def test_env_beats_the_config_file(_clean_env, monkeypatch):
     assert source.startswith(tc.ENV_STARTUP)
 
 
-def test_lazy_off_beats_everything(_clean_env, monkeypatch):
+def test_lazy_off_beats_everything(_clean_env, m3_settings):
     """A global off-switch must not be narrowed by a stale startup_tools list."""
     _write(_clean_env, {"startup_tools": ["memory_search", *tc.ESCAPE_HATCH]})
-    monkeypatch.setenv(tc.ENV_STARTUP, "chatlog_search")
-    monkeypatch.setenv(tc.ENV_LAZY, "0")
+    m3_settings({"tools.startup": ["chatlog_search"], "tools.lazy": False})
     names, source = tc.resolve_startup_tools()
     assert names is None, "None means 'register everything', distinct from an empty list"
-    assert tc.ENV_LAZY in source
+    assert "tools.lazy" in source
+
+
+def test_m3_config_startup_beats_the_file(_clean_env, m3_settings):
+    """<dynamic> design Q2: [tools] startup in m3_config.toml outranks .tools_config.json."""
+    _write(_clean_env, {"startup_tools": ["memory_search", *tc.ESCAPE_HATCH]})
+    m3_settings({"tools.startup": ["chatlog_search", *tc.ESCAPE_HATCH]})
+    names, _source = tc.resolve_startup_tools()
+    assert names[0] == "chatlog_search"
+
+
+@pytest.mark.parametrize("word", ["0", "false", "no", "off"])
+def test_every_off_word_means_off_for_the_bridge_and_the_resolver(monkeypatch, word):
+    """The bridge took only "0" as off while this resolver took all four, so
+    M3_TOOLS_LAZY=false split them. Both read tools.lazy now."""
+    from m3_core.config import settings as st
+
+    monkeypatch.setenv(tc.ENV_LAZY, word)
+    st._reset_for_tests()
+    try:
+        assert st.setting("tools.lazy") is False
+        assert tc.resolve_startup_tools()[0] is None
+    finally:
+        st._reset_for_tests()
 
 
 def test_none_is_not_an_empty_list():
