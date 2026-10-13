@@ -27,10 +27,14 @@ class _Stop(Exception):
 
 
 @pytest.fixture
-def seen(monkeypatch):
+def seen(monkeypatch, tmp_path):
     from m3_core import paths
     from m3_sdk import M3Context
 
+    # A chatlog store apart from the caller's database, so every impl takes its
+    # separate-store path (in one unified store, promote opens no chatlog
+    # connection). The --chatlog-db pin; cleared after the test.
+    paths.pin_chatlog_db(str(tmp_path / "chatlog_apart.db"))
     out: list = []
 
     @contextlib.contextmanager

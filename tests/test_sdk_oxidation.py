@@ -93,7 +93,7 @@ def test_migration_lock_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr(m3_sdk, "M3_CORE_RS_DISABLE", True)
 
     lock_root = tmp_path / "config"
-    lock_root.mkdir()
+    lock_root.mkdir(exist_ok=True)  # the sandbox may have made it
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(lock_root))
 
     with m3_sdk.migration_lock():
@@ -107,7 +107,7 @@ def test_migration_lock_native(tmp_path, monkeypatch):
     monkeypatch.setattr(m3_sdk, "M3_CORE_RS_DISABLE", False)
 
     lock_root = tmp_path / "config"
-    lock_root.mkdir()
+    lock_root.mkdir(exist_ok=True)  # the sandbox may have made it
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(lock_root))
 
     # Mock m3_core_rs in sys.modules

@@ -24,21 +24,29 @@ def _leftovers(d):
     return [n for n in os.listdir(d) if n != "target.json"]
 
 
+def _dir(tmp_path):
+    """A directory only these writes use: tmp_path also holds the test sandbox's
+    config/ (the repo-root conftest's chatlog file)."""
+    d = tmp_path / "atomic"
+    d.mkdir(exist_ok=True)
+    return d
+
+
 def test_writes_exact_bytes_and_leaves_no_temp(tmp_path):
     from m3_core.atomic_io import atomic_write
 
-    target = tmp_path / "target.json"
+    target = _dir(tmp_path) / "target.json"
     atomic_write(target, '{"a": 1}\n')
     assert target.read_bytes() == b'{"a": 1}\n'  # LF on every OS
     atomic_write(target, b"\x00raw")
     assert target.read_bytes() == b"\x00raw"
-    assert _leftovers(tmp_path) == []
+    assert _leftovers(_dir(tmp_path)) == []
 
 
 def test_failed_replace_keeps_old_content_and_cleans_temp(tmp_path, monkeypatch):
     from m3_core import atomic_io
 
-    target = tmp_path / "target.json"
+    target = _dir(tmp_path) / "target.json"
     target.write_bytes(b"old")
 
     def _boom(src, dst):
@@ -48,13 +56,13 @@ def test_failed_replace_keeps_old_content_and_cleans_temp(tmp_path, monkeypatch)
     with pytest.raises(OSError, match="disk full"):
         atomic_io.atomic_write(target, "new")
     assert target.read_bytes() == b"old"
-    assert _leftovers(tmp_path) == []
+    assert _leftovers(_dir(tmp_path)) == []
 
 
 def test_sharing_violation_is_retried(tmp_path, monkeypatch):
     from m3_core import atomic_io
 
-    target = tmp_path / "target.json"
+    target = _dir(tmp_path) / "target.json"
     real = os.replace
     calls = {"n": 0}
 
@@ -80,8 +88,8 @@ def test_persistent_permission_error_surfaces(tmp_path, monkeypatch):
     monkeypatch.setattr(atomic_io.os, "replace", _never)
     monkeypatch.setattr(atomic_io.time, "sleep", lambda s: None)
     with pytest.raises(PermissionError, match="still locked"):
-        atomic_io.atomic_write(tmp_path / "target.json", "x")
-    assert _leftovers(tmp_path) == []
+        atomic_io.atomic_write(_dir(tmp_path) / "target.json", "x")
+    assert _leftovers(_dir(tmp_path)) == []
 
 
 # os.replace / Path.replace calls that MOVE an existing file rather than publish a new write.
@@ -144,10 +152,10 @@ def test_new_file_is_user_only_even_under_a_loose_umask(tmp_path):
 
     old = os.umask(0o002)
     try:
-        atomic_write(tmp_path / "target.json", "x")
+        atomic_write(_dir(tmp_path) / "target.json", "x")
     finally:
         os.umask(old)
-    assert stat.S_IMODE((tmp_path / "target.json").stat().st_mode) == 0o600
+    assert stat.S_IMODE((_dir(tmp_path) / "target.json").stat().st_mode) == 0o600
 
 
 @posix_only
@@ -155,7 +163,7 @@ def test_new_file_is_user_only_even_under_a_loose_umask(tmp_path):
 def test_existing_mode_is_kept(tmp_path, mode):
     from m3_core.atomic_io import atomic_write
 
-    target = tmp_path / "target.json"
+    target = _dir(tmp_path) / "target.json"
     target.write_text("old")
     target.chmod(mode)
     atomic_write(target, "new")

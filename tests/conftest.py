@@ -1881,6 +1881,9 @@ def m3_sandbox(monkeypatch, tmp_path):
     _cc = sys.modules.get("chatlog_config")
     if _cc is not None and hasattr(_cc, "CONFIG_PATH"):
         monkeypatch.setattr(_cc, "CONFIG_PATH", str(tmp_path / "config" / ".chatlog_config.json"))
+        # Its resolved config is cached per process: without this, a test reads the
+        # db_path the PREVIOUS test's sandbox file named (a reaped tmp dir).
+        _cc.invalidate_cache()
 
     # 2. Leaky env → cleared. Every m3 secret's env names too (the registry is
     # the list): m3 no longer reads them, but a developer's real key in the test

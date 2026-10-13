@@ -2,13 +2,15 @@
 
 The bin/ test scripts (e.g., bin/test_bulk_parity.py) historically did not
 patch DB_PATH and leaked fixture rows into memory/agent_memory.db. This
-fixture forces the engine root (so the default main store), CHATLOG_DB_PATH
-and memory_core.DB_PATH to a per-test tmp dir for every test that runs.
+fixture forces the engine root (so the default main store), the chatlog's
+db_path (in the sandbox's .chatlog_config.json) and memory_core.DB_PATH to a
+per-test tmp dir for every test that runs.
 tests/conftest.py's sandbox must not clear what this sets.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -43,16 +45,15 @@ def _isolate_db_paths(tmp_path, monkeypatch):
     # cleared: it would point a test at a real store.
     monkeypatch.delenv("M3_DATABASE", raising=False)
     monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
-    # Under the legacy env name, on purpose (chatlog design phase 2, 2026-10-13):
-    # the chatlog has no rank between the env and the unified fallback to the main
-    # store, so a pin here would outrank the tests of the legacy names (and their
-    # delenv), and a default would unify every test's chatlog with its main store.
-    # The legacy-name warning is marked given: this is the sandbox, not a user's
-    # leftover, and a warning that fires when nothing is wrong is a false alarm.
-    monkeypatch.setenv("CHATLOG_DB_PATH", str(tmp_chatlog))
-    import m3_core.paths as _paths
-
-    monkeypatch.setattr(_paths, "_LEGACY_CHATLOG_WARNED", True)
+    # The chatlog at the FILE rank: db_path in the sandbox's own .chatlog_config.json
+    # (tmp_path/config is the config root tests/conftest.py's sandbox pins, and it
+    # re-points chatlog_config.CONFIG_PATH there). Below a pin and the legacy env
+    # names, so tests of those still win; above the unified fallback, so a test's
+    # chatlog is not silently its main store (test-roots design Q3, 2026-10-13).
+    # A test that needs NO file deletes it or patches chatlog_config._load_file.
+    cfg_dir = tmp_path / "config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / ".chatlog_config.json").write_text(json.dumps({"db_path": str(tmp_chatlog)}), encoding="utf-8")
     # Also patch memory_core.DB_PATH if already imported, so tests
     # that captured the constant at import time still get the tmp path.
     if "memory_core" in sys.modules:

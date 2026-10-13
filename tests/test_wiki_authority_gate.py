@@ -64,7 +64,7 @@ def test_body_authorities_config_override(tmp_path, monkeypatch):
     A._CACHE.clear()
     A._WARNED.clear()
     cfg = tmp_path / "config"
-    cfg.mkdir()
+    cfg.mkdir(exist_ok=True)  # the sandbox may have made it
     (cfg / ".wiki_authority.json").write_text(json.dumps({"body_authorities": ["canonical", "peer-reviewed"]}))
     monkeypatch.setenv("M3_CONFIG_ROOT", str(cfg))
     A._CACHE.clear()  # force re-read under the new root
@@ -77,7 +77,7 @@ def test_malformed_config_falls_back_to_default(tmp_path, monkeypatch):
     A._CACHE.clear()
     A._WARNED.clear()
     cfg = tmp_path / "config"
-    cfg.mkdir()
+    cfg.mkdir(exist_ok=True)  # the sandbox may have made it
     (cfg / ".wiki_authority.json").write_text("{ this is not json")
     monkeypatch.setenv("M3_CONFIG_ROOT", str(cfg))
     A._CACHE.clear()

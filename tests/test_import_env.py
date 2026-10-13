@@ -33,7 +33,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(import_env, "console_has_person", lambda: False)
     monkeypatch.chdir(cwd)
     cfg = tmp_path / "config" / "m3_config.toml"
-    cfg.parent.mkdir()
+    cfg.parent.mkdir(exist_ok=True)  # the sandbox may have made it
     return {"home": home, "cwd": cwd, "cfg": cfg}
 
 
