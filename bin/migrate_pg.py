@@ -46,6 +46,9 @@ logger = logging.getLogger("migrate_pg")
 # bin/migrate_pg.py -> repo root is one dir up from bin/.
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _PG_MIGRATIONS_DIR = os.path.join(_BASE_DIR, "memory", "migrations", "postgres")
+# The warehouse chain (user decision 2026-10-13): applied by pg_sync, in the
+# warehouse's own schema, additive only.
+_WAREHOUSE_MIGRATIONS_DIR = os.path.join(_BASE_DIR, "memory", "warehouse_migrations")
 
 # The cumulative baseline is version 39 (pg_primary_v1.sql). Incremental files
 # continue from 40; anything <= this is owned by the baseline, not this runner.
@@ -137,8 +140,11 @@ def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR, baseline: int 
 
 # ── Version tracking ─────────────────────────────────────────────────────────
 def _qident(name: str) -> str:
-    """A schema name as a quoted SQL identifier (operator-supplied: never raw)."""
-    return '"' + name.replace('"', '""') + '"'
+    """A schema name as a quoted SQL identifier (operator-supplied: never raw);
+    the dialect seam owns the quoting rule."""
+    from memory.backends.dialect import dialect_for
+
+    return dialect_for("postgres").quote_identifier(name)
 
 
 def get_applied_versions(conn, schema: str = "public") -> list[int]:
@@ -267,6 +273,40 @@ def run_pending_pg_migrations(conn, migrations_dir: str = _PG_MIGRATIONS_DIR, sc
                 conn.commit()
             except Exception:  # noqa: BLE001 -- restoring must not mask the real error
                 logger.warning("could not restore search_path to %r after the %s migrations", prev_path, schema)
+
+
+_WAREHOUSE_LOCK_KEY = "m3_warehouse_migrations"  # pg_advisory_lock(hashtext(...))
+_warned_behind: set[str] = set()
+
+
+def run_warehouse_migrations(conn, schema: str) -> list[int]:
+    """Bring the warehouse (its tables in ``schema``: m3_warehouse, or public on an
+    older layout) to the current schema. Called by pg_sync before every run.
+
+    Under a session advisory lock, so two machines starting a sync at once cannot
+    both apply a migration. Additive only, so a machine whose code knows FEWER
+    versions than the warehouse has keeps syncing: it logs that once and goes on.
+    Returns the versions applied."""
+    known = max(discover_migrations(_WAREHOUSE_MIGRATIONS_DIR) or {0: None})
+    cur = conn.cursor()
+    cur.execute("SELECT pg_advisory_lock(hashtext(%s))", (_WAREHOUSE_LOCK_KEY,))
+    try:
+        applied = get_applied_versions(conn, schema)
+        if applied and max(applied) > known and schema not in _warned_behind:
+            _warned_behind.add(schema)
+            logger.info(
+                f"warehouse schema {schema!r} is at v{max(applied)}; this m3 knows up to v{known}. "
+                "Warehouse changes are additive, so syncing continues; upgrade m3 to use the newer columns."
+            )
+        return run_pending_pg_migrations(conn, _WAREHOUSE_MIGRATIONS_DIR, schema=schema)
+    finally:
+        try:
+            conn.rollback()
+            cur = conn.cursor()
+            cur.execute("SELECT pg_advisory_unlock(hashtext(%s))", (_WAREHOUSE_LOCK_KEY,))
+            conn.commit()
+        except Exception:  # noqa: BLE001 -- the lock also ends with the session
+            logger.warning("could not release the warehouse migration lock; it ends with this connection")
 
 
 # ── CLI subcommands ──────────────────────────────────────────────────────────

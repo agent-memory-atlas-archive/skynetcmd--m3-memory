@@ -1243,7 +1243,7 @@ class PostgresBackend:
                     pg_dump,
                     "--format=custom",
                     f"--snapshot={snap_id}",
-                    "--schema=" + '"' + schema.replace('"', '""') + '"',
+                    "--schema=" + self.dialect().quote_identifier(schema),
                     "--no-password",
                     f"--file={partial}",
                     f"--dbname={conninfo}",

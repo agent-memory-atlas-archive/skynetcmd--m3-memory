@@ -489,21 +489,16 @@ def test_infer_manifest_path_agent_bench_analysis():
 # Bug (2026-06-27..07-01): agent_chatlog.db lacked the sync_watermarks table
 # (migration 005 only runs against agent_memory.db), so every watermark write
 # raised 'no such table', was silently swallowed, and the chatlog target
-# re-reconciled the whole DB every run. _ensure_watermark_table fixes it.
-def test_ensure_watermark_table_creates_missing_table():
-    """A fresh DB without sync_watermarks gets it provisioned idempotently."""
+# re-reconciled the whole DB every run. Chatlog migration 012 now provides it
+# (and sync_locks), applied when the store is opened.
+def test_the_chatlog_lane_provides_the_sync_bookkeeping_tables():
+    import migrate_memory
+    from chatlog_config import CHATLOG_MIGRATIONS_DIR
+
     conn = sqlite3.connect(":memory:")
-    cur = conn.cursor()
-
-    # Reproduce the bug precondition: table absent.
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_watermarks'")
-    assert cur.fetchone() is None
-
-    pg_sync._ensure_watermark_table(cur)
-    pg_sync._ensure_watermark_table(cur)  # idempotent — second call must not raise
-
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_watermarks'")
-    assert cur.fetchone() is not None
+    migrate_memory.apply_pending(conn, CHATLOG_MIGRATIONS_DIR)
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"sync_watermarks", "sync_locks"} <= tables
     conn.close()
 
 
@@ -512,7 +507,7 @@ def test_watermark_roundtrips_for_non_main_target():
     under the target-prefixed direction key."""
     conn = sqlite3.connect(":memory:")
     cur = conn.cursor()
-    pg_sync._ensure_watermark_table(cur)
+    cur.execute("CREATE TABLE sync_watermarks (direction TEXT PRIMARY KEY, last_synced_at TEXT NOT NULL)")
 
     # Before any write, a non-main target reads None (→ first sync, once).
     assert pg_sync._get_watermark(cur, "pg_push", "chatlog") is None

@@ -173,5 +173,5 @@ Some scripts in `bin/` don't touch SQLite and intentionally don't accept `--data
 - `embed_server.py`, `embed_server_gpu.py` — LM Studio proxy servers
 - `install_schedules.py` — cron/launchd installer
 - `generate_configs.py`, `gen_mcp_inventory.py`, `gen_tool_inventory.py` — generators that write docs
-- `pg_setup.py` — PostgreSQL DDL runner (separate target)
+- `pg_setup.py` — warehouse schema: apply pending warehouse migrations, or `--check` to report the version
 - `news_fetcher.py`, `macbook_status_server.py` — external service wrappers

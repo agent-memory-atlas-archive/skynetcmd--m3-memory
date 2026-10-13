@@ -85,17 +85,18 @@ class TestLockLifecycle:
         pg_sync._release_sync_lock(cur)
         assert pg_sync._acquire_sync_lock(cur) is True
 
-    def test_missing_table_self_heals_rather_than_wedging(self):
+    def test_a_missing_table_reads_as_not_locked_rather_than_wedging(self):
         """A missing lock table must read as "not locked", never as "locked".
 
-        The opposite reading is what made every sync skip forever. Targets that
-        run a different migration set still reach this path, so the self-heal
-        stays even though 044 declares the table.
+        The opposite reading is what made every sync skip forever (2026-07-19).
+        The table comes from the store's migrations (main 044, chatlog 012); if
+        they have not run, the sync proceeds unlocked and says so. It does not
+        create the table: m3 schemas change only through migrations.
         """
         conn = sqlite3.connect(":memory:")
         try:
             assert pg_sync._acquire_sync_lock(conn.cursor()) is True
-            assert "sync_locks" in _tables(conn)
+            assert "sync_locks" not in _tables(conn)
         finally:
             conn.close()
 

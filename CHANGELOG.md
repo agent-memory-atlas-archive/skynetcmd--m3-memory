@@ -417,6 +417,20 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **The warehouse schema is versioned and applied by sync.** `pg_sync` brings
+  the warehouse to its current schema before every run, from its own migration
+  chain and under a lock so two machines cannot race; the manual
+  `psql -f pg_warehouse_chatlog_v1.sql` step is gone. A warehouse that keeps its
+  tables in `public` is migrated in place. Changes are additive, so a machine on
+  an older m3 keeps syncing. `bin/pg_setup.py --check` reports the warehouse's
+  version, and sync warns when rows sit in `public` copies it never reads. Each
+  store's sync bookkeeping (watermarks, lock) now comes from its own migrations,
+  chatlog included.
+  **Affected:** installs that sync to a PostgreSQL warehouse · **Action:** the
+  warehouse role needs `CREATE` on the warehouse schema for a migration to apply
+  (it already needed it: sync created tables itself) · **Data status:** none;
+  existing tables and rows are kept.
+
 - **The agent dispatch store is migrated like the others.** `migrate_memory up
   --target dispatch` brings it to the current schema, `--target all` includes an
   existing dispatch store, and the first send migrates it through the same

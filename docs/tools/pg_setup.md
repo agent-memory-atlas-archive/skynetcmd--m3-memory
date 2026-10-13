@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: 6b9f38807eaa
-mtime_utc: 2026-10-10T21:05:16.652430+00:00
-generated_utc: 2026-10-10T21:05:29.880962+00:00
+sha1: aa7ac9b0fb48
+mtime_utc: 2026-10-13T02:59:55.935315+00:00
+generated_utc: 2026-10-13T03:00:06.241643+00:00
 private: false
 ---
 
@@ -10,20 +10,31 @@ private: false
 
 ## Purpose
 
-_(no module docstring — update the source file.)_
+Bring the PostgreSQL data warehouse to its current schema, or report where it is.
+
+The warehouse schema comes from its migration chain (memory/warehouse_migrations/,
+user decision 2026-10-13), which pg_sync applies automatically before every run.
+This is the manual entry point for the same thing:
+
+    python bin/pg_setup.py           # apply pending warehouse migrations
+    python bin/pg_setup.py --check   # report the layout and versions; change nothing
+
+The warehouse DSN is the M3_CDW_PG_URL secret (m3 secret set M3_CDW_PG_URL).
 
 ---
 
 ## Entry points
 
-- `def main()` (line 107)
+- `def main()` (line 38)
 - `if __name__ == "__main__"` guard
 
 ---
 
 ## CLI flags / arguments
 
-_(no argparse arguments detected)_
+| Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
+|---|---|---|---|---|---|
+| `--check` | report the layout and versions; change nothing | `False` |  | store_true |  |
 
 ---
 
@@ -35,7 +46,8 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-_(none detected)_
+- `migrate_pg`
+- `pg_sync`
 
 ---
 
@@ -47,7 +59,6 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.seams (is_windows)`
 - `m3_core.secret_store (PgRole, resolve_pg_dsn)`
 - `psycopg2`
 

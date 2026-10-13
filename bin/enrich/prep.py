@@ -1,5 +1,4 @@
-"""DB prep / profile loading — _today, _load_profile_with_path,
-_ensure_migrated."""
+"""DB prep / profile loading — _today, _load_profile_with_path."""
 
 from __future__ import annotations
 
@@ -50,15 +49,3 @@ def _load_profile_with_path(name: str | None, path: str | None) -> Profile:
         )
     return prof
 
-
-def _ensure_migrated(db_path: Path) -> None:
-    """Bring this store to its current schema through the migration runner, the
-    one way m3 schemas change (user decision 2026-10-13): opening it via ``_db()``
-    under its path applies whatever is pending for its own chain, main or chatlog
-    (the queues the drain reads: main 025, chatlog 007). PostgreSQL applies its
-    schema when the backend first connects."""
-    from m3_core.paths import active_database
-    from memory.db import _db
-
-    with active_database(str(db_path)), _db():
-        pass

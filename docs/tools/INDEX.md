@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-12T12:09:03.972638+00:00._
+_Generated 2026-10-13T03:00:06.439527+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -105,7 +105,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/migrate_pg.py](migrate_pg.md) | PostgreSQL PRIMARY-store migration runner — the PG analogue of migrate_memory.py. |  |
 | [bin/migrate_warehouse_to_schema.py](migrate_warehouse_to_schema.md) | migrate_warehouse_to_schema.py — consolidate a PostgreSQL warehouse's tables |  |
 | bin/mission_control.py | mission_control.py — Cross-platform pulse dashboard (macOS / Windows / Linux). | yes |
-| [bin/pg_setup.py](pg_setup.md) | (no docstring) |  |
+| [bin/pg_setup.py](pg_setup.md) | Bring the PostgreSQL data warehouse to its current schema, or report where it is. |  |
 | [bin/pg_sync.py](pg_sync.md) | (no docstring) |  |
 | [bin/pg_sync.sh](pg_sync_sh.md) | (no docstring) |  |
 | [bin/promote_pipeline.py](promote_pipeline.md) | LLM-judged promotion pipeline: tightened candidate selection + SLM judge. |  |

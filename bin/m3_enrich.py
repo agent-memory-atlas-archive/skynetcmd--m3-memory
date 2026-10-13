@@ -36,6 +36,7 @@ from __future__ import annotations
 from m3_core.paths import apply_early_argv as _apply_early_argv
 from m3_core.paths import configured_main_db, pin_database  # noqa: E402
 from m3_core.paths import resolve_role_db as _resolve_db  # noqa: E402
+from memory.db import ensure_store_migrated as _ensure_migrated  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -72,7 +73,6 @@ from enrich.eligibility import _load_conv_list, _query_eligible_groups  # noqa: 
 # Import moved functions from enrich subpackage
 from enrich.prep import (
     BACKUP_DIR,
-    _ensure_migrated,
     _load_profile_with_path,
     _today,
 )  # noqa: E402

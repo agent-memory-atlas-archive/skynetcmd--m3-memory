@@ -189,7 +189,7 @@ class TestStaleLockRecovery:
 
         conn = sqlite3.connect(":memory:")
         cur = conn.cursor()
-        self.P._ensure_sync_lock_table(cur)
+        cur.execute("CREATE TABLE sync_locks (lock_name TEXT PRIMARY KEY, holder TEXT, acquired_at TEXT)")
         # plant a crashed sync's lock (recent, dead PID). Deliberately in the
         # LEGACY host-less form: that is what a lock left by the previous build
         # looks like, and reclaiming it immediately is the property under test.
@@ -209,7 +209,7 @@ class TestStaleLockRecovery:
 
         conn = sqlite3.connect(":memory:")
         cur = conn.cursor()
-        self.P._ensure_sync_lock_table(cur)
+        cur.execute("CREATE TABLE sync_locks (lock_name TEXT PRIMARY KEY, holder TEXT, acquired_at TEXT)")
         # a lock owned by THIS (live) process, recent -> a second acquire is blocked
         cur.execute(
             "INSERT INTO sync_locks (lock_name, holder, acquired_at) VALUES (?, ?, ?)",

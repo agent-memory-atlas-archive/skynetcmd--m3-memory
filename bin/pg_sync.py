@@ -134,31 +134,13 @@ def _get_pg_url() -> str:
     if url:
         return url
     logger.error(
-        "Data-warehouse DSN not found. Set M3_CDW_PG_URL (or store PG_URL via "
-        "`bin/auth_utils.py`). NOTE: M3_PG_URL is the primary-store var, not read here."
+        "Data-warehouse DSN not found. observed: no M3_CDW_PG_URL secret (or legacy PG_URL vault entry). "
+        "fix: m3 secret set M3_CDW_PG_URL. NOTE: M3_PRIMARY_PG_URL is the primary store, not read here."
     )
     sys.exit(1)
 
 
 # ── Watermarks ───────────────────────────────────────────────────────────────
-
-
-def _ensure_watermark_table(sl_cur) -> None:
-    """Guarantee the sync_watermarks table exists on the local store.
-
-    Declared by migration 005_perf_and_wal.sql (SQLite) and pg_053 (PostgreSQL),
-    so on the MAIN store this is a no-op. It stays because OTHER sync targets —
-    agent_chatlog.db above all — run a different migration set that never creates
-    it, and there is no migration chain that covers every target. Without the
-    self-heal the watermark INSERT raises 'no such table', the delta cursor is
-    never persisted, and every sync silently redoes a full reconcile: slow, and
-    invisible until someone wonders why sync takes minutes.
-
-    Kept deliberately, unlike sync_all's copy of this DDL (removed in favour of
-    pg_053) — that one ran against the PG PRIMARY, which the migration covers.
-    Idempotent — safe to call once per target before syncing.
-    """
-    sl_cur.execute("CREATE TABLE IF NOT EXISTS sync_watermarks (direction TEXT PRIMARY KEY, last_synced_at TEXT)")
 
 
 def _get_watermark(sl_cur, direction: str, target_name: str) -> str | None:
@@ -255,73 +237,12 @@ def _build_conflict_clause(pk_columns: list[str]) -> str:
 # ── PG schema helpers (legacy — agent_memory.db only) ────────────────────────
 
 
-def _ensure_pg_schema(pg_cur):
-    """Auto-add columns from newer migrations that PG may be missing."""
-    pg_cur.execute("""
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'memory_items'
-    """)
-    existing = {r[0] for r in pg_cur.fetchall()}
-    migrations = [
-        ("user_id", "ALTER TABLE memory_items ADD COLUMN user_id TEXT DEFAULT ''"),
-        ("scope", "ALTER TABLE memory_items ADD COLUMN scope TEXT DEFAULT 'agent'"),
-        ("valid_from", "ALTER TABLE memory_items ADD COLUMN valid_from TEXT DEFAULT ''"),
-        ("valid_to", "ALTER TABLE memory_items ADD COLUMN valid_to TEXT DEFAULT ''"),
-        ("content_hash", "ALTER TABLE memory_items ADD COLUMN content_hash TEXT DEFAULT ''"),
-    ]
-    added_cols = []
-    for col, ddl in migrations:
-        if col not in existing:
-            pg_cur.execute(ddl)
-            added_cols.append(col)
-            logger.info(f"PG schema: added missing column '{col}'")
-
-    # Validate that newly added columns actually exist
-    if added_cols:
-        pg_cur.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'memory_items'
-        """)
-        post_existing = {r[0] for r in pg_cur.fetchall()}
-        for col in added_cols:
-            if col not in post_existing:
-                raise RuntimeError(f"PG schema migration failed: column '{col}' was not created")
-
-
-def _ensure_pg_tier_tables(pg_cur):
-    """Create agent_retention_policies and gdpr_requests tables in PG if missing."""
-    pg_cur.execute("""
-        CREATE TABLE IF NOT EXISTS agent_retention_policies (
-            agent_id        TEXT PRIMARY KEY,
-            max_memories    INTEGER DEFAULT 1000,
-            ttl_days        INTEGER DEFAULT 0,
-            auto_archive    INTEGER DEFAULT 1,
-            created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        )
-    """)
-    pg_cur.execute("""
-        CREATE TABLE IF NOT EXISTS gdpr_requests (
-            id              TEXT PRIMARY KEY,
-            subject_id      TEXT NOT NULL,
-            request_type    TEXT NOT NULL,
-            status          TEXT DEFAULT 'pending',
-            items_affected  INTEGER DEFAULT 0,
-            requested_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            completed_at    TIMESTAMP WITH TIME ZONE
-        )
-    """)
-    pg_cur.execute("CREATE INDEX IF NOT EXISTS idx_gdpr_subject ON gdpr_requests(subject_id)")
-    logger.info("PG schema: ensured agent_retention_policies and gdpr_requests tables exist")
-
-
 # ── Legacy per-table sync functions (agent_memory.db) ────────────────────────
 # These are preserved verbatim so test_pg_sync_fk_safety.py continues to pass.
 
 
 def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
     logger.info(f"[{target_name}] Synchronizing memory_items (UUID-based, delta sync)...")
-    _ensure_pg_schema(pg_cur)
     now = datetime.now(UTC).isoformat()
 
     # 1. PUSH: Local to Remote (delta — only changed rows since last push)
@@ -703,33 +624,6 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
         bump_secret_generation()  # a synced key reaches running processes
 
 
-def _ensure_pg_tasks_schema(pg_cur):
-    """Create the `tasks` table in PG if missing, with tombstone column."""
-    pg_cur.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id                TEXT PRIMARY KEY,
-            title             TEXT NOT NULL,
-            description       TEXT DEFAULT '',
-            state             TEXT NOT NULL DEFAULT 'pending',
-            owner_agent       TEXT,
-            created_by        TEXT NOT NULL,
-            parent_task_id    TEXT,
-            result_memory_id  TEXT,
-            metadata_json     TEXT DEFAULT '{}',
-            created_at        TEXT,
-            updated_at        TEXT,
-            completed_at      TEXT,
-            deleted_at        TEXT
-        )
-    """)
-    pg_cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deleted_at TEXT")
-    pg_cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_owner_state ON tasks(owner_agent, state)")
-    pg_cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent      ON tasks(parent_task_id)")
-    pg_cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_state       ON tasks(state)")
-    pg_cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_deleted_at  ON tasks(deleted_at)")
-    logger.info("PG schema: ensured tasks table exists (with deleted_at tombstone column)")
-
-
 def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
     """Bi-directional delta sync for the tasks table, including soft-delete tombstones.
 
@@ -742,8 +636,6 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
     from psycopg2.extras import execute_values
 
     now = datetime.now(UTC).isoformat()
-
-    _ensure_pg_tasks_schema(pg_cur)
 
     task_cols = (
         "id, title, description, state, owner_agent, created_by, parent_task_id, "
@@ -851,29 +743,6 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
     logger.info(f"[{target_name}] Pulled {pull_count} tasks from warehouse.")
 
 
-def _ensure_pg_embeddings_schema(pg_cur):
-    """Auto-create memory_embeddings table in PG if missing."""
-    pg_cur.execute("""
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_name = 'memory_embeddings'
-        )
-    """)
-    if not pg_cur.fetchone()[0]:
-        pg_cur.execute("""
-            CREATE TABLE memory_embeddings (
-                id TEXT PRIMARY KEY,
-                memory_id TEXT NOT NULL,
-                embedding BYTEA NOT NULL,
-                embed_model TEXT DEFAULT 'qwen3-embedding',
-                dim INTEGER DEFAULT 1024,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            )
-        """)
-        pg_cur.execute("CREATE INDEX idx_me_memory_id ON memory_embeddings(memory_id)")
-        logger.info("PG schema: created memory_embeddings table")
-
-
 def _embed_families(cur) -> set:
     """Distinct embedding model FAMILIES present in a store (via its cursor).
     Two tags of ONE model (the in-process GGUF vs the LM Studio server tag) map
@@ -922,7 +791,6 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
 
     now = datetime.now(UTC).isoformat()
 
-    _ensure_pg_embeddings_schema(pg_cur)
     # Fleet guardrail: a warehouse embedded with a different model family than
     # this node silently poisons the shared vector space on sync (see docstring).
     _warn_on_embed_family_mismatch(sl_cur, pg_cur, target_name)
@@ -1064,6 +932,86 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
 # ── Sync lock ─────────────────────────────────────────────────────────────────
 
 
+WAREHOUSE_SCHEMA = "m3_warehouse"  # the canonical layout (pg_001_baseline)
+
+
+def _warehouse_tables(pg_conn) -> tuple[bool, bool]:
+    """(canonical, legacy): whether memory_items exists in WAREHOUSE_SCHEMA and in
+    public. The one probe the layout decisions read. to_regclass is NULL for an
+    absent table and for one this role cannot see, so neither counts."""
+    cur = pg_conn.cursor()
+    cur.execute("SELECT to_regclass(%s), to_regclass('public.memory_items')", (f"{WAREHOUSE_SCHEMA}.memory_items",))
+    canonical, legacy = cur.fetchone()
+    return canonical is not None, legacy is not None
+
+
+_SYNCED_WAREHOUSE_TABLES = (
+    "memory_items",
+    "memory_embeddings",
+    "memory_relationships",
+    "tasks",
+    "synchronized_secrets",
+    "agent_retention_policies",
+    "gdpr_requests",
+)
+
+
+def _warehouse_layout(pg_conn) -> str:
+    """Which schema holds this warehouse's tables: ``m3_warehouse`` (the canonical
+    layout), ``public`` (an older warehouse, migrated in place: user decision
+    2026-10-13), or, for an empty warehouse, ``m3_warehouse``."""
+    canonical, legacy = _warehouse_tables(pg_conn)
+    pg_conn.rollback()
+    return "public" if legacy and not canonical else WAREHOUSE_SCHEMA
+
+
+def _warn_stranded_public_tables(pg_conn) -> None:
+    """On an m3_warehouse warehouse, a synced table that ALSO has rows in public is
+    stranded: unqualified names resolve to m3_warehouse first, so those rows are
+    never read or written. Says so, once per run, with the tool that moves them."""
+    cur = pg_conn.cursor()
+    stranded = []
+    for t in _SYNCED_WAREHOUSE_TABLES:
+        cur.execute("SELECT to_regclass(%s), to_regclass(%s)", (f"{WAREHOUSE_SCHEMA}.{t}", f"public.{t}"))
+        wh, pub = cur.fetchone()
+        if wh is not None and pub is not None:
+            cur.execute(f"SELECT EXISTS (SELECT 1 FROM public.{t} LIMIT 1)")
+            if cur.fetchone()[0]:
+                stranded.append(t)
+    pg_conn.rollback()
+    if stranded:
+        logger.warning(
+            f"warehouse: {', '.join(stranded)} also have rows in schema public, which this sync "
+            "never reads or writes (it uses m3_warehouse). inspect: "
+            "python bin/migrate_warehouse_to_schema.py --dry-run (moves them, verified, public kept "
+            "unless --drop-public)"
+        )
+
+
+def _prepare_warehouse(pg_conn) -> str:
+    """Bring the warehouse to its current schema (its migration chain, applied
+    automatically: user decision 2026-10-13), then point the session at it.
+    A failure stops the run: syncing against a schema of unknown shape is worse
+    than not syncing."""
+    import migrate_pg
+
+    layout = _warehouse_layout(pg_conn)
+    try:
+        applied = migrate_pg.run_warehouse_migrations(pg_conn, layout)
+    except Exception as e:
+        logger.error(
+            f"warehouse migrations failed in schema {layout!r}: {type(e).__name__}: {e}. "
+            "inspect: the warehouse role needs CREATE on that schema; python bin/pg_setup.py --check"
+        )
+        raise
+    if applied:
+        logger.info(f"warehouse ({layout}): applied migrations {applied}")
+    _set_warehouse_search_path(pg_conn)
+    if layout == WAREHOUSE_SCHEMA:
+        _warn_stranded_public_tables(pg_conn)
+    return layout
+
+
 def _set_warehouse_search_path(pg_conn) -> str:
     """If the target PG holds the warehouse schema `m3_warehouse`, prepend it to
     the connection's search_path so the sync's UNQUALIFIED table names
@@ -1080,17 +1028,15 @@ def _set_warehouse_search_path(pg_conn) -> str:
     raises — a probe failure leaves the default search_path (fail-safe to old
     behavior)."""
     try:
-        with pg_conn.cursor() as cur:
-            # Visible to this role? to_regclass returns NULL if the table is absent
-            # OR the role lacks schema USAGE — either way we must not switch. A
-            # permission-denied here raises and would poison the transaction for
-            # the sync work that follows, so roll back on ANY failure to leave a
-            # clean transaction on the default (public) search_path.
-            cur.execute("SELECT to_regclass('m3_warehouse.memory_items')")
-            if cur.fetchone()[0] is not None:
-                cur.execute("SET search_path TO m3_warehouse, public")
-                logger.info("PG search_path set to m3_warehouse (warehouse layout detected).")
-                return "m3_warehouse"
+        # A permission-denied probe raises and would poison the transaction for
+        # the sync work that follows, so roll back on ANY failure to leave a clean
+        # transaction on the default (public) search_path.
+        canonical, _legacy = _warehouse_tables(pg_conn)
+        if canonical:
+            with pg_conn.cursor() as cur:
+                cur.execute(f"SET search_path TO {WAREHOUSE_SCHEMA}, public")
+            logger.info(f"PG search_path set to {WAREHOUSE_SCHEMA} (warehouse layout detected).")
+            return WAREHOUSE_SCHEMA
     except Exception as e:
         logger.warning(f"Could not probe/set warehouse search_path ({e}); using default.")
         try:
@@ -1098,22 +1044,6 @@ def _set_warehouse_search_path(pg_conn) -> str:
         except Exception:
             pass
     return "public"
-
-
-def _ensure_sync_lock_table(sl_cur) -> None:
-    """Guarantee the sync_locks table exists.
-
-    Declared by migration 044 (SQLite) / pg_053 (PostgreSQL), so on a
-    migrated store this is a no-op. It stays as a self-heal for the case that
-    caused the 2026-07-19 outage: the lock used to live in `sync_state`, a
-    ChromaDB table that migration 040 legitimately dropped, after which the lock
-    SELECT raised "no such table", a bare-except read that as "another sync is in
-    progress", and EVERY sync silently skipped thereafter.
-
-    A store that predates 044, or a target DB running a different migration set,
-    must therefore still be able to take the lock on first run rather than
-    wedging. Idempotent."""
-    sl_cur.execute("CREATE TABLE IF NOT EXISTS sync_locks (lock_name TEXT PRIMARY KEY, holder TEXT, acquired_at TEXT)")
 
 
 # Staleness ceiling for a lock whose owner PID we can't evaluate (e.g. a legacy
@@ -1309,20 +1239,13 @@ def _acquire_sync_lock(sl_cur) -> bool:
 
     A MISSING lock table is "not locked" (create + acquire), NOT "locked" — the
     latter was a footgun that silently skipped every sync on any DB whose lock
-    table was absent (see _ensure_sync_lock_table for the outage). A HELD lock
+    table was absent (the 2026-07-19 outage). A HELD lock
     whose owner process has died is reclaimed immediately (PID liveness), but
     ONLY when the lock names this host — see _sync_lock_is_stale."""
     global _LOCK_SKIP_REASON
-    # Self-heal: a missing table must never read as "held". Create-if-absent
-    # BEFORE the lock check so the SELECT can't fail with 'no such table'.
-    try:
-        _ensure_sync_lock_table(sl_cur)
-    except Exception as e:
-        # If we can't even create the table, we cannot coordinate — proceed
-        # UNLOCKED (fail-open) rather than block all syncs forever. A rare
-        # concurrent double-sync is far less harmful than a permanent no-sync.
-        logger.warning(f"Could not ensure sync_locks table ({e}); proceeding without lock.")
-        return True
+    # sync_locks comes from the store's migrations (main 044, chatlog 012), which
+    # run when the store is opened. A MISSING table must still never read as
+    # "held" (the 2026-07-19 outage): see the except branch.
     try:
         sl_cur.execute(f"SELECT holder FROM sync_locks WHERE lock_name = {_param_of(sl_cur)}", (_SYNC_LOCK_NAME,))
         row = sl_cur.fetchone()
@@ -1350,6 +1273,16 @@ def _acquire_sync_lock(sl_cur) -> bool:
         )
         return True
     except Exception as e:
+        from memory.backends import dialect
+
+        if dialect().is_undefined_object_error(e):
+            # Fail OPEN: a rare concurrent double-sync is far less harmful than a
+            # permanent no-sync. Loud, because it means migrations did not run.
+            logger.warning(
+                f"sync_locks is missing on this store ({e}); proceeding WITHOUT a lock. "
+                "cause: the store's migrations have not run. inspect: python bin/migrate_memory.py up"
+            )
+            return True
         _LOCK_SKIP_REASON = f"{type(e).__name__}: {e}"
         logger.warning(f"Lock acquisition failed: {e}")
         return False
@@ -1566,12 +1499,7 @@ def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bo
         pg_cur.execute("ROLLBACK TO SAVEPOINT items")
         logger.error(f"[{target_name}] Memory items sync failed: {e}")
 
-    # Step 2: PG Tier Tables (Main only)
-    if target_name == "main":
-        try:
-            _ensure_pg_tier_tables(pg_cur)
-        except Exception as e:
-            logger.warning(f"Ensuring PG tier tables failed: {e}")
+    # (The warehouse's tables come from its migration chain: _prepare_warehouse.)
 
     # Step 3: Relationships
     if _table_exists(sl_cur, "memory_relationships"):
@@ -1870,7 +1798,7 @@ def main():
 
             with ctx.pg_connection() as pg_conn:
                 pg_conn.autocommit = False
-                _set_warehouse_search_path(pg_conn)
+                _prepare_warehouse(pg_conn)
 
                 for target in targets:
                     logger.info(f"--- Synchronizing target: {target.name} ({target.uri}) ---")
@@ -1878,7 +1806,6 @@ def main():
                         with _open_local_store(target) as (sl_conn, sl_cur):
                             if sl_conn is None:
                                 continue  # store absent; _open_local_store said why
-                            _ensure_watermark_table(sl_cur)
 
                             if target.name == "main":
                                 if not _acquire_sync_lock(sl_cur):
@@ -1969,10 +1896,9 @@ def main():
                 sys.exit(1)
 
             try:
-                _ensure_watermark_table(sl_cur)
                 with ctx.pg_connection() as pg_conn:
                     pg_conn.autocommit = False
-                    _set_warehouse_search_path(pg_conn)
+                    _prepare_warehouse(pg_conn)
                     with pg_conn.cursor() as pg_cur:
                         _sync_generic_db(sl_cur, pg_cur, sl_conn, manifest, target_name, dry_run=False)
                     pg_conn.commit()

@@ -474,6 +474,18 @@ def _backfill_change_agent() -> None:
         logger.warning(f"Backfill failed: {e}")
 
 
+def ensure_store_migrated(db_path) -> None:
+    """Bring a SQLite store to its current schema through the migration runner, the
+    one way m3 schemas change (user decision 2026-10-13): opening it via ``_db()``
+    under its path applies whatever is pending for its own chain, main or chatlog.
+    For callers that then work on the file directly (the enrichment drain, pg_sync).
+    PostgreSQL applies its schema when the backend first connects."""
+    from m3_core.paths import active_database
+
+    with active_database(str(db_path)), _db():
+        pass
+
+
 def _lazy_init(db_path: str | None = None) -> None:
     """Run one-time schema + backfill per DB path. Per-DB to support multi-DB."""
     global _initialized

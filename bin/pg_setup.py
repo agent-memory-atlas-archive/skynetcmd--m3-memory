@@ -1,123 +1,72 @@
+"""Bring the PostgreSQL data warehouse to its current schema, or report where it is.
+
+The warehouse schema comes from its migration chain (memory/warehouse_migrations/,
+user decision 2026-10-13), which pg_sync applies automatically before every run.
+This is the manual entry point for the same thing:
+
+    python bin/pg_setup.py           # apply pending warehouse migrations
+    python bin/pg_setup.py --check   # report the layout and versions; change nothing
+
+The warehouse DSN is the M3_CDW_PG_URL secret (m3 secret set M3_CDW_PG_URL).
+"""
+
+import argparse
 import logging
 import sys
 
 import psycopg2
-from m3_core.seams import is_windows
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("pg_setup")
 
 
 def _get_pg_url() -> str:
-    """Resolve the data-warehouse PostgreSQL URL from environment or vault.
-
-    Warehouse role (m3_core.secret_store.resolve_pg_dsn): M3_CDW_PG_URL >
-    PG_URL(deprecated) > keyring > secrets file > vault. Not M3_PG_URL (the
-    primary-store var).
-    """
+    """The data-warehouse DSN (m3_core.secret_store.resolve_pg_dsn, warehouse role):
+    the secrets file, then the keyring, then the vault. Never the environment."""
     from m3_core.secret_store import PgRole, resolve_pg_dsn
 
     url = resolve_pg_dsn(PgRole.WAREHOUSE)
     if url:
         return url
-    python_cmd = "python" if is_windows() else "python3"
     logger.error(
-        f"Data-warehouse DSN not found. Set M3_CDW_PG_URL env var or store it via: {python_cmd} -c \"from auth_utils import set_api_key; set_api_key('PG_URL', 'postgresql://USERNAME:REPLACE_WITH_YOUR_PASSWORD@host:5432/db')\""
+        "Data-warehouse DSN not found. observed: no M3_CDW_PG_URL secret (or legacy PG_URL vault entry). "
+        "fix: m3 secret set M3_CDW_PG_URL   (m3 config import-env moves one set in the environment)"
     )
     sys.exit(1)
 
 
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS activity_logs (
-    id SERIAL PRIMARY KEY,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    query TEXT,
-    response TEXT,
-    model_used TEXT DEFAULT 'DeepSeek-R1-70B'
-);
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--check", action="store_true", help="report the layout and versions; change nothing")
+    args = parser.parse_args()
 
-CREATE TABLE IF NOT EXISTS project_decisions (
-    id SERIAL PRIMARY KEY,
-    project TEXT,
-    decision TEXT,
-    rationale TEXT,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+    import migrate_pg
+    import pg_sync
 
-CREATE TABLE IF NOT EXISTS hardware_specs (
-    id SERIAL PRIMARY KEY,
-    component TEXT,
-    spec TEXT,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS system_focus (
-    id INTEGER PRIMARY KEY,
-    summary TEXT,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS memory_items (
-    id            TEXT PRIMARY KEY,
-    type          TEXT NOT NULL,
-    title         TEXT,
-    content       TEXT,
-    metadata_json JSONB,
-    agent_id      TEXT,
-    model_id      TEXT,
-    change_agent  TEXT DEFAULT 'unknown',
-    importance    REAL DEFAULT 0.5,
-    source        TEXT DEFAULT 'agent',
-    origin_device TEXT DEFAULT 'macbook',
-    is_deleted    INTEGER DEFAULT 0,
-    expires_at    TIMESTAMP WITH TIME ZONE,
-    decay_rate    REAL DEFAULT 0.0,
-    created_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP WITH TIME ZONE
-);
-
-CREATE TABLE IF NOT EXISTS memory_embeddings (
-    id          TEXT PRIMARY KEY,
-    memory_id   TEXT NOT NULL REFERENCES memory_items(id) ON DELETE CASCADE,
-    embedding   BYTEA NOT NULL,
-    embed_model TEXT DEFAULT 'jina-embeddings-v5',
-    dim         INTEGER DEFAULT 1024,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS memory_relationships (
-    id                TEXT PRIMARY KEY,
-    from_id           TEXT NOT NULL REFERENCES memory_items(id) ON DELETE CASCADE,
-    to_id             TEXT NOT NULL REFERENCES memory_items(id) ON DELETE CASCADE,
-    relationship_type TEXT NOT NULL,
-    created_at        TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_mi_type       ON memory_items(type);
-CREATE INDEX IF NOT EXISTS idx_mi_agent      ON memory_items(agent_id);
-CREATE INDEX IF NOT EXISTS idx_mi_model      ON memory_items(model_id);
-CREATE INDEX IF NOT EXISTS idx_mi_created    ON memory_items(created_at);
-CREATE INDEX IF NOT EXISTS idx_mi_deleted    ON memory_items(is_deleted);
-CREATE INDEX IF NOT EXISTS idx_me_memory_id  ON memory_embeddings(memory_id);
-CREATE INDEX IF NOT EXISTS idx_mr_from       ON memory_relationships(from_id);
-CREATE INDEX IF NOT EXISTS idx_mr_to         ON memory_relationships(to_id);
-"""
-
-
-def main():
     try:
-        pg_url = _get_pg_url()
-        conn = psycopg2.connect(pg_url)
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            logger.info("Applying PostgreSQL schema to data warehouse...")
-            cur.execute(SCHEMA_SQL)
-        logger.info("Schema applied successfully!")
-        conn.close()
+        conn = psycopg2.connect(_get_pg_url())
     except Exception as e:
-        logger.error(f"Failed to setup PostgreSQL: {e}")
-        sys.exit(1)
+        logger.error(f"could not connect to the warehouse: {type(e).__name__}: {e}")
+        return 1
+    try:
+        layout = pg_sync._warehouse_layout(conn)
+        available = sorted(migrate_pg.discover_migrations(migrate_pg._WAREHOUSE_MIGRATIONS_DIR))
+        applied = migrate_pg.get_applied_versions(conn, layout)
+        pending = [v for v in available if v not in applied]
+        if args.check:
+            print(f"warehouse schema: {layout}")
+            print(f"applied: {applied or 'none'}")
+            print(f"pending: {pending or 'none'}")
+            return 0
+        done = migrate_pg.run_warehouse_migrations(conn, layout)
+        logger.info(f"warehouse ({layout}): applied {done or 'nothing, already current'}")
+        return 0
+    except Exception as e:
+        logger.error(f"warehouse setup failed: {type(e).__name__}: {e}")
+        return 1
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

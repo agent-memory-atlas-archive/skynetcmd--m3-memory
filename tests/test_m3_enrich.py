@@ -295,7 +295,7 @@ def test_load_profile_aborts_on_unknown_name():
 def test_a_fresh_store_reaches_the_queues_through_its_migrations(tmp_path, monkeypatch):
     """The drain gets its queues from the store's own migrations (main 025), applied
     by the runner when the store is opened -- not from a runtime replay."""
-    from enrich.prep import _ensure_migrated
+    from memory.db import ensure_store_migrated as _ensure_migrated
 
     db_path = tmp_path / "fresh.db"
     _ensure_migrated(db_path)

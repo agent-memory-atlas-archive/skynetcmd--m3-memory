@@ -60,13 +60,22 @@ Sync takes the warehouse host from the DSN. `M3_POSTGRES_SERVER` (or
 `SYNC_TARGET_IP`) is optional and only overrides the host used for the
 reachability check.
 
-Apply the warehouse schema (one-time per warehouse). Postgres-side migrations
-live in `memory/migrations/postgres/`:
+The warehouse schema comes from its own migration chain
+(`memory/warehouse_migrations/`), which `pg_sync` applies automatically at the
+start of every run, under a lock so two machines cannot race. There is nothing
+to apply by hand. To see where a warehouse stands, or to migrate it without
+syncing:
 
 ```bash
-psql -h db.example.com -U $PGUSER -d agent_memory \
-  -f memory/migrations/postgres/pg_warehouse_chatlog_v1.sql
+python bin/pg_setup.py --check   # schema layout, applied and pending versions
+python bin/pg_setup.py           # apply pending warehouse migrations
 ```
+
+A warehouse that keeps its tables in `public` (an older layout) is migrated in
+place; `bin/migrate_warehouse_to_schema.py` moves it to `m3_warehouse` when you
+choose. Warehouse migrations only add columns and tables, so a machine on an
+older m3 keeps syncing against a newer warehouse. The warehouse role needs
+`CREATE` on its schema for a migration to apply.
 
 Note: `memory/migrations/*.sql` (without the `postgres/` subdir) are SQLite
 migrations applied automatically on first connect. Don't put Postgres SQL

@@ -85,6 +85,14 @@ class Dialect:
         """A single bind placeholder (``?`` / ``%s``)."""
         return "?" if self.param_style == "qmark" else "%s"
 
+    def quote_identifier(self, name: str) -> str:
+        """``name`` as a quoted SQL identifier, for a name a placeholder cannot
+        bind (a schema, a table chosen at runtime, often operator-supplied).
+        Standard SQL double quotes, embedded quotes doubled: SQLite and
+        PostgreSQL. A backend that quotes differently (MariaDB without
+        ANSI_QUOTES uses backticks) overrides this."""
+        return '"' + str(name).replace('"', '""') + '"'
+
     # -- upsert --------------------------------------------------------------
     def compile_keyword_query(self, query: str, mode: str) -> tuple[str, bool]:
         """A raw user query as this backend's keyword-match syntax, ``(text, ok)``.

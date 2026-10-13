@@ -52,7 +52,9 @@ def user_tables(conn: sqlite3.Connection) -> list[str]:
 
 
 def _quote_ident(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
+    from memory.backends.dialect import dialect_for
+
+    return dialect_for("sqlite").quote_identifier(name)
 
 
 def row_counts(conn: sqlite3.Connection, tables: list[str]) -> dict[str, int]:

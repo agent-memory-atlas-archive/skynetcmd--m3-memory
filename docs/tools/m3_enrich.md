@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 19e26702f01b
-mtime_utc: 2026-10-13T00:57:18.236114+00:00
-generated_utc: 2026-10-13T00:57:48.585765+00:00
+sha1: c233256c35b7
+mtime_utc: 2026-10-13T02:51:57.247195+00:00
+generated_utc: 2026-10-13T02:55:22.839670+00:00
 private: false
 ---
 
@@ -126,7 +126,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `enrich (ALWAYS_SKIP_TYPES)`
 - `enrich.eligibility (_load_conv_list, _query_eligible_groups)`
-- `enrich.prep (BACKUP_DIR, _ensure_migrated, _load_profile_with_path, _today)`
+- `enrich.prep (BACKUP_DIR, _load_profile_with_path, _today)`
 - `enrich.rate_limit (_classify_observer_error, _estimate_cost_wall, _RateLimitCascade)`
 - `enrich.report (_print_dry_run, _print_run_summary)`
 - `m3_core.aio (gather_or_cancel)`
@@ -140,6 +140,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
+- `memory.db (ensure_store_migrated)`
 
 ---
 

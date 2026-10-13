@@ -338,9 +338,9 @@ After upgrading the model runtime, restart the embed server (`m3 embedder stop`,
 sudo apt upgrade postgresql postgresql-contrib
 sudo systemctl restart postgresql
 
-# Then reapply any PG-side schema changes
+# Warehouse schema changes apply on the next sync (pg_sync migrates first);
+# to apply them now without syncing:
 python3 bin/pg_setup.py
-python3 bin/pg_sync.py --once
 ```
 
 ---

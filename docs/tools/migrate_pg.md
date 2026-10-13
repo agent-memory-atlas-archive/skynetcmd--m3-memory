@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_pg.py
-sha1: 2c0036ba8c4d
-mtime_utc: 2026-10-13T02:16:47.641592+00:00
-generated_utc: 2026-10-13T02:23:35.881497+00:00
+sha1: de31e6dff948
+mtime_utc: 2026-10-13T03:03:52.088368+00:00
+generated_utc: 2026-10-13T03:12:24.296315+00:00
 private: false
 ---
 
@@ -44,7 +44,7 @@ or call :func:`run_pending_pg_migrations` programmatically (what the backend doe
 
 ## Entry points
 
-- `def main()` (line 384)
+- `def main()` (line 424)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,6 +82,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `memory.backends.dialect (dialect_for)`
 - `memory.backends.postgres_backend (_reject_forbidden_host)`
 - `psycopg2`
 
