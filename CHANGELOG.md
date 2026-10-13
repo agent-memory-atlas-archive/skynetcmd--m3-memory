@@ -334,6 +334,13 @@ the policy is forward-going only.
 
 ### Security
 
+- **The dashboard's audit view escapes what it shows.** A memory's title,
+  content, type and user id, and a memory id from the URL, are rendered as text,
+  so a memory written with markup in it can no longer run script in the browser
+  of whoever opens the audit view; the search query shown back is escaped too.
+  **Affected:** installs that run `m3 dashboard` · **Action:** none · **Data
+  status:** none.
+
 - **m3's API keys and vault secrets no longer reach non-m3 programs.** `pg_dump`,
   `pg_restore` and the pip/uv upgrade step used to inherit every secret set in
   m3's environment; they now start without them. Child-process environments are
@@ -390,9 +397,9 @@ the policy is forward-going only.
   `hard=true` and a curation plan's `delete_hard` soft-delete and return a notice
   naming `gdpr_forget`; expired memories are soft-deleted instead of removed;
   LangGraph `delete_thread` marks the thread deleted. The dashboard's Hard Delete
-  and GDPR purge show the erasure plan and ask for the compliance record; the
-  LangChain `Memory.forget()` returns the plan, and erases when called again
-  with `confirm=` and `compliance=`.
+  and GDPR purge show the erasure plan and ask for the compliance record.
+  Two-step GDPR forget is enforced on LangChain too: `Memory.forget()` returns
+  the plan, and erases when called again with `confirm=` and `compliance=`.
   **Affected:** all installs; callers of `gdpr_forget`, of `hard=true`, of
   `delete_hard`, of `Memory.forget()`, and of the dashboard's Hard Delete or GDPR
   purge · **Action:** call `gdpr_forget` (or `forget()`) twice: plan, then confirm

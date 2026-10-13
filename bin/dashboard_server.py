@@ -58,6 +58,7 @@ import asyncio
 import html
 import json
 import os
+import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -125,6 +126,21 @@ def _h(s: object) -> str:
     f-string HTML template. quote=True so it is safe in an attribute context too
     (the local panel esc() omitted quotes). None -> '' so 'None' never renders."""
     return html.escape("" if s is None else str(s), quote=True)
+
+
+def _dom_id(memory_id: object) -> str:
+    """A memory id as an element-id token: safe in an attribute, a CSS selector
+    (``hx-target="#card-…"``) and a JS string in an inline handler, where HTML
+    escaping is undone before the script runs. Every card renders through this,
+    so each ``#card-…`` target matches the card it replaces."""
+    return re.sub(r"[^A-Za-z0-9_-]", "_", "" if memory_id is None else str(memory_id))
+
+
+def _url_id(memory_id: object) -> str:
+    """A memory id as one URL path segment (percent-encoded)."""
+    from urllib.parse import quote
+
+    return quote("" if memory_id is None else str(memory_id), safe="")
 
 
 import uvicorn
@@ -2645,25 +2661,29 @@ def render_audit_card(memory_id: str, db: Any) -> str:
     else:
         timeline_flow_html = '<p style="color: hsl(210, 10%, 50%); font-style: italic; margin-top: 1rem;">No detailed history recorded.</p>'
 
+    # A stored title/content/type and a path's memory_id are untrusted: each goes
+    # through the encoder for its context (text _h, element id _dom_id, URL _url_id).
+    dom_id, url_id = _dom_id(memory_id), _url_id(memory_id)
+
     # Actions panel
     actions_html = ""
     if not is_deleted:
         actions_html = f"""
         <button class="m3-btn" style="background: hsla(270, 100%, 65%, 0.15); color: var(--m3-neon-purple); border: 1px solid rgba(168, 85, 247, 0.25); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
-                hx-post="/api/audit/resolve/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML">
+                hx-post="/api/audit/resolve/{url_id}" hx-target="#card-{dom_id}" hx-swap="outerHTML">
             Resolve Conflict
         </button>
         <button class="m3-btn" style="background: transparent; border: 1px solid var(--m3-border-glass); color: hsl(210, 10%, 80%); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
-                onclick="document.getElementById('override-form-{memory_id}').style.display='block'">
+                onclick="document.getElementById('override-form-{dom_id}').style.display='block'">
             Override/Edit
         </button>
         <button class="m3-btn" style="background: hsla(15, 100%, 55%, 0.1); color: hsl(15, 100%, 70%); border: 1px solid rgba(239, 68, 68, 0.25); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
-                hx-post="/api/audit/soft-delete/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML"
+                hx-post="/api/audit/soft-delete/{url_id}" hx-target="#card-{dom_id}" hx-swap="outerHTML"
                 hx-confirm="Are you sure you want to soft-delete this memory?">
             Soft Delete
         </button>
         <button class="m3-btn" style="background: hsla(15, 100%, 55%, 0.25); color: hsl(15, 100%, 80%); border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
-                hx-post="/api/audit/hard-delete/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML"
+                hx-post="/api/audit/hard-delete/{url_id}" hx-target="#card-{dom_id}" hx-swap="outerHTML"
                 >
             Hard Delete (GDPR)
         </button>
@@ -2672,28 +2692,28 @@ def render_audit_card(memory_id: str, db: Any) -> str:
         # Deleted: restore it, or erase it (GDPR, two steps)
         actions_html = f"""
         <button class="m3-btn" style="background: hsla(145, 100%, 45%, 0.15); color: var(--m3-neon-emerald); border: 1px solid rgba(16, 185, 129, 0.25); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
-                hx-post="/api/audit/resolve/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML">
+                hx-post="/api/audit/resolve/{url_id}" hx-target="#card-{dom_id}" hx-swap="outerHTML">
             Restore Memory
         </button>
         <button class="m3-btn" style="background: hsla(15, 100%, 55%, 0.25); color: hsl(15, 100%, 80%); border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.75rem; padding: 0.35rem 0.75rem;"
-                hx-post="/api/audit/hard-delete/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML"
+                hx-post="/api/audit/hard-delete/{url_id}" hx-target="#card-{dom_id}" hx-swap="outerHTML"
                 >
             Hard Delete (GDPR)
         </button>
         """
 
     return f"""
-    <div class="timeline-group-card" id="card-{memory_id}">
+    <div class="timeline-group-card" id="card-{dom_id}">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid var(--m3-border-glass); padding-bottom: 1rem;">
             <div>
                 <span class="m3-badge" style="{status_style} font-size: 0.72rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem; display: inline-block;">
                     {status_label}
                 </span>
-                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: #fff;">{current_title}</h3>
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: #fff;">{_h(current_title)}</h3>
                 <div style="font-family: 'Fira Code', monospace; font-size: 0.75rem; color: hsl(210, 10%, 65%); margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.75rem;">
-                    <span><strong>ID:</strong> {memory_id}</span>
-                    <span><strong>Type:</strong> <span class="m3-badge badge-sys" style="font-size: 0.65rem; padding: 1px 4px;">{current_type}</span></span>
-                    {f"<span><strong>User ID:</strong> {user_id}</span>" if user_id else ""}
+                    <span><strong>ID:</strong> {_h(memory_id)}</span>
+                    <span><strong>Type:</strong> <span class="m3-badge badge-sys" style="font-size: 0.65rem; padding: 1px 4px;">{_h(current_type)}</span></span>
+                    {f"<span><strong>User ID:</strong> {_h(user_id)}</span>" if user_id else ""}
                     <span><strong>Importance:</strong> {importance:.2f}</span>
                 </div>
             </div>
@@ -2706,18 +2726,18 @@ def render_audit_card(memory_id: str, db: Any) -> str:
         {timeline_flow_html}
 
         <!-- Inline Edit Override Form -->
-        <div id="override-form-{memory_id}" style="display: none; margin-top: 1.5rem; padding: 1.25rem; background: hsla(222, 22%, 4%, 0.6); border: 1px dashed var(--m3-border-glass); border-radius: 8px;">
-            <form hx-post="/api/audit/override/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML">
+        <div id="override-form-{dom_id}" style="display: none; margin-top: 1.5rem; padding: 1.25rem; background: hsla(222, 22%, 4%, 0.6); border: 1px dashed var(--m3-border-glass); border-radius: 8px;">
+            <form hx-post="/api/audit/override/{url_id}" hx-target="#card-{dom_id}" hx-swap="outerHTML">
                 <div style="margin-bottom: 0.75rem;">
                     <label style="display: block; font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600; color: var(--m3-neon-cyan);">Override Title</label>
-                    <input type="text" name="title" class="m3-input" value="{current_title.replace('"', "&quot;")}" style="width: 100%;" required>
+                    <input type="text" name="title" class="m3-input" value="{_h(current_title)}" style="width: 100%;" required>
                 </div>
                 <div style="margin-bottom: 0.75rem;">
                     <label style="display: block; font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600; color: var(--m3-neon-cyan);">Override Content</label>
-                    <textarea name="content" class="m3-input" rows="4" style="width: 100%; font-family: 'Fira Code', monospace; font-size: 0.8rem; resize: vertical;" required>{current_content}</textarea>
+                    <textarea name="content" class="m3-input" rows="4" style="width: 100%; font-family: 'Fira Code', monospace; font-size: 0.8rem; resize: vertical;" required>{_h(current_content)}</textarea>
                 </div>
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                    <button type="button" class="m3-btn" style="background: transparent; border: 1px solid var(--m3-border-glass); padding: 0.35rem 0.75rem; font-size: 0.75rem; color: #fff;" onclick="document.getElementById('override-form-{memory_id}').style.display='none'">Cancel</button>
+                    <button type="button" class="m3-btn" style="background: transparent; border: 1px solid var(--m3-border-glass); padding: 0.35rem 0.75rem; font-size: 0.75rem; color: #fff;" onclick="document.getElementById('override-form-{dom_id}').style.display='none'">Cancel</button>
                     <button type="submit" class="m3-btn" style="background: var(--m3-neon-cyan); color: #000; font-weight: 600; padding: 0.35rem 0.75rem; font-size: 0.75rem;">Apply Override</button>
                 </div>
             </form>
@@ -2788,7 +2808,7 @@ async def get_audit_timeline(request: Request, q: str = "", limit: int = 25):
                         break
 
                 if not matched_ids:
-                    return f'<p style="color: hsl(210, 15%, 55%); text-align: center; font-size: 0.85rem; padding: 2rem 0;">No change history timelines matched "{q}".</p>'
+                    return f'<p style="color: hsl(210, 15%, 55%); text-align: center; font-size: 0.85rem; padding: 2rem 0;">No change history timelines matched "{_h(q)}".</p>'
 
                 cards_html = []
                 for mem_id in matched_ids:
@@ -2881,9 +2901,9 @@ async def audit_soft_delete(memory_id: str, request: Request):
 
 
 _CARD_ERR = (
-    '<div class="timeline-group-card" id="card-{mid}" style="border-color: rgba(239, 68, 68, 0.4); '
+    '<div class="timeline-group-card" id="card-{dom_id}" style="border-color: rgba(239, 68, 68, 0.4); '
     'padding: 1.5rem;"><p style="color: hsl(15, 100%, 70%);">{msg}</p></div>'
-)
+)  # dom_id=_dom_id(...), msg=_h(...)
 
 
 @app.post("/api/audit/hard-delete/{memory_id}", response_class=HTMLResponse)
@@ -2897,12 +2917,12 @@ async def audit_hard_delete(memory_id: str, request: Request):
     get_active_db_path(request)
     set_active_db_env(selected_db)
 
-    mid = html.escape(memory_id)
+    dom_id = _dom_id(memory_id)
     plan = gdpr_forget_impl(memory_ids=[memory_id])
     if isinstance(plan, str):
-        return _CARD_ERR.format(mid=mid, msg=html.escape(plan))
+        return _CARD_ERR.format(dom_id=dom_id, msg=_h(plan))
     if not plan["counts"].get("memory_items"):
-        return _CARD_ERR.format(mid=mid, msg=f"No memory {mid} to erase.")
+        return _CARD_ERR.format(dom_id=dom_id, msg=f"No memory {_h(memory_id)} to erase.")
     rows = "".join(f"<li><code>{html.escape(t)}</code>: {n}</li>" for t, n in plan["counts"].items() if n)
     field = 'class="m3-input" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.8rem;"'
     # The required compliance keys come from the plan (gdpr_forget owns them).
@@ -2911,11 +2931,11 @@ async def audit_hard_delete(memory_id: str, request: Request):
         for k in plan["requires"]
     )
     return f"""
-    <div class="timeline-group-card" id="card-{mid}" style="border-color: rgba(239, 68, 68, 0.4); padding: 1.5rem;">
+    <div class="timeline-group-card" id="card-{dom_id}" style="border-color: rgba(239, 68, 68, 0.4); padding: 1.5rem;">
         <span style="color: hsl(15, 100%, 65%); font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">GDPR erasure (Art. 17) — nothing erased yet</span>
-        <p style="font-size: 0.85rem; color: hsl(210, 10%, 75%);">Erasing memory <code>{mid}</code> permanently removes:</p>
+        <p style="font-size: 0.85rem; color: hsl(210, 10%, 75%);">Erasing memory <code>{_h(memory_id)}</code> permanently removes:</p>
         <ul style="font-size: 0.8rem;">{rows}</ul>
-        <form hx-post="/api/audit/hard-delete/{mid}/confirm" hx-target="#card-{mid}" hx-swap="outerHTML"
+        <form hx-post="/api/audit/hard-delete/{_url_id(memory_id)}/confirm" hx-target="#card-{dom_id}" hx-swap="outerHTML"
               hx-confirm="This permanently erases the memory and cannot be undone. Erase now?"
               style="display: flex; flex-direction: column; gap: 0.5rem;">
             <input type="hidden" name="confirm" value="{html.escape(plan["token"])}">
@@ -2940,18 +2960,18 @@ async def audit_hard_delete_confirm(memory_id: str, request: Request):
     get_active_db_path(request)
     set_active_db_env(selected_db)
 
-    mid = html.escape(memory_id)
+    dom_id = _dom_id(memory_id)
     form = await request.form()
     confirm = str(form.get("confirm", ""))
     compliance = {k: str(v).strip() for k, v in form.items() if k != "confirm" and str(v).strip()}
     out = gdpr_forget_impl(memory_ids=[memory_id], confirm=confirm, compliance=compliance)
     if isinstance(out, str):
-        return _CARD_ERR.format(mid=mid, msg=html.escape(out))
+        return _CARD_ERR.format(dom_id=dom_id, msg=_h(out))
     return f"""
-    <div class="timeline-group-card" id="card-{mid}" style="border-color: rgba(239, 68, 68, 0.4); background: hsla(15, 100%, 50%, 0.05); text-align: center; padding: 2rem;">
+    <div class="timeline-group-card" id="card-{dom_id}" style="border-color: rgba(239, 68, 68, 0.4); background: hsla(15, 100%, 50%, 0.05); text-align: center; padding: 2rem;">
         <span style="color: hsl(15, 100%, 65%); font-size: 1.3rem; display: block; margin-bottom: 0.5rem;">Memory erased (GDPR Art. 17)</span>
         <p style="font-size: 0.85rem; color: hsl(210, 10%, 75%);">
-            Memory <code style="color: #fff;">{mid}</code> and everything holding its content were erased
+            Memory <code style="color: #fff;">{_h(memory_id)}</code> and everything holding its content were erased
             (request <code>{html.escape(out["request_id"])}</code>, recorded in the audit trail).
         </p>
     </div>

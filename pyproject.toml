@@ -484,8 +484,6 @@ ignore = ["E501", "E402", "E701", "E702", "E741", "PERF401", "PERF403",
 # _LAZY_IMPORTS and resolved at runtime — Ruff's static analysis can't see
 # through __getattr__, so F821 is a false positive for this file.
 "bin/memory_core.py" = ["F821"]
-# dashboard_server.py imports Any via TYPE_CHECKING guard; F821 is spurious.
-"bin/dashboard_server.py" = ["F821"]
 # Test fakes mirror production class attributes, often as plain mutable
 # defaults; RUF012 there flags the fake's shape, not a shared-state bug.
 # Async tests read small fixture files with nothing else on their loop (ASYNC230).
