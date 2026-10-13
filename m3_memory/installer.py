@@ -138,7 +138,7 @@ def _payload_dir(component: str, env_var: str, must_contain: str | None = None) 
     """Resolve a payload component dir: owned by ``m3_memory._bin.payload_dir``."""
     from m3_memory import _bin
 
-    return _bin.payload_dir(component, env_var, must_contain)
+    return _bin.payload_dir(component, env_var, must_contain)  # env-owner: the approved payload locator
 
 
 def bin_dir() -> Path | None:
@@ -2692,6 +2692,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     from m3_memory import _roots
 
+    # env-owner: reports a root's source
     root_src = "(M3_MEMORY_ROOT env)" if _roots.pinned(_roots.MEMORY_ROOT_ENV) else "(default)"
 
     print(f"m3-memory package version: {__version__}")

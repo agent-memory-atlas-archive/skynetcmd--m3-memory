@@ -33,7 +33,7 @@ def payload_dir(component: str, env_var: str, must_contain: str | None = None) -
     def _ok(base: Path) -> bool:
         return os.path.isdir(base) and (must_contain is None or os.path.exists(base / must_contain))
 
-    env = os.environ.get(env_var)
+    env = os.environ.get(env_var)  # env-owner: the approved payload locator
     if env:
         p = Path(env).expanduser()
         if _ok(p):

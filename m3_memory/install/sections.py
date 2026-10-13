@@ -441,9 +441,9 @@ def _roots_section() -> None:
     from m3_memory import _roots
 
     def _src(env_name: str, default: str) -> str:
-        if _roots.pinned(env_name):
+        if _roots.pinned(env_name):  # env-owner: doctor reports which root a pin set
             return f"({env_name} env)"
-        if _roots.pinned(_roots.MEMORY_ROOT_ENV):
+        if _roots.pinned(_roots.MEMORY_ROOT_ENV):  # env-owner: doctor reports which root a pin set
             return "(derived from M3_MEMORY_ROOT)"
         return f"(default {default})"
 
@@ -472,7 +472,8 @@ def _roots_section() -> None:
     # in THIS process but the MCP server / hook may not inherit it. We can only
     # observe this process's env, so we flag the structural asymmetry (a) and
     # always remind about the both-surfaces requirement when ANY root is pinned.
-    eng_pinned = _roots.pinned(_roots.ENGINE_ROOT_ENV) is not None
+    eng_pinned = _roots.pinned(_roots.ENGINE_ROOT_ENV) is not None  # env-owner: doctor reports which root a pin set
+    # env-owner: doctor reports which root a pin set
     cfg_pinned = _roots.pinned(_roots.CONFIG_ROOT_ENV_NAME) is not None
     if eng_pinned != cfg_pinned:
         print()
@@ -482,6 +483,7 @@ def _roots_section() -> None:
         print("      Pin BOTH together so the config and engine roots can't")
         print("      diverge. (Setting only one leaves the other on its")
         print("      derived/default path.)")
+    # env-owner: doctor reports which root a pin set
     if eng_pinned or cfg_pinned or _roots.pinned(_roots.MEMORY_ROOT_ENV):
         print()
         print("  [i] Decoupled-roots reminder: the m3 MCP server reads its root")
@@ -1134,7 +1136,7 @@ def _deprecated_env_section() -> None:
     # (doctor doesn't exercise pg_sync), so getenv_compat never recorded them.
     # Surface them from the live environment directly so a set PG_URL is flagged.
     for old, new in ROLE_SPLIT_ENV_RENAMES.items():
-        if _os.environ.get(old) is not None:
+        if _os.environ.get(old) is not None:  # env-owner: doctor names deprecated env names in use
             in_use[old] = new
 
     # Windows PERSISTENT env vars live in the registry, not this process's env, so

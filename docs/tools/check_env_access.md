@@ -1,8 +1,8 @@
 ---
 tool: bin/check_env_access.py
-sha1: 8cfadee3a1ac
-mtime_utc: 2026-10-12T15:04:52.890740+00:00
-generated_utc: 2026-10-12T15:05:10.591656+00:00
+sha1: 2e2338b24b1b
+mtime_utc: 2026-10-13T16:27:14.130937+00:00
+generated_utc: 2026-10-13T16:28:32.345118+00:00
 private: false
 ---
 
@@ -26,6 +26,13 @@ config package, once it exists, and the ``child_env`` helper) or reads a non-m3
 OS name on the allow-list (HOME, PATH, ...). Writes, whole-environment copies
 and dynamic names are violations wherever an allowed module is not.
 
+OWNERS (user decision 2026-10-13, <dynamic> design Q1): a site whose JOB is reading
+the environment -- an approved locator (the roots), the legacy-name shim, the
+doctor / import-env scanners, the parity snapshot -- carries ``# env-owner: <why>``
+on its line or alone on the line above. Its verdict is ``owner``, not
+``violation``; owners have their own ratchet, so a new one is still reviewed. A
+marker without a reason is ignored.
+
 REPORT MODE: print the inventory and exit 0. The counts are a RATCHET
 (tests/test_env_access_ratchet.py, plan 2D.2 rule 2): they may only fall, and a
 fall must lower the stored budget. ``--tests`` counts the other side, env WRITES
@@ -48,7 +55,7 @@ Exit: 0 = report written (or selftest passed); 1 = selftest failed;
 
 ## Entry points
 
-- `def main()` (line 669)
+- `def main()` (line 703)
 - `if __name__ == "__main__"` guard
 
 ---

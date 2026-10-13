@@ -17,7 +17,10 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 
 # Current floors. Lower these as readers move to the registry; never raise them.
 # 2026-10-11 (re-baseline at 7687acd3): 611 production violations, 1080 test writes.
-_BUDGET = 189
+_BUDGET = 148
+# Sites marked `# env-owner: <why>` (<dynamic> design Q1, 2026-10-13): reading env is
+# their job (root locators, the legacy-name shim, the doctor/import-env scanners).
+_OWNER_BUDGET = 41
 _TESTS_BUDGET = 631
 
 
@@ -36,6 +39,11 @@ def _production_violations() -> int:
     return sum(f.verdict == "violation" for f in findings)
 
 
+def _owners() -> int:
+    findings, _ = _cea().scan_repo()
+    return sum(f.verdict == "owner" for f in findings)
+
+
 def _test_writes() -> int:
     findings, unparsed = _cea().scan_tests()
     assert not unparsed, f"test files the gate could not scan: {unparsed}"
@@ -49,6 +57,17 @@ def test_production_env_access_does_not_grow_and_the_budget_is_not_stale():
         "config registry (m3_core.config) instead; run `python bin/check_env_access.py` to see the new site."
     )
     assert n == _BUDGET, f"production env-access violations are down to {n}; lower _BUDGET to lock it in"
+
+
+def test_env_owners_do_not_grow_and_the_budget_is_not_stale():
+    """Owners (``# env-owner: <why>``) read env by design, but a new one is a design
+    change: it raises this count and must be reviewed, not slipped in."""
+    n = _owners()
+    assert n <= _OWNER_BUDGET, (
+        f"env-owner sites rose from {_OWNER_BUDGET} to {n}. An owner is an approved locator or a "
+        "scanner whose job is reading env; anything else reads its setting through the registry."
+    )
+    assert n == _OWNER_BUDGET, f"env-owner sites are down to {n}; lower _OWNER_BUDGET to lock it in"
 
 
 def test_test_env_writes_do_not_grow_and_the_budget_is_not_stale():

@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: 896b5c0b5301
-mtime_utc: 2026-10-11T18:07:52.863748+00:00
-generated_utc: 2026-10-11T18:07:53.688464+00:00
+sha1: 99ee81b141e6
+mtime_utc: 2026-10-13T16:27:40.866174+00:00
+generated_utc: 2026-10-13T16:28:32.396620+00:00
 private: false
 ---
 

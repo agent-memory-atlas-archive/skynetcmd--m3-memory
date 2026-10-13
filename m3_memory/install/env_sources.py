@@ -125,7 +125,10 @@ def scan(
 
     if include_process_env:
         out += [
-            EnvFound(n, os.environ[n], f"environment (os.environ['{n}'])", "process") for n in wanted if n in os.environ
+            # env-owner: the doctor / import-env scan: reading env is its job
+            EnvFound(n, os.environ[n], f"environment (os.environ['{n}'])", "process")
+            for n in wanted
+            if n in os.environ  # env-owner: the doctor / import-env scan: reading env is its job
         ]
 
     try:

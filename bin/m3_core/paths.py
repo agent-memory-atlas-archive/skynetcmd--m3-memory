@@ -129,10 +129,10 @@ def getenv_compat(new_name: str, old_name: str, default: str | None = None) -> s
     name is set, warn once and record it in _DEPRECATED_ENV_SEEN so `m3 doctor`
     can surface it. The new name always wins, so users can migrate incrementally.
     """
-    val = os.environ.get(new_name)
+    val = os.environ.get(new_name)  # env-owner: the legacy env-name shim
     if val is not None:
         return val
-    old_val = os.environ.get(old_name)
+    old_val = os.environ.get(old_name)  # env-owner: the legacy env-name shim
     if old_val is not None:
         _DEPRECATED_ENV_SEEN[old_name] = new_name
         if old_name not in _DEPRECATED_ENV_WARNED:
@@ -221,7 +221,7 @@ def assert_no_deprecated_pg_url_on_install() -> None:
     it is relying on behaviour that is gone. Raises RuntimeError with the fix.
     """
     old, new = PG_URL_DEPRECATION
-    if os.environ.get(old) is not None:
+    if os.environ.get(old) is not None:  # env-owner: the legacy env-name shim
         raise RuntimeError(
             f"observed: the old env var {old} is set; m3 does not read DSNs from the environment. "
             f"fix: store the warehouse DSN with `m3 secret set {new}` (or a PostgreSQL primary "
@@ -698,13 +698,13 @@ def _default_db_path() -> str:
     # M3_MEMORY_ROOT is set, the engine path is DERIVED, not chosen. If that
     # derived DB is missing or an empty stub, we must not let it shadow a
     # populated legacy memory/ DB — see _db_is_populated.
-    if _roots.pinned(_roots.ENGINE_ROOT_ENV):
+    if _roots.pinned(_roots.ENGINE_ROOT_ENV):  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
         # Explicit engine root is a deliberate operator choice; honor it verbatim
         # even if empty (a fresh deployment legitimately starts empty here).
         return os.path.join(get_m3_engine_root(), "agent_memory.db")
 
     engine_db = os.path.join(get_m3_engine_root(), "agent_memory.db")
-    mem_root = _roots.pinned(_roots.MEMORY_ROOT_ENV)
+    mem_root = _roots.pinned(_roots.MEMORY_ROOT_ENV)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
     if mem_root:
         if _db_is_populated(engine_db):
             return engine_db

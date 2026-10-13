@@ -15,6 +15,13 @@ config package, once it exists, and the ``child_env`` helper) or reads a non-m3
 OS name on the allow-list (HOME, PATH, ...). Writes, whole-environment copies
 and dynamic names are violations wherever an allowed module is not.
 
+OWNERS (user decision 2026-10-13, <dynamic> design Q1): a site whose JOB is reading
+the environment -- an approved locator (the roots), the legacy-name shim, the
+doctor / import-env scanners, the parity snapshot -- carries ``# env-owner: <why>``
+on its line or alone on the line above. Its verdict is ``owner``, not
+``violation``; owners have their own ratchet, so a new one is still reviewed. A
+marker without a reason is ignored.
+
 REPORT MODE: print the inventory and exit 0. The counts are a RATCHET
 (tests/test_env_access_ratchet.py, plan 2D.2 rule 2): they may only fall, and a
 fall must lower the stored budget. ``--tests`` counts the other side, env WRITES
@@ -118,6 +125,9 @@ _PLACEHOLDER = re.compile(r"(?<!\{)\{[^{}\n]*\}(?!\})")
 # A line that reads as code, not prose: an import, or a statement on os.*.
 _CODE_LINE = re.compile(r"\s*(import \w|from [\w.]+ import |os\.(environ|getenv|putenv|unsetenv))")
 
+# `# env-owner: <reason>`; the reason is mandatory (an unexplained owner is a violation).
+_OWNER = re.compile(r"#\s*env-owner:\s*\S")
+
 WRITE_METHODS = frozenset({"pop", "setdefault", "update", "clear", "popitem", "__setitem__", "__delitem__"})
 COPY_METHODS = frozenset({"copy", "items", "keys", "values"})
 
@@ -129,7 +139,7 @@ class Finding:
     kind: str  # read | write | copy | dotenv | alias | handout
     form: str  # the syntactic shape, e.g. "os.environ.get"
     name: str  # the variable name, "<dynamic>", or "*" for the whole environment
-    verdict: str  # violation | allowed-os-name | allowed-module
+    verdict: str  # violation | allowed-os-name | allowed-module | owner
 
 
 class _Scanner(ast.NodeVisitor):
@@ -452,6 +462,7 @@ def _bare_wrappers(tree: ast.AST, wrappers: dict[str, tuple[int, ...]]) -> dict[
 
 def scan_source(src: str, rel: str, wrappers: dict[str, tuple[int, ...]] | None = None) -> list[Finding]:
     tree = ast.parse(src, filename=rel)
+    lines = src.splitlines()
     known = wrappers if wrappers is not None else discover_wrappers([tree])
     s = _Scanner(rel, known, _bare_wrappers(tree, known))
     s.visit(tree)
@@ -466,7 +477,19 @@ def scan_source(src: str, rel: str, wrappers: dict[str, tuple[int, ...]] | None 
             Finding(f.path, first_line + f.line - 1, f.kind, f"{f.form} (embedded program)", f.name, f.verdict)
             for f in inner.found
         ]
-    return sorted(set(found), key=lambda f: (f.path, f.line, f.form, f.name))
+    return sorted({_with_owner(f, lines) for f in found}, key=lambda f: (f.path, f.line, f.form, f.name))
+
+
+def _with_owner(f: Finding, lines: list[str]) -> Finding:
+    """``f`` with verdict ``owner`` when its line, or a lone comment line directly
+    above it, carries ``# env-owner: <reason>``. Embedded programs never qualify."""
+    if f.verdict != "violation" or "(embedded program)" in f.form or not 0 < f.line <= len(lines):
+        return f
+    here = lines[f.line - 1]
+    above = lines[f.line - 2] if f.line >= 2 else ""
+    if _OWNER.search(here) or (above.lstrip().startswith("#") and _OWNER.search(above)):
+        return Finding(f.path, f.line, f.kind, f.form, f.name, "owner")
+    return f
 
 
 def _production_files() -> list[Path]:
@@ -659,7 +682,18 @@ def selftest() -> int:
             )
     if scan_test_source("def t(monkeypatch):\n    monkeypatch.setenv('HOME', '/x')", "planted_test.py"):
         failures.append("test write of the OS name HOME was counted")
-    total = len(PLANTED) + 2 + len(_NOT_READS) + len(_PLANTED_TEST_WRITES) + 1
+    # an owner marker with a reason makes the site an owner, on its line or above it;
+    # without a reason it is still a violation
+    for snippet, want in (
+        ("import os\nos.getenv(n)  # env-owner: the roots locator", "owner"),
+        ("import os\n# env-owner: the roots locator\nos.getenv(n)", "owner"),
+        ("import os\nos.getenv(n)  # env-owner:", "violation"),
+        ("import os\nx = 1  # env-owner: not this line\n\nos.getenv(n)", "violation"),
+    ):
+        got = [f.verdict for f in scan_source(snippet, "planted.py") if f.kind == "read"]
+        if got != [want]:
+            failures.append(f"OWNER MARKER: {snippet!r} -> {got}, expected [{want!r}]")
+    total = len(PLANTED) + 2 + len(_NOT_READS) + len(_PLANTED_TEST_WRITES) + 1 + 4
     for f in failures:
         print(f, file=sys.stderr)
     print(f"selftest: {total - len(failures)}/{total} checks passed")

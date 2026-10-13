@@ -386,6 +386,7 @@ def explain_secret(
 def _miss(store_keys: tuple[str, ...], env_names: tuple[str, ...], errors: list[str]) -> SecretResolution:
     """Nothing resolved. A name set in the environment is named (never its
     value): m3 no longer reads it there, and that is the likeliest reason."""
+    # env-owner: names a secret's env name still set (never its value or a read of it)
     in_env = [n for n in env_names if (os.environ.get(n) or "").strip()]
     if in_env:
         errors.append(

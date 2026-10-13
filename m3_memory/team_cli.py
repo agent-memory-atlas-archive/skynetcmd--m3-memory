@@ -184,6 +184,7 @@ def cmd_check(path: Path) -> int:
     print(f"{path}: ok ({len(agents)} agent(s), {len(providers)} provider(s))")
 
     # Soft API key check — warn but don't fail.
+    # env-owner: checks the example team's own key names (<dynamic> design Q4: left as is)
     missing = [p["api_key_env"] for p in providers.values() if p.get("api_key_env") and not os.getenv(p["api_key_env"])]
     if missing:
         print(f"  note: these env vars are unset: {', '.join(sorted(set(missing)))}")

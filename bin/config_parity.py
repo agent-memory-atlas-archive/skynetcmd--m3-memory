@@ -207,8 +207,8 @@ def _is_secret(name: str, value: object) -> bool:
 def _machine_markers() -> list[str]:
     marks = [str(Path.home()), socket.gethostname()]
     for var in ("USERNAME", "USER"):
-        if os.environ.get(var):
-            marks.append(os.environ[var])
+        if os.environ.get(var):  # env-owner: the parity snapshot records env on purpose
+            marks.append(os.environ[var])  # env-owner: the parity snapshot records env on purpose
     return [m for m in marks if m and len(m) > 2]
 
 
@@ -301,11 +301,11 @@ def capture(context: str) -> dict:
     markers = _machine_markers()
     names, dynamic_sites = _env_names()
 
-    pre = {n: os.environ.get(n) for n in names}
+    pre = {n: os.environ.get(n) for n in names}  # env-owner: the parity snapshot records env on purpose
     from m3_core.context import M3Context  # loads .env into os.environ
 
     M3Context.for_db(None)
-    post = {n: os.environ.get(n) for n in names}
+    post = {n: os.environ.get(n) for n in names}  # env-owner: the parity snapshot records env on purpose
     env = {n: {"pre": record(n, pre[n], key, markers), "post": record(n, post[n], key, markers)} for n in names}
 
     parsed: dict[str, dict] = {}

@@ -1939,6 +1939,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         # non-default ones, and an explicit disable for LM Studio if it's absent.
         if var == "M3_ENABLE_LMSTUDIO_FAILOVER":
             continue  # default already on; nothing to persist
+        # env-owner: setup carries a switch the shell exports into the file (an import)
         already = os.environ.get(var, "").strip()
         from m3_memory.wizard.persist import shell_rc_has
 
