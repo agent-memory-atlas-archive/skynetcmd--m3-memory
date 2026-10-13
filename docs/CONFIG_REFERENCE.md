@@ -100,6 +100,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `dispatch_schema` | string | `m3_dispatch` | `M3_DISPATCH_PG_SCHEMA` | restart to apply; Schema holding the dispatch queue on PostgreSQL. |
 | `forbidden_hosts` | list of strings | `[]` | `M3_PG_FORBIDDEN_HOSTS` | restart to apply; Hosts a PRIMARY store must never connect to (e.g. the warehouse); selecting one is refused. |
 | `pg_dump` | path | (none) | `M3_PG_DUMP` | pg_dump used for snapshots; unset finds it on PATH. pg_restore is looked for beside it. |
+| `pg_restore` | path | (none) | `M3_PG_RESTORE` | pg_restore used to verify snapshots; unset: beside pg_dump, else on PATH. |
 | `pool_max` | integer | `16` | `M3_PG_POOL_MAX` | restart to apply; Maximum connections in the PostgreSQL pool (at least pool_min). |
 | `pool_min` | integer | `1` | `M3_PG_POOL_MIN` | restart to apply; Minimum connections in the PostgreSQL pool. |
 | `upsert_page_size` | integer | `500` | `M3_PG_UPSERT_PAGE_SIZE` | Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob). |
@@ -281,6 +282,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `default_user_id` | string | (none) | `M3_DEFAULT_USER_ID` | restart to apply; user_id the LangChain / mem0 surfaces use when a caller passes none (single-user prototyping). Unset: they raise; isolation is never weakened. |
 | `node_id` | string | (none) | `M3_NODE_ID` | restart to apply; Sync node identity. Default: the host name (upper-cased on Windows). |
 | `origin_device` | string | (none) | `M3_ORIGIN_DEVICE`, `ORIGIN_DEVICE` | restart to apply; Device name stamped on memories. Default: the host name. |
 

@@ -186,6 +186,13 @@ RUNTIME: list[Key] = [
         None,
         "Device name stamped on memories. Default: the host name.",
     ),
+    _str(
+        "identity.default_user_id",
+        ("M3_DEFAULT_USER_ID",),
+        None,
+        "user_id the LangChain / mem0 surfaces use when a caller passes none (single-user "
+        "prototyping). Unset: they raise; isolation is never weakened.",
+    ),
     # ── [integrations.hermes] (a $HERMES_HOME/m3.json wins today) ──
     _str("integrations.hermes.agent_id", ("M3_AGENT_ID",), "hermes", "Agent id the Hermes plugin writes as."),
     _str("integrations.hermes.user_id", ("M3_USER_ID",), "hermes-user", "User id the Hermes plugin writes as."),

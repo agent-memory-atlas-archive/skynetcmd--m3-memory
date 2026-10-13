@@ -257,6 +257,10 @@
               "type": "string",
               "description": "pg_dump used for snapshots; unset finds it on PATH. pg_restore is looked for beside it."
             },
+            "pg_restore": {
+              "type": "string",
+              "description": "pg_restore used to verify snapshots; unset: beside pg_dump, else on PATH."
+            },
             "pool_max": {
               "type": "integer",
               "description": "Maximum connections in the PostgreSQL pool (at least pool_min).",
@@ -898,6 +902,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "default_user_id": {
+          "type": "string",
+          "description": "user_id the LangChain / mem0 surfaces use when a caller passes none (single-user prototyping). Unset: they raise; isolation is never weakened."
+        },
         "node_id": {
           "type": "string",
           "description": "Sync node identity. Default: the host name (upper-cased on Windows)."

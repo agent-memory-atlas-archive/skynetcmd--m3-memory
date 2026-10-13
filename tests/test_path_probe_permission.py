@@ -16,7 +16,7 @@ from conftest import skip_reason
 
 
 @pytest.mark.requires_posix
-def test_an_untraversable_tool_path_is_reported_not_raised(tmp_path, monkeypatch):
+def test_an_untraversable_tool_path_is_reported_not_raised(tmp_path, m3_settings):
     locked = tmp_path / "locked"
     locked.mkdir()
     (locked / "pg_dump").write_text("#!/bin/sh\n", encoding="utf-8")
@@ -26,7 +26,7 @@ def test_an_untraversable_tool_path_is_reported_not_raised(tmp_path, monkeypatch
             pytest.skip(skip_reason("env", "this user can traverse a mode-000 directory (root); nothing to test"))
         pg = importlib.import_module("memory.backends.postgres_backend")
         base = importlib.import_module("memory.backends.base")
-        monkeypatch.setenv("M3_PG_DUMP", str(locked / "pg_dump"))
+        m3_settings({"db.postgres.pg_dump": locked / "pg_dump"})
         with pytest.raises(base.SnapshotError, match="is not a file"):
             pg._pg_tool("pg_dump")
     finally:

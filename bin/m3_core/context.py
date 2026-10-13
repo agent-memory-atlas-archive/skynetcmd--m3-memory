@@ -154,7 +154,25 @@ class M3Context:
         return os.path.join(self.m3_memory_root, relative_path)  # noqa: PTH118 — root-derived string: Path would re-separate a forward-slash root
 
     def get_setting(self, key: str, default: Any = None) -> Any:
-        return os.environ.get(key, default)
+        """Deprecated (<dynamic> design Q3, 2026-10-13): use
+        ``m3_core.config.settings.setting(name)``. ``key`` is a registry key name or
+        one of its env names; anything else returns ``default`` (the environment is
+        no longer read here)."""
+        import warnings
+
+        from m3_core.config import REGISTRY
+        from m3_core.config import settings as _m3cfg
+
+        warnings.warn(
+            "M3Context.get_setting is deprecated; use m3_core.config.settings.setting(name)",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        k = REGISTRY.get(key) or REGISTRY.by_env(key)
+        if k is None:
+            return default
+        value = _m3cfg.setting(k.name)
+        return default if value is None else value
 
     def _init_sqlite_pool(self):
         with self._pool_lock:

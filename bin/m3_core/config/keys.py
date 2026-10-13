@@ -115,6 +115,13 @@ DB_POSTGRES: list[Key] = [
         env_names=("M3_PG_DUMP",),
         doc="pg_dump used for snapshots; unset finds it on PATH. pg_restore is looked for beside it.",
     ),
+    Key(
+        name="db.postgres.pg_restore",
+        parse=parse_path,
+        default=None,
+        env_names=("M3_PG_RESTORE",),
+        doc="pg_restore used to verify snapshots; unset: beside pg_dump, else on PATH.",
+    ),
     Key[str](
         name="db.postgres.dispatch_schema",
         parse=parse_str,

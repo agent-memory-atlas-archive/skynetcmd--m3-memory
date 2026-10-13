@@ -94,23 +94,6 @@ def _bin_dir() -> Path:
     return here.parent / "bin"  # legacy default
 
 
-def _env_compat(new_name: str, old_name: str, default: str | None = None) -> str | None:
-    """Env resolution during the M3_* namespacing migration: new > old > default,
-    warning once on the deprecated name. Uses the canonical getenv_compat when the
-    payload bin/ is importable; falls back to a plain dual-read otherwise, since
-    this module can run before bin/ is on sys.path and must never fail setup."""
-    try:
-        _m3bin.ensure_on_path()
-        from m3_core.paths import getenv_compat
-
-        return cast("str | None", getenv_compat(new_name, old_name, default))
-    except Exception:  # noqa: BLE001 — resolver unreachable: degrade, never break setup
-        val = os.environ.get(new_name)
-        if val is not None:
-            return val
-        return os.environ.get(old_name, default)
-
-
 def _ask_yes_no(question: str, default: bool) -> bool:
     suffix = " [Y/n]" if default else " [y/N]"
     while True:
@@ -1898,12 +1881,11 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     vars to match. Mirrors the M3_EMBED_GGUF persistence (shell rc + MCP env)."""
     # If the user already pinned a custom server, honor it — just confirm.
     custom = (_config.setting("llm.url") or "").strip()
-    # `m3 install --llm-endpoint` records its pin in .llm_config.json, not env.
-    csv = (_env_compat("M3_LLM_ENDPOINTS_CSV", "LLM_ENDPOINTS_CSV", "") or "").strip() or _llm_recorded(
-        "M3_LLM_ENDPOINTS_CSV"
-    )
+    # llm.endpoints: m3_config.toml, the legacy env names, or the .llm_config.json
+    # pin `m3 install --llm-endpoint` records, all through the registry.
+    csv = ",".join(_config.setting("llm.endpoints") or [])
     if csv:
-        _ok(f"  LLM endpoints pinned via LLM_ENDPOINTS_CSV ({csv}); leaving as-is")
+        _ok(f"  LLM endpoints pinned ({csv}); leaving as-is")
         _record_llm_switch("M3_LLM_ENDPOINTS_CSV", csv)
         return
     if custom:

@@ -424,6 +424,17 @@ the policy is forward-going only.
   **Affected:** installs that enable an autonomous pass · **Action:** none;
   prefer `[autonomy]` in `m3_config.toml` · **Data status:** none.
 
+- **Three more settings move to `m3_config.toml`; `M3Context.get_setting` is
+  deprecated.** `identity.default_user_id` (legacy `M3_DEFAULT_USER_ID`, the
+  LangChain / mem0 tenancy default) and `db.postgres.pg_restore` (legacy
+  `M3_PG_RESTORE`) are settings, as is `llm.endpoints` in setup's LLM probe.
+  `M3Context.get_setting(name)` warns and reads the settings registry (a key name
+  or one of its env names), no longer the raw environment. The installer's
+  `config.json` no longer records `M3_CONFIG_ROOT` / `M3_ENGINE_ROOT` /
+  `M3_FIPS_MODE` from the environment (nothing read them back).
+  **Affected:** callers of `M3Context.get_setting`; installs that set these names ·
+  **Action:** call `m3_core.config.settings.setting(name)` · **Data status:** none.
+
 - **`m3_config.toml` reaches the ingest LLM gates and the startup tool set.**
   `[ingest] auto_title` / `auto_entities`, `[observer] no_embed`, `[tools] lazy`
   and the new `[tools] startup` are read through the settings registry, with

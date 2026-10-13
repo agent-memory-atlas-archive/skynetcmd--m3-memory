@@ -429,10 +429,9 @@ def test_idempotent_rerun(db):
 # ── argparse defaults ────────────────────────────────────────────────────
 
 
-def test_parse_args_default_types(monkeypatch):
+def test_parse_args_default_types():
     import backfill_content_hash as bf
 
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     args = bf._parse_args([])
     assert args.type == ["chat_log", "message"]
     assert args.augment_anchors is False

@@ -14,6 +14,7 @@ from typing import Literal, overload
 _Names0 = Literal[
     "crypto.wolfssl_lib",
     "db.postgres.pg_dump",
+    "db.postgres.pg_restore",
     "embed.gguf",
     "embed.gpu.llama_server_exe",
     "embed.gpu.model_path",
@@ -292,6 +293,7 @@ _Names10 = Literal[
     "files.extract_url",
     "files.summary_model",
     "files.summary_url",
+    "identity.default_user_id",
     "identity.node_id",
     "identity.origin_device",
     "llm.lmstudio_url",

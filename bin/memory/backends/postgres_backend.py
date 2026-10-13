@@ -379,7 +379,6 @@ def _reject_same_as_warehouse(primary_url: str) -> None:
 
 # ── Snapshot support (pg_dump / pg_restore) ──────────────────────────────────
 
-_PG_TOOL_ENV = {"pg_dump": "M3_PG_DUMP", "pg_restore": "M3_PG_RESTORE"}
 
 # A data block in `pg_restore --data-only` output: `COPY schema.table (cols) FROM stdin;`
 # then one line per row (COPY text format escapes embedded newlines as \n, so a
@@ -391,16 +390,17 @@ _COPY_RE = re.compile(rb"^COPY " + _IDENT + rb"\." + _IDENT + rb" \(.*\) FROM st
 def _pg_tool(name: str) -> str:
     """Absolute path to a PostgreSQL client tool, or SnapshotError saying how to get one.
 
-    ``M3_PG_DUMP`` / ``M3_PG_RESTORE`` override PATH. pg_restore is looked for
-    next to an overridden pg_dump first, so the pair comes from one install.
+    ``db.postgres.pg_dump`` / ``db.postgres.pg_restore`` (legacy M3_PG_DUMP /
+    M3_PG_RESTORE) override PATH. pg_restore is looked for next to an overridden
+    pg_dump first, so the pair comes from one install.
     """
     import shutil
 
-    explicit = os.environ.get(_PG_TOOL_ENV[name])
+    explicit = _m3cfg.setting(f"db.postgres.{name}")
     if explicit:
         if os.path.isfile(Path(explicit)):
             return str(Path(explicit).absolute())
-        raise SnapshotError(f"{_PG_TOOL_ENV[name]}={explicit!r} is not a file.")
+        raise SnapshotError(f"db.postgres.{name} = {str(explicit)!r} is not a file.")
     if name == "pg_restore" and (_dump := _m3cfg.setting("db.postgres.pg_dump")):
         sibling = shutil.which("pg_restore", path=str(Path(_dump).parent))
         if sibling:
@@ -412,7 +412,7 @@ def _pg_tool(name: str) -> str:
         f"observed: {name} is not on PATH. cause: a PostgreSQL store is snapshotted "
         f"with pg_dump and verified with pg_restore; no client tools are installed "
         f"here. inspect: install the PostgreSQL client tools (same major version as "
-        f"the server or newer), or point {_PG_TOOL_ENV[name]} at the executable. "
+        f"the server or newer), or set db.postgres.{name} in m3_config.toml to the executable. "
         f"Refusing to continue without a backup."
     )
 

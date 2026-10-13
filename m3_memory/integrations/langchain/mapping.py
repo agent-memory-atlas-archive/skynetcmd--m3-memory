@@ -26,28 +26,29 @@ present in search results because the search caller passes ``extra_columns``
 from __future__ import annotations
 
 import json
-import os
 import re
 from typing import Any
 
 # §7 tenancy resolution, shared by the mem0-compat and M3Store surfaces so both
 # resolve user_id identically. Order: explicit arg > constructor default >
-# M3_DEFAULT_USER_ID env > (caller raises). The env default exists ONLY to remove
+# identity.default_user_id (m3_config.toml; legacy M3_DEFAULT_USER_ID) > (caller
+# raises). The default exists ONLY to remove
 # onboarding friction for single-user LangChain apps — it never weakens isolation:
 # when nothing resolves, the caller still raises (there is no anonymous/global
-# mode). A single-user prototyper sets M3_DEFAULT_USER_ID once and stops passing
+# mode). A single-user prototyper sets identity.default_user_id once and stops passing
 # user_id= everywhere; a multi-tenant app leaves it unset and the raise stands.
-_ENV_DEFAULT_USER_ID = "M3_DEFAULT_USER_ID"
 
 
 def resolve_user_id(explicit: str | None, default: str | None = None) -> str | None:
-    """Resolve a user_id from (explicit > constructor default > env), or None.
+    """Resolve a user_id from (explicit > constructor default > identity.default_user_id), or None.
 
     Returns None when nothing resolves — the CALLER decides how to fail (the mem0
     surface and M3Store raise their own tenancy-specific messages). This helper
-    never raises, so the env default can't silently change a caller's error text.
+    never raises, so the configured default can't silently change a caller's error text.
     """
-    return explicit or default or os.environ.get(_ENV_DEFAULT_USER_ID) or None
+    from m3_memory import _config
+
+    return explicit or default or _config.setting("identity.default_user_id") or None
 
 
 # The temporal/confidence columns the adapter asks search to surface, and which

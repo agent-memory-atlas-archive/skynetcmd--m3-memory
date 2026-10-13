@@ -548,7 +548,8 @@ def file_value(name: str) -> ConfigValue | None:
     override set it; None when it would come from the environment, a legacy file
     or the default. For readers that keep a legacy JSON file BETWEEN m3_config.toml
     and the environment (the autonomy toggles, the governor thresholds; <dynamic>
-    design Q2, 2026-10-13): file_value, else the JSON file, else setting()."""
+    design Q2, 2026-10-13): file_value, else the JSON file, else setting(). Unlike
+    explicit(), an env name does not count: it ranks BELOW the JSON file."""
     key = REGISTRY.get(name)
     if key is None:
         raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")

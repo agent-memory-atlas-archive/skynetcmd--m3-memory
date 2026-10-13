@@ -17,7 +17,7 @@ can't drift:
                          (and optionally its output) into m3, no body changes.
 
 Tenancy (§7) is resolved through the shared ``mapping.resolve_user_id`` (explicit
-> default > ``M3_DEFAULT_USER_ID`` > raise), identical to every other surface —
+> default > ``identity.default_user_id`` > raise), identical to every other surface —
 there is no anonymous mode.
 """
 
@@ -85,7 +85,7 @@ class MemoryWrite(Runnable):
         if not uid:
             raise ValueError(
                 "MemoryWrite requires a user_id (m3 enforces per-user tenancy). "
-                "Pass user_id= to the constructor, or set M3_DEFAULT_USER_ID."
+                "Pass user_id= to the constructor, or set identity.default_user_id in m3_config.toml."
             )
         return uid
 
@@ -144,7 +144,7 @@ def with_m3_memory(
             return agent.invoke(question)
 
     Input is written before the call, output after (so a raising body still
-    records the question). Tenancy is resolved via ``M3_DEFAULT_USER_ID`` if no
+    records the question). Tenancy is resolved via ``identity.default_user_id`` if no
     ``user_id`` is given — and still raises when nothing resolves.
     """
 
