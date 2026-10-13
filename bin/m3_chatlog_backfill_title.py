@@ -248,11 +248,11 @@ def main() -> int:
 
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
-        core_db = _resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")
+        core_db = _resolve_db(args.core_db, "core", "agent_memory.db")
         if core_db:
             db_targets.append(("core", core_db))
     if not args.core_only:
-        chatlog_db = _resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")
+        chatlog_db = _resolve_db(args.chatlog_db, "chatlog", "agent_chatlog.db")
         if chatlog_db:
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:

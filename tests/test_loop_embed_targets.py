@@ -12,7 +12,7 @@ import os
 import sys
 
 import pytest
-from m3_core.paths import pin_database
+from m3_core.paths import pin_chatlog_db, pin_database
 
 BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
 if BIN not in sys.path:
@@ -37,7 +37,7 @@ def test_split_topology_targets_both_stores(loop_mod, tmp_path, monkeypatch):
 
     main = _touch_db(tmp_path / "agent_memory.db")
     chat = _touch_db(tmp_path / "agent_chatlog.db")
-    monkeypatch.setenv("CHATLOG_DB_PATH", chat)
+    pin_chatlog_db(chat)  # the --chatlog-db pin, cleared after the test
     chatlog_config.invalidate_cache()
 
     targets = loop_mod._embed_target_dbs(main)
@@ -50,7 +50,7 @@ def test_unified_topology_yields_one_target(loop_mod, tmp_path, monkeypatch):
     import chatlog_config
 
     unified = _touch_db(tmp_path / "agent_memory.db")
-    monkeypatch.setenv("CHATLOG_DB_PATH", unified)
+    pin_chatlog_db(unified)  # the --chatlog-db pin, cleared after the test
     chatlog_config.invalidate_cache()
 
     targets = loop_mod._embed_target_dbs(unified)
@@ -92,7 +92,7 @@ def test_missing_chatlog_db_is_not_fatal(loop_mod, tmp_path, monkeypatch):
     import chatlog_config
 
     main = _touch_db(tmp_path / "agent_memory.db")
-    monkeypatch.setenv("CHATLOG_DB_PATH", str(tmp_path / "nope.db"))
+    pin_chatlog_db(str(tmp_path / "nope.db"))  # the --chatlog-db pin, cleared after the test
     chatlog_config.invalidate_cache()
 
     targets = loop_mod._embed_target_dbs(main)

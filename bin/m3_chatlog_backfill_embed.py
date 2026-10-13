@@ -266,20 +266,20 @@ async def _main_async(args) -> int:
 
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
-        core_db = _resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")
+        core_db = _resolve_db(args.core_db, "core", "agent_memory.db")
         if core_db:
             db_targets.append(("core", core_db))
     if not args.core_only:
-        chatlog_db = _resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")
+        chatlog_db = _resolve_db(args.chatlog_db, "chatlog", "agent_chatlog.db")
         if chatlog_db:
             db_targets.append(("chatlog", chatlog_db))
 
     if not db_targets:
         sys.exit(
             "ERROR: no DBs found. "
-            "observed: tried core_db='" + str(_resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")) + "', "
-            "chatlog_db='" + str(_resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")) + "'. "
-            "inspect: the --core-db/--chatlog-db arguments, M3_CHATLOG_DATABASE, the engine root."
+            "observed: tried core_db='" + str(_resolve_db(args.core_db, "core", "agent_memory.db")) + "', "
+            "chatlog_db='" + str(_resolve_db(args.chatlog_db, "chatlog", "agent_chatlog.db")) + "'. "
+            "inspect: the --core-db/--chatlog-db arguments, the engine root."
         )
 
     plan = {"types": type_filter or "ALL types", "min_chars": args.min_chars, "dbs": {}}

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_decay.py
-sha1: 7c160c070d39
-mtime_utc: 2026-10-12T23:37:18.650655+00:00
-generated_utc: 2026-10-12T23:37:27.455861+00:00
+sha1: 2ca9551f4cfb
+mtime_utc: 2026-10-13T10:22:46.453635+00:00
+generated_utc: 2026-10-13T10:23:04.091405+00:00
 private: false
 ---
 
@@ -82,7 +82,7 @@ ephemeral regime entirely.
 
 ## Entry points
 
-- `def main()` (line 352)
+- `def main()` (line 346)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -106,7 +106,6 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `chatlog_prune (_age_days, role_from_title_sql)`
-- `m3_sdk (getenv_compat)`
 
 ---
 
@@ -114,13 +113,14 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 262)
+- `sqlite3.connect()  → `db_path`` (line 256)
 
 
 ---
 
 ## Notable external imports
 
+- `m3_core.paths (configured_chatlog_db)`
 - `m3_core.paths (configured_main_db)`
 - `m3_core.paths (store_is_a_file)`
 - `memory.backends (active_backend, chatlog_table)`

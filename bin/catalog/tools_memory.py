@@ -861,7 +861,11 @@ TOOLS: list[ToolSpec] = [
                     "type": "string",
                     "description": "FULL UUID of the memory (not an 8-char prefix — a prefix is rejected for mutation safety).",
                 },
-                "hard": {"type": "boolean", "description": "Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget).", "default": False},
+                "hard": {
+                    "type": "boolean",
+                    "description": "Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget).",
+                    "default": False,
+                },
             },
             "required": ["id"],
         },
@@ -887,7 +891,11 @@ TOOLS: list[ToolSpec] = [
                     "items": {"type": "string"},
                     "description": "List of memory item UUIDs to delete.",
                 },
-                "hard": {"type": "boolean", "description": "Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget).", "default": False},
+                "hard": {
+                    "type": "boolean",
+                    "description": "Accepted, never destructive: still a soft delete, with a notice. Hard delete is GDPR-only (gdpr_forget).",
+                    "default": False,
+                },
             },
             "required": ["ids"],
         },
@@ -904,7 +912,11 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "decay": {"type": "boolean", "description": "Apply importance decay.", "default": True},
-                "purge_expired": {"type": "boolean", "description": "Soft-delete expired items (kept and recoverable; pinned items are exempt).", "default": True},
+                "purge_expired": {
+                    "type": "boolean",
+                    "description": "Soft-delete expired items (kept and recoverable; pinned items are exempt).",
+                    "default": True,
+                },
                 "prune_orphan_embeddings": {
                     "type": "boolean",
                     "description": "Remove orphaned embeddings.",

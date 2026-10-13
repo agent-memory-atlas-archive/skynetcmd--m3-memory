@@ -4,6 +4,7 @@ import json
 import sqlite3
 
 import pytest
+from m3_core.paths import pin_chatlog_db
 
 
 @pytest.fixture
@@ -18,7 +19,7 @@ def cost_report_db(tmp_path, monkeypatch):
     monkeypatch.setattr(chatlog_config, "MAIN_DB_PATH", str(main_db_path))
     # CHATLOG_MODE deprecated; pin chatlog DB via env for the resolver.
     monkeypatch.delenv("CHATLOG_MODE", raising=False)
-    monkeypatch.setenv("CHATLOG_DB_PATH", str(db_path))
+    pin_chatlog_db(str(db_path))  # the --chatlog-db pin, cleared after the test
     from m3_core.paths import pin_database  # the --database pin, cleared after the test
 
     pin_database(str(main_db_path))

@@ -242,6 +242,7 @@ _active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar("m3_acti
 # .chatlog_config.json, exactly where the env value sat. A ContextVar would rank
 # above that pin and silently move a split install's chatlog onto the main DB.
 _pinned_db: str | None = None
+_pinned_chatlog: str | None = None
 _LEGACY_DB_WARNED = False
 
 
@@ -854,13 +855,40 @@ def configured_main_db() -> str | None:
     return legacy
 
 
-def resolve_role_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:
+def pin_chatlog_db(path: "str | os.PathLike[str] | None") -> str | None:
+    """Make ``path`` this process's chatlog store for the rest of the run (a
+    script's ``--chatlog-db``). ``None`` or "" clears the pin. In-process only: a
+    child m3 process gets ``--chatlog-db PATH`` as an argument. Ranks where the
+    chatlog env names did (chatlog design, user decision 2026-10-13)."""
+    global _pinned_chatlog
+    _pinned_chatlog = str(path) if path else None
+    return _pinned_chatlog
+
+
+def configured_chatlog_db() -> str | None:
+    """This process's chatlog store as configured, or None: the ``--chatlog-db``
+    pin, else the legacy chatlog env names, read in ONE place (M3_CHATLOG_DB_PATH /
+    CHATLOG_DB_PATH, then M3_CHATLOG_DB / CHATLOG_DB, then M3_CHATLOG_DATABASE;
+    honoured until N+3). THE reader for every caller that read one of them."""
+    if _pinned_chatlog:
+        return _pinned_chatlog
+    # Literal calls, not a loop: the rename-map and locator drift tests find the
+    # legacy names by their call sites.
+    v = (
+        (getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH") or "").strip()
+        or (getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB") or "").strip()
+        or (os.environ.get("M3_CHATLOG_DATABASE") or "").strip()
+    )
+    return v or None
+
+
+def resolve_role_db(arg_path: str | None, role: str, default_name: str) -> Path | None:
     """The existing SQLite file for one role (core or chatlog) of a batch script.
 
     Order: the explicit --core-db/--chatlog-db argument > the configured store for
-    that role (core: configured_main_db(); chatlog: ``env_var``, a chatlog-path
-    name) > ``default_name`` under the engine root. None when no file exists
-    there; the caller skips that role.
+    ``role`` ("core": configured_main_db(); "chatlog": configured_chatlog_db()) >
+    ``default_name`` under the engine root. None when no file exists there; the
+    caller skips that role.
 
     The default is the ENGINE ROOT, never ``<repo>/memory``: that depends on the
     caller's checkout, so a scheduled task finds nothing and a dev tree finds a
@@ -869,7 +897,10 @@ def resolve_role_db(arg_path: str | None, env_var: str, default_name: str) -> Pa
     if arg_path:
         p = os.path.realpath(os.path.expanduser(arg_path))
     else:
-        val = configured_main_db() if env_var == "M3_DATABASE" else os.environ.get(env_var)
+        configured = {"core": configured_main_db, "chatlog": configured_chatlog_db}
+        if role not in configured:
+            raise ValueError(f"resolve_role_db: role must be 'core' or 'chatlog', not {role!r}")
+        val = configured[role]()
         p = os.path.realpath(os.path.expanduser(val)) if val else resolve_engine_file(default_name)
     return Path(p) if os.path.exists(p) else None
 

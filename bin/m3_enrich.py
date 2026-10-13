@@ -34,7 +34,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 from __future__ import annotations
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
-from m3_core.paths import configured_main_db, pin_database  # noqa: E402
+from m3_core.paths import configured_chatlog_db, configured_main_db, pin_database  # noqa: E402
 from m3_core.paths import resolve_role_db as _resolve_db  # noqa: E402
 from memory.db import ensure_store_migrated as _ensure_migrated  # noqa: E402
 
@@ -45,7 +45,6 @@ _apply_early_argv()
 
 import argparse
 import asyncio
-import os
 import sys
 import time
 from pathlib import Path
@@ -652,11 +651,11 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
     """
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
-        core_db = _resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")
+        core_db = _resolve_db(args.core_db, "core", "agent_memory.db")
         if core_db:
             db_targets.append(("core", core_db))
     if not args.core_only:
-        chatlog_db = _resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")
+        chatlog_db = _resolve_db(args.chatlog_db, "chatlog", "agent_chatlog.db")
         if chatlog_db:
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
@@ -671,7 +670,7 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
             f"core_db={args.core_db or 'unset'}, "
             f"chatlog_db={args.chatlog_db or 'unset'}, "
             f"main_db={configured_main_db() or 'unset'}, "
-            f"M3_CHATLOG_DATABASE={os.environ.get('M3_CHATLOG_DATABASE') or 'unset'}. "
+            f"configured chatlog={configured_chatlog_db() or 'unset'}. "
             f"possible: the engine root is wrong, the databases have not been "
             f"created yet, or an explicit --core-db/--chatlog-db points at a "
             f"file that does not exist. "
@@ -818,17 +817,17 @@ async def _main_async(args) -> int:
     # Pick which DBs to enrich.
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
-        core_db = _resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")
+        core_db = _resolve_db(args.core_db, "core", "agent_memory.db")
         if core_db:
             db_targets.append(("core", core_db))
     if not args.core_only:
-        chatlog_db = _resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")
+        chatlog_db = _resolve_db(args.chatlog_db, "chatlog", "agent_chatlog.db")
         if chatlog_db:
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
         sys.exit(
-            "ERROR: no DBs found to enrich. Pass --core-db/--chatlog-db (or set M3_CHATLOG_DATABASE). "
-            "observed: no core or chatlog store resolved. inspect: --core-db, --chatlog-db, M3_CHATLOG_DATABASE, the engine root"
+            "ERROR: no DBs found to enrich. Pass --core-db/--chatlog-db. "
+            "observed: no core or chatlog store resolved. inspect: --core-db, --chatlog-db, the engine root"
         )
 
     # Build dry-run plan first (cheap; useful as both preview AND the

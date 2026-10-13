@@ -48,4 +48,3 @@ def _load_profile_with_path(name: str | None, path: str | None) -> Profile:
             f"observed: no config/slm/{name}.yaml. inspect: --profile / --profile-path"
         )
     return prof
-

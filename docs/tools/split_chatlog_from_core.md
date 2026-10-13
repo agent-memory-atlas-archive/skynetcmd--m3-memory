@@ -1,8 +1,8 @@
 ---
 tool: bin/split_chatlog_from_core.py
-sha1: 4be3bc44fcc3
-mtime_utc: 2026-10-12T23:02:55.200341+00:00
-generated_utc: 2026-10-12T23:02:56.322894+00:00
+sha1: 655ab3802104
+mtime_utc: 2026-10-13T10:22:46.458635+00:00
+generated_utc: 2026-10-13T10:23:04.753526+00:00
 private: false
 ---
 
@@ -73,7 +73,7 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 ## Entry points
 
-- `def main()` (line 122)
+- `def main()` (line 123)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -96,7 +96,6 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (getenv_compat)`
 - `m3_sdk (resolve_engine_file)`
 
 ---
@@ -105,14 +104,15 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `p`` (line 103)
-- `sqlite3.connect()  → `source`` (line 156)
+- `sqlite3.connect()  → `p`` (line 104)
+- `sqlite3.connect()  → `source`` (line 157)
 
 
 ---
 
 ## Notable external imports
 
+- `m3_core.paths (configured_chatlog_db)`
 - `m3_core.paths (configured_main_db)`
 - `m3_core.paths (require_sqlite_backend)`
 - `m3_core.paths (resolve_engine_file)`

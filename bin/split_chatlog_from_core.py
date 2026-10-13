@@ -69,7 +69,6 @@ import sqlite3
 import sys
 
 from m3_core.paths import configured_main_db  # noqa: E402
-from m3_sdk import getenv_compat
 
 try:
     from m3_core.paths import resolve_engine_file
@@ -90,7 +89,9 @@ def resolve_source(cli_arg: str | None) -> str:
 def resolve_target(cli_arg: str | None) -> str:
     if cli_arg:
         return os.path.abspath(cli_arg)
-    env = getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB") or getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
+    from m3_core.paths import configured_chatlog_db
+
+    env = configured_chatlog_db()
     if env:
         return os.path.abspath(env)
     return os.path.abspath(resolve_engine_file("agent_chatlog.db"))

@@ -83,23 +83,17 @@ from typing import Any
 
 from chatlog_prune import _age_days, role_from_title_sql  # noqa: F401
 from m3_core.paths import configured_main_db  # noqa: E402
-from m3_sdk import getenv_compat
 
 
 # ── DB resolution ──────────────────────────────────────────────────────────
 def resolve_db_path(cli_arg: str | None) -> str:
     if cli_arg:
         return os.path.abspath(cli_arg)
-    # Resolution order: legacy CHATLOG_DB alias, then the canonical
-    # CHATLOG_DB_PATH (used by chatlog_config / chatlog_ingest /
-    # m3_cognitive_loop), then the generic M3_DATABASE. CHATLOG_DB_PATH was
-    # previously skipped entirely — setting it and running decay silently
-    # pointed at M3_DATABASE instead of the chatlog DB.
-    env = (
-        getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB")
-        or getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
-        or configured_main_db()
-    )
+    # The configured chatlog store (the --chatlog-db pin or a legacy chatlog env
+    # name: m3_core.paths.configured_chatlog_db, the one reader), then the main DB.
+    from m3_core.paths import configured_chatlog_db
+
+    env = configured_chatlog_db() or configured_main_db()
     if env:
         return os.path.abspath(env)
     # Default: bench worktree's standard chatlog location

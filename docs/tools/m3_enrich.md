@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: c233256c35b7
-mtime_utc: 2026-10-13T02:51:57.247195+00:00
-generated_utc: 2026-10-13T02:55:22.839670+00:00
+sha1: 79662ac83a44
+mtime_utc: 2026-10-13T10:22:46.464138+00:00
+generated_utc: 2026-10-13T10:23:04.451022+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1047)
+- `def main()` (line 1046)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -99,7 +99,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Environment variables read
 
-- `M3_CHATLOG_DATABASE`
+_(none detected)_
 
 ---
 
@@ -132,7 +132,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
 - `m3_core.paths (apply_early_argv)`
-- `m3_core.paths (configured_main_db, pin_database)`
+- `m3_core.paths (configured_chatlog_db, configured_main_db, pin_database)`
 - `m3_core.paths (get_m3_engine_root)`
 - `m3_core.paths (resolve_role_db)`
 - `m3_core.paths (scoped_db_env, snapshot_stores)`

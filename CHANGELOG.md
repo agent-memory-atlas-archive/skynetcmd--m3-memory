@@ -417,6 +417,15 @@ the policy is forward-going only.
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
 
+- **One setting decides the chatlog store, for every tool.** The five
+  environment names that chose it (`M3_CHATLOG_DB_PATH`, `CHATLOG_DB_PATH`,
+  `M3_CHATLOG_DB`, `CHATLOG_DB`, `M3_CHATLOG_DATABASE`) are read in one place, in
+  that order, so the enrichment and backfill scripts and the chatlog tools agree.
+  `M3_CHATLOG_DB` now selects the store outright, like the others; it used to
+  change only the default, below a `db_path` set in `.chatlog_config.json`.
+  **Affected:** installs that set one of these names · **Action:** none; prefer
+  `--chatlog-db` or `db_path` in `.chatlog_config.json` · **Data status:** none.
+
 - **The warehouse schema is versioned and applied by sync.** `pg_sync` brings
   the warehouse to its current schema before every run, from its own migration
   chain and under a lock so two machines cannot race; the manual

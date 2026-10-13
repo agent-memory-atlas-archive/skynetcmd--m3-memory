@@ -775,6 +775,8 @@ def clear_process_flags() -> None:
     paths = sys.modules.get("m3_core.paths")
     if paths is not None and getattr(paths, "_pinned_db", None) is not None:
         paths.pin_database(None)
+    if paths is not None and getattr(paths, "_pinned_chatlog", None) is not None:
+        paths.pin_chatlog_db(None)
     st = sys.modules.get("m3_core.config.settings")
     if st is not None and st._CACHE._cli:
         st._reset_for_tests()

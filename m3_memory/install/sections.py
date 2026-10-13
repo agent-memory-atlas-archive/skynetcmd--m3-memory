@@ -80,9 +80,9 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
     592MB agent_chatlog.db reported as empty).
     Returns None only when nothing resolves — i.e. the system isn't installed yet.
     """
-    from m3_sdk import getenv_compat
+    from m3_core.paths import configured_chatlog_db
 
-    env_chatlog = getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
+    env_chatlog = configured_chatlog_db()
     if env_chatlog:
         return Path(env_chatlog).expanduser()
     from m3_core.paths import configured_main_db

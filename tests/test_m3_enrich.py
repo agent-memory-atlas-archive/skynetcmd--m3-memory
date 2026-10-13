@@ -35,7 +35,7 @@ def test_resolve_db_explicit_path_wins(tmp_path, monkeypatch):
     target = tmp_path / "explicit.db"
     target.write_text("placeholder", encoding="utf-8")
     pin_database("/fake/missing/path.db")
-    out = m3_enrich._resolve_db(str(target), "M3_DATABASE", "agent_memory.db")
+    out = m3_enrich._resolve_db(str(target), "core", "agent_memory.db")
     assert out == target.resolve()
 
 
@@ -45,7 +45,7 @@ def test_resolve_db_env_fallback(tmp_path, monkeypatch):
     target = tmp_path / "from_env.db"
     target.write_text("x", encoding="utf-8")
     pin_database(str(target))
-    out = m3_enrich._resolve_db(None, "M3_DATABASE", "agent_memory.db")
+    out = m3_enrich._resolve_db(None, "core", "agent_memory.db")
     assert out == target.resolve()
 
 
@@ -54,7 +54,7 @@ def test_resolve_db_returns_none_when_missing(tmp_path, monkeypatch):
 
     monkeypatch.delenv("M3_DATABASE", raising=False)
     monkeypatch.delenv("M3_CHATLOG_DATABASE", raising=False)
-    out = m3_enrich._resolve_db("/no/such/path.db", "M3_DATABASE", "agent_memory.db")
+    out = m3_enrich._resolve_db("/no/such/path.db", "core", "agent_memory.db")
     assert out is None
 
 
@@ -539,7 +539,7 @@ def test_resolve_db_uses_engine_root_not_the_checkout(tmp_path, monkeypatch):
     monkeypatch.delenv("M3_DATABASE", raising=False)
     monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
 
-    resolved = _resolve_db(None, "M3_DATABASE", "agent_memory.db")
+    resolved = _resolve_db(None, "core", "agent_memory.db")
 
     assert resolved is not None, "must resolve from the engine root, not return None"
     assert Path(resolved).parent == engine, f"resolved outside the engine root: {resolved}"
@@ -555,11 +555,11 @@ def test_resolve_db_still_honours_explicit_arg_and_env(tmp_path, monkeypatch):
     env_db.write_bytes(b"")
 
     pin_database(str(env_db))
-    assert Path(_resolve_db(str(explicit), "M3_DATABASE", "agent_memory.db")) == explicit
-    assert Path(_resolve_db(None, "M3_DATABASE", "agent_memory.db")) == env_db
+    assert Path(_resolve_db(str(explicit), "core", "agent_memory.db")) == explicit
+    assert Path(_resolve_db(None, "core", "agent_memory.db")) == env_db
 
     # A path that does not exist resolves to None, so the caller can skip it.
-    assert _resolve_db(str(tmp_path / "absent.db"), "M3_DATABASE", "agent_memory.db") is None
+    assert _resolve_db(str(tmp_path / "absent.db"), "core", "agent_memory.db") is None
 
 
 def test_every_batch_script_resolves_through_the_one_owner():

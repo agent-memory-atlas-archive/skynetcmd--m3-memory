@@ -6,6 +6,7 @@ import time
 from datetime import UTC
 
 import pytest
+from m3_core.paths import pin_chatlog_db
 
 
 @pytest.fixture
@@ -26,7 +27,7 @@ def status_test_env(tmp_path, monkeypatch):
     # and M3_DATABASE controls the main DB. Also set M3_DATABASE so
     # resolve_db_path(None) in chatlog_status doesn't fall back to the real
     # repo's agent_memory.db.
-    monkeypatch.setenv("CHATLOG_DB_PATH", str(db_path))
+    pin_chatlog_db(str(db_path))  # the --chatlog-db pin, cleared after the test
     monkeypatch.setenv("M3_DATABASE", str(main_db_path))
     chatlog_config.invalidate_cache()
     with chatlog_config._POOL_LOCK:
@@ -367,7 +368,7 @@ def test_recent_write_count_missing_dbs_returns_unknown(status_test_env, tmp_pat
     # Point both paths at nonexistent files. Use monkeypatch (auto-reverted)
     # rather than raw os.environ so this test stays hermetic (§3) and cannot
     # leak env state into later tests regardless of run order.
-    monkeypatch.setenv("CHATLOG_DB_PATH", str(tmp_path / "nope_chatlog.db"))
+    pin_chatlog_db(str(tmp_path / "nope_chatlog.db"))  # the --chatlog-db pin, cleared after the test
     monkeypatch.setenv("M3_DATABASE", str(tmp_path / "nope_main.db"))
     chatlog_config.invalidate_cache()
 

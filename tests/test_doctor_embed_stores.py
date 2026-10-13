@@ -15,6 +15,7 @@ import sqlite3
 import sys
 
 import pytest
+from m3_core.paths import pin_chatlog_db
 
 BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
 if BIN not in sys.path:
@@ -52,7 +53,7 @@ def test_split_topology_resolves_both_stores(doctor, tmp_path, monkeypatch):
 
     main = _make_store(tmp_path / "agent_memory.db")
     chat = _make_store(tmp_path / "agent_chatlog.db")
-    monkeypatch.setenv("CHATLOG_DB_PATH", chat)
+    pin_chatlog_db(chat)  # the --chatlog-db pin, cleared after the test
     chatlog_config.invalidate_cache()
 
     stores = doctor._resolve_embed_stores(main)
@@ -64,7 +65,7 @@ def test_unified_topology_resolves_one_store(doctor, tmp_path, monkeypatch):
     import chatlog_config
 
     unified = _make_store(tmp_path / "agent_memory.db")
-    monkeypatch.setenv("CHATLOG_DB_PATH", unified)
+    pin_chatlog_db(unified)  # the --chatlog-db pin, cleared after the test
     chatlog_config.invalidate_cache()
 
     assert doctor._resolve_embed_stores(unified) == [os.path.abspath(unified)]
@@ -93,7 +94,7 @@ def test_absent_chatlog_file_is_not_fatal(doctor, tmp_path, monkeypatch):
     import chatlog_config
 
     main = _make_store(tmp_path / "agent_memory.db")
-    monkeypatch.setenv("CHATLOG_DB_PATH", str(tmp_path / "nope.db"))
+    pin_chatlog_db(str(tmp_path / "nope.db"))  # the --chatlog-db pin, cleared after the test
     chatlog_config.invalidate_cache()
 
     assert doctor._resolve_embed_stores(main) == [os.path.abspath(main)]

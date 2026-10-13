@@ -52,7 +52,7 @@ from sqlite_pragmas import apply_pragmas
 logger = logging.getLogger("chatlog_config")
 
 from m3_core.paths import configured_main_db, pin_database  # noqa: E402
-from m3_sdk import get_m3_config_root, get_m3_engine_root, getenv_compat
+from m3_sdk import get_m3_config_root, get_m3_engine_root
 
 _M3_CONFIG_ROOT = get_m3_config_root()
 _M3_ENGINE_ROOT = get_m3_engine_root()
@@ -66,7 +66,7 @@ from m3_core.paths import resolve_config_file as _resolve_config_file  # noqa: E
 from m3_core.paths import resolve_engine_file as _resolve_engine_file  # noqa: E402
 
 CONFIG_PATH = _resolve_config_file(".chatlog_config.json")
-DEFAULT_DB_PATH = os.environ.get("M3_CHATLOG_DB") or _resolve_engine_file("agent_chatlog.db")
+DEFAULT_DB_PATH = _resolve_engine_file("agent_chatlog.db")
 MAIN_DB_PATH = configured_main_db() or _resolve_engine_file("agent_memory.db")
 STATE_FILE = _resolve_engine_file(".chatlog_state.json")
 SPILL_DIR = _resolve_engine_file("chatlog_spill")
@@ -216,11 +216,11 @@ def save_config(cfg: ChatlogConfig) -> None:
 
 # ── Resolver ──────────────────────────────────────────────────────────────────
 def _path_from_env() -> str | None:
-    v = getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
-    if v is None:
-        return None
-    v = v.strip()
-    return v or None
+    """The configured chatlog store: the --chatlog-db pin, else a legacy chatlog env
+    name (m3_core.paths.configured_chatlog_db, the one reader)."""
+    from m3_core.paths import configured_chatlog_db
+
+    return configured_chatlog_db()
 
 
 def _pinned_path(file_data: dict) -> str | None:
