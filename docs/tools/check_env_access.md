@@ -1,8 +1,8 @@
 ---
 tool: bin/check_env_access.py
-sha1: ba0120f33117
-mtime_utc: 2026-10-14T03:56:38.766615+00:00
-generated_utc: 2026-10-14T03:57:13.010811+00:00
+sha1: b232c152bc23
+mtime_utc: 2026-10-14T05:25:28.205118+00:00
+generated_utc: 2026-10-14T05:25:28.773145+00:00
 private: false
 ---
 
@@ -12,7 +12,7 @@ private: false
 
 Inventory every process-environment access in m3's production code.
 
-The configuration redesign (CONFIG_DESIGN) moves every m3 setting behind ONE
+The configuration redesign moves every m3 setting behind ONE
 resolver. Until then m3 reads and writes the environment from hundreds of
 places, in more shapes than a grep finds: aliased modules (``import os as
 _os``), ``from os import environ``, splat copies (``{**os.environ}``,
@@ -55,7 +55,7 @@ Exit: 0 = report written (or selftest passed); 1 = selftest failed;
 
 ## Entry points
 
-- `def main()` (line 703)
+- `def main()` (line 702)
 - `if __name__ == "__main__"` guard
 
 ---

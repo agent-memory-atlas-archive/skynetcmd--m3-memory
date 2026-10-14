@@ -1,4 +1,4 @@
-"""Find and read m3_config.toml (CONFIG_DESIGN §3, §9). Python's ``tomllib`` is
+"""Find and read m3_config.toml. Python's ``tomllib`` is
 the only parser of this file (single parser authority, m3 ``ab098fac``).
 
 A bad file is refused with EVERY problem at once (``ConfigFileError``, an
@@ -46,7 +46,7 @@ _REPAIR = "inspect: `m3 config show --origin`; fix or remove the line, then retr
 class Location:
     file: Path
     root: Path
-    tier: str  # which locator tier answered (§9)
+    tier: str  # which locator tier answered
 
 
 def locate(explicit: str | os.PathLike[str] | None = None) -> Location:
@@ -207,7 +207,7 @@ def validate_text(
 ) -> tuple[dict[str, ConfigValue], int, list[str], dict[str, StoreRef]]:
     """THE validation of m3_config.toml content: (values, schema_version, warnings, stores),
     or ``ConfigFileError`` naming every problem. The loader runs it on the file;
-    the writer runs it on the NEW text before replacing the file (§12)."""
+    the writer runs it on the NEW text before replacing the file."""
     try:
         doc = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
@@ -221,7 +221,7 @@ def validate_text(
         schema = SCHEMA_VERSION
     newer = schema > SCHEMA_VERSION
 
-    # [stores.<name>] tables are dynamic: validated by the stores module (§14).
+    # [stores.<name>] tables are dynamic: validated by the stores module.
     stores = (
         parse_stores(doc.pop("stores"), lambda key, msg: errors.append(_key_error(path, text, key, msg)))
         if "stores" in doc

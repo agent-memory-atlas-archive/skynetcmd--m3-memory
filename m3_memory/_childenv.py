@@ -1,5 +1,4 @@
-"""The environment a child process starts with: the ONE owner (CONFIG_DESIGN §5,
-env read path 7).
+"""The environment a child process starts with: the ONE owner.
 
     child_env()                                 the parent's environment, copied
     child_env(PYTHONUTF8="1")                   plus a non-m3 override

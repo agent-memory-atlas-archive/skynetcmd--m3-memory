@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: a87911118d0c
-mtime_utc: 2026-10-14T03:56:38.766615+00:00
-generated_utc: 2026-10-14T03:57:13.033785+00:00
+sha1: 9c3fd0a4b548
+mtime_utc: 2026-10-14T05:25:28.206623+00:00
+generated_utc: 2026-10-14T05:25:28.800406+00:00
 private: false
 ---
 
@@ -14,8 +14,7 @@ Config parity snapshot: what m3 resolves today, so the config migration can prov
 
 Before the first setting moves behind the new resolver, capture every setting
 as today's code sees it; after each migration step, ``check`` recaptures and
-diffs. Only entries on the user-reviewed intended-change list may differ
-(CONFIG_DESIGN §8).
+diffs. Only entries on the user-reviewed intended-change list may differ.
 
 Four layers per snapshot:
   env     every constant env name m3 reads (the inventory of
@@ -49,7 +48,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 
 ## Entry points
 
-- `def main()` (line 388)
+- `def main()` (line 387)
 - `if __name__ == "__main__"` guard
 
 ---

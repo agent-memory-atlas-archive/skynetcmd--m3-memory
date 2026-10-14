@@ -1,7 +1,7 @@
 """m3_core.config: registry invariants, the locator, and the file loader.
 
-Planted bad files, each of which must fail LOUD with the file and the key named
-(CONFIG_DESIGN §3): unknown key, wrong type, invalid value, a secret placed in
+Planted bad files, each of which must fail LOUD with the file and the key
+named: unknown key, wrong type, invalid value, a secret placed in
 m3_config.toml, an env name used as a key, invalid TOML. Several at once must
 all be reported.
 """
@@ -50,7 +50,7 @@ def test_no_key_can_let_env_outrank_the_file():
 
 
 def test_bootstrap_secrets_are_the_design_set():
-    """CONFIG_DESIGN §10: never resolved from the vault."""
+    """Bootstrap secrets are never resolved from the vault."""
     from m3_core.config import REGISTRY, KeyClass
 
     boot = {k.name for k in REGISTRY if k.bootstrap}

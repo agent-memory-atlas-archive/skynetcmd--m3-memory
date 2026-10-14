@@ -107,7 +107,7 @@ def _probe_env(engine: str, config: str, bin_dir: str) -> dict[str, str]:
 
     ENV, NOT --config, ON PURPOSE: the reference build may be an older installed
     m3 that predates --config and [paths]; the root variables are the one locator
-    every version reads. A scoped child env (CONFIG_DESIGN 4c), so nothing in
+    every version reads. A scoped child env, so nothing in
     this process changes. M3_MEMORY_ROOT is dropped: it is the master root the
     others derive from, and a caller's value (the test sandbox's) would redirect
     the probe."""

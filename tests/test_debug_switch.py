@@ -1,4 +1,4 @@
-"""M3_DEBUG: one reader (m3_core.config.env, CONFIG_DESIGN §2 read path 3), and the
+"""M3_DEBUG: one reader (m3_core.config.env), and the
 lines go to stderr: stdout is a tool's result channel."""
 
 from __future__ import annotations

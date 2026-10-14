@@ -1,5 +1,4 @@
-"""The config package's ONE read of the process environment (CONFIG_DESIGN §2,
-read path 6). ``check_env_access`` allows this module and no other in the
+"""The config package's ONE read of the process environment. ``check_env_access`` allows this module and no other in the
 package; everything else receives the mapping as an argument, so a test passes
 its own and never patches ``os.environ``.
 """
@@ -16,8 +15,8 @@ def environ() -> Mapping[str, str]:
 
 
 def debug_enabled() -> bool:
-    """``M3_DEBUG`` set and not blank: the diagnostic switch (CONFIG_DESIGN §2, read
-    path 3), read before any config loads. The one reader; there were seven."""
+    """``M3_DEBUG`` set and not blank: the diagnostic switch, read before any
+    config loads. The one reader; there were seven."""
     return bool((os.environ.get("M3_DEBUG") or "").strip())
 
 
@@ -33,7 +32,7 @@ def debug(msg: str) -> None:
 def secret_env_names() -> frozenset[str]:
     """Every env name a secret-class key answers to: what ``child_env(drop=...)``
     strips for a non-m3 child, so a secret left in the environment never leaks into pip,
-    pg_dump or a model server (CONFIG_DESIGN §5)."""
+    pg_dump or a model server."""
     from .keys import REGISTRY
     from .registry import KeyClass
 
@@ -42,7 +41,7 @@ def secret_env_names() -> frozenset[str]:
 
 def dotenv() -> tuple[str | None, Mapping[str, str]]:
     """The legacy .env as (path, values), parsed WITHOUT injecting it into
-    os.environ (CONFIG_DESIGN §10, #D20); (None, {}) when there is none. A
+    os.environ; (None, {}) when there is none. A
     name with no value (``FOO`` alone) is dropped: it sets nothing."""
     from m3_core.paths import dotenv_path
 

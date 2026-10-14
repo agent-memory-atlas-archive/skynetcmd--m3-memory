@@ -1,4 +1,4 @@
-"""m3_core.config precedence and the snapshot (CONFIG_DESIGN §2, §3, §13).
+"""m3_core.config precedence and the snapshot.
 
 N..N+2: env (env_override keys only) > m3_config.toml > legacy env > default.
 The environment is passed in as a mapping; no test touches os.environ.
@@ -59,7 +59,7 @@ def test_the_legacy_alias_still_answers_below_the_file(tmp_path):
 
 
 def test_a_non_override_key_from_env_ranks_below_the_file(tmp_path):
-    """#D28: `m3 config set` wins at once; the stale env name is reported, not dropped."""
+    """`m3 config set` wins at once; the stale env name is reported, not dropped."""
     from m3_core.config import Key, Registry, parse_bool
     from m3_core.config import keys as k
     from m3_core.config.settings import build
@@ -167,7 +167,7 @@ def test_override_is_dataclasses_replace(tmp_path):
         override(s, {_key("db.backend"): "postgre"})
 
 
-# ── .env: parsed as the lowest source, never injected (CONFIG_DESIGN §10) ──
+# ── .env: parsed as the lowest source, never injected ──
 def _with_dotenv(tmp_path, text, environ, dotenv):
     from m3_core.config.resolve import DotEnv
     from m3_core.config.settings import build

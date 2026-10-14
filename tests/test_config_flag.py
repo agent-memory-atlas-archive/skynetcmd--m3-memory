@@ -1,5 +1,5 @@
 """`m3 --config FILE`: the process reads FILE and its directory is the config root,
-above M3_CONFIG_ROOT (CONFIG_DESIGN §9); m3 children get `--config`, never env (§5)."""
+above M3_CONFIG_ROOT; m3 children get `--config`, never env (§5)."""
 
 from __future__ import annotations
 

@@ -96,7 +96,7 @@ def test_a_list_default_is_never_the_registrys_own_object(tmp_path):
 
 
 def test_the_config_locator_is_not_a_key():
-    """CONFIG_DESIGN §2 read path 1: it picks the file, so it cannot be in it."""
+    """The config locator picks the file, so it cannot be in it."""
     from m3_core.config import REGISTRY
     from m3_core.config.keys import NOT_SETTINGS
 

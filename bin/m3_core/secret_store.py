@@ -19,7 +19,7 @@ file names where it is:
 
 Resolution (``explain_secret``): the file's value -> the keyring entry the file
 points at, or ``system/NAME`` when the file does not list the name -> the vault
-(never for a bootstrap secret, CONFIG_DESIGN §10). The environment is NEVER read
+(never for a bootstrap secret). The environment is NEVER read
 for a secret; a name found there only makes a miss
 say so, with the command that stores it.
 """
@@ -175,9 +175,8 @@ def _known_secret_names() -> set[str]:
 
 
 def _store_dsn_secrets() -> set[str]:
-    """The ``dsn_secret`` each named store in m3_config.toml declares
-    (CONFIG_DESIGN §14): the secrets file is where such a DSN is kept, so the
-    name must be one the file accepts."""
+    """The ``dsn_secret`` each named store in m3_config.toml declares: the secrets
+    file is where such a DSN is kept, so the name must be one the file accepts."""
     from m3_core.config import ConfigFileError
     from m3_core.config.resolve import ConfigEnvErrors
     from m3_core.config.settings import current
@@ -190,7 +189,7 @@ def _store_dsn_secrets() -> set[str]:
 
 
 def _check_names(p: Path, table: dict) -> None:
-    """CONFIG_DESIGN §10: an unknown name is an error naming the file and key,
+    """An unknown name is an error naming the file and key,
     never the value. A name an installed SLM profile declares as its
     api_key_service is known too, so a profile for a
     new provider works without a code change."""
@@ -292,7 +291,7 @@ class DsnResolution:
 class VaultPolicy(StrEnum):
     ALLOWED = "allowed"
     DEPRECATED = "deprecated"  # still read, warns every time (D1)
-    NEVER = "never"  # a bootstrap secret (CONFIG_DESIGN §10)
+    NEVER = "never"  # a bootstrap secret
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

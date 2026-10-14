@@ -1,4 +1,4 @@
-"""The writer of m3_config.toml (CONFIG_DESIGN §12). tomlkit edits; tomllib
+"""The writer of m3_config.toml. tomlkit edits; tomllib
 (``loader.validate_text``) remains the only parser that decides what the file
 means, and it validates the NEW text before the old file is replaced.
 
@@ -70,14 +70,14 @@ def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *, 
         for key, value in values.items():
             _apply(doc, key, value)
         new = tomlkit.dumps(doc)
-        validate_text(path, new, registry)  # refuse BEFORE replacing (§12, #D26)
+        validate_text(path, new, registry)  # refuse BEFORE replacing
         if new != old:
             atomic_write(path, new)
     return path
 
 
 def _check_new_file_would_be_private(directory: Path) -> None:
-    """Windows: §12 creates m3_config.toml user-only (it holds hostnames, paths and
+    """Windows: m3 creates m3_config.toml user-only (it holds hostnames, paths and
     URLs), but a new file takes its directory's ACL; atomic_write's 0600 applies on
     POSIX only. Probe what a new file here would inherit, and refuse before writing."""
     from m3_core.win_acl import AclError, file_foreign_principals, probe_new_file

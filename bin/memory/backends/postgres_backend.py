@@ -429,7 +429,7 @@ def _resolve_warehouse_dsn_for_guard() -> str:
 
 
 def _resolve_store_dsn(store) -> str:
-    """The DSN of a named PostgreSQL store (CONFIG_DESIGN §14). ``dsn_secret`` names a
+    """The DSN of a named PostgreSQL store. ``dsn_secret`` names a
     BOOTSTRAP secret (§10): the secrets file, then the keyring, never the vault (it
     lives in a store a DSN unlocks), never the environment. The primary's guards apply: a forbidden host
     and the warehouse DSN are refused, so a store can never become the warehouse."""

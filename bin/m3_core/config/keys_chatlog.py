@@ -5,7 +5,7 @@ run_observer.py, run_reflector.py, slm_intent.py, wiki/*).
 
 Today .spill_config.json, .cognitive_loop_config.json and .governor_config.json
 win over env for their keys; they fold into [chatlog.spill], [autonomy] and
-[governor] in 2D (CONFIG_DESIGN §11), which owns that precedence.
+[governor] in 2D, which owns that precedence.
 """
 
 from __future__ import annotations

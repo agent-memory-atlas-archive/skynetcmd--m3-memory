@@ -1,11 +1,11 @@
-"""Resolve each config key to (value, origin) (CONFIG_DESIGN §2, §13).
+"""Resolve each config key to (value, origin).
 
-Precedence for a CONFIG key, N..N+2 (the deprecation window, #D28):
+Precedence for a CONFIG key, N..N+2 (the deprecation window):
 
     m3_config.toml (no key's env value outranks it, db.backend
     included)
     > legacy env (any other key's old env name; honoured, and reported, until N+3)
-    > .env (parsed, never injected; CONFIG_DESIGN §10)
+    > .env (parsed, never injected)
     > <config_root>/.llm_config.json (the [llm] keys' old file; folds in at import-env)
     > the registry default
 
@@ -58,8 +58,8 @@ def _env_hit(key: Key, environ: Mapping[str, str]) -> tuple[str, str] | None:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DotEnv:
-    """A legacy file of env names, parsed, never injected: the .env (CONFIG_DESIGN
-    §10) or, below it, ``.llm_config.json`` (kind "llmfile"; fold plan
+    """A legacy file of env names, parsed, never injected: the .env or,
+    below it, ``.llm_config.json`` (kind "llmfile"; fold plan
     2026.10.12). ``kind`` is the origin's prefix."""
 
     path: str | None = None

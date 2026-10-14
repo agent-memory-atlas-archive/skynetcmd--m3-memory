@@ -172,7 +172,7 @@ _DATABASE_PARAM_SCHEMA = {
 }
 
 
-# The universal `store` parameter (config §14): a named store from
+# The universal `store` parameter: a named store from
 # [stores.<name>] in m3_config.toml, or "main". Injected and popped exactly like
 # `database` (catalog.dispatch.pop_call_scope owns both).
 _STORE_PARAM_SCHEMA = {

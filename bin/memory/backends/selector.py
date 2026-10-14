@@ -63,7 +63,7 @@ def active_backend() -> StorageBackend:
 
     factory = backend_factory_for(name)
     # One instance per (backend, store): the default store keys on the name alone,
-    # as it did before named stores; a named store asks its backend for the key (§14).
+    # as it did before named stores; a named store asks its backend for the key.
     key = name if store is None else f"{name}|{factory.store_cache_key(store)}"
     cached = _backends.get(key)
     if cached is not None:
@@ -73,7 +73,7 @@ def active_backend() -> StorageBackend:
         if cached is not None:
             return cached
         backend: StorageBackend = factory() if store is None else factory.from_store(store)
-        # One pool per distinct STORE (§14 constraint 3): a store that addresses
+        # One pool per distinct STORE: a store that addresses
         # the same database as an existing instance shares that instance, and is
         # not prepared again (that instance may be the default store's, whose
         # schema is the installer's to manage). Only a NEW store is prepared.

@@ -8,14 +8,14 @@
     m3 config import-env [--dry-run] [--non-interactive] [--config FILE]
 
 `set` takes a value as the environment would spell it (a list comma-separated)
-and writes it in its TOML type under the file's lock (CONFIG_DESIGN §12). Secrets
+and writes it in its TOML type under the file's lock. Secrets
 are never written to this file. A key that moves the store or the roots asks a
 person at the console, or needs --yes (plan "Config-set confirmation": defence in
 depth, not a boundary; a shell can edit the file directly).
 
 A repair command: it always starts. An invalid m3_config.toml or environment
 value is printed in full (every problem, its line and the fix) with exit 2,
-never a traceback (CONFIG_DESIGN §3). Secrets are listed by name and source
+never a traceback. Secrets are listed by name and source
 only; a value is never printed (§10).
 
 Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid

@@ -1,5 +1,5 @@
 """`m3 config get|set|unset` (design 2026.10.12-IMPORT_ENV_DESIGN):
-CONFIG keys only, parsed by the key's own parser, written under the §12 lock; a
+CONFIG keys only, parsed by the key's own parser, written under the file's lock; a
 security-sensitive key needs a person at the console or --yes."""
 
 from __future__ import annotations

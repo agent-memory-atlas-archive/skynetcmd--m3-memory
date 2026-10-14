@@ -67,7 +67,7 @@ def _resolve_path(path: str | None) -> str:
     """Resolve the files.db path. Explicit arg > active SQLite store > env > config
     default.
 
-    A named store (config §14) carries its own files half
+    A named store carries its own files half
     (``stores.files_db_path``), so a store outranks the legacy env exactly as it
     does for the core path (D3).
 

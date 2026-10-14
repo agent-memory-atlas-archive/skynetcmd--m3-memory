@@ -4153,7 +4153,7 @@ def _job_config_args() -> list[str]:
     """``--config FILE`` for setup's SCRIPT children (install_schedules,
     chatlog_init): the config file this run located, unless it is the default.
     They register tasks and hooks that run without this process's environment, so
-    the file goes as an argument, never env (CONFIG_DESIGN §5)."""
+    the file goes as an argument, never env."""
     return _roots.located_config_args()
 
 

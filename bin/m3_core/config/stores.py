@@ -1,4 +1,4 @@
-"""Named stores (CONFIG_DESIGN §14).
+"""Named stores.
 
 A store is ``(backend, locator)`` in ``m3_config.toml``::
 
@@ -13,8 +13,8 @@ A store is ``(backend, locator)`` in ``m3_config.toml``::
 default SQLite path) and may not be declared until 2D moves every reader to the
 registry: a declared [stores.main] would disagree with the default the
 unconverted readers still use. ``active_store(name)`` selects a store for a block;
-the resolvers in m3_core.paths then follow it (§14 order, D3). The chatlog stays
-process-wide (D1). A store's files part follows it (3c).
+the resolvers in m3_core.paths then follow it. The chatlog stays
+process-wide. A store's files part follows it.
 """
 
 from __future__ import annotations

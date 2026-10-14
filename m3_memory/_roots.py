@@ -35,7 +35,7 @@ ENGINE_ROOT_ENV = "M3_ENGINE_ROOT"
 LOGS_ROOT_ENV = "M3_LOGS_ROOT"
 MODELS_ROOT_ENV = "M3_MODELS_ROOT"
 
-# Which tier of the config-root precedence answered (CONFIG_DESIGN §9). The
+# Which tier of the config-root precedence answered. The
 # loader reports it (`m3 config show --origin`) and warns on the legacy tier.
 CONFIG_ROOT_ENV = "env:M3_CONFIG_ROOT"
 CONFIG_ROOT_LEGACY = "legacy:M3_MEMORY_ROOT/config"
@@ -63,7 +63,7 @@ def abs_root(root: str) -> str:
 
 def _env(name: str) -> str | None:
     """The variable's value, or None when unset or blank (R-blank)."""
-    return os.environ.get(name) or None  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    return os.environ.get(name) or None  # env-owner: the approved root locators
 
 
 def _home(*parts: str) -> str:
@@ -77,7 +77,7 @@ def pinned(env_name: str) -> str | None:
     just on where it resolves (the installer's "is this root pinned?", a search
     path that applies only when M3_MEMORY_ROOT is set).
     """
-    root = _env(env_name)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    root = _env(env_name)  # env-owner: the approved root locators
     return abs_root(root) if root else None
 
 
@@ -87,7 +87,7 @@ MIGRATED_MARKER = ".memory_root_migrated"
 def memory_root_pin() -> str | None:
     """The memory root ``M3_MEMORY_ROOT`` pins explicitly, or None. The one read of
     that name for Root-1: the legacy root, the default and the migration all ask here."""
-    return pinned(MEMORY_ROOT_ENV)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    return pinned(MEMORY_ROOT_ENV)  # env-owner: the approved root locators
 
 
 def legacy_memory_root() -> str:
@@ -120,10 +120,10 @@ def memory_root() -> str:
 
 def _derived(env_name: str, sub: str) -> str:
     """``M3_X_ROOT`` > ``M3_MEMORY_ROOT/<sub>`` > ``~/.m3/<sub>``."""
-    root = _env(env_name)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    root = _env(env_name)  # env-owner: the approved root locators
     if root:
         return abs_root(root)
-    mem = _env(MEMORY_ROOT_ENV)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    mem = _env(MEMORY_ROOT_ENV)  # env-owner: the approved root locators
     if mem:
         return posixpath.join(abs_root(mem), sub)
     return _home(".m3", sub)
@@ -134,7 +134,7 @@ _pinned_config: str | None = None
 
 def pin_config_file(path: str | os.PathLike[str] | None) -> None:
     """``m3 --config FILE``: this process reads FILE and its directory is the
-    config root, above ``M3_CONFIG_ROOT`` (CONFIG_DESIGN §9). Process-wide, like
+    config root, above ``M3_CONFIG_ROOT``. Process-wide, like
     ``--store``'s process layer; a child gets ``--config`` (``_childenv``), never
     env. ``None`` clears it. The file need not exist yet: setup creates it."""
     global _pinned_config
@@ -178,7 +178,7 @@ def located_config_args() -> list[str]:
 def config_args() -> list[str]:
     """``--config FILE`` for an m3 CLI child when this process has a pin; [] otherwise
     (the child locates the same file the usual way). The pin reaches children as an
-    argument, never as env (CONFIG_DESIGN §5)."""
+    argument, never as env."""
     return ["--config", _pinned_config] if _pinned_config is not None else []
 
 
@@ -186,20 +186,20 @@ def config_root_with_tier() -> tuple[str, str]:
     """(config root, tier): which precedence tier answered, for `m3 config show`."""
     if _pinned_config is not None:
         return posixpath.dirname(_pinned_config), CONFIG_ROOT_ARG
-    if _env(CONFIG_ROOT_ENV_NAME):  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
-        # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    if _env(CONFIG_ROOT_ENV_NAME):  # env-owner: the approved root locators
+        # env-owner: the approved root locators
         return _derived(CONFIG_ROOT_ENV_NAME, "config"), CONFIG_ROOT_ENV
-    if _env(MEMORY_ROOT_ENV):  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
-        # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    if _env(MEMORY_ROOT_ENV):  # env-owner: the approved root locators
+        # env-owner: the approved root locators
         return _derived(CONFIG_ROOT_ENV_NAME, "config"), CONFIG_ROOT_LEGACY
-    # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    # env-owner: the approved root locators
     return _derived(CONFIG_ROOT_ENV_NAME, "config"), CONFIG_ROOT_DEFAULT
 
 
 def config_root() -> str:
     if _pinned_config is not None:
         return posixpath.dirname(_pinned_config)
-    return _derived(CONFIG_ROOT_ENV_NAME, "config")  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    return _derived(CONFIG_ROOT_ENV_NAME, "config")  # env-owner: the approved root locators
 
 
 def config_file() -> str:
@@ -252,14 +252,14 @@ def _file_root(name: str) -> str | None:
 
 
 def engine_root() -> str:
-    # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    # env-owner: the approved root locators
     return _file_root("engine_root") or _derived(ENGINE_ROOT_ENV, "engine")
 
 
 def logs_root() -> str:
     """Logs are user state, not payload: never under the install root, where a
     reinstall deletes them."""
-    # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    # env-owner: the approved root locators
     return _file_root("logs_root") or _derived(LOGS_ROOT_ENV, "logs")
 
 
@@ -277,15 +277,15 @@ def lib_root() -> str:
     that repoints the config root would otherwise move the trusted search away
     from the installed library, which is fail-closed under M3_FIPS_MODE=1.
     """
-    # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    # env-owner: the approved root locators
     pinned = (os.environ.get(LIB_DIR_ENV) or "").strip()
     if pinned:
         return os.path.abspath(os.path.expanduser(pinned))
-    cfg = _env(CONFIG_ROOT_ENV_NAME)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    cfg = _env(CONFIG_ROOT_ENV_NAME)  # env-owner: the approved root locators
     if cfg:
         base = os.path.dirname(os.path.abspath(os.path.expanduser(cfg)))
     else:
-        mem = _env(MEMORY_ROOT_ENV)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+        mem = _env(MEMORY_ROOT_ENV)  # env-owner: the approved root locators
         base = os.path.abspath(os.path.expanduser(mem)) if mem else _home(".m3")
     return os.path.join(base, "lib")
 
@@ -293,5 +293,5 @@ def lib_root() -> str:
 def models_root() -> str:
     """GGUF weights m3 owns itself. Probed FIRST among model locations: every
     other one belongs to a tool the user may uninstall."""
-    # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    # env-owner: the approved root locators
     return _file_root("models_root") or _derived(MODELS_ROOT_ENV, "models")

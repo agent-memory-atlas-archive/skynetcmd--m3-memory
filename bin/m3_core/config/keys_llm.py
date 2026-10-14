@@ -4,7 +4,7 @@ memory/extraction.py, promote_pipeline.py, mcp_proxy.py, m3_core/runtime.py).
 
 Today ``.llm_config.json`` (endpoints, url, the LM Studio toggle) and
 ``extraction.json`` are a second source that competes with env at some sites;
-they fold into [llm] / [extraction] in 2D (CONFIG_DESIGN §11), which owns that
+they fold into [llm] / [extraction] in 2D, which owns that
 precedence. Held for the user: M3_CLOUD_MINIMIZATION_LEVEL (read, never used).
 """
 

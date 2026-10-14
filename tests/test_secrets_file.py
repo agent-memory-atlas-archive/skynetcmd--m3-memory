@@ -1,4 +1,4 @@
-"""m3_core.secret_store: the user-only secrets file tier (CONFIG_DESIGN §10)."""
+"""m3_core.secret_store: the user-only secrets file tier."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ def test_new_file_is_user_only_and_a_loose_one_is_refused():
         secrets.read_secrets()
 
 
-# ── names (CONFIG_DESIGN §10) ──────────────────────
+# ── names ──────────────────────
 def _plant(secrets, text):
     p = secrets.secrets_file_path()
     p.parent.mkdir(parents=True, exist_ok=True)

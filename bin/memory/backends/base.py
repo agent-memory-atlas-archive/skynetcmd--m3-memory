@@ -691,7 +691,7 @@ class StorageBackend(Protocol):
 
     @classmethod
     def from_store(cls, store: StoreRef) -> StorageBackend:
-        """A backend instance for a NAMED store (CONFIG_DESIGN §14).
+        """A backend instance for a NAMED store.
 
         The selector calls this instead of the zero-argument factory when a store
         is active, so the backend decides what its locator means: a SQLite store

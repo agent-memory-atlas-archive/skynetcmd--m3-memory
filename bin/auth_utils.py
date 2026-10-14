@@ -578,7 +578,7 @@ def _keyring_tier(key: str, *, service: str = "system") -> tuple[str | None, str
 
 def _vault_tier(service: str) -> tuple[str | None, str | None]:
     """The encrypted vault (synchronized_secrets in the main store). Returns
-    (value, error). Never for a bootstrap secret (CONFIG_DESIGN §10): the
+    (value, error). Never for a bootstrap secret: the
     caller decides; get_api_key consults it for everything."""
     error = None
     # Fallback to the synchronized encrypted vault

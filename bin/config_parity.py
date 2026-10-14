@@ -3,8 +3,7 @@
 
 Before the first setting moves behind the new resolver, capture every setting
 as today's code sees it; after each migration step, ``check`` recaptures and
-diffs. Only entries on the user-reviewed intended-change list may differ
-(CONFIG_DESIGN §8).
+diffs. Only entries on the user-reviewed intended-change list may differ.
 
 Four layers per snapshot:
   env     every constant env name m3 reads (the inventory of
@@ -84,7 +83,7 @@ PARSED_MODULES = (
     "sqlite_pragmas",
 )
 
-# The config files of CONFIG_DESIGN §11. Other JSON files in the config root are
+# The config files m3 folds into m3_config.toml. Other JSON files in the config root are
 # runtime state (heartbeats, pass stamps, watchdog state) or another app's, and
 # would show as drift every few minutes; they are listed by NAME only, for the
 # classification, never compared.

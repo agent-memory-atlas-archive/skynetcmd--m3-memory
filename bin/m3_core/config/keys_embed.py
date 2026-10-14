@@ -1,4 +1,4 @@
-"""Registry table [embed] (CONFIG_DESIGN §6).
+"""Registry table [embed].
 
 Every default and env name is taken from today's readers (surveyed in
 bin/memory/config.py, embed.py, tokens.py, chunking.py,
@@ -155,7 +155,7 @@ EMBED: list[Key] = [
         "embed.ctx",
         ("M3_EMBED_CTX",),
         8192,
-        "Context length in tokens (also read by the Rust core, as a u32; CONFIG_DESIGN §6).",
+        "Context length in tokens (also read by the Rust core, as a u32).",
         hi=2**32 - 1,
     ),
     _int("embed.token_budget", ("M3_EMBED_TOKEN_BUDGET",), 7000, "Tokens per chunk."),

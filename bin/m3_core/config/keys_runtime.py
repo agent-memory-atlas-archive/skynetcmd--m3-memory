@@ -6,7 +6,7 @@ memory safety flags.
 Security switches keep today's defaults exactly: FIPS off unless set, wolfSSL
 pin unset, destructive tools BLOCKED, agent isolation off, every bind 127.0.0.1.
 Today .governor_config.json wins for the GPU probe keys and .log_config.json for
-log.max_bytes; they fold in 2D (CONFIG_DESIGN §11).
+log.max_bytes; they fold in 2D.
 """
 
 from __future__ import annotations

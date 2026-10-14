@@ -339,7 +339,7 @@
         },
         "ctx": {
           "type": "integer",
-          "description": "Context length in tokens (also read by the Rust core, as a u32; CONFIG_DESIGN \u00a76).",
+          "description": "Context length in tokens (also read by the Rust core, as a u32).",
           "default": 8192
         },
         "dim": {
@@ -1296,7 +1296,7 @@
         },
         "memory_root": {
           "type": "string",
-          "description": "Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3 (CONFIG_DESIGN \u00a79)."
+          "description": "Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3."
         },
         "models_root": {
           "type": "string",
@@ -1468,7 +1468,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "The user-only secrets file: every m3 secret, as its value or a pointer to its OS keyring entry (CONFIG_DESIGN \u00a710). Default: <config root>/m3_secrets.toml."
+          "description": "The user-only secrets file: every m3 secret, as its value or a pointer to its OS keyring entry. Default: <config root>/m3_secrets.toml."
         }
       }
     },

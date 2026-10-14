@@ -1,4 +1,4 @@
-"""m3_core.config.writer: the writer of m3_config.toml (CONFIG_DESIGN §12).
+"""m3_core.config.writer: the writer of m3_config.toml.
 
 The user's comments and layout survive; each refusal leaves the file byte for
 byte unchanged; what it writes, the loader reads back.

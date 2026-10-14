@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Inventory every process-environment access in m3's production code.
 
-The configuration redesign (CONFIG_DESIGN) moves every m3 setting behind ONE
+The configuration redesign moves every m3 setting behind ONE
 resolver. Until then m3 reads and writes the environment from hundreds of
 places, in more shapes than a grep finds: aliased modules (``import os as
 _os``), ``from os import environ``, splat copies (``{**os.environ}``,
@@ -57,8 +57,7 @@ REPO = Path(__file__).resolve().parent.parent
 SCAN_ROOTS = ("bin", "m3_memory")
 
 # Modules allowed to touch the environment; paths are repo-relative, POSIX style.
-# The config package reads env in exactly one module (CONFIG_DESIGN §2, read
-# path 6), plus the child_env helper.
+# The config package reads env in exactly one module, plus the child_env helper.
 ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py", "m3_memory/_childenv.py"})
 
 # Names m3 reads that are NOT m3 settings: the OS's (measured readers, plan

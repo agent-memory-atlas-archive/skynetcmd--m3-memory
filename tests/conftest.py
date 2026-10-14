@@ -504,8 +504,8 @@ def pg_url() -> str:
 
 @pytest.fixture
 def m3_settings():
-    """Set m3 configuration for one test, instead of monkeypatching env vars
-    (CONFIG_DESIGN §7). ``m3_settings({"search.row_cap": 10})`` installs a
+    """Set m3 configuration for one test, instead of monkeypatching env vars.
+    ``m3_settings({"search.row_cap": 10})`` installs a
     snapshot built from registry defaults only (no process env, no file, no
     .env), with those keys replaced, as what ``settings.current()`` returns; it
     is validated like any value. Reset after the test (and per test by the

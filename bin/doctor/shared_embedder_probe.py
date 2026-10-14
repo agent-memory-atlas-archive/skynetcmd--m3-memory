@@ -137,7 +137,7 @@ def _windows_user_env_has(var: str) -> bool:
 def _gguf_pinned_in_process_env() -> bool:
     """Is embed.gguf set by this process's environment (M3_EMBED_GGUF or a legacy
     alias)? Answered from the config snapshot's ORIGIN, the config package's
-    reporting path (CONFIG_DESIGN §2), not by reading os.environ here."""
+    reporting path, not by reading os.environ here."""
     from m3_core.config import settings as _m3cfg
 
     return _m3cfg.origin_of("embed.gguf").startswith("env")

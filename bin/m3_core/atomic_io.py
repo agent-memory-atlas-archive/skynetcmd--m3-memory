@@ -16,7 +16,7 @@ open file), and removed automatically only when the replace never happened
 identical on every OS: text mode would emit CRLF on Windows. Permissions
 differ by OS. POSIX: the temp file is created 0600 by ``mkstemp`` regardless of
 umask, and an existing target's mode is copied onto it, so a write never relaxes
-or tightens a file's mode and a new file is user-only (CONFIG_DESIGN §10).
+or tightens a file's mode and a new file is user-only.
 Windows: mode bits are only the read-only flag; the replaced file takes its
 directory's inherited ACL. A caller that needs a private file there checks the
 directory first (``m3_core.win_acl.probe_new_file``, as the config writer does).

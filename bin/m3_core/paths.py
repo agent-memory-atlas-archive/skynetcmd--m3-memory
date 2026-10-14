@@ -250,7 +250,7 @@ _LEGACY_CHATLOG_WARNED = False
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class StoreRef:
-    """A named store as the resolvers need it (CONFIG_DESIGN §14). ``path`` is the
+    """A named store as the resolvers need it. ``path`` is the
     SQLite file (absolute) or None; ``dsn_secret`` names a PostgreSQL store's
     bootstrap secret. Built and validated by ``m3_core.config.stores``."""
 
@@ -268,7 +268,7 @@ class _Unset(enum.Enum):
 # StoreRef, None for an explicit "main", or UNSET (defer to the process's store).
 # Read it only through current_store(). A store outranks the legacy SQLite path
 # (M3_DATABASE / active_database) in resolve_db_path and decides
-# resolve_backend_name: §14's order. With no store
+# resolve_backend_name. With no store
 # anywhere, both resolvers behave exactly as they did before named stores.
 # A store, None for an explicit "main", or UNSET (defer to the process's store).
 type _StoreSelection = StoreRef | None | Literal[_Unset.UNSET]
@@ -392,7 +392,7 @@ def get_m3_config_root() -> str:
     return _roots.config_root()
 
 
-# Which tier of the config-root precedence answered (CONFIG_DESIGN §9).
+# Which tier of the config-root precedence answered.
 CONFIG_ROOT_ENV = _roots.CONFIG_ROOT_ENV
 CONFIG_ROOT_LEGACY = _roots.CONFIG_ROOT_LEGACY
 CONFIG_ROOT_DEFAULT = _roots.CONFIG_ROOT_DEFAULT
@@ -697,13 +697,13 @@ def _default_db_path() -> str:
     # M3_MEMORY_ROOT is set, the engine path is DERIVED, not chosen. If that
     # derived DB is missing or an empty stub, we must not let it shadow a
     # populated legacy memory/ DB — see _db_is_populated.
-    if _roots.pinned(_roots.ENGINE_ROOT_ENV):  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    if _roots.pinned(_roots.ENGINE_ROOT_ENV):  # env-owner: the approved root locators
         # Explicit engine root is a deliberate operator choice; honor it verbatim
         # even if empty (a fresh deployment legitimately starts empty here).
         return os.path.join(get_m3_engine_root(), "agent_memory.db")
 
     engine_db = os.path.join(get_m3_engine_root(), "agent_memory.db")
-    mem_root = _roots.pinned(_roots.MEMORY_ROOT_ENV)  # env-owner: the approved root locators (CONFIG_DESIGN section 2)
+    mem_root = _roots.pinned(_roots.MEMORY_ROOT_ENV)  # env-owner: the approved root locators
     if mem_root:
         if _db_is_populated(engine_db):
             return engine_db
@@ -767,7 +767,7 @@ def _looks_like_dsn(value: str) -> bool:
 def resolve_db_path(explicit: str | None = None) -> str:
     """Resolve an absolute SQLite DB path.
 
-    Order: explicit arg > the active named SQLite store (§14) >
+    Order: explicit arg > the active named SQLite store >
     active_database ContextVar > configured_main_db() (the --database pin, else
     the legacy M3_DATABASE env var) > default
     (memory/agent_memory.db). Returns an absolute path so pool-cache keys are
@@ -1105,7 +1105,7 @@ def resolve_backend_name() -> str:
     loaded instances can disagree about the backend.
 
     An active named store (``m3_core.config.stores.active_store``) decides first:
-    a PostgreSQL store under a SQLite default, or the reverse, is §14's model.
+    a PostgreSQL store under a SQLite default, or the reverse, is allowed.
     """
     store = current_store()
     if store is not None:
@@ -1337,7 +1337,7 @@ def add_database_arg(parser: argparse.ArgumentParser) -> None:
     """Attach the standard --database and --store flags to a CLI parser.
 
     ``--store NAME`` selects a named store from m3_config.toml for the process
-    (its core and files data; config §14) and outranks the legacy
+    (its core and files data) and outranks the legacy
     path. ``--database PATH`` is that SQLite path: --database > the legacy
     M3_DATABASE env (warned once) > default (memory/agent_memory.db); scripts
     activate it with pin_database() for the process or active_database() for a

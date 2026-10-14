@@ -3,7 +3,7 @@
 Thirteen modules hand-rolled it, most with a FIXED temp name (`<path>.tmp`), so
 two concurrent writers clobbered each other's temp; none retried the Windows
 sharing violation that os.replace raises while a reader holds the target; none
-fsynced. The owner (CONFIG_DESIGN §12) uses a unique temp per write
+fsynced. The owner uses a unique temp per write
 (NamedTemporaryFile(delete_on_close=False), 3.12), writes BYTES (so the file is
 identical on every OS -- text mode would emit CRLF on Windows), fsyncs, keeps an
 existing file's mode, creates a new file user-only, and removes the temp when

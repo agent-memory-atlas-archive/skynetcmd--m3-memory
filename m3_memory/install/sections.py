@@ -953,7 +953,7 @@ def _secrets_file_exposure_section(brief: bool = False) -> None:
     """Warn when the secrets file sits where it can leave this machine: inside a
     git working tree (a commit publishes it) or a synced folder (the sync client
     uploads it). The file is plaintext by decision, protected only
-    by its permissions, so where it lives is the protection (CONFIG_DESIGN §10).
+    by its permissions, so where it lives is the protection.
     Silent when there is no secrets file or it is in neither."""
     try:
         _bin.ensure_on_path()

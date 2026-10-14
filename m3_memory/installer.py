@@ -2239,7 +2239,7 @@ def _migrate_env_names(*, apply: bool = False) -> list[str]:
     for path, renames in affected.items():
         try:
             if path.name.startswith(".env"):
-                # m3 never rewrites a user's .env (CONFIG_DESIGN #D20).
+                # m3 never rewrites a user's .env.
                 actions.extend(
                     f"[!] {path}: rename {old} to {new} by hand (m3 does not rewrite a .env)"
                     for old, new in renames.items()

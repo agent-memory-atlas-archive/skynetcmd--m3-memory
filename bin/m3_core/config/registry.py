@@ -1,4 +1,4 @@
-"""The config registry: every m3 setting, defined once (CONFIG_DESIGN §2).
+"""The config registry: every m3 setting, defined once.
 
 A ``Key`` says where a setting lives in ``m3_config.toml`` (``toml_path``), how
 an environment string becomes its value (``parse``), what is valid
@@ -23,14 +23,14 @@ type ConfigValue = str | int | float | bool | Path | list[str]
 
 class KeyClass(StrEnum):
     CONFIG = "config"  # user setting; lives in m3_config.toml
-    SECRET = "secret"  # never in m3_config.toml (§10); env > keyring > secrets file > vault
-    STATE = "state"  # machine-written; never folded into TOML (§11)
+    SECRET = "secret"  # never in m3_config.toml; env > keyring > secrets file > vault
+    STATE = "state"  # machine-written; never folded into TOML
 
 
 class Scope(StrEnum):
     GLOBAL = "global"  # one value per machine
-    PROCESS = "process"  # per process / call (the active store, §14)
-    LOCATOR = "locator"  # decides WHICH file is read (§9)
+    PROCESS = "process"  # per process / call (the active store)
+    LOCATOR = "locator"  # decides WHICH file is read
 
 
 class ConfigValueError(ValueError):

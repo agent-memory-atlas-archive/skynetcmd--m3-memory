@@ -1,6 +1,6 @@
 """The secrets file is plaintext, so doctor warns when
-it sits where it can leave the machine: a git working tree or a synced folder
-(CONFIG_DESIGN §10). The synced-folder locations are OS facts (_platform)."""
+it sits where it can leave the machine: a git working tree or a synced folder. The synced-folder locations
+are OS facts (_platform)."""
 
 from __future__ import annotations
 

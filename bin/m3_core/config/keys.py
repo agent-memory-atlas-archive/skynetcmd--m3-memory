@@ -132,7 +132,7 @@ DB_POSTGRES: list[Key] = [
     ),
 ]
 
-# ── [paths] (CONFIG_DESIGN §4, #D9: the roots MCP blocks pin today) ──────────
+# ── [paths] (the roots MCP server blocks pin today) ──────────
 # Defaults are derived (engine root = <memory root>/engine, else ~/.m3/engine),
 # so the key's default is None and m3_core.paths stays the resolver until 2D
 # converts its readers. All are fixed for a process's lifetime.
@@ -145,7 +145,7 @@ PATHS: list[Key] = [
         scope=Scope.LOCATOR,
         reloadable=False,
         doc="Legacy master root: config, engine, logs and models derive from it when their own "
-        "keys are unset. Removed at N+3 (CONFIG_DESIGN §9).",
+        "keys are unset. Removed at N+3.",
     ),
     Key(
         name="paths.engine_root",
@@ -219,7 +219,7 @@ SECRETS_FILE = Key(
     scope=Scope.LOCATOR,
     reloadable=False,
     doc="The user-only secrets file: every m3 secret, as its value or a pointer to its "
-    "OS keyring entry (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml.",
+    "OS keyring entry. Default: <config root>/m3_secrets.toml.",
 )
 
 
@@ -235,7 +235,7 @@ def _secret(name: str, doc: str, *, aliases: tuple[str, ...] = (), bootstrap: bo
     )
 
 
-# CONFIG_DESIGN §10. Bootstrap secrets never come from the vault: it lives in the
+# Bootstrap secrets never come from the vault: it lives in the
 # store a DSN unlocks, and it decrypts with the master key.
 SECRETS: list[Key] = [
     _secret("M3_PRIMARY_PG_URL", "DSN of a PostgreSQL primary store.", aliases=("M3_PG_URL",), bootstrap=True),
@@ -287,14 +287,13 @@ NOT_SETTINGS: dict[str, str] = {
     "M3_DIFF_REF_REV": "search_differential.py's own parameter",
     "M3_DIFF_STORE": "search_differential.py's own parameter",
     "M3_TRACE_FILE": "setup-wizard debug breadcrumbs",
-    # CONFIG_DESIGN §2 read path 1: it decides WHICH m3_config.toml is read, so it
-    # cannot be a key in that file.
-    "M3_CONFIG_ROOT": "the config locator (CONFIG_DESIGN §2, read path 1)",
+    # It decides WHICH m3_config.toml is read, so it cannot be a key in that file.
+    "M3_CONFIG_ROOT": "the config locator: it picks which m3_config.toml is read",
     # The chatlog hooks (Python and shell) read it to
     # find bin/ before any m3 code runs, so it cannot come from the config file.
     "M3_HOME": "the hooks' bootstrap locator for the code checkout",
-    # CONFIG_DESIGN §2 read path 3: a diagnostic switch read before config loads.
-    "M3_DEBUG": "the diagnostic switch (CONFIG_DESIGN §2, read path 3)",
+    # A diagnostic switch, read before config loads.
+    "M3_DEBUG": "the diagnostic switch, read before config loads",
     # Retired as a user setting, no env read and no TOML key; one
     # Rust-availability probe replaces its parse sites.
     "M3_CORE_RS_DISABLE": "retired as a user setting; tests use a fixture",
@@ -304,13 +303,13 @@ NOT_SETTINGS: dict[str, str] = {
     # Read only by a live judge test (test plumbing, not settings).
     "M3_WIKI_DRIFT_PRECISION_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:183)",
     "M3_WIKI_DRIFT_RECALL_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:182)",
-    # CONFIG_DESIGN §4(d): in-process handoffs from `m3 serve` to the bridge, which
-    # become explicit parameters in 2E (today m3 serve overwrites them every run).
-    "M3_TRANSPORT": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
-    "M3_HTTP_HOST": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
-    "M3_HTTP_PORT": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
-    "M3_HTTP_PATH": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
-    "M3_HTTP_PUBLIC_HOST": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
+    # In-process handoffs from `m3 serve` to the bridge, which are to become
+    # explicit parameters (today m3 serve overwrites them every run).
+    "M3_TRANSPORT": "in-process handoff; 2E makes it a parameter",
+    "M3_HTTP_HOST": "in-process handoff; 2E makes it a parameter",
+    "M3_HTTP_PORT": "in-process handoff; 2E makes it a parameter",
+    "M3_HTTP_PATH": "in-process handoff; 2E makes it a parameter",
+    "M3_HTTP_PUBLIC_HOST": "in-process handoff; 2E makes it a parameter",
     "_M3_UTF8_REEXEC": "internal guard against re-executing twice for UTF-8 mode",
     # As GH_TOKEN: release tooling only.
     "M3_STARGAZER": "release tooling token (gen_download_badges.py; as GITHUB_TOKEN)",

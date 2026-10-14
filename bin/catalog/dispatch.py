@@ -101,7 +101,7 @@ def _pop_store(args: dict, tool: str) -> str | None:
             f"{tool}: observed: store={name!r} ({type(name).__name__}). inspect: `store` is a store name such as 'main'"
         )
     name = name.strip()
-    # Files tools follow it too: a store is core + files (§14).
+    # Files tools follow it too: a store is core + files.
     from m3_core.config.stores import resolve_store
 
     resolve_store(name)  # StoreError (a ValueError) for an unknown name
@@ -114,7 +114,7 @@ def pop_call_scope(args: dict, tool: str) -> AbstractContextManager[object]:
     execute_tool_structured and every memory_bridge wrapper enter what this
     returns, so a new routing arg is added here once.
 
-    ``store`` selects a named store (config §14); ``database`` the legacy SQLite
+    ``store`` selects a named store; ``database`` the legacy SQLite
     path. Both at once is refused: they name competing targets, and picking one
     silently would run the call against a store the caller may not mean.
     Raises ValueError where the call must not run (see _pop_database).

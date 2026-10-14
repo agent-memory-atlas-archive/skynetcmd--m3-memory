@@ -1,4 +1,4 @@
-"""The settings snapshot and its reload (CONFIG_DESIGN §3, §7).
+"""The settings snapshot and its reload.
 
 A ``Settings`` is frozen: a process (or a daemon's work cycle) reads one
 consistent snapshot. ``current()`` hands out the process snapshot and reloads it
@@ -55,7 +55,7 @@ class Settings:
         return self.resolved[key.name].origin
 
     def legacy_env_in_use(self) -> list[str]:
-        """Env names honoured only by the N..N+2 window (§13): what to migrate."""
+        """Env names honoured only by the N..N+2 window: what to migrate."""
         return sorted(
             r.origin.removeprefix("env-legacy:") for r in self.resolved.values() if r.origin.startswith("env-legacy:")
         )
@@ -535,8 +535,8 @@ def with_flags(settings: Settings) -> Settings:
 def origin_of(name: str) -> str:
     """Where key ``name``'s value came from: ``default``, ``env:<NAME>``,
     ``env-legacy:<NAME>`` or the config file. The reporting path for diagnostics
-    that ask "is this pinned in the process environment?" (CONFIG_DESIGN §2,
-    ignored-env reporting): they read the origin, not os.environ."""
+    that ask "is this pinned in the process environment?" (ignored-env
+    reporting): they read the origin, not os.environ."""
     key = REGISTRY.get(name)
     if key is None:
         raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")

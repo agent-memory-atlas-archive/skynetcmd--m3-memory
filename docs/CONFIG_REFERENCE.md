@@ -122,7 +122,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `chunk_max_chars` | integer | `28000` | `M3_EMBED_CHUNK_MAX_CHARS` | restart to apply; Characters per chunk. |
 | `chunk_overlap_chars` | integer | `8000` | `M3_EMBED_CHUNK_OVERLAP_CHARS` | restart to apply; Character overlap between chunks. |
 | `compatible_models` | list of strings | `[]` | `M3_EMBED_COMPATIBLE_MODELS` | restart to apply; Other model tags whose vectors share this space. |
-| `ctx` | integer | `8192` | `M3_EMBED_CTX` | restart to apply; Context length in tokens (also read by the Rust core, as a u32; CONFIG_DESIGN §6). |
+| `ctx` | integer | `8192` | `M3_EMBED_CTX` | restart to apply; Context length in tokens (also read by the Rust core, as a u32). |
 | `dim` | integer | `1024` | `M3_EMBED_DIM`, `EMBED_DIM` | restart to apply; Embedding dimension. |
 | `discovery_negative_ttl_s` | number | `60.0` | `M3_EMBED_DISCOVERY_NEG_TTL` | restart to apply; Seconds an endpoint that failed discovery is skipped. |
 | `entity_name_cache_max` | integer | `50000` | `M3_ENTITY_NAME_EMBED_CACHE_MAX`, `ENTITY_NAME_EMBED_CACHE_MAX` | restart to apply; Entity-name embeddings kept in memory. |
@@ -409,7 +409,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `examples` | path | (none) | `M3_PATH_EXAMPLES` | restart to apply; The payload's examples/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one. |
 | `lib_dir` | path | (none) | `M3_LIB_DIR` | restart to apply; Where the wolfSSL library is trusted from. Default: <config root's parent>/lib. |
 | `logs_root` | path | (none) | `M3_LOGS_ROOT` | restart to apply; Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs. |
-| `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3 (CONFIG_DESIGN §9). |
+| `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3. |
 | `models_root` | path | (none) | `M3_MODELS_ROOT` | restart to apply; GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models. |
 
 ## [promote]
@@ -459,7 +459,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
-| `file` | path | (none) | (none) | restart to apply; The user-only secrets file: every m3 secret, as its value or a pointer to its OS keyring entry (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml. |
+| `file` | path | (none) | (none) | restart to apply; The user-only secrets file: every m3 secret, as its value or a pointer to its OS keyring entry. Default: <config root>/m3_secrets.toml. |
 
 ## [services]
 

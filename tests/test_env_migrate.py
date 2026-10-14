@@ -154,7 +154,7 @@ def test_migrate_one_bad_file_does_not_abort_others(tmp_path, monkeypatch):
     assert env == {"M3_CDW_PG_URL": "postgres://z"}
 
 
-# ── .env and ~/.claude.json: reported, never rewritten (CONFIG_DESIGN #D20) ──────────────────────────────────────────────
+# ── .env and ~/.claude.json: reported, never rewritten ──────────────────────────────────────────────
 def test_dotenv_is_reported_with_the_edit_and_never_rewritten(tmp_path, monkeypatch):
     dotenv = tmp_path / ".env"
     original = "# a comment\nCHROMA_BASE_URL=http://x:8000\nUNRELATED=keepme\n"
