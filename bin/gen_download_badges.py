@@ -169,7 +169,7 @@ def accumulate_daily_total(history_path: Path, fresh_days: list[tuple[str, int]]
         history[day] = uniques
     # Persist sorted for a stable, reviewable diff.
     ordered = dict(sorted(history.items()))
-    history_path.write_text(json.dumps(ordered, indent=2) + "\n", encoding="utf-8")
+    history_path.write_text(json.dumps(ordered, indent=2) + "\n", encoding="utf-8", newline="\n")  # LF on every OS
     return sum(ordered.values())
 
 
@@ -183,7 +183,7 @@ def _write_json(path: Path, obj: dict) -> bool:
     if new == old:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(new, encoding="utf-8")
+    path.write_text(new, encoding="utf-8", newline="\n")  # LF on every OS
     return True
 
 
