@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_download_badges.py
-sha1: faa544a80ed5
-mtime_utc: 2026-10-14T02:24:24.344631+00:00
-generated_utc: 2026-10-14T02:24:34.870498+00:00
+sha1: 49abe7c40a36
+mtime_utc: 2026-10-14T02:30:27.123267+00:00
+generated_utc: 2026-10-14T02:30:42.991551+00:00
 private: false
 ---
 
@@ -14,9 +14,10 @@ Generate download-count badge data (PyPI + GitHub) for the README.
 
 Writes two shields.io *endpoint* JSON files that the README badges point at:
 
-  * docs/badges/pypi-downloads.json  — estimated TOTAL PyPI downloads
-        (pypistats "overall", WITHOUT mirrors — excludes bandersnatch/CI mirror
-        bots, so it approximates real installs).
+  * docs/badges/pypi-downloads.json / pypi-monthly.json — PyPI downloads, total
+        and last 30 days, WITH mirrors (pypistats "overall"), labelled "PyPI
+        downloads" as pepy.tech and most projects' badges are. The totals WITHOUT
+        mirrors (closer to real installs) are kept in counters.json beside them.
   * docs/badges/github-clones.json   — TOTAL unique GitHub clones
         (the repo traffic API's daily `uniques`).
 
@@ -47,7 +48,7 @@ Standard library only.
 
 ## Entry points
 
-- `def main()` (line 255)
+- `def main()` (line 256)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -93,9 +94,8 @@ _(only stdlib)_
 - `clone-history.json`
 - `counters.json`
 - `github-clones.json`
-- `pypi-downloads.json`
+- `pypi-all-history.json`
 - `pypi-history.json`
-- `pypi-monthly.json`
 
 ---
 

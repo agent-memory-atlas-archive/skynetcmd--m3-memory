@@ -45,3 +45,9 @@ def test_a_seed_comes_from_the_private_history_complete_days_only(tmp_path):
     h.write_text(json.dumps({"2026-10-11": 3, "2026-10-12": 4, "2026-10-13": 50}), encoding="utf-8")
     assert g.seed_counter(h, today="2026-10-13") == {"total": 7, "through": "2026-10-12"}
     assert g.seed_counter(tmp_path / "missing.json", "2026-10-13") is None
+
+
+def test_the_monthly_figure_is_the_30_complete_days_before_today():
+    days = [("2026-09-12", 1000), ("2026-09-13", 1), ("2026-10-12", 2), ("2026-10-13", 500)]
+    # 2026-09-13 .. 2026-10-12 inclusive: today's partial 500 and the 31st day back are out
+    assert g.last_30_days(days, today="2026-10-13") == 3

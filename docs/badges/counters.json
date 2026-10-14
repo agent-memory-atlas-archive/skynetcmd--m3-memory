@@ -6,5 +6,13 @@
   "pypi": {
     "total": 28446,
     "through": "2026-10-13"
+  },
+  "pypi_all": {
+    "total": 95997,
+    "through": "2026-10-13"
+  },
+  "pypi_last_30_days": {
+    "with_mirrors": 15846,
+    "without_mirrors": 4820
   }
 }
