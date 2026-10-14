@@ -66,7 +66,7 @@ This is a head-to-head against other **sovereign / local-first memory substrates
 |---|---|---|---|---|---|---|---|---|
 | **[Retrieval SHR@10](#lme-s-score)** | **99.2%** at k=8ⁱ (🏆 #1)<br>100% @ k=20 | — | — | — | — | — | — | 96.6% R@5 ⚠️ᵍ |
 | **[Published LME-S headline](#lme-s-score)**<br>*(metric varies by vendor — see sourcing note)* | **92.0%** QA<br>(no oracle; SHR=100% @ k=20) | 96.2% oracle split ⚠️ᵃ | 95.6%ᵇ | 91.4%ᶜ | 94.9%ᵈ | ~94% / ~67%ᵉ | 90.8%ᶠ | 96.6% R@5 ⚠️ᵍ |
-| **[Search Strategy](#search-strategy)** | ✅ **3-Pillar Hybrid** | 🏆 **6-Signal Hybrid** | ⚖️ **Dual-Index** | 🏆 **4-Stream Neural** | ✅ **Reflective** | ✅ **Vector + Graph** | ✅ **Compositional** | ⚖️ **Spatial-palace** |
+| **[Search Strategy](#search-strategy)** | 🏆 **9-Signal Hybrid** | 🏆 **6-Signal Hybrid** | ⚖️ **Dual-Index** | 🏆 **4-Stream Neural** | ✅ **Reflective** | ✅ **Vector + Graph** | ✅ **Compositional** | ⚖️ **Spatial-palace** |
 | **[Local Fact Extraction](#local-fact-extraction)** | 🏆 **Local SLM** | ✅ **Deterministic** | ✅ **ISO-Temporal** | ✅ **Entity-centric** | 🏆 **Reflector** | ✅ **LLM-Powered** | ✅ **Entity-Res.** | ❌ **Verbatim only** |
 | **[Token Efficiency](#token-efficiency)** | 🏆 **Lazy tools + low-K** (~2% window at startup) | ✅ **Signal Filter** | ✅ **Event-Pruned** | 🔻 **Heavy Rerank** | ✅ **Cache-Stable** | 🏆 **~90% Savings** | ✅ **Stores raw text** | ⚖️ **Stores raw text** |
 
@@ -267,9 +267,9 @@ For the developer-tool decision (Mem0, Letta, Zep, LangChain Memory), see the [d
 
 **Why it matters:** Vector-only search hallucinates synonyms. Keyword-only misses paraphrases. The blend is what matters.
 
-**m3 standing:** 3-Pillar Hybrid — FTS5 (BM25) + vector cosine + MMR diversity reranking. Explainable per-result scores via `memory_suggest`.
+**m3 standing:** 9-Signal Hybrid — meaning (BGE-M3 vectors), keywords (FTS5 BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent and time; confidence, recency, rerank and graph expansion opt-in. Explainable per-result scores via `memory_suggest`.
 
-**Cohort context:** agentmemory's 6-signal hybrid and Hindsight's 4-stream neural model push further. Systems without a keyword leg (Mem0: vector search + knowledge-graph traversal) are simpler but lose precision on terminology-heavy queries.
+**Cohort context:** agentmemory (JordanMcCann)'s 6-signal weighted hybrid and Hindsight's 4-stream neural model take other routes; agentmemory (rohitg00) fuses three streams (BM25, vector, graph). Systems without a keyword leg (Mem0: vector search + knowledge-graph traversal) are simpler but lose precision on terminology-heavy queries.
 
 ---
 

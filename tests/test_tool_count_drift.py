@@ -121,6 +121,7 @@ _SUBCOUNT_EXCEPTIONS = (
     "25-tool",  # README/ROADMAP — files-memory domain (25 in the catalog)
     "10-tool",  # README — a per-layer subcount
     "18 essential tools",  # MYTHS_AND_FACTS — the lazy-mode essentials set
+    "MCP (54 tools)",  # COMPARISON — agentmemory (rohitg00)'s catalog, a competitor's count, not m3's
 )
 
 # Section headings like "## Phase 1 tools — walker" are not counts — the

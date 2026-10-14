@@ -14,7 +14,7 @@ Several tools address agentic memory. This document explains where m3 Memory fit
 <table>
 <tr>
 <td><a href="#vs-a-mem">A-MEM</a></td>
-<td><a href="#vs-agentmemory">agentmemory</a></td>
+<td><a href="#vs-agentmemory">agentmemory</a> (<a href="#vs-agentmemory-rohitg00">rohitg00</a> · <a href="#vs-agentmemory-mccann">JordanMcCann</a>)</td>
 <td><a href="#vs-chronos">Chronos</a></td>
 </tr>
 <tr>
@@ -56,7 +56,7 @@ Roughly where each system in this guide sits:
 |---|---|---|
 | **Welded into the memory layer** | [Mem0](#vs-mem0), [Mastra OM](#vs-mastra-om), [A-MEM](#vs-a-mem) | The tool decides what's worth remembering. Less to build; an LLM is implicitly in the loop, and extraction policy isn't separately swappable. |
 | **Owned by the agent runtime** | [Letta](#vs-letta) | The agent edits its own memory blocks via tool calls. Powerful for self-improving agents; requires adopting the runtime. |
-| **Composable — cognition is a separable layer** | **m3**, [agentmemory](#vs-agentmemory), [Memento](#vs-memento) | Storage and retrieval are deterministic; extraction is a component you enable, replace, or skip. |
+| **Composable — cognition is a separable layer** | **m3**, [agentmemory (JordanMcCann)](#vs-agentmemory-mccann), [Memento](#vs-memento) | Storage and retrieval are deterministic; extraction is a component you enable, replace, or skip. |
 | **Substrate only — bring your own cognition** | [Graphiti](#vs-graphiti), [Zep](#vs-zep), [LangMem](#vs-langmem) | You get graph/store primitives and supply the cognitive layer yourself. |
 
 If "the LLM should decide what's worth remembering" matches your worldview, a tighter-integrated tool is a genuine win. If "extraction policy should be inspectable, swappable, and testable independent of storage" matches yours, m3's split is the right shape.
@@ -88,7 +88,7 @@ If "the LLM should decide what's worth remembering" matches your worldview, a ti
 >
 > ᵃ **m3** — 92.0% QA (no oracle; SHR=100% @ k=20), unmodified upstream LongMemEval judge. Retrieval: m3's figure is at **k=8**, its default search depth. Other systems report k=10 and above; k=8 isn't reported. On LongMemEval-S, k=10 gives m3 the same 99.2% while retrieving 25% more rows.
 > ᵇ **Mem0** — ~94% self-reported (94.4% [research page](https://mem0.ai/research), 94.8% [repo](https://github.com/mem0ai/mem0)); independent/older evaluations put earlier Mem0 at ~67% ([arXiv 2504.19413](https://arxiv.org/abs/2504.19413)). Judge is **modified and more lenient** (single unified prompt: "judge by MEANING, not exact words", explicit pro-yes bias, superset answers accepted), so it is **not** comparable to strict-judge numbers. Answer model undisclosed as of 2026-06-22.
-> ᶜ **agentmemory** — 96.2% QA (481/500), Claude Opus 4.6 answerer, GPT-4o judge; the judge is upstream (5/6 templates byte-identical, the temporal template *adds* a `Reference Date:` line). The setting is not: its runner loads the **oracle split** (evidence sessions only), reads each question's `question_type` label to steer prompts and ingestion, and its answer prompts contain LongMemEval test questions and their answers — see the [caution](#vs-agentmemory). Not comparable to standard S-setting numbers. Source: [github.com/JordanMcCann/agentmemory](https://github.com/JordanMcCann/agentmemory). *Judge verified 2026-06-22; setting verified 2026-10-05.*
+> ᶜ **agentmemory (JordanMcCann)** — 96.2% QA (481/500), Claude Opus 4.6 answerer, GPT-4o judge; the judge is upstream (5/6 templates byte-identical, the temporal template *adds* a `Reference Date:` line). The setting is not: its runner loads the **oracle split** (evidence sessions only), reads each question's `question_type` label to steer prompts and ingestion, and its answer prompts contain LongMemEval test questions and their answers — see the [caution](#vs-agentmemory). Not comparable to standard S-setting numbers. Source: [github.com/JordanMcCann/agentmemory](https://github.com/JordanMcCann/agentmemory). *Judge verified 2026-06-22; setting verified 2026-10-05.*
 > ᵈ **Chronos** — 95.6% QA (self-reported, arXiv preprint [2603.16862](https://arxiv.org/abs/2603.16862), not peer-reviewed). The paper says it implements "LongMemEval's LLM judge" but shows no prompt text, names no judge model, and releases no code (it even flags "LLM-as-judge variability"). *Figure verified; judge unconfirmed 2026-06-23.*
 > ᵉ **Hindsight** — 91.4% QA, Gemini 3 Pro backbone. The public [hindsight-benchmarks](https://github.com/vectorize-io/hindsight-benchmarks) repo ships LongMemEval *results* but no LongMemEval judge code (the only judge it ships is a lenient LoCoMo one). *Figure verified; judge unconfirmed 2026-06-23.*
 > ᶠ **Mastra OM** — 94.9% QA (94.87%), gpt-5-mini answerer, GPT-4o judge; eval code carries "copied EXACTLY from the official LongMemEval benchmark … Do not modify these prompts" — the six templates match verbatim. Source: [mastra.ai/research/observational-memory](https://mastra.ai/research/observational-memory). *Verified 2026-06-22.*
@@ -111,7 +111,7 @@ Mem0 is a popular agentic memory library with broad ecosystem adoption. m3-Memor
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Cloud API, **or** self-hosted server (Docker Compose) / pip-npm library |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | Managed cloud, or a self-hosted server stack (Docker Compose) |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Managed cloud store; self-hosted uses a pluggable vector DB (e.g. Qdrant) |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Vector search + knowledge-graph traversal |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | Vector search + knowledge-graph traversal |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ Time-aware retrieval ranks the right dated instance; no bitemporal as-of query model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Basic deduplication; no strong conflict resolution |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | ⚖️ ~94% self-reported, but graded with a **self-authored, more lenient judge** — not comparable to strict-judge numbersᵇ |
@@ -155,7 +155,7 @@ m3-Memory is a **dedicated, lightweight memory layer** — a drop-in backend for
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Self-hosted or Letta Cloud |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | Letta runtime (must rebuild your agent on it) |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Letta's own DB |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Tiered recall with embeddings (core / recall / archival blocks) |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | Tiered recall with embeddings (core / recall / archival blocks) |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ No bitemporal / as-of queries |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Agent-driven — the agent decides to update its own memory blocks |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | Not published |
@@ -200,7 +200,7 @@ Zep focuses on temporal knowledge graphs for enterprise multi-agent systems. It 
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Self-hosted or Zep Cloud |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🛠️ Requires a graph DB (Neo4j / FalkorDB) |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Graph database |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 Vector + temporal knowledge-graph traversal |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | 🏆 Vector + temporal knowledge-graph traversal |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 Bitemporal at fact/edge grain in a temporal KG — finer grain than m3's item-grain |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Graph-level fact invalidation over time |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | Not published |
@@ -237,7 +237,7 @@ m3 is memory-first rather than graph-first: the primary store is a bitemporal SQ
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | Depends on your graph-DB deployment |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🛠️ Requires a graph database (Neo4j, FalkorDB, or Amazon Neptune) |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Graph DB — Neo4j, FalkorDB, or Amazon Neptune (Kuzu deprecated) |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 Graph traversal + semantic + BM25 |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | 🏆 Graph traversal + semantic + BM25 |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 Bi-temporal edge validity (fact/edge grain) |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Edge invalidation as facts change |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | Not published |
@@ -277,7 +277,7 @@ m3 is production-and-operations oriented: typed memories, bitemporal supersessio
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | Depends on the LLM / embeddings you wire up |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | ChromaDB + an LLM endpoint |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | ChromaDB |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Embedding-based over the note network |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | Embedding-based over the note network |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ No bitemporal / as-of queries |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 LLM-driven link and attribute updates (Zettelkasten-style evolution) |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | Not published |
@@ -301,7 +301,66 @@ m3 is production-and-operations oriented: typed memories, bitemporal supersessio
 
 <a id="vs-agentmemory"></a>
 
-## ⚔️ m3-Memory vs agentmemory ⚠️
+## Two projects named "agentmemory"
+
+Two unrelated projects share the name. **[rohitg00/agentmemory](https://github.com/rohitg00/agentmemory)** (Node, ~29K
+stars) is the one most readers mean; **[JordanMcCann/agentmemory](https://github.com/JordanMcCann/agentmemory)**
+(Python) is the source of the widely quoted 96.2% LongMemEval figure. Each has its own
+section: [rohitg00](#vs-agentmemory-rohitg00) · [JordanMcCann](#vs-agentmemory-mccann).
+
+---
+
+<a id="vs-agentmemory-rohitg00"></a>
+
+## ⚔️ m3-Memory vs agentmemory (rohitg00)
+
+*Checked 2026-10-13 against [`36eb328`](https://github.com/rohitg00/agentmemory/tree/36eb328): its README,
+[`benchmark/LONGMEMEVAL.md`](https://github.com/rohitg00/agentmemory/blob/36eb328/benchmark/LONGMEMEVAL.md) and
+[`src/state/hybrid-search.ts`](https://github.com/rohitg00/agentmemory/blob/36eb328/src/state/hybrid-search.ts).*
+
+agentmemory (Rohit Ghumare) is persistent memory for AI coding agents, built around
+automatic capture: 12 hooks record tool use, prompts and session ends, and a Node
+server with a pinned iii-engine binary stores and searches them. Its strengths are
+reach and capture: ~25 named agents and a hook for every stage of a session. m3's are
+retrieval depth, a bitemporal model and compliance tooling. On the shared retrieval
+metric, m3 finds the right session more often at every depth.
+
+**The retrieval figures are directly comparable.** Both projects report `recall_any@k`
+on LongMemEval-S (`longmemeval_s_cleaned`), retrieval only, with no answer model or
+judge: agentmemory calls it R@k; m3 calls it session hit rate.
+
+| Feature | m3-Memory | agentmemory (rohitg00) |
+|---|---|---|
+| **Category** | Dedicated memory layer (MCP-native) | Persistent memory for AI coding agents, hook-driven capture |
+| **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline | 🏆 Local — Node server on four local ports (REST/MCP, streams, viewer, worker) |
+| **Infrastructure required** | 👑 None to start — `pip install`, no server to run | Node plus the pinned iii-engine binary; native Windows needs a manual `iii.exe` install (or WSL2 / Docker) |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary | SQLite through the iii-engine state store ("0 external DBs") |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | Three streams — BM25 (weight 0.4), vector (0.6), knowledge graph (0.3) — fused by weighted reciprocal-rank fusion, +5% per agreeing stream, at most 3 results per session; optional cross-encoder rerank. Default "keyless" mode is BM25-only; the graph stream needs `GRAPH_EXTRACTION_ENABLED` |
+| **Retrieval accuracy (LongMemEval-S, `recall_any@k`)** | 👑 **98.2% @5 · 99.2% @10 · 100% @20** | 95.2% @5 · 98.6% @10 · 99.4% @20 (BM25 + vector, all-MiniLM-L6-v2); also NDCG@10 87.9%, MRR 88.2% |
+| **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ | Not published; it states its figures are retrieval recall, not end-to-end QA |
+| **Temporal model** | 🏆 Bitemporal (valid + transaction time), as-of queries | Versioning and supersession; as-of queries not documented |
+| **Contradiction handling** | 👑 Auto-detect on write **plus** explicit `memory_supersede`; history preserved | Detected and resolved; superseded versions leave the search index, history kept in KV |
+| **Lifecycle** | Decay, dedup, consolidation, TTL, soft-delete; GDPR forget is the only hard delete | 🏆 4-tier consolidation (working → episodic → semantic → procedural), Ebbinghaus decay, auto-forget |
+| **Agent integration** | 👑 Native MCP (100+ tools) + LangChain/LangGraph, CrewAI, PydanticAI adapters | 🏆 MCP (54 tools) + REST, 12 automatic hooks, ~25 named agents |
+| **Compliance tooling** | 👑 `gdpr_forget` / `gdpr_export` as tools; FIPS 140-3 deployment-ready crypto | Privacy filter strips secrets before storage; GDPR and FIPS tooling not documented |
+| **Cost & licence** | Free, Apache 2.0 | Free, Apache 2.0 |
+
+### When to choose m3-Memory over agentmemory (rohitg00)
+- Retrieval accuracy matters: m3 finds the right session more often at k=5, 10 and 20, on the same metric and data.
+- You need point-in-time answers ("what did we believe in March?"), GDPR erasure and export, or a FIPS posture.
+- You want a pure `pip install` with no separate engine binary, including on native Windows.
+- You build with LangChain/LangGraph, CrewAI or PydanticAI.
+
+### When to choose agentmemory (rohitg00) over m3-Memory
+- You want capture with zero agent cooperation: hooks record every tool call and session without the agent deciding to remember.
+- Your agent is on its list and not on m3's (Codex CLI, Copilot CLI, Zed, Warp, Continue, Kiro, Goose, Roo, Kilo and others).
+- A Node / TypeScript stack suits you better than Python.
+
+---
+
+<a id="vs-agentmemory-mccann"></a>
+
+## ⚔️ m3-Memory vs agentmemory (JordanMcCann) ⚠️
 
 > **⚠️ Caution — its benchmark figure is not comparable.** agentmemory reports
 > 96.2% on LongMemEval. Its benchmark runner, at the commit it published that
@@ -337,7 +396,7 @@ m3 is production-and-operations oriented: typed memories, bitemporal supersessio
 
 agentmemory (Jordan McCann, [github.com/JordanMcCann/agentmemory](https://github.com/JordanMcCann/agentmemory)) is a local-first, sovereign memory system: native Python over local SQLite with a Merkle-tree integrity model and deterministic extraction — a genuine peer on sovereignty.
 
-m3's differences are breadth. Both ship a native MCP server and both scale to PostgreSQL; m3 adds framework adapters (LangChain/CrewAI/PydanticAI), bitemporal *valid-time* as-of queries (agentmemory's temporal signature is integrity-oriented rather than an as-of query model), first-class GDPR tooling, and the auto-generated wiki. agentmemory's retrieval mixes six signals to m3's three pillars. It publishes no retrieval figure on standard LongMemEval-S, and its QA figure comes from the oracle setting (see caution), so there is no like-for-like benchmark comparison between the two.
+m3's differences are breadth. Both ship a native MCP server and both scale to PostgreSQL; m3 adds framework adapters (LangChain/CrewAI/PydanticAI), bitemporal *valid-time* as-of queries (agentmemory's temporal signature is integrity-oriented rather than an as-of query model), first-class GDPR tooling, and the auto-generated wiki. Both rank on several signals: agentmemory six weighted ones, m3 nine by default plus opt-in ones. It publishes no retrieval figure on standard LongMemEval-S, and its QA figure comes from the oracle setting (see caution), so there is no like-for-like benchmark comparison between the two.
 
 | Feature | m3-Memory | agentmemory |
 |---|---|---|
@@ -345,7 +404,7 @@ m3's differences are breadth. Both ship a native MCP server and both scale to Po
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Full local — SQLite, deterministic extraction, zero telemetry |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🏆 None — native Python + SQLite |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 SQLite (default) or PostgreSQL for multi-process |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 6-signal hybrid — a broader signal mix than m3's 3 pillars |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | 6-signal weighted hybrid: semantic 0.30, BM25 0.12, activation 0.18, graph 0.18, importance 0.10, temporal 0.12 (its README's prose list names calibrated confidence instead of activation) |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ Temporal signature is integrity-oriented, not an as-of query model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Merkle-tree integrity + consolidation pipeline; no documented supersession model |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | ⚠️ No standard S-setting figure published — its 96.2% is on the **oracle split** (evidence sessions only), with label-steered prompts that contain test answers; not comparableᶜ |
@@ -356,7 +415,7 @@ m3's differences are breadth. Both ship a native MCP server and both scale to Po
 | **Cost & licence** | Free, Apache 2.0 | Free, MIT |
 
 
-### When to choose m3-Memory over agentmemory
+### When to choose m3-Memory over agentmemory (JordanMcCann)
 - You want framework adapters (LangChain/CrewAI/PydanticAI) alongside MCP, not MCP alone.
 - You need bitemporal as-of queries and GDPR primitives.
 - You want to scale to PostgreSQL, or project memory to a portable wiki.
@@ -383,7 +442,7 @@ m3 differs on deployment simplicity and openness: zero-infrastructure local SQLi
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | ⚖️ On-prem (Linux/Python + services) |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🛠️ Service stack |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Service-managed store |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | ⚖️ Dual-index design |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | ⚖️ Dual-index design |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 ISO-temporal event log — strong for calendar-grained reasoning |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Event-log / ISO-temporal audit trail |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | ⚖️ **95.6%** self-reported, but the **judge is unpublished** — not independently verifiableᵈ |
@@ -421,7 +480,7 @@ m3's edges: native MCP with a 100+-tool surface (Hindsight integrates via per-fr
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Docker recommended, or embedded/self-contained via the `hindsight-all` Python package |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | PostgreSQL (embedded `pg0` option for Python) |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 PostgreSQL by default; Oracle AI Database for enterprise |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 4-stream neural retrieval — richer, but heavier rerank cost |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | 🏆 4-stream neural retrieval — richer, but heavier rerank cost |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ Traceable, but not an as-of query model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Not a documented focus |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | **91.4%** — below m3's 92.0%, but the **judge is unpublished**, so not strictly comparableᵉ |
@@ -459,7 +518,7 @@ m3 differs mainly on reach and temporal depth. Mastra OM is memory *for the Mast
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Runs locally (LibSQL file DB) or against hosted Postgres/MongoDB/Convex |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | A supported storage adapter (`@mastra/pg`, `libsql`, `mongodb`, or `convex`); no vector or graph DB needed |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 LibSQL, PostgreSQL, MongoDB, or Convex |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Observation-log retrieval over reflector-compressed history |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | Observation-log retrieval over reflector-compressed history |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ 3-date anchor, not full bitemporal |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Background reflector agents reconcile the observation log |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | 🏆 **94.9%** — exact upstream judge, directly comparable to m3's 92.0%ᶠ |
@@ -497,7 +556,7 @@ m3's differences: a verifiable standard-setting benchmark (Memento's number is f
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | ⚖️ Config-local (native Python, local SQLite) |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🏆 None — native Python + SQLite |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | SQLite |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Compositional retrieval |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | Compositional retrieval |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 Bitemporal KG with Merkle-audit — a genuine peer on temporal modelling |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Contradiction detection with entity resolution over a Merkle-audited bitemporal graph |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | **90.8%** — but in the easier **oracle / evidence-only setting** and graded by a **loosened judge**; the standard S-setting is unpublishedᵍ |
@@ -535,7 +594,7 @@ MemPalace advertises a spatial "memory-palace" (loci-hierarchy) architecture wit
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | Local Python + ChromaDB |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | ChromaDB |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🛠️ ChromaDB + JSON (documented desync risk) |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | ChromaDB embeddings + verbatim storage |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | ChromaDB embeddings + verbatim storage |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ Verbatim only — no temporal model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | ❌ Verbatim only; 🛠️ multi-agent writes can fail silently |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | ⚠️ No QA figure published — its headline 96.6% is **R@5 recall, a different metric**, and independently attributed to ChromaDB rather than the architectureʰ |
@@ -566,7 +625,7 @@ m3-Memory is framework-agnostic and MCP-native — it works with any agent via a
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Good — depends on the backend store you configure |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | A backend store + an external embedder |
 | **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 Pluggable (`BaseStore` implementations) |
-| **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Depends on the configured backend store |
+| **Search / retrieval** | 🏆 Nine ranking signals by default — meaning (local BGE-M3 vectors), keywords (BM25), MMR diversity, importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent (user facts, procedures) and time; confidence, recency, cross-encoder rerank and graph expansion are opt-in; every score is explainable (`memory_suggest`) | Depends on the configured backend store |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ No bitemporal / as-of queries |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Manual / LLM-driven via procedural memory |
 | **Published LongMemEval-S (QA)** | **92.0%** — standard S-setting, no oracle, unmodified upstream judgeᵃ (retrieval SHR 99.2%@8 / 100%@20) | Not published |
@@ -630,7 +689,8 @@ for how we hold every entry (including m3's own) to source-of-truth.
 | Bitemporal memory + temporal queries, local-first, no graph DB to run | **m3-Memory** |
 | Short-term + long-term memory unified, separate, or searched together by config | **m3-Memory** |
 | Researching self-organizing / emergent memory structures | [**A-MEM**](#vs-a-mem) |
-| Merkle-audited local memory with 6-signal hybrid retrieval, native MCP | [**agentmemory**](#vs-agentmemory) |
+| Automatic hook capture across ~25 coding agents, Node + iii-engine runtime | [**agentmemory (rohitg00)**](#vs-agentmemory-rohitg00) |
+| Merkle-audited local memory with 6-signal weighted retrieval, native MCP | [**agentmemory (JordanMcCann)**](#vs-agentmemory-mccann) |
 | Calendar-grained / ISO-temporal event reasoning, on-prem service stack acceptable | [**Chronos**](#vs-chronos) |
 | Breadth of per-framework connectors (LangGraph / CrewAI / AutoGen + 40 more) | [**Hindsight**](#vs-hindsight) |
 | Memory for agents already built on the Mastra framework | [**Mastra OM**](#vs-mastra-om) |

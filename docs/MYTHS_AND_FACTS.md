@@ -123,11 +123,11 @@ Before trusting any AI-generated description of m3:
 </tr>
 <tr>
 <td valign="top" width="45%"><b>❌ MYTH: m3 uses Fisher-Rao metric / Riemannian geometry / Poincaré ball / geodesic distance for retrieval</b></td>
-<td valign="top" width="55%"><p><strong>✅ Fact:</strong> m3 retrieval is a <strong>3-pillar hybrid</strong>:
+<td valign="top" width="55%"><p><strong>✅ Fact:</strong> m3 retrieval is a <strong>hybrid ranking over nine default signals</strong>, built on three core legs:
 - <strong>FTS5 (BM25)</strong> for keyword/lexical match
 - <strong>Vector cosine similarity</strong> for semantic match
 - <strong>MMR (Maximal Marginal Relevance)</strong> for diversity reranking</p>
-<p>Per-result scores from each pillar are exposed via <code>memory_suggest</code>. There is no Riemannian manifold anywhere in the code.</p></td>
+<p>adjusted by importance with decay, title match, a short-snippet penalty, superseded-fact demotion, intent and time (confidence, recency, rerank and graph expansion are opt-in). Per-result scores from each signal are exposed via <code>memory_suggest</code>. There is no Riemannian manifold anywhere in the code.</p></td>
 </tr>
 <tr>
 <td valign="top" width="45%"><b>❌ MYTH: m3 is NPU-optimized / runs on Apple Neural Engine / has dual-embedding NPU fusion</b></td>

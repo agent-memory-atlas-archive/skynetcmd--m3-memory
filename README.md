@@ -10,11 +10,12 @@
 
 Switch from Claude Code to Antigravity, then to Cursor, and you lose nothing. Your agents'
 accumulated memory comes with you, so you never start from scratch. The memory is yours,
-and it stays with you whatever agent or model you use.
+and it stays with you whatever agent or whatever model you use.
 
 m3 is local-first and cloud-friendly. It runs on your own machine, with no account and no
 API key, and by default nothing leaves it. When you want the cloud, it's there: cloud models
-for enrichment, a shared PostgreSQL server, or claude.ai through a connector.
+for enrichment, a shared PostgreSQL server, or cloud AI apps such as claude.ai through a
+remote MCP endpoint. <!-- RELEASE-TODO: test ChatGPT and the Gemini app against `m3 serve` (static bearer token; m3 has no OAuth) and name each one that works. -->
 
 <p align="center">
   <a href="https://pypi.org/project/m3-memory/"><img alt="PyPI" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/pypi-version.svg"></a>
@@ -45,9 +46,9 @@ walks you through your first saved memory.
 
 - **What it is:** a local-first, cloud-friendly, persistent memory layer for AI agents. It works as an MCP server and as a JSON-in, JSON-out command-line tool. It is not an LLM, a chatbot, a plain vector database or a RAG framework. ([Memory model](docs/MEMORY_MODEL.md))
 - **Works with:** Claude Code, Cursor, Cline, Gemini CLI, Google Antigravity, Aider, OpenCode, OpenClaw, Hermes, LangChain/LangGraph, CrewAI, PydanticAI, and any MCP client. ([Client setup](docs/MCP_CLIENT_INSTALL.md))
-- **Search:** keyword (BM25), semantic (local BGE-M3 vectors) and diversity (MMR) ranking combined. **99.2% session hit rate at k=8** (100% at k=20) on LongMemEval-S, measuring retrieval alone, with no answer model or judge. ([Benchmarks](#-benchmarks))
+- **Search:** nine ranking signals by default: meaning (local BGE-M3 vectors), keywords (BM25), diversity (MMR), importance with decay, title match, a short-snippet penalty, demotion of superseded facts, intent (user facts, procedures) and time. Confidence weighting, recency, reranking and graph expansion are opt-in, and every result can explain its score. **99.2% session hit rate at k=8** (98.2% at k=5, 100% at k=20) on LongMemEval-S, measuring retrieval alone, with no answer model or judge. ([Technical details](docs/TECHNICAL_DETAILS.md) · [Benchmarks](#-benchmarks))
 - **Keeps history:** text is stored verbatim and corrections never overwrite it. Storage is bitemporal, so you can ask what was believed at any point in time, and contradictions are caught on write. ([Technical details](docs/TECHNICAL_DETAILS.md#contradiction-detection))
-- **Improves in the background:** an optional cognitive loop embeds, extracts entities and typed relationships (with a vocabulary you define in YAML), finds duplicates, decays stale memories, and distils reusable procedures. ([Enrichment](docs/M3_ENRICH_GUIDE.md) · [How memory maintains itself](docs/MEMORY_MODEL.md#how-the-memory-maintains-itself))
+- **Improves in the background:** an optional cognitive loop embeds, extracts entities and typed relationships, finds duplicates, decays stale memories, and distils reusable procedures. The built-in entity vocabulary works for most users; to fit your own domain, point `entity.vocab_yaml` at your own YAML profile, with no code changes (two alternatives ship). ([Enrichment](docs/M3_ENRICH_GUIDE.md) · [How memory maintains itself](docs/MEMORY_MODEL.md#how-the-memory-maintains-itself))
 - **Files and chats:** a 25-tool files domain ingests and chunks directories; a 10-tool chatlog domain captures conversation turns before compaction. ([Files memory](docs/FILES_MEMORY.md) · [Chat log](docs/CHATLOG.md))
 - **Storage:** SQLite by default, with nothing to run. PostgreSQL is a first-class alternative for one store shared across machines. ([Architecture](docs/ARCHITECTURE.md) · [Sync](docs/SYNC.md))
 - **Speed:** a write takes ~31 ms (p50) with its embedding; hybrid search takes ~45 ms (p50). ([Performance](docs/PERFORMANCE.md))
