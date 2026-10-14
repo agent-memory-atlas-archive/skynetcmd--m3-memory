@@ -1019,6 +1019,7 @@ class PostgresBackend:
         # Acquire the pool BEFORE taking _lock — _ensure_pool takes the same
         # (non-reentrant) lock, so nesting them would deadlock.
         pool = self._ensure_pool()
+        fill_after = False
         with self._lock:
             if self._schema_ready:
                 return
@@ -1055,6 +1056,12 @@ class PostgresBackend:
                         logging.getLogger("memory.backends.postgres").info(
                             "Applied PG incremental migrations: %s", applied
                         )
+                    # pg_066 just added the vector copy: rows written before it
+                    # have none. Checked here, so a fresh store starts no thread.
+                    if _VECTOR_COPY_MIGRATION in applied:
+                        status = _vector_copy_status(conn.cursor())
+                        conn.commit()
+                        fill_after = sum(status.missing.values()) > 0
                 except ImportError:
                     # bin/ not importable in this context — baseline still applied.
                     pass
@@ -1064,6 +1071,52 @@ class PostgresBackend:
                 raise
             finally:
                 pool.putconn(conn)
+        if fill_after:
+            # Outside the lock: the thread's own connection() call re-enters
+            # ensure_schema, which now returns at once.
+            self._start_vector_copy_fill()
+
+    def _start_vector_copy_fill(self) -> None:
+        """Fill the vector copy of pre-pg_066 rows in the background, right after
+        the migration, so in-database search is available without waiting for
+        the cognitive loop.
+
+        A daemon thread, committing per batch: a short-lived process that exits
+        first keeps the batches already done, and the cognitive loop or
+        ``m3 doctor --fix`` finishes the rest. Search is correct throughout; it
+        uses the baseline until every row has its copy."""
+        import logging
+
+        log = logging.getLogger("memory.backends.postgres")
+
+        def _run() -> None:
+            try:
+                from .base import fill_vector_copies
+
+                with self.connection() as conn:
+                    filled = fill_vector_copies(self, conn)
+                    ready = _vector_copy_ready(conn.cursor())
+                    conn.commit()
+                log.info(
+                    "pg_066 background fill: %d vector copies written (%s); %s",
+                    sum(filled.values()),
+                    ", ".join(f"{t}: {n}" for t, n in sorted(filled.items())) or "none",
+                    "every row has its copy, so vector search scores in the database"
+                    if ready
+                    else "rows still lack a copy (written meanwhile by an older client?); "
+                    "search stays on the baseline until `m3 doctor --fix` or the cognitive loop fills them",
+                )
+            except Exception as e:  # noqa: BLE001 — a background fill must never take the process down
+                log.warning(
+                    "observed: pg_066 background vector copy fill stopped (%s: %s) on %s; batches "
+                    "committed before it are kept and search stays correct on the baseline. "
+                    "fix: `m3 doctor --fix`, or let the cognitive loop's embed pass finish it",
+                    type(e).__name__,
+                    e,
+                    self.store_identity(),
+                )
+
+        threading.Thread(target=_run, name="m3-vector-copy-fill", daemon=True).start()
 
     # -- pool lifecycle ------------------------------------------------------
     def _ensure_pool(self) -> ThreadedConnectionPool:

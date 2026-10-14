@@ -764,9 +764,10 @@ the policy is forward-going only.
   are unchanged (search is still exact); only the top results leave the server,
   so search is faster, most of all when the database is on another machine
   ([PERFORMANCE.md](docs/PERFORMANCE.md#postgresql-with-pgvector)). m3 creates the
-  extension where the server offers it and the role may. `m3 doctor` reports the
-  state, and `m3 doctor --fix` prepares existing rows (the cognitive loop also
-  does this in the background). Without pgvector nothing changes.
+  extension where the server offers it and the role may, and prepares existing
+  rows in the background right after the upgrade; `m3 doctor` reports the state,
+  and `m3 doctor --fix` or the cognitive loop finish any rows left. Without
+  pgvector nothing changes.
   **Affected:** PostgreSQL stores on a server with pgvector · **Action:** none ·
   **Data status:** additive: a `vector` copy beside each embedding; the stored
   embedding is unchanged.
