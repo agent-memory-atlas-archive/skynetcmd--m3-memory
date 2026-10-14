@@ -77,6 +77,9 @@ def test_a_failed_ownership_check_is_reported_not_read_as_ours(monkeypatch):
 
     monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", boom)
     whose = p._server_is_someone_elses()
+    from doctor import embed_server_probe as esp
+
+    assert esp._held_by_someone_else() == whose, "both probes ask the one owner"
     assert isinstance(whose, str) and "probe broke" in whose
 
 
@@ -125,3 +128,41 @@ def test_setup_stops_the_service_another_account_blocks(monkeypatch, tmp_path, c
     assert rc == embedder_admin.EXIT_REGISTERED_NOT_RUNNING
     assert calls == ["stop"]
     assert "stopped so it does not keep retrying" in capsys.readouterr().err
+
+
+def _esp_status(monkeypatch, state: str, whose):
+    from doctor import embed_server_probe as esp
+
+    class _R:
+        def __init__(self, rc, out):
+            self.returncode, self.stdout, self.stderr = rc, out, ""
+
+    monkeypatch.setattr(esp, "_resolve_binary", lambda: "/bin/m3-embed-server")
+    monkeypatch.setattr(
+        esp.subprocess,
+        "run",
+        lambda cmd, **kw: (
+            _R(2, "USAGE: m3-embed-server <install|status>") if cmd[1] == "doctor" else _R(0, state + "\n")
+        ),
+    )
+    monkeypatch.setattr(esp, "_held_by_someone_else", lambda: whose)
+    # The probe also scans the real process table for outdated servers.
+    monkeypatch.setattr(embedder_admin, "stale_embed_servers", lambda: [])
+    return esp
+
+
+def test_a_stopped_server_behind_another_account_gets_the_port_fix(monkeypatch, capsys):
+    """Found in a trial: doctor said "registered but stopped. fix: m3 embedder
+    start", which fails again while another account holds the port."""
+    esp = _esp_status(monkeypatch, "stopped", True)
+    esp.run(brief=True)
+    out = capsys.readouterr().out
+    assert "m3 config set embed.server.port" in out
+    assert "m3 embedder start" not in out
+
+
+def test_a_failed_owner_check_is_not_reported_ok(monkeypatch, capsys):
+    esp = _esp_status(monkeypatch, "running", "OSError: probe broke")
+    esp.run(brief=True)
+    out = capsys.readouterr().out
+    assert "✅" not in out and "could not check who holds the port" in out

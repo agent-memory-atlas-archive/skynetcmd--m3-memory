@@ -477,6 +477,17 @@ def _embedder_is_per_user() -> bool:
     return current_uid() is not None
 
 
+def embed_port_owner_check() -> bool | str:
+    """Is the configured embedder port held by another account? True/False, or
+    the error text when the check itself failed, so a caller can say it could
+    not tell instead of reading the failure as "ours". (No psutil is not an
+    error: the owner answers False, having nothing to go on.)"""
+    try:
+        return _port_held_by_someone_else(_embed_server_port())
+    except Exception as e:  # noqa: BLE001 — returned to the caller, not swallowed
+        return f"{type(e).__name__}: {e}"
+
+
 def _port_held_by_someone_else(port: int) -> bool:
     """True when the port's listener is not this account's, where the embedder
     is a per-user service (see _embedder_is_per_user)."""

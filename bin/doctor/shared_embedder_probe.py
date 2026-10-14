@@ -575,14 +575,9 @@ def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, lis
 
 
 def _server_is_someone_elses() -> bool | str:
-    """True/False, or the error text when the check itself failed. (No psutil is
-    not an error: the owner answers False, having nothing to go on.)"""
-    try:
-        from m3_memory.embedder_admin import _embed_server_port, _port_held_by_someone_else
+    from m3_memory.embedder_admin import embed_port_owner_check
 
-        return _port_held_by_someone_else(_embed_server_port())
-    except Exception as e:  # noqa: BLE001 — reported, not swallowed
-        return f"{type(e).__name__}: {e}"
+    return embed_port_owner_check()
 
 
 def run(brief: bool = False, fix: bool = False) -> int:

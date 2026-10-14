@@ -65,13 +65,10 @@ def _port_answers(timeout: float = 2.0) -> bool:
         return False
 
 
-def _held_by_someone_else() -> bool:
-    try:
-        from m3_memory.embedder_admin import _embed_server_port, _port_held_by_someone_else
+def _held_by_someone_else() -> bool | str:
+    from m3_memory.embedder_admin import embed_port_owner_check
 
-        return _port_held_by_someone_else(_embed_server_port())
-    except Exception:  # noqa: BLE001 — cannot tell: say nothing rather than raise a false alarm
-        return False
+    return embed_port_owner_check()
 
 
 def run(brief: bool = False) -> int:
@@ -193,19 +190,24 @@ def run(brief: bool = False) -> int:
                 # shared-mode config requires something on :8082 — and it is
                 # precisely the reassurance that masked a killed embedder
                 # (macOS, 2026-09-20). Report the state, not the exit code.
-                if "not installed" in (r.stdout or "").lower():
+                # Another account on the port comes first: installing or starting
+                # this account's server cannot work until it has a free port.
+                whose = _held_by_someone_else()
+                if whose is True:
+                    print(
+                        "⚠️  embed-server: the port answers, but not from this account's server "
+                        "(another user's m3 or another program holds it); this account's own "
+                        "embedder is not running. fix: m3 config set embed.server.port <free port>"
+                    )
+                elif "not installed" in (r.stdout or "").lower():
                     print(
                         "⚠️  embed-server: not installed — shared mode expects "
                         "a service on this port. fix: m3 embedder install"
                     )
                 elif sub == "status" and state[0].strip().lower() == "stopped":
                     print("⚠️  embed-server: registered but stopped. fix: m3 embedder start")
-                elif _held_by_someone_else():
-                    print(
-                        "⚠️  embed-server: the port answers, but not from this account's server "
-                        "(another user's m3 or another program holds it); this account's own "
-                        "embedder is not running. fix: m3 config set embed.server.port <free port>"
-                    )
+                elif isinstance(whose, str):
+                    print(f"embed-server: ok{detail}; could not check who holds the port ({whose})")
                 else:
                     print(f"✅ embed-server: ok{detail}")
             else:
