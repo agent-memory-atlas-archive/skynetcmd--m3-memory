@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_download_badges.py
-sha1: aa10ff95510a
-mtime_utc: 2026-10-14T02:13:36.548893+00:00
-generated_utc: 2026-10-14T02:13:40.045260+00:00
+sha1: 6ff1167431e8
+mtime_utc: 2026-10-14T02:17:21.515320+00:00
+generated_utc: 2026-10-14T02:18:32.973492+00:00
 private: false
 ---
 
@@ -16,13 +16,18 @@ Writes two shields.io *endpoint* JSON files that the README badges point at:
 
   * docs/badges/pypi-downloads.json  — estimated TOTAL PyPI downloads
         (pypistats "overall", WITHOUT mirrors — excludes bandersnatch/CI mirror
-        bots, so it approximates real installs). pypistats keeps only ~180 days,
-        and m3 outgrew that on 2026-10-13, so each day's count is accumulated in
-        docs/badges/pypi-history.json across runs (dedup by day) and summed.
+        bots, so it approximates real installs).
   * docs/badges/github-clones.json   — TOTAL unique GitHub clones
-        (the repo traffic API's rolling 14-day `uniques`). GitHub only retains a
-        14-day window, so a running total is accumulated in
-        docs/badges/clone-history.json across scheduled runs (dedup by day).
+        (the repo traffic API's daily `uniques`).
+
+Both sources keep only a rolling window (pypistats ~180 days, GitHub 14 days), so
+the totals are RUNNING totals. The public repo keeps only the aggregate:
+docs/badges/counters.json holds each source's total and the last complete day it
+counted, and each run adds the complete days after that (a weekly run stays inside
+both windows; a gap longer than a window is reported, since those days are gone).
+The per-day history is private (user decision 2026-10-13): `--history-dir` (for
+example ~/.m3-private/badges) also merges every day into pypi-history.json and
+clone-history.json there. CI never passes it, so no history reaches this repo.
 
 These are ESTIMATES by design — download/clone counts include automation and
 can't be deduplicated to people; the numbers are labelled accordingly and the
@@ -32,8 +37,8 @@ The README references the JSON via a shields endpoint URL, e.g.:
     https://img.shields.io/endpoint?url=<raw json url>&style=flat-square
 so shields renders the current committed number with no third-party number source.
 
-Run in CI on a schedule; commit the result back. Locally:
-    GITHUB_TOKEN=$(gh auth token) python bin/gen_download_badges.py         --repo skynetcmd/m3-memory --package m3-memory
+Run in CI on a schedule; commit the result back. Locally, keeping the history:
+    GITHUB_TOKEN=$(gh auth token) python bin/gen_download_badges.py         --repo skynetcmd/m3-memory --package m3-memory --history-dir ~/.m3-private/badges
 
 Exit codes: 0 = badges written (or unchanged); 2 = hard error (network/auth).
 Standard library only.
@@ -42,7 +47,7 @@ Standard library only.
 
 ## Entry points
 
-- `def main()` (line 190)
+- `def main()` (line 248)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -54,6 +59,7 @@ Standard library only.
 | `--repo` | owner/name | `skynetcmd/m3-memory` |  | str |  |
 | `--package` | PyPI package name | `m3-memory` |  | str |  |
 | `--badges-dir` | output directory | `docs/badges` |  | str |  |
+| `--history-dir` | private directory for the per-day history (e.g. ~/.m3-private/badges); never the repo | None |  | str |  |
 
 ---
 
@@ -85,6 +91,7 @@ _(only stdlib)_
 ## File dependencies (repo paths referenced)
 
 - `clone-history.json`
+- `counters.json`
 - `github-clones.json`
 - `pypi-downloads.json`
 - `pypi-history.json`

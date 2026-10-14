@@ -31,7 +31,11 @@
 # needs no token; the GitHub unique-clone count uses the same M3_STARGAZER PAT
 # (the traffic API, like the stargazers API, is admin/collaborator-only, so the
 # built-in GITHUB_TOKEN returns 403). Both badges are shields "endpoint" JSON
-# committed under docs/badges/, so shields renders the number we control.
+# committed under docs/badges/, so shields renders the number we control. The
+# totals are running totals kept in docs/badges/counters.json (aggregate only: a
+# total and the last complete day counted); the per-day history is private and
+# never written here (no --history-dir in CI). Weekly keeps inside both windows
+# (GitHub 14 days, pypistats ~180).
 
 name: Star history
 

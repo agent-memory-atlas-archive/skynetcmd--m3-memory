@@ -5,13 +5,18 @@ Writes two shields.io *endpoint* JSON files that the README badges point at:
 
   * docs/badges/pypi-downloads.json  — estimated TOTAL PyPI downloads
         (pypistats "overall", WITHOUT mirrors — excludes bandersnatch/CI mirror
-        bots, so it approximates real installs). pypistats keeps only ~180 days,
-        and m3 outgrew that on 2026-10-13, so each day's count is accumulated in
-        docs/badges/pypi-history.json across runs (dedup by day) and summed.
+        bots, so it approximates real installs).
   * docs/badges/github-clones.json   — TOTAL unique GitHub clones
-        (the repo traffic API's rolling 14-day `uniques`). GitHub only retains a
-        14-day window, so a running total is accumulated in
-        docs/badges/clone-history.json across scheduled runs (dedup by day).
+        (the repo traffic API's daily `uniques`).
+
+Both sources keep only a rolling window (pypistats ~180 days, GitHub 14 days), so
+the totals are RUNNING totals. The public repo keeps only the aggregate:
+docs/badges/counters.json holds each source's total and the last complete day it
+counted, and each run adds the complete days after that (a weekly run stays inside
+both windows; a gap longer than a window is reported, since those days are gone).
+The per-day history is private (user decision 2026-10-13): `--history-dir` (for
+example ~/.m3-private/badges) also merges every day into pypi-history.json and
+clone-history.json there. CI never passes it, so no history reaches this repo.
 
 These are ESTIMATES by design — download/clone counts include automation and
 can't be deduplicated to people; the numbers are labelled accordingly and the
@@ -21,9 +26,9 @@ The README references the JSON via a shields endpoint URL, e.g.:
     https://img.shields.io/endpoint?url=<raw json url>&style=flat-square
 so shields renders the current committed number with no third-party number source.
 
-Run in CI on a schedule; commit the result back. Locally:
+Run in CI on a schedule; commit the result back. Locally, keeping the history:
     GITHUB_TOKEN=$(gh auth token) python bin/gen_download_badges.py \
-        --repo skynetcmd/m3-memory --package m3-memory
+        --repo skynetcmd/m3-memory --package m3-memory --history-dir ~/.m3-private/badges
 
 Exit codes: 0 = badges written (or unchanged); 2 = hard error (network/auth).
 Standard library only.
@@ -32,6 +37,7 @@ Standard library only.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import sys
@@ -173,6 +179,58 @@ def accumulate_daily_total(history_path: Path, fresh_days: list[tuple[str, int]]
     return sum(ordered.values())
 
 
+# ── the public running counter (aggregate only) ─────────────────────────────
+
+
+def _today() -> str:
+    """Today's UTC date: its count is partial, so it is never counted."""
+    return datetime.datetime.now(datetime.UTC).date().isoformat()
+
+
+def advance_counter(
+    counter: dict | None, days: list[tuple[str, int]], today: str, window_days: int, label: str
+) -> tuple[dict, list[str]]:
+    """Add the COMPLETE days after ``counter["through"]`` to its total.
+
+    Returns (new counter, warnings). Only days before ``today`` count (today's
+    figure is partial and would be double-counted next run). A counter with no
+    ``through`` cannot be advanced: the caller seeds it (from the private history)
+    first. A gap is when the window no longer reaches the day after ``through``:
+    those days are gone, and the warning says how many.
+    """
+    if not counter or not counter.get("through"):
+        raise ValueError(f"{label}: no counter to advance; seed it with --history-dir")
+    through, total = str(counter["through"]), int(counter.get("total", 0))
+    complete = sorted((d, n) for d, n in days if d < today)
+    warnings: list[str] = []
+    if complete:
+        first = datetime.date.fromisoformat(complete[0][0])
+        expected = datetime.date.fromisoformat(through) + datetime.timedelta(days=1)
+        if first > expected:
+            missing = (first - expected).days
+            warnings.append(
+                f"observed: {label} window starts {complete[0][0]}, but the counter stops at {through}; "
+                f"{missing} day(s) are no longer reported (window ~{window_days} days). cause: no run "
+                f"for longer than the window. fix: run at least every {window_days} days; the total "
+                f"undercounts by those days."
+            )
+    new = [(d, n) for d, n in complete if d > through]
+    if new:
+        total += sum(n for _, n in new)
+        through = new[-1][0]
+    return {"total": total, "through": through}, warnings
+
+
+def seed_counter(history_path: Path, today: str) -> dict | None:
+    """A counter from a private per-day history: complete days only."""
+    if not history_path.is_file():
+        return None
+    rows = {str(k): int(v) for k, v in json.loads(history_path.read_text("utf-8")).items() if str(k) < today}
+    if not rows:
+        return None
+    return {"total": sum(rows.values()), "through": max(rows)}
+
+
 # ── write + main ─────────────────────────────────────────────────────────────
 
 
@@ -192,14 +250,36 @@ def main() -> int:
     ap.add_argument("--repo", default="skynetcmd/m3-memory", help="owner/name")
     ap.add_argument("--package", default="m3-memory", help="PyPI package name")
     ap.add_argument("--badges-dir", default="docs/badges", help="output directory")
+    ap.add_argument(
+        "--history-dir",
+        default=None,
+        help="private directory for the per-day history (e.g. ~/.m3-private/badges); never the repo",
+    )
     args = ap.parse_args()
 
     badges = Path(args.badges_dir)
+    history = Path(args.history_dir).expanduser() if args.history_dir else None
+    counters_path = badges / "counters.json"
+    counters: dict = json.loads(counters_path.read_text("utf-8")) if counters_path.is_file() else {}
+    today = _today()
     changed = False
+
+    def _counted(key: str, history_name: str, days: list[tuple[str, int]], window: int, label: str) -> int:
+        if history is not None:
+            history.mkdir(parents=True, exist_ok=True)
+            accumulate_daily_total(history / history_name, days)
+            if key not in counters:
+                seeded = seed_counter(history / history_name, today)
+                if seeded:
+                    counters[key] = seeded
+        counters[key], warnings = advance_counter(counters.get(key), days, today, window, label)
+        for w in warnings:
+            print(f"[{key}] WARNING: {w}", file=sys.stderr)
+        return int(counters[key]["total"])
 
     # PyPI — never fatal to the whole run if one source is down; report + continue.
     try:
-        pypi_total = accumulate_daily_total(badges / "pypi-history.json", pypi_days_without_mirrors(args.package))
+        pypi_total = _counted("pypi", "pypi-history.json", pypi_days_without_mirrors(args.package), 180, "PyPI")
         if _write_json(
             badges / "pypi-downloads.json",
             _shields_endpoint("PyPI downloads", f"{_fmt(pypi_total)}", "blue"),
@@ -223,7 +303,7 @@ def main() -> int:
     else:
         try:
             days = github_clone_days(args.repo, token)
-            total = accumulate_daily_total(badges / "clone-history.json", days)
+            total = _counted("clones", "clone-history.json", days, 14, "GitHub clones")
             if _write_json(
                 badges / "github-clones.json",
                 _shields_endpoint("GitHub clones", f"{_fmt(total)}", "24292e"),
@@ -236,6 +316,8 @@ def main() -> int:
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as e:
             print(f"[github] WARNING: could not fetch clone traffic ({type(e).__name__}: {e})", file=sys.stderr)
 
+    if counters and _write_json(counters_path, dict(sorted(counters.items()))):
+        changed = True
     print("changed" if changed else "unchanged")
     return 0
 
