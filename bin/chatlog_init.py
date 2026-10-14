@@ -53,7 +53,9 @@ from chatlog_config import (
 )
 
 logger = logging.getLogger("chatlog_init")
-logging.basicConfig(level=logging.WARNING)
+# Only when run (m3 runs this file as __main__): an importer keeps its own logging.
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.WARNING)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

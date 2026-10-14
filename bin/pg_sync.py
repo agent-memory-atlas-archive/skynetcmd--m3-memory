@@ -82,7 +82,6 @@ from m3_sdk import M3Context, resolve_db_path
 # Python 3.12+ sqlite3 datetime adapter deprecation fix
 sqlite3.register_adapter(datetime, lambda val: val.isoformat())
 
-logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("pg_sync")
 
 # Initialize SDK context
@@ -1702,6 +1701,10 @@ def _open_local_store(target: SyncTarget):
 
 
 def main():
+    # Configured here, not at import: other m3 code imports this module, and an
+    # import-time basicConfig turned on INFO logging for the whole process
+    # (every `m3 memory` command printed each HTTP request).
+    logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
     _FAILED_DIRECTIONS.clear()  # one run's failures; an in-process caller may run main() again
     parser = argparse.ArgumentParser(
         description="Bidirectional SQLite ↔ PostgreSQL sync with per-DB manifests.",

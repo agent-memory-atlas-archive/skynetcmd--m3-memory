@@ -117,11 +117,6 @@ def warehouse_target() -> "tuple[str, int, str] | None":
 # Logging is configured in main() via setup_task_runtime so scheduled-task
 # runs self-log without a shell `>>` redirect. This minimal fallback keeps
 # `log` usable if a caller imports this module without running main().
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
 log = logging.getLogger("sync_all")
 
 # ── DB list resolution ────────────────────────────────────────────────────────
@@ -476,6 +471,14 @@ def run_pg_sync(dry_run: bool) -> bool | None:
 
 
 def main():
+    # Configured here, not at import: other m3 code imports this module, and an
+    # import-time basicConfig turned on INFO logging for the whole process
+    # (every `m3 memory` command printed each HTTP request).
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
     parser = argparse.ArgumentParser(description="Hourly sync runner")
     parser.add_argument("--dry-run", action="store_true", help="Check connectivity only")
     sys.path.insert(0, str(BASE / "bin"))

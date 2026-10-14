@@ -468,14 +468,21 @@ def _embed_server_port() -> int:
     return _config.setting("embed.server.port")  # malformed fails at config load (R-loud)
 
 
-def _port_held_by_someone_else(port: int) -> bool:
-    """True when the port's listener is not this account's, on an OS where the
-    embedder is a per-user service (Linux, macOS). On Windows it is one machine-
-    wide LocalSystem service by design, so another owner there is normal."""
+def _embedder_is_per_user() -> bool:
+    """Each account runs its own embedder service (Linux, macOS: systemd --user,
+    launchd agent). On Windows it is one machine-wide LocalSystem service, so a
+    server owned by another account is the normal case there."""
     from m3_memory._platform import current_uid
+
+    return current_uid() is not None
+
+
+def _port_held_by_someone_else(port: int) -> bool:
+    """True when the port's listener is not this account's, where the embedder
+    is a per-user service (see _embedder_is_per_user)."""
     from m3_memory._ports import held_by_another_owner
 
-    return current_uid() is not None and held_by_another_owner(port)
+    return _embedder_is_per_user() and held_by_another_owner(port)
 
 
 def _port_in_use(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bool:
@@ -704,9 +711,9 @@ def stale_embed_servers() -> list[dict]:
         installed = max((os.path.getmtime(r) for r in records), default=os.path.getmtime(str(binary)))
     except Exception:  # noqa: BLE001 — a diagnostic must never raise
         return []
-    from m3_memory._platform import current_uid, owned_by_current_user
+    from m3_memory._platform import owned_by_current_user
 
-    per_user = current_uid() is not None  # Windows: one LocalSystem service, any owner
+    per_user = _embedder_is_per_user()
     stale = []
     for proc in psutil.process_iter(["pid", "name"]):
         if not (proc.info.get("name") or "").lower().startswith("m3-embed-server"):

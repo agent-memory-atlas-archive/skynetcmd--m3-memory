@@ -35,7 +35,6 @@ from m3_core.paths import pin_chatlog_db, pin_database  # noqa: E402
 from m3_core.runtime import utc_iso
 from m3_core.seams import is_windows
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("chatlog_ingest")
 
 
@@ -875,6 +874,10 @@ async def _ingest(format_name: str, transcript_path: str, session_override: str,
 
 
 async def main() -> int:
+    # Configured here, not at import: other m3 code imports this module, and an
+    # import-time basicConfig turned on INFO logging for the whole process
+    # (every `m3 memory` command printed each HTTP request).
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     parser = argparse.ArgumentParser(description="Ingest a host-agent transcript into the chat log subsystem.")
     parser.add_argument(
         "--format", required=True, choices=sorted(PARSERS.keys()), help="Transcript format / host agent"

@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: 8f806fc2e7a5
-mtime_utc: 2026-10-14T03:47:29.838313+00:00
-generated_utc: 2026-10-14T03:47:38.436266+00:00
+sha1: 801fca59e1f5
+mtime_utc: 2026-10-14T15:50:54.674497+00:00
+generated_utc: 2026-10-14T15:51:13.514098+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ The warehouse DSN is the M3_CDW_PG_URL secret (m3 secret set M3_CDW_PG_URL).
 
 ## Entry points
 
-- `def main()` (line 38)
+- `def main()` (line 37)
 - `if __name__ == "__main__"` guard
 
 ---

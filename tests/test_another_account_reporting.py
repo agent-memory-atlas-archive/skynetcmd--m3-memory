@@ -66,3 +66,15 @@ def test_start_check_reason_is_recognised_by_its_caller(monkeypatch):
     monkeypatch.setattr(_ports, "held_by_another_owner", lambda *a, **k: True)
     detail = isch._confirm_service_live("m3-dashboard.service", deadline_s=0.1)
     assert isch._HELD_BY_OTHER in detail
+
+
+def test_a_failed_ownership_check_is_reported_not_read_as_ours(monkeypatch):
+    """An error in the check must not turn into "this account's server, OK"."""
+    from doctor import shared_embedder_probe as p
+
+    def boom(*_a, **_k):
+        raise OSError("probe broke")
+
+    monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", boom)
+    whose = p._server_is_someone_elses()
+    assert isinstance(whose, str) and "probe broke" in whose

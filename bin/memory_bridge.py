@@ -7,17 +7,18 @@ import mcp_compat
 from mcp_compat import FastMCP
 
 # ── Logging ───────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s: [%(levelname)s] %(message)s",
-    stream=sys.stderr,
-)
+# Only when run (m3 runs this file as __main__): an importer keeps its own logging.
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(name)s: [%(levelname)s] %(message)s",
+        stream=sys.stderr,
+    )
+    # The HTTP client logs every request at INFO ("HTTP Request: POST .../embedding"):
+    # one line per embed is noise in the server log. Its warnings still show.
+    for _noisy in ("httpx", "httpcore"):
+        logging.getLogger(_noisy).setLevel(logging.WARNING)
 logger = logging.getLogger("memory_bridge")
-# The HTTP client logs every request at INFO ("HTTP Request: POST .../embedding").
-# One line per embed is noise in the server log, and the CLI imports this module,
-# so it reached the user's terminal on every command. Its warnings still show.
-for _noisy in ("httpx", "httpcore"):
-    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # Server instructions — delivered to the client at MCP handshake, so they land in
 # the agent's context EVERY session. That reach is the point: without this, an

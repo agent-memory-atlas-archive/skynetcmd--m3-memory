@@ -119,11 +119,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 # ── Logging ───────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [mcp-proxy] %(levelname)s %(message)s",
-    stream=sys.stderr,
-)
+# Only when run (m3 runs this file as __main__): an importer keeps its own logging.
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [mcp-proxy] %(levelname)s %(message)s",
+        stream=sys.stderr,
+    )
 log = logging.getLogger("mcp_proxy")
 
 from m3_core.config import settings as _m3cfg

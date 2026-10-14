@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_all.py
-sha1: 8104edfbdb43
-mtime_utc: 2026-10-12T22:51:17.789629+00:00
-generated_utc: 2026-10-12T23:24:27.817219+00:00
+sha1: 5d1fd333f5a4
+mtime_utc: 2026-10-14T15:50:54.671906+00:00
+generated_utc: 2026-10-14T15:51:13.710678+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ DB list:
 
 ## Entry points
 
-- `def main()` (line 478)
+- `def main()` (line 473)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -68,7 +68,7 @@ DB list:
 
 **subprocess**
 
-- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 205)
+- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 200)
 
 
 ---

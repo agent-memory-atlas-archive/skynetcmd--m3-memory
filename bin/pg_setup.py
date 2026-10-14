@@ -16,7 +16,6 @@ import sys
 
 import psycopg2
 
-logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("pg_setup")
 
 
@@ -36,6 +35,10 @@ def _get_pg_url() -> str:
 
 
 def main() -> int:
+    # Configured here, not at import: other m3 code imports this module, and an
+    # import-time basicConfig turned on INFO logging for the whole process
+    # (every `m3 memory` command printed each HTTP request).
+    logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--check", action="store_true", help="report the layout and versions; change nothing")
     args = parser.parse_args()

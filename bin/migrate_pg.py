@@ -39,7 +39,6 @@ import os
 import re
 import sys
 
-logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("migrate_pg")
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -427,6 +426,10 @@ def cmd_down(args) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Configured here, not at import: other m3 code imports this module, and an
+    # import-time basicConfig turned on INFO logging for the whole process
+    # (every `m3 memory` command printed each HTTP request).
+    logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
     p = argparse.ArgumentParser(description="PostgreSQL PRIMARY-store migration runner.")
     p.add_argument("--dsn", default=None, help="Explicit DSN (else M3_PRIMARY_PG_URL/M3_PG_URL).")
     sub = p.add_subparsers(dest="cmd", required=True)

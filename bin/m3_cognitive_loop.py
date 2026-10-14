@@ -290,12 +290,14 @@ def acquire_lock():
         )
 
 
-# Configure logging for structured and greppable output
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
+# Configure logging for structured and greppable output.
+# Only when run (m3 runs this file as __main__): an importer keeps its own logging.
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
 logger = logging.getLogger("m3_cognitive_loop")
 
 # When the governor reports THROTTLED (host/GPU load high but below the HALT

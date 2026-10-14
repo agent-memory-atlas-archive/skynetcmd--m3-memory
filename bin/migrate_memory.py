@@ -47,7 +47,6 @@ from m3_core.seams import is_windows
 sys.path.insert(0, os.path.dirname(__file__))
 from m3_sdk import get_m3_config_root, get_m3_engine_root
 
-logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("migrate_memory")
 
 _M3_CONFIG_ROOT = get_m3_config_root()
@@ -1196,6 +1195,10 @@ def build_parser():
 
 
 def main():
+    # Configured here, not at import: other m3 code imports this module, and an
+    # import-time basicConfig turned on INFO logging for the whole process
+    # (every `m3 memory` command printed each HTTP request).
+    logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
     from m3_core.paths import require_sqlite_backend
 
     require_sqlite_backend("migrate_memory")  # opens SQLite files directly; refuse on PostgreSQL

@@ -462,6 +462,14 @@ the policy is forward-going only.
   no agent is set up instead of "all healthy".
   **Affected:** machines without Claude Code or without wired agents ·
   **Action:** none · **Data status:** none.
+
+- **`m3` commands no longer print internal log lines.** `m3 memory ...` and other
+  commands printed every embedding request (`httpx: [INFO] HTTP Request: ...`)
+  and search details, because modules they load turned on informational logging
+  for the whole process when imported. Logging is now set up only by the program
+  being run; warnings and errors still show.
+  **Affected:** everyone using the `m3` command line · **Action:** none ·
+  **Data status:** none.
   **Affected:** Linux and macOS machines with more than one m3 user ·
   **Action:** give each account its own port (`m3 config set embed.server.port`) ·
   **Data status:** none.

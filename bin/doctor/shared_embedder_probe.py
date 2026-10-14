@@ -574,13 +574,15 @@ def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, lis
     return None, []
 
 
-def _server_is_someone_elses() -> bool:
+def _server_is_someone_elses() -> bool | str:
+    """True/False, or the error text when the check itself failed. (No psutil is
+    not an error: the owner answers False, having nothing to go on.)"""
     try:
         from m3_memory.embedder_admin import _embed_server_port, _port_held_by_someone_else
 
         return _port_held_by_someone_else(_embed_server_port())
-    except Exception:  # noqa: BLE001 — cannot tell: no false alarm
-        return False
+    except Exception as e:  # noqa: BLE001 — reported, not swallowed
+        return f"{type(e).__name__}: {e}"
 
 
 def run(brief: bool = False, fix: bool = False) -> int:
@@ -680,7 +682,10 @@ def run(brief: bool = False, fix: bool = False) -> int:
     manual_only = (problems == ["inproc-env-leak"]) and _manual_env_leak_remains()
 
     if brief:
-        if healthy and _server_is_someone_elses():
+        whose = _server_is_someone_elses() if healthy else False
+        if isinstance(whose, str):
+            print(f"shared-embedder: settings OK; could not check who runs the server ({whose})")
+        elif whose:
             # embed-server already warns with the fix; one problem, one warning.
             print("shared-embedder: settings OK; the server it reaches is another account's (see embed-server)")
         elif healthy:
