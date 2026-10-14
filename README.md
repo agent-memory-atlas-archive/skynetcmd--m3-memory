@@ -57,7 +57,7 @@ walks you through your first saved memory.
 - **Tools:** 100+ tools, of which 10 load at startup, about 2% of a 200K context window; the rest load on demand. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
 - **Configuration:** one file, `m3_config.toml`. `m3 config show` prints every setting and where it came from. ([Config reference](docs/CONFIG_REFERENCE.md))
 - **Tested:** 5,000+ tests, 6,700+ collected tests (7,100+ with the native core), on Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
-- **Status:** the core is stable; a few subsystems are beta. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
+- **Status:** the core is stable; the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages are beta. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
 - **For AI agents:** [llm-context.md](docs/llm-context.md) lists the real tool names and usage rules, and [features.json](docs/features.json) is the machine-readable summary.
 
 ---

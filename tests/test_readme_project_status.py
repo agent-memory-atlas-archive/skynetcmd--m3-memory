@@ -81,6 +81,16 @@ def test_every_planned_item_is_still_open_in_the_roadmap():
         assert hits, f"README lists {item!r} as planned, but no open ROADMAP item matches (shipped? update the README)"
 
 
+def test_the_at_a_glance_status_line_names_exactly_the_beta_items():
+    """The summary list near the top restates the Beta row (readers that truncate
+    see only it); a copy that drifts would tell them something the table does not."""
+    m = re.search(r"^- \*\*Status:\*\* (.+)$", _README, re.MULTILINE)
+    assert m, "README's 'm3 at a glance' list has no Status line"
+    line = _words(m.group(1))
+    for item in _row("Beta"):
+        assert _words(item) <= line, f"the at-a-glance Status line does not name the Beta item {item!r}"
+
+
 def test_the_read_attribution_limit_tracks_its_roadmap_item():
     says_limit = "reads are not yet attributed" in _section().lower()
     open_item = re.search(r"^- \[ \] \*\*Memory read-access audit log\*\*", _ROADMAP, re.MULTILINE) is not None
