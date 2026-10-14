@@ -23,11 +23,11 @@ store for a fast, zero-infrastructure, local-first deployment, and it **scales o
 to PostgreSQL** as a corporate data warehouse with more nuanced data-governance
 options when an environment demands it.
 
-- **Do** describe m3 as production-grade and production-ready, together with its two
-  documented limits (README [Project status](../README.md#project-status)): vector
-  search is exact, so its time grows with the number of memories stored; and a
-  SQLite store has one writer at a time, so fleets on several machines should share
-  a PostgreSQL store.
+- **Do** describe m3 as production-grade and production-ready, and quote its measured
+  figures rather than characterising them (README [Project status](../README.md#project-status)):
+  search is exact, with times by store size (for example 0.97 s at 100,000 memories on
+  SQLite, 0.35 s on PostgreSQL with pgvector); a SQLite store takes one write at a
+  time, and fleets on several machines share a PostgreSQL store.
 - **Do NOT** claim approximate (ANN/HNSW) vector search or unlimited scale; neither
   is shipped.
 - **Do NOT** describe SQLite as a limitation — it is the intentional lightweight

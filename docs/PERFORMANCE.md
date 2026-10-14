@@ -112,44 +112,41 @@ faster than the median. That is the FTS short-circuit — when a query has an
 exact lexical match, m3 skips the vector side entirely. It is real, but it
 describes a specific case, not the general one.
 
-### Exact vector search by store size
+### Search time by store size
 
-Vector search is exact on both backends: each query scores every stored vector.
-On PostgreSQL with pgvector the scoring runs in the database; see [PostgreSQL with pgvector](#postgresql-with-pgvector). Its cost grows with the number of
-memories stored, not with `k`.
+Search is exact on both backends: every stored vector is scored. These are the times
+that costs, measured at each size, for the default hybrid search with `k=8`:
 
-**SQLite** (m3's own cosine path; sqlite-vec was not installed):
+| Memories stored | SQLite | PostgreSQL | PostgreSQL with pgvector |
+|---|---|---|---|
+| 50,000 | 0.45 s | 0.88 s | 0.27 s |
+| 100,000 | 0.97 s | 1.70 s | 0.35 s |
+| 150,000 | 1.55 s | 2.54 s | 0.46 s |
 
-| Memories stored | vector search p50 | p95 | hybrid search p50 | p95 |
-|---|---|---|---|---|
-| 1,000 | 8 ms | 8 ms | 9 ms | 9 ms |
-| 10,000 | 73 ms | 75 ms | 79 ms | 81 ms |
-| 20,000 | 148 ms | 153 ms | 162 ms | 164 ms |
-| 50,000 | 386 ms | 399 ms | 428 ms | 435 ms |
+Vector-only search at the same sizes: SQLite 0.41, 0.85 and 1.32 s; PostgreSQL 0.86,
+1.67 and 2.50 s; PostgreSQL with pgvector 0.26, 0.34 and 0.45 s.
 
-About 7.5 ms per thousand memories, linear, roughly twice as fast as PostgreSQL at the
-same size. **A real store:** the developer's own chatlog, 160,924 memories, every one
-embedded, searched on the measurement host (Windows) with the real embedder in a warmed
-process: vector search 1.83 s p50 (1.92 s p95), hybrid search (the default) **0.97 s p50**
-(2.08 s p95); every search returned all 8 results. Hybrid is faster at the median because
-a query with an exact keyword match skips the vector scan.
+Those stores hold one vector per memory. **Real stores** hold about two (a long memory
+is embedded in windows), and search time follows the number of vectors:
 
-**PostgreSQL:**
+| Real store (a copy) | Memories | Vectors | Hybrid search |
+|---|---|---|---|
+| SQLite: the developer's main store | 83,149 | 180,749 | 2.73 s |
+| SQLite: the developer's chat log | 90,157 | 176,883 | 2.07 s |
+| PostgreSQL: the developer's warehouse | 90,456 | 180,078 | 1.63 s; 0.54 s with pgvector |
 
-| Memories stored | vector search p50 | p95 | hybrid search p50 | p95 |
-|---|---|---|---|---|
-| 1,000 | 67 ms | 77 ms | 69 ms | 75 ms |
-| 2,500 | 69 ms | 81 ms | 71 ms | 81 ms |
-| 5,000 | 98 ms | 109 ms | 104 ms | 111 ms |
-| 10,000 | 168 ms | 181 ms | 172 ms | 191 ms |
-| 20,000 | 330 ms | 345 ms | 330 ms | 346 ms |
-| 50,000 | 802 ms | 819 ms | 819 ms | 836 ms |
+Turning the query into a vector adds about 20 ms with the shared embedder.
 
-About 16 ms per thousand memories past ~2,500, linear. The synthetic tables (both
-backends) were measured 2026-10-13 on an Apple M3 Max, PostgreSQL 16 on the same machine,
-1024-dimension vectors, `k=8`, 20–30 queries per size, through m3's own write and search
-code with the embedder stubbed (the cost of an exact scan depends on how many vectors are
-stored, not their values). Every search returned all 8 results; every memory had a vector.
+Measured 2026-10-14 on an Apple M3 Max, PostgreSQL 18.6 with pgvector 0.8 on the same
+machine, 1024-dimension vectors, through m3's own write and search code. Each size ran
+three rounds of 10 queries: the first round warms the caches and is not counted, and
+each figure is the mean of the other two rounds' medians (they agreed within 1%). The
+sized stores hold random vectors, since an exact scan costs the same whatever the
+values; the real-store queries were real memories' titles, searched with that memory's
+own stored vector. The embedding call is excluded throughout. Every search returned
+results. On the Windows measurement host, the developer's 160,924-memory chat log
+answered real queries with the real embedder in 0.97 s p50 (hybrid), faster than its
+vector search (1.83 s) because a query with an exact keyword match skips the vector scan.
 
 ### PostgreSQL with pgvector
 
@@ -170,14 +167,15 @@ Measured 2026-10-14 on the Apple M3 Max, PostgreSQL 18.6 with pgvector 0.8, 1024
 vectors, median of 5 queries, `k=8` (`k=2,000`, what the hybrid search requests, costs
 the same within 10%). The network row ran from the Windows measurement host through an
 SSH tunnel on the local network, which slows the bulk transfer; a direct connection is
-faster, but the without-pgvector cost still grows with every vector stored, and the
-with-pgvector cost does not depend on the link. These time the vector stage alone,
+faster; with pgvector the time does not depend on the link, since only the top
+results cross it. These time the vector stage alone,
 through the backend's two search paths; full search adds the hydrate and ranking steps
 measured above.
 
 Filling the copy for rows written before `pg_066` (in the background right after the
-upgrade, or by `m3 doctor --fix` and the cognitive loop) ran at about 2,000 rows/s: 25 s for 50,000, in committed batches of
-1,000 that each took 0.5 s, so no long lock is held.
+upgrade, or by `m3 doctor --fix` and the cognitive loop) ran at about 2,000 rows/s: 25 s for 50,000, and 93 s for the 180,078 vectors of the
+real warehouse copy, in committed batches of 1,000 that each took 0.5 s, so no long
+lock is held.
 
 ### SQLite: many agents writing at once
 
