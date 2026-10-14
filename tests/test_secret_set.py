@@ -41,7 +41,7 @@ def person(monkeypatch):
 def _run(keyring_flag=False):
     from m3_memory import cli
 
-    return cli._secret_set(argparse.Namespace(name=NAME, keyring=keyring_flag))
+    return cli._secret_set(argparse.Namespace(name=NAME, keyring=keyring_flag, stdin=False))
 
 
 def test_the_value_is_asked_for_and_stored_in_the_file(person, capsys):
@@ -88,7 +88,7 @@ def test_no_one_at_the_console_is_refused(monkeypatch, capsys):
 def test_an_unknown_name_is_refused(person, capsys):
     from m3_memory import cli
 
-    assert cli._secret_set(argparse.Namespace(name="NOT_A_SECRET", keyring=False)) == 2
+    assert cli._secret_set(argparse.Namespace(name="NOT_A_SECRET", keyring=False, stdin=False)) == 2
     assert "not one of m3's secrets" in capsys.readouterr().err
 
 
@@ -119,3 +119,57 @@ def test_a_pasted_cmd_comment_is_explained(monkeypatch, capsys):
     with pytest.raises(SystemExit):
         cli.main()
     assert "cmd.exe does not treat # as a comment" in capsys.readouterr().err
+
+
+class _Piped:
+    """Standard input from a pipe: a script's value, not a terminal."""
+
+    def __init__(self, text: str) -> None:
+        import io
+
+        self._buf = io.StringIO(text)
+
+    def isatty(self) -> bool:
+        return False
+
+    def readline(self) -> str:
+        return self._buf.readline()
+
+
+def test_stdin_stores_the_piped_value_without_asking(monkeypatch, capsys):
+    """Found in a trial install: a scripted setup could not store the database
+    address at all, because the value could only be typed at a prompt."""
+    from m3_core.secret_store import get_secret
+
+    from m3_memory import cli
+
+    monkeypatch.setattr(sys, "stdin", _Piped(VALUE + "\nsecond line ignored\n"))
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": pytest.fail("--stdin must not prompt"))
+    assert cli._secret_set(argparse.Namespace(name=NAME, keyring=False, stdin=True)) == 0
+    assert get_secret(NAME) == VALUE
+    assert "hunter2" not in capsys.readouterr().out
+
+
+def test_stdin_from_a_terminal_is_refused_so_the_value_is_not_shown(monkeypatch, capsys):
+    from m3_core.secret_store import get_secret
+
+    from m3_memory import cli
+
+    class _Tty(_Piped):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(sys, "stdin", _Tty(VALUE + "\n"))
+    assert cli._secret_set(argparse.Namespace(name=NAME, keyring=False, stdin=True)) == 2
+    assert not get_secret(NAME)
+    assert "Run without --stdin" in capsys.readouterr().err
+
+
+def test_empty_stdin_stores_nothing(monkeypatch):
+    from m3_core.secret_store import get_secret
+
+    from m3_memory import cli
+
+    monkeypatch.setattr(sys, "stdin", _Piped(""))
+    assert cli._secret_set(argparse.Namespace(name=NAME, keyring=False, stdin=True)) == 2
+    assert not get_secret(NAME)

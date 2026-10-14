@@ -103,7 +103,7 @@ m3 secret set M3_CDW_PG_URL --keyring      # homelab warehouse only
 python -c "import keyring; keyring.set_password('system', 'PERPLEXITY_API_KEY', 'YOUR-KEY')"
 ```
 
-m3 does not read its secrets from environment variables; `m3 config import-env` moves any you exported earlier.
+m3 does not read its secrets from environment variables; `m3 config import-env` moves any you exported earlier. In a script, pipe the value in instead of typing it: `printf '%s\n' "$URL" | m3 secret set M3_PRIMARY_PG_URL --stdin` (the first line of standard input is stored; it is never put on the command line).
 
 > `AGENT_OS_MASTER_KEY` is **required** for the encrypted vault.
 > The xAI (Grok) and Perplexity keys are only needed if you use those services.

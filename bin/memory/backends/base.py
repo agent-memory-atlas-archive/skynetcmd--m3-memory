@@ -207,6 +207,12 @@ def embedding_row_groups(rows: Sequence[EmbeddingRow]) -> list[tuple[list[str], 
     return [(list(cols), vals) for cols, vals in groups.items()]
 
 
+class BackendNotConfigured(RuntimeError):
+    """The selected store cannot be used until the user supplies something (for
+    PostgreSQL, the database address). The message says what and how; a command
+    line catches this to print it instead of a traceback."""
+
+
 class SnapshotError(RuntimeError):
     """A store snapshot could not be taken AND verified.
 
@@ -718,6 +724,13 @@ class StorageBackend(Protocol):
     def store_cache_key(cls, store: StoreRef) -> str:
         """The selector's cache key for ``store``'s instance; equal keys share one
         instance (and so one pool)."""
+        ...
+
+    @classmethod
+    def not_configured(cls) -> str | None:
+        """What the user still has to supply before this backend can serve the
+        configured store, with the command that does it; None when nothing.
+        Asked when the backend is selected, before anything connects."""
         ...
 
     def prepare_store(self) -> None:

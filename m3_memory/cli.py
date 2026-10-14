@@ -688,8 +688,9 @@ def _cmd_restore(args: argparse.Namespace) -> int:
 
 
 def _secret_set(args: argparse.Namespace) -> int:
-    """`m3 secret set NAME [--keyring]`: ask for the value (hidden, twice) and
-    store it in the secrets file, or with --keyring in the OS keyring (then the
+    """`m3 secret set NAME [--keyring] [--stdin]`: ask for the value (hidden,
+    twice), or with --stdin read its first line from standard input (for scripts),
+    and store it in the secrets file, or with --keyring in the OS keyring (then the
     file points at it, replacing any value line). The value is never taken from
     the command line, and never printed."""
     import getpass
@@ -714,22 +715,33 @@ def _secret_set(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
-    if not console_has_person():
-        print(
-            f"observed: no one is at the console to type the value of {name}; nothing stored. "
-            "inspect: run `m3 secret set` in a terminal (a value is never read from the command line).",
-            file=sys.stderr,
-        )
-        return 2
-    print(f"m3 now asks for the value of {name}. Typing is hidden; nothing is shown.")
-    try:
-        value = getpass.getpass(f"Value for {name}: ").strip()
-        confirm = getpass.getpass(f"Again, to confirm {name}: ").strip() if value else ""
-    except (EOFError, KeyboardInterrupt):
-        # Ctrl-D / Ctrl-C at the prompt: a person stopping, not a crash.
-        print()
-        print("stopped before a value was entered; nothing stored.", file=sys.stderr)
-        return 2
+    if args.stdin:
+        if sys.stdin.isatty():
+            print(
+                f"observed: --stdin was given but standard input is this terminal, so {name} would be "
+                "shown as you type it; nothing stored. Run without --stdin to be asked with typing hidden.",
+                file=sys.stderr,
+            )
+            return 2
+        value = confirm = sys.stdin.readline().strip()  # a script's input: no second entry
+    else:
+        if not console_has_person():
+            print(
+                f"observed: no one is at the console to type the value of {name}; nothing stored. "
+                f"inspect: run `m3 secret set {name}` in a terminal, or pipe the value in with "
+                "--stdin (a value is never read from the command line).",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"m3 now asks for the value of {name}. Typing is hidden; nothing is shown.")
+        try:
+            value = getpass.getpass(f"Value for {name}: ").strip()
+            confirm = getpass.getpass(f"Again, to confirm {name}: ").strip() if value else ""
+        except (EOFError, KeyboardInterrupt):
+            # Ctrl-D / Ctrl-C at the prompt: a person stopping, not a crash.
+            print()
+            print("stopped before a value was entered; nothing stored.", file=sys.stderr)
+            return 2
     if not value:
         print("observed: the value was empty; nothing stored.", file=sys.stderr)
         return 2
@@ -2523,6 +2535,12 @@ Examples:
         help="A switch, not a place for the value: store it in the OS keyring instead of the secrets "
         "file. m3 then asks you for the value.",
     )
+    p_secret_set.add_argument(
+        "--stdin",
+        action="store_true",
+        help="Read the value from standard input (its first line) instead of asking; for scripts, "
+        "e.g. `printf '%%s\\n' \"$URL\" | m3 secret set NAME --stdin`.",
+    )
     p_secret.set_defaults(func=_cmd_secret)
 
     p_schedules = subparsers.add_parser(
@@ -2836,7 +2854,26 @@ Examples:
         _run_bridge()
         return
 
-    sys.exit(args.func(args))
+    try:
+        code = args.func(args)
+    except Exception as e:
+        if not _is_backend_not_configured(e):
+            raise
+        # A setup step the user has not done yet, with its fix in the message:
+        # say it plainly, not as a traceback.
+        print(f"m3: {e}", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(code)
+
+
+def _is_backend_not_configured(e: BaseException) -> bool:
+    import importlib
+
+    try:
+        backends = importlib.import_module("memory.backends")
+    except ImportError:
+        return False
+    return isinstance(e, backends.BackendNotConfigured)
 
 
 if __name__ == "__main__":

@@ -455,6 +455,9 @@ the policy is forward-going only.
   owner. A dashboard or embedder that answers from another account is no longer
   reported as started or as this install's server, and setup does not suggest
   `m3 doctor --fix` for a port another account holds.
+  **Affected:** Linux and macOS machines with more than one m3 user ·
+  **Action:** give each account its own port (`m3 config set embed.server.port`) ·
+  **Data status:** none.
 
 - **`m3 doctor --fix` no longer reports a Claude Code connection that does not
   exist.** With nothing to change it now gives the same verdict as `m3 doctor`,
@@ -470,8 +473,20 @@ the policy is forward-going only.
   being run; warnings and errors still show.
   **Affected:** everyone using the `m3` command line · **Action:** none ·
   **Data status:** none.
-  **Affected:** Linux and macOS machines with more than one m3 user ·
-  **Action:** give each account its own port (`m3 config set embed.server.port`) ·
+
+- **Switching to PostgreSQL before storing its address is explained, not a
+  crash.** `m3 doctor`, `m3 status` and other commands print what is missing and
+  both ways out (store the address, or go back to SQLite) instead of a traceback.
+  `m3 config set db.backend` says what the chosen store still needs and that
+  running m3 programs keep the old store until `m3 stop` and `m3 setup`.
+  **Affected:** installs switching to PostgreSQL · **Action:** none ·
+  **Data status:** none.
+
+- **`m3 secret set NAME --stdin` stores a value piped in by a script.** The value
+  could only be typed at a prompt, so scripted setups could not store the
+  database address. A terminal on standard input is refused, so a typed value is
+  never shown.
+  **Affected:** scripted and automated installs · **Action:** none ·
   **Data status:** none.
 
 - **The macOS installer offers PostgreSQL 18.** When no server is found, `m3 setup`

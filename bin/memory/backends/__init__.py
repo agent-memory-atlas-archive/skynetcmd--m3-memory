@@ -32,6 +32,7 @@ from typing import override
 
 from .base import (
     BackendName,
+    BackendNotConfigured,
     Capabilities,
     KeywordHit,
     StorageBackend,
@@ -132,6 +133,7 @@ _sys.modules[__name__].__class__ = _BackendsModule
 
 __all__ = [
     "BackendName",
+    "BackendNotConfigured",
     "Capabilities",
     "KeywordHit",
     "StorageBackend",

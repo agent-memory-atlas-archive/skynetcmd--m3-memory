@@ -42,3 +42,21 @@ def test_it_does_not_survive_the_test(m3_settings):
     from m3_core.config import settings as st
 
     assert st.current().origin(REGISTRY.get("search.row_cap")) != "override"
+
+
+def test_installed_values_survive_a_pin_left_by_an_earlier_test(m3_settings, tmp_path):
+    """Order-dependent failure, found when new tests shifted the run order: a
+    test that pinned a config file left the cache remembering the pin, and the
+    next installed snapshot was dropped as "the pin changed"."""
+    from m3_core.config import REGISTRY
+    from m3_core.config import settings as st
+
+    from m3_memory import _roots
+
+    f = tmp_path / "m3_config.toml"
+    f.write_text("schema_version = 1\n", encoding="utf-8")
+    _roots.pin_config_file(f)
+    st.current()  # the cache now remembers the pin
+    _roots.pin_config_file(None)  # what the sandbox does between tests
+    m3_settings({"search.row_cap": 10})
+    assert st.current()[REGISTRY.get("search.row_cap")] == 10

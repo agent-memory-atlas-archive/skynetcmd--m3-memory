@@ -88,7 +88,8 @@ def render_markdown() -> str:
         'names (`NAME = { keyring = "service/key" }`, or `system/NAME` when it does not list '
         "the name), then the encrypted vault, except a *bootstrap* secret, which never comes "
         "from the vault. Store one with `m3 secret set NAME` (add `--keyring` for the OS "
-        "keyring); `m3 config import-env` moves the ones set in the older places.",
+        "keyring, or `--stdin` to read the value from a script's standard input); "
+        "`m3 config import-env` moves the ones set in the older places.",
         "",
         "| Name | Older environment names (`import-env` reads them) | Bootstrap | Notes |",
         "|---|---|---|---|",

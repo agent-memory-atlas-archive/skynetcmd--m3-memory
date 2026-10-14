@@ -39,6 +39,7 @@ from m3_core.config import settings as _m3cfg
 from .base import (
     EMBEDDING_TABLES,
     BackendName,
+    BackendNotConfigured,
     Capabilities,
     EmbeddingConflict,
     EmbeddingRow,
@@ -381,20 +382,26 @@ def _resolve_dsn() -> str:
     default — selecting the postgres backend without a DSN is a configuration
     error, not a reason to silently do something else.
     """
-    from m3_core.secret_store import PgRole, explain_pg_dsn
+    from m3_core.secret_store import PgRole, explain_pg_dsn, resolve_pg_dsn
 
     found = explain_pg_dsn(PgRole.PRIMARY)
     url = found.dsn
     if not url:
+        # Someone with the warehouse address stored may expect m3 to use it.
+        wh = (
+            " The warehouse address (M3_CDW_PG_URL) is stored, but it is never used for the primary store."
+            if resolve_pg_dsn(PgRole.WAREHOUSE)
+            else ""
+        )
         # What each tier hit, not just "not set": a broken keyring or vault used
         # to be swallowed here and reported as a missing DSN.
-        hit = ("; tiers reported: " + " | ".join(found.errors)) if found.errors else ""
-        raise RuntimeError(
-            "observed: the PostgreSQL backend is selected but no primary DSN "
-            f"(M3_PRIMARY_PG_URL) is in the secrets file, the keyring or the vault{hit}. "
-            "fix: `m3 secret set M3_PRIMARY_PG_URL` (prompts for the postgresql:// URL). "
-            "The warehouse DSN (M3_CDW_PG_URL) is never used for the primary store. "
-            "Will not silently fall back to SQLite."
+        hit = (" Lookup notes: " + " | ".join(found.errors)) if found.errors else ""
+        raise BackendNotConfigured(
+            "m3 is set to use PostgreSQL, but no database address is stored "
+            "(M3_PRIMARY_PG_URL: not in the secrets file, the keyring or the vault). "
+            "fix: `m3 secret set M3_PRIMARY_PG_URL` (asks for the postgresql:// address), "
+            "or go back to SQLite: `m3 config set db.backend sqlite`. "
+            f"m3 will not switch back to SQLite on its own.{wh}{hit}"
         )
     _reject_forbidden_host(url)
     _reject_same_as_warehouse(url)
@@ -986,6 +993,16 @@ class PostgresBackend:
     @classmethod
     def store_cache_key(cls, store) -> str:
         return f"store:{store.name}:{store.dsn_secret}"
+
+    @classmethod
+    def not_configured(cls) -> str | None:
+        """The database address, when none is stored or it is refused (the
+        warehouse's host or database). Reads the secret; does not connect."""
+        try:
+            _resolve_dsn()
+        except RuntimeError as e:  # BackendNotConfigured, or a refused address
+            return str(e)
+        return None
 
     def prepare_store(self) -> None:
         """The core schema (base + pending pg migrations). Nothing creates it on

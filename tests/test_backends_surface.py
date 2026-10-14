@@ -20,6 +20,7 @@ import memory.backends as b
 # backend export vanishing) or an unplanned ADD fails loudly.
 EXPECTED_EXPORTS = {
     "BackendName",
+    "BackendNotConfigured",
     "Capabilities",
     "KeywordHit",
     "StorageBackend",

@@ -558,6 +558,11 @@ class SqliteBackend:
     def store_cache_key(cls, store) -> str:
         return ""  # one shared unpinned instance; the path is resolved per call
 
+    @classmethod
+    def not_configured(cls) -> str | None:
+        """Nothing to supply: the database file is created on first use."""
+        return None
+
     def prepare_store(self) -> None:
         """Nothing to do: memory.db._lazy_init migrates each SQLite file on first open."""
 

@@ -517,7 +517,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## Secrets
 
-Secrets are never read from this file, or from the environment. Each resolves from the user-only secrets file (`[secrets].file`), then the OS keyring entry that file names (`NAME = { keyring = "service/key" }`, or `system/NAME` when it does not list the name), then the encrypted vault, except a *bootstrap* secret, which never comes from the vault. Store one with `m3 secret set NAME` (add `--keyring` for the OS keyring); `m3 config import-env` moves the ones set in the older places.
+Secrets are never read from this file, or from the environment. Each resolves from the user-only secrets file (`[secrets].file`), then the OS keyring entry that file names (`NAME = { keyring = "service/key" }`, or `system/NAME` when it does not list the name), then the encrypted vault, except a *bootstrap* secret, which never comes from the vault. Store one with `m3 secret set NAME` (add `--keyring` for the OS keyring, or `--stdin` to read the value from a script's standard input); `m3 config import-env` moves the ones set in the older places.
 
 | Name | Older environment names (`import-env` reads them) | Bootstrap | Notes |
 |---|---|---|---|

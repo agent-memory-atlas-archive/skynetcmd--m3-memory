@@ -636,6 +636,9 @@ def _install_for_tests(settings: Settings) -> None:
     until the next reset. The settings test fixture's one entry point."""
     with _CACHE._lock:
         _CACHE._settings = settings
+        # The pin in force now: one left from an earlier test would make the
+        # next current() see a changed pin and drop this snapshot.
+        _CACHE._pin = pinned_config_file()
         _CACHE._checked_at = float("inf")
         _CACHE._last_error = None
 

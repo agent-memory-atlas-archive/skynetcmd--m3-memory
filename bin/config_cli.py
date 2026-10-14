@@ -214,6 +214,8 @@ def _set(args: argparse.Namespace) -> int:
         raise _Refused(f"observed: {e}") from None
     done = f"{args.key} = {_value_text(value)}" if value is not None else f"removed {args.key}"
     print(f"{done}  ({loc.file})")
+    if value is not None and key.name == "db.backend":
+        _after_backend_change(str(value))
     if value is not None:
         for name, seen in env_contradicting(key, value):
             print(
@@ -222,6 +224,25 @@ def _set(args: argparse.Namespace) -> int:
                 "names each place)."
             )
     return 0
+
+
+def _after_backend_change(backend: str) -> None:
+    """What a backend switch still needs, asked of the backend itself, and the
+    restart it takes: running m3 programs keep the store they opened."""
+    import importlib
+
+    try:
+        registry = importlib.import_module("memory.backends.registry")
+        missing = registry.backend_factory_for(backend).not_configured()
+    except Exception as e:  # noqa: BLE001 — reported; the setting is saved either way
+        print(f"  [!] could not check what the {backend} store still needs ({type(e).__name__}: {e})")
+        missing = None
+    if missing:
+        print(f"  [!] not usable yet: {missing}")
+    print(
+        "  [i] m3 programs already running keep the store they opened. Use the new one: "
+        "`m3 stop`, then `m3 setup`; restart your agents (Claude Code: /mcp)."
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
