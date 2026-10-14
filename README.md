@@ -56,7 +56,7 @@ walks you through your first saved memory.
 - **Multi-agent:** per-agent, per-user and per-org scopes, handoffs and shared tasks; concurrent readers and writers are safe. ([Multi-agent](docs/MULTI_AGENT.md))
 - **Tools:** 100+ tools, of which 10 load at startup, about 2% of a 200K context window; the rest load on demand. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
 - **Configuration:** one file, `m3_config.toml`. `m3 config show` prints every setting and where it came from. ([Config reference](docs/CONFIG_REFERENCE.md))
-- **Tested:** 5,000+ tests, 6,700+ collected tests (7,100+ with the native core), on Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
+- **Tested:** 5,000+ tests on Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
 - **Status:** the core is stable; the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages are beta. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
 - **For AI agents:** [llm-context.md](docs/llm-context.md) lists the real tool names and usage rules, and [features.json](docs/features.json) is the machine-readable summary.
 
@@ -70,9 +70,9 @@ walks you through your first saved memory.
 | :--- | :--- | :--- |
 | **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync |
 | **Beta** | Shipped and usable, still being hardened on real workloads; behaviour may change between releases ([ROADMAP: in progress](docs/ROADMAP.md#-in-progress)). | Web dashboard · autonomous cognitive loop · Observer & Reflector stages |
-| **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · pgvector / HNSW approximate search on PostgreSQL · official Docker image · server / multi-user deployment guide · stable public SDK with semver guarantees |
+| **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · pgvector / HNSW approximate search on PostgreSQL · official Docker image, if users ask for one · server / multi-user deployment guide · stable public SDK with semver guarantees |
 
-*   **Tested on** Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with and without the native (Rust) core; the full matrix runs before every release ([Testing](docs/TESTING.md)).
+*   **Tested on** Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; the full matrix runs before every release ([Testing](docs/TESTING.md)).
 *   **Limit: vector search on PostgreSQL is exact, not approximate:** every query scores every stored vector. Fine for personal and team stores; very large stores will want the planned pgvector / HNSW arm ([Architecture](docs/ARCHITECTURE.md)).
 *   **Limit: SQLite has one writer at a time:** concurrent writers wait (WAL, 30 s busy timeout, retries) rather than fail. Many agents writing at once should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
 *   **Reads are audited:** every memory read (get or search hit) is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)). <!-- RELEASE-TODO: built in the GDPR pass (plan G2); confirm retention (90 days), export and erasure match what shipped. -->
