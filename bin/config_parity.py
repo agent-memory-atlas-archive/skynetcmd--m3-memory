@@ -127,7 +127,7 @@ def _key_file() -> Path:
 
 def _keyring_get() -> tuple[bool, str | None]:
     """(keyring available, stored value). ONLY 'no keyring backend at all'
-    (claude-dev: fail.Keyring everywhere) counts as unavailable. A keyring that
+    (keyring's fail.Keyring backend) counts as unavailable. A keyring that
     exists but refuses (a locked macOS login keychain over SSH) is an error, not
     a reason to fall back: falling back would give one machine two keys."""
     import keyring.errors

@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_download_badges.py
-sha1: 390a9e72a1e1
-mtime_utc: 2026-10-14T02:46:08.063563+00:00
-generated_utc: 2026-10-14T02:46:14.318050+00:00
+sha1: 0f2902b02afc
+mtime_utc: 2026-10-14T03:18:55.665469+00:00
+generated_utc: 2026-10-14T03:18:56.277677+00:00
 private: false
 ---
 
@@ -26,8 +26,8 @@ the totals are RUNNING totals. The public repo keeps only the aggregate:
 docs/badges/counters.json holds each source's total and the last complete day it
 counted, and each run adds the complete days after that (a weekly run stays inside
 both windows; a gap longer than a window is reported, since those days are gone).
-The per-day history is private (user decision 2026-10-13): `--history-dir` (for
-example ~/.m3-private/badges) also merges every day into pypi-history.json and
+The per-day history stays out of the repo: `--history-dir` (a private directory
+of your choice) also merges every day into pypi-history.json and
 clone-history.json there. CI never passes it, so no history reaches this repo.
 
 These are ESTIMATES by design — download/clone counts include automation and
@@ -39,7 +39,7 @@ The README references the JSON via a shields endpoint URL, e.g.:
 so shields renders the current committed number with no third-party number source.
 
 Run in CI on a schedule; commit the result back. Locally, keeping the history:
-    GITHUB_TOKEN=$(gh auth token) python bin/gen_download_badges.py         --repo skynetcmd/m3-memory --package m3-memory --history-dir ~/.m3-private/badges
+    GITHUB_TOKEN=$(gh auth token) python bin/gen_download_badges.py         --repo skynetcmd/m3-memory --package m3-memory --history-dir ~/badge-history
 
 Exit codes: 0 = badges written (or unchanged); 2 = hard error (network/auth).
 Standard library only.
@@ -60,7 +60,7 @@ Standard library only.
 | `--repo` | owner/name | `skynetcmd/m3-memory` |  | str |  |
 | `--package` | PyPI package name | `m3-memory` |  | str |  |
 | `--badges-dir` | output directory | `docs/badges` |  | str |  |
-| `--history-dir` | private directory for the per-day history (e.g. ~/.m3-private/badges); never the repo | None |  | str |  |
+| `--history-dir` | private directory for the per-day history (any directory outside the repo); never the repo | None |  | str |  |
 
 ---
 
