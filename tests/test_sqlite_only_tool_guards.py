@@ -180,8 +180,8 @@ def test_ai_mechanic_refuses_a_sqlite_path_on_postgres(tmp_path):
 
 
 def test_doctor_fix_skips_sqlite_file_repairs_on_postgres(monkeypatch):
-    """Each repair acts on a SQLite file; on PG it must be reported as skipped,
-    not run against a stale file and reported fixed."""
+    """The SQLite-file repairs are reported skipped on PG (never run against a
+    stale file and reported fixed); the schema chain runs through the backend."""
     _force_pg(monkeypatch)
     import importlib
 
@@ -192,14 +192,32 @@ def test_doctor_fix_skips_sqlite_file_repairs_on_postgres(monkeypatch):
 
     monkeypatch.setattr(doctor, "memory_doctor_impl", _diag)
     _no_sqlite(monkeypatch)
+
+    # The schema chain is NOT a SQLite-file repair: it runs through the backend's
+    # own migrator and reports what that did (it used to be "skipped" while the
+    # store sat migrations behind).
+    class _Store:
+        migrations_applied = [65, 66]
+
+        def ensure_schema(self):
+            pass
+
+        def schema_status(self, conn):
+            return 66, 66
+
+        from contextlib import nullcontext as _nc
+
+        def connection(self):
+            return self._nc(None)
+
+    mb = importlib.import_module("memory.backends")
+    monkeypatch.setattr(mb, "active_backend", lambda: _Store())
     out = asyncio.run(doctor.memory_doctor_fix_impl())
-    assert {a["action"] for a in out["actions"]} == {
-        "run_migrations",
-        "rebuild_fts5",
-        "embed_backfill",
-        "rebuild_cohesion",
-    }
-    assert all(a["status"] == "skipped" and "postgres" in a["detail"] for a in out["actions"])
+    acts = {a["action"]: a for a in out["actions"]}
+    assert set(acts) == {"run_migrations", "rebuild_fts5", "embed_backfill", "rebuild_cohesion"}
+    assert acts["run_migrations"]["status"] == "ok" and "applied [65, 66]" in acts["run_migrations"]["detail"]
+    for name in ("rebuild_fts5", "embed_backfill", "rebuild_cohesion"):
+        assert acts[name]["status"] == "skipped" and "postgres" in acts[name]["detail"]
 
 
 def test_chatlog_init_skips_sqlite_migrations_on_postgres(monkeypatch):

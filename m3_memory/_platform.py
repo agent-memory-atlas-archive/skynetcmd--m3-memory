@@ -380,6 +380,47 @@ def current_uid() -> int | None:
     return getuid() if getuid is not None else None
 
 
+def port_listener_is_mine(port: int, procs: Any) -> bool | None:
+    """Whether one of this user's processes listens on TCP ``port``.
+
+    ``procs`` is an iterable of psutil-like processes (the caller owns psutil; this
+    seam stays stdlib-only). True: a listener among this user's processes (or ones
+    whose owner the OS hides, which may be ours). False: none of them listens.
+    Reads only this user's own processes, so it needs no privilege.
+    """
+    for proc in procs:
+        if owned_by_current_user(proc) is False:
+            continue
+        try:
+            conns = (getattr(proc, "net_connections", None) or proc.connections)(kind="tcp")
+        except Exception:  # noqa: BLE001 — a process vanishing or refusing is skipped
+            continue
+        for c in conns:
+            if str(c.status).upper() == "LISTEN" and c.laddr and c.laddr.port == port:
+                return True
+    return False
+
+
+def owned_by_current_user(proc: Any) -> bool | None:
+    """Whether a psutil process belongs to the user running this code.
+
+    True or False when the OS can say; None when it cannot (on Windows another
+    session's, or an elevated, process may refuse its owner). A caller that must
+    not miss a process of its own treats None as "maybe mine"; one that must not
+    touch another user's treats it as "not known to be mine".
+    """
+    uid = current_uid()
+    try:
+        if uid is not None:
+            return bool(proc.uids().real == uid)
+        import getpass
+
+        owner = proc.username() or ""
+        return owner.rsplit("\\", 1)[-1].lower() == getpass.getuser().lower()
+    except Exception:  # noqa: BLE001 — psutil AccessDenied / NoSuchProcess, or no owner API
+        return None
+
+
 def new_process_group_kwargs() -> dict:
     """Popen kwargs that start the child in its own process group, so a console
     Ctrl+C aimed at this process does not also reach it.

@@ -17,7 +17,7 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 
 # Current floors. Lower these as readers move to the registry; never raise them.
 # 2026-10-11 (re-baseline at 7687acd3): 611 production violations, 1080 test writes.
-_BUDGET = 114
+_BUDGET = 112
 # Sites marked `# env-owner: <why>`: reading env is
 # their job (root locators, the legacy-name shim, the doctor/import-env scanners).
 _OWNER_BUDGET = 41

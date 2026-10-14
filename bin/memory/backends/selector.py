@@ -91,6 +91,7 @@ def active_backend() -> StorageBackend:
                 backend.prepare_store()
             else:
                 backend = shared
+        backend.on_selected()
         _backends[key] = backend
         return backend
 
@@ -114,6 +115,7 @@ def _default_peer(name: str, factory: type[StorageBackend]) -> list[StorageBacke
                 # DSN), so no store can be naming it; its own callers still get
                 # that error when they use it.
                 return []
+            default.on_selected()
             _backends[name] = default
     return [default]
 

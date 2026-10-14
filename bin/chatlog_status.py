@@ -1042,7 +1042,12 @@ def _format_table(data: dict[str, Any]) -> str:
         f"Rows (main/chatlog/unembedded): {data['row_counts']['main_chat_log_rows']}/{data['row_counts']['chatlog_rows']}/{data['row_counts']['chatlog_without_embed']}"
     )
     lines.append(
-        f"Queue: {data['queue']['depth']}/{data['queue']['max']} (last flush {data['queue']['last_flush_ms_ago']}ms ago)"
+        f"Queue: {data['queue']['depth']}/{data['queue']['max']} "
+        + (
+            f"(last flush {data['queue']['last_flush_ms_ago']}ms ago)"
+            if data["queue"]["last_flush_ms_ago"] is not None
+            else "(no flush yet)"
+        )
     )
     lines.append(f"Spill: {data['spill']['files']} files, {data['spill']['bytes']} bytes")
     lines.append(f"Last write: {data['last_write_at']}")

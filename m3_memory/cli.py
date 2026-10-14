@@ -722,11 +722,18 @@ def _secret_set(args: argparse.Namespace) -> int:
         )
         return 2
     print(f"m3 now asks for the value of {name}. Typing is hidden; nothing is shown.")
-    value = getpass.getpass(f"Value for {name}: ").strip()
+    try:
+        value = getpass.getpass(f"Value for {name}: ").strip()
+        confirm = getpass.getpass(f"Again, to confirm {name}: ").strip() if value else ""
+    except (EOFError, KeyboardInterrupt):
+        # Ctrl-D / Ctrl-C at the prompt: a person stopping, not a crash.
+        print()
+        print("stopped before a value was entered; nothing stored.", file=sys.stderr)
+        return 2
     if not value:
         print("observed: the value was empty; nothing stored.", file=sys.stderr)
         return 2
-    if getpass.getpass(f"Again, to confirm {name}: ").strip() != value:
+    if confirm != value:
         print("observed: the two entries differ; nothing stored. Run the command again.", file=sys.stderr)
         return 2
     try:

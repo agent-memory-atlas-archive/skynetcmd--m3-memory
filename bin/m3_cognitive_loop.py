@@ -1736,6 +1736,14 @@ async def run_audit_pass(args):
     weekly_auditor.run_audit so the loop and the standalone AgentOS_WeeklyAuditor
     task share ONE implementation. Purely time-driven (no backlog), so _due("audit",
     ~7d) IS the work-probe: a no-op until a week has elapsed."""
+    if "audit" not in _read_pass_runs():
+        # A loop starting for the first time (a new install) has nothing to
+        # audit. Running now stored a report of an empty store as a searchable
+        # memory that ranked in a new user's first searches; the first audit
+        # comes one interval after install instead.
+        _record_pass_run("audit")
+        logger.debug("First loop start: the first weekly audit is due one interval from now.")
+        return
     if not _due("audit", args.audit_min_interval_s):
         logger.debug("Audit not due (ran < %ss ago). Skipping.", args.audit_min_interval_s)
         return

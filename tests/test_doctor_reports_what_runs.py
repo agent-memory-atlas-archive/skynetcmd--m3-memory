@@ -65,7 +65,7 @@ def test_headline_names_the_shared_server_in_shared_mode(monkeypatch, tmp_path):
     from m3_memory import rust_core_install
 
     monkeypatch.setattr(rust_core_install, "active_embedder_tier", lambda: {"native": True})
-    assert installer.status_summary()["embedder"] == "shared server (:8082)"
+    assert installer.status_summary()["embedder"] == "shared server (port 8082)"
 
 
 def test_a_stale_config_version_is_not_called_installed(monkeypatch, capsys, tmp_path):

@@ -1461,7 +1461,8 @@ def _retry_elevated(action, *, what: str, max_attempts: int = 5) -> bool:
         )
         if action():
             return True
-        _warn(f"  {what} was cancelled or failed{' (UAC declined, or the dialog was missed)' if attempt == 1 else ''}.")
+        _why = " (the dialog was declined or missed)" if is_windows() else " (the password was not accepted)"
+        _warn(f"  {what} was cancelled or failed{_why if attempt == 1 else ''}.")
         if attempt >= max_attempts:
             _warn(f"  giving up after {max_attempts} attempts — run the command above yourself from an admin shell.")
             return False
@@ -3941,6 +3942,20 @@ def _step_verify_daemons(plan=None) -> bool:
             pass
 
     running = [r for r in expected if r in live_roles]
+    # The dashboard is registered from inside its own process, so a dashboard
+    # crash-looping on a port another user's m3 already holds still shows as
+    # registered. Running means serving from THIS account's process.
+    if "dashboard" in running:
+        from m3_memory._ports import held_by_another_owner
+
+        port = int(getattr(plan, "dashboard_port", 8088) or 8088)
+        if held_by_another_owner(port):
+            running.remove("dashboard")
+            missing.append("dashboard")
+            _warn(
+                f"  dashboard: port {port} answers, but not from this account's dashboard (another "
+                f"user's m3 or another program holds it). fix: m3 setup --dashboard-port <free port>"
+            )
     if running and _called_by_upgrade():
         _ok(f"  services running: {', '.join(running)}")  # verified; one line under the upgrade
     else:
@@ -4118,6 +4133,33 @@ def _m3_cli(*args: str) -> list[str]:
     return [sys.executable, "-P", "-m", "m3_memory.cli", *cli_args(), *config_args(), *caller_args(), *args]
 
 
+def _record_settings(values: dict, *, what: str) -> bool:
+    """Write ``{key: value}`` into m3_config.toml through the config writer, as
+    `m3 config set` would. False (after saying why) when it cannot be written."""
+    _m3bin.ensure_on_path()
+    try:
+        from m3_core.config.keys import REGISTRY
+        from m3_core.config.loader import ConfigFileError, locate
+        from m3_core.config.writer import set_values
+    except ImportError as e:
+        _warn(f"could not record {what}: m3's config package did not import ({e}). inspect: m3 doctor")
+        return False
+    try:
+        keys = {}
+        for name, value in values.items():
+            key = REGISTRY.get(name)
+            if key is None:  # a renamed registry key: a wiring bug, said loudly
+                raise ValueError(f"observed: no registry key {name}. inspect: m3_core/config/keys*.py")
+            keys[key] = key.parse(value)
+        path = locate()
+        set_values(path, keys)
+    except (OSError, ValueError, ConfigFileError) as e:
+        _warn(f"could not record {what} in m3_config.toml ({e}). inspect: that file and its directory's permissions")
+        return False
+    _ok(f"  {what} recorded in {path}")
+    return True
+
+
 def _record_decoupled_roots(config_root: str, engine_root: str) -> bool:
     """Pin ``<config_root>/m3_config.toml`` for this run and record ``[paths]
     engine_root`` in it. False (after saying why) when the file cannot be written:
@@ -4261,15 +4303,17 @@ def run_setup(args: argparse.Namespace) -> int:
         fips_ready = _step_install_wolfssl(plan)
     if plan.fips_mode:
         if fips_ready:
-            os.environ["M3_FIPS_MODE"] = "1"
-            if plan.fips_strict:
-                os.environ["M3_FIPS_STRICT"] = "1"
+            # Recorded in m3_config.toml (every later m3 process reads it there)
+            # and applied to this run as a flag-level setting.
+            fips = {"crypto.fips_mode": True, "crypto.fips_strict": bool(plan.fips_strict)}
+            if not _record_settings(fips, what="FIPS mode"):
+                return 1
+            from m3_core.config.settings import set_from_cli
+
+            set_from_cli(fips)
         else:
-            _warn("Not setting M3_FIPS_MODE for this run — wolfSSL is not present,")
-            _warn(
-                "so enabling it would fail closed. Install wolfSSL "
-                "(`m3 fips install-wolfssl`), then export the FIPS vars."
-            )
+            _warn("FIPS mode not turned on: wolfSSL is not present, so enabling it would fail closed.")
+            _warn("Install wolfSSL (`m3 fips install-wolfssl`), then: m3 config set crypto.fips_mode true")
             plan.fips_mode = plan.fips_strict = False
 
     # Execute. Step 0 (preflight) and Step 1 (install-m3) can hard-abort.

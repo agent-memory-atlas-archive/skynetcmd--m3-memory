@@ -532,10 +532,43 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
     backend = resolve_backend_name()
     if backend != "sqlite":
         reason = f"SQLite-file repair; not applicable on {backend}"
-        _record("run_migrations", "skipped", f"{reason} (schema is applied by ensure_schema())")
+        summary = "nothing_to_do"
+        # The schema chain is backend-neutral in intent: bring the store current
+        # through the backend's own migrator and report what that did.
+        try:
+            from memory.backends import active_backend
+
+            store = active_backend()
+            if dry_run:
+                with store.connection() as conn:
+                    applied_v, known_v = store.schema_status(conn)
+                _record("run_migrations", "ok", f"[dry-run] schema at v{applied_v} of v{known_v}")
+            else:
+                store.ensure_schema()
+                with store.connection() as conn:
+                    applied_v, known_v = store.schema_status(conn)
+                ran = list(getattr(store, "migrations_applied", []) or [])
+                if applied_v < known_v:
+                    _record(
+                        "run_migrations",
+                        "error",
+                        f"observed: {backend} schema at v{applied_v}, this release expects v{known_v} after "
+                        f"migrating; inspect: the m3 log for the failing migration",
+                    )
+                    summary = "failed"
+                else:
+                    detail = f"{backend} schema current at v{known_v}"
+                    detail += f"; applied {ran}" if ran else "; nothing pending"
+                    _record("run_migrations", "ok", detail)
+                    summary = "ok" if ran else summary
+        except Exception as e:  # noqa: BLE001 — a repair step reports, never crashes the doctor
+            _record(
+                "run_migrations", "error", f"could not bring the {backend} schema current ({type(e).__name__}: {e})"
+            )
+            summary = "failed"
         for name in ("rebuild_fts5", "embed_backfill", "rebuild_cohesion"):
             _record(name, "skipped", reason)
-        return {"dry_run": dry_run, "actions": actions, "summary": "nothing_to_do"}
+        return {"dry_run": dry_run, "actions": actions, "summary": summary}
 
     db_path = resolve_db_path(None)
 

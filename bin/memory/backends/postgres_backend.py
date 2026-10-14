@@ -74,6 +74,8 @@ _UPSERT_PAGE_SIZE = _m3cfg.setting("db.postgres.upsert_page_size")
 
 # The migration that creates the vector copy; ensure_vector_copy re-applies it.
 _VECTOR_COPY_MIGRATION = 66
+# Session advisory lock serialising the primary schema chain across processes.
+_PRIMARY_MIGRATION_LOCK = "m3_primary_migrations"
 # "This row lacks its copy". Must stay textually identical to the WHERE of
 # pg_066's partial index, or the planner cannot use the index and each check
 # that reads it becomes a full scan.
@@ -997,6 +999,9 @@ class PostgresBackend:
         self._lock = threading.Lock()
         self._caps: Capabilities | None = None
         self._schema_ready = False
+        self.migrations_applied: list[int] = []
+        # Set by on_selected() for the store m3 serves; see connection().
+        self._migrate_on_first_use = False
 
     # -- schema init ---------------------------------------------------------
     def ensure_schema(self) -> None:
@@ -1037,8 +1042,18 @@ class PostgresBackend:
                 )
             schema_sql = sql_path.read_text(encoding="utf-8")
             conn = pool.getconn()
+            locked = False
             try:
                 cur = conn.cursor()
+                # Every m3 process migrates on first use, so after an upgrade the
+                # MCP server, the cognitive loop and a hook can arrive together.
+                # One at a time (a session lock, held across the per-file commits);
+                # the others then find nothing pending.
+                cur.execute("SELECT pg_advisory_lock(hashtext(%s))", (_PRIMARY_MIGRATION_LOCK,))
+                locked = True
+                # A pooled session may carry a search_path someone set and left;
+                # the schema goes where the connection string put it.
+                cur.execute("RESET search_path")
                 cur.execute(schema_sql)
                 conn.commit()
                 # Apply any PG-native incremental migrations (pg_NNN_*.up.sql,
@@ -1048,28 +1063,37 @@ class PostgresBackend:
                 # commits in its own transaction inside the runner.
                 try:
                     from migrate_pg import run_pending_pg_migrations
+                except ImportError as e:
+                    raise RuntimeError(
+                        f"observed: the PostgreSQL migration runner (bin/migrate_pg.py) is not "
+                        f"importable ({e}); the store's schema cannot be brought current, so m3 "
+                        f"refuses to run on it. possible: an incomplete install. fix: reinstall "
+                        f"m3-memory (`m3 upgrade`), then `m3 doctor --fix`"
+                    ) from e
+                applied = run_pending_pg_migrations(conn)
+                self.migrations_applied = list(applied)
+                if applied:
+                    import logging
 
-                    applied = run_pending_pg_migrations(conn)
-                    if applied:
-                        import logging
-
-                        logging.getLogger("memory.backends.postgres").info(
-                            "Applied PG incremental migrations: %s", applied
-                        )
-                    # pg_066 just added the vector copy: rows written before it
-                    # have none. Checked here, so a fresh store starts no thread.
-                    if _VECTOR_COPY_MIGRATION in applied:
-                        status = _vector_copy_status(conn.cursor())
-                        conn.commit()
-                        fill_after = sum(status.missing.values()) > 0
-                except ImportError:
-                    # bin/ not importable in this context — baseline still applied.
-                    pass
+                    logging.getLogger("memory.backends.postgres").info("Applied PG incremental migrations: %s", applied)
+                # pg_066 just added the vector copy: rows written before it
+                # have none. Checked here, so a fresh store starts no thread.
+                if _VECTOR_COPY_MIGRATION in applied:
+                    status = _vector_copy_status(conn.cursor())
+                    conn.commit()
+                    fill_after = sum(status.missing.values()) > 0
                 self._schema_ready = True
             except Exception:
                 conn.rollback()
                 raise
             finally:
+                if locked:
+                    try:
+                        conn.rollback()
+                        conn.cursor().execute("SELECT pg_advisory_unlock(hashtext(%s))", (_PRIMARY_MIGRATION_LOCK,))
+                        conn.commit()
+                    except Exception:  # noqa: BLE001 — the lock ends with the session anyway
+                        pass
                 pool.putconn(conn)
         if fill_after:
             # Outside the lock: the thread's own connection() call re-enters
@@ -1196,7 +1220,11 @@ class PostgresBackend:
 
         Commit on clean exit, rollback on exception, return to the pool always.
         This mirrors ``M3Context.get_sqlite_conn`` so call sites are backend-blind.
+        For the store m3 serves (``on_selected``), the first connection brings the
+        schema current, so an upgraded store is migrated on first use.
         """
+        if self._migrate_on_first_use:
+            self.ensure_schema()
         pool = self._ensure_pool()
         conn = pool.getconn()
         try:
@@ -1222,6 +1250,8 @@ class PostgresBackend:
         the connection returns to the pool.
         """
         del db_path  # a SQLite file path; not applicable to the pooled PG store
+        if self._migrate_on_first_use:
+            self.ensure_schema()
         pool = self._ensure_pool()
         conn = pool.getconn()
         try:
@@ -1351,10 +1381,29 @@ class PostgresBackend:
         the rows still lacking a copy (pg_066's partial index answers that)."""
         return _vector_copy_status(conn.cursor())  # type: ignore[attr-defined]
 
+    def on_selected(self) -> None:
+        """The store m3 serves migrates on first use (an upgraded store reaches
+        the current schema without a separate step, as SQLite's does)."""
+        self._migrate_on_first_use = True
+
+    def schema_status(self, conn: object) -> tuple[int, int]:
+        """(applied, known): the store's highest applied migration, and the highest
+        this release ships. Applied below known means the store is behind."""
+        from migrate_pg import discover_migrations
+
+        cur = conn.cursor()  # type: ignore[attr-defined]
+        cur.execute("SELECT COALESCE(max(version), 0) FROM schema_versions")
+        applied = int(cur.fetchone()[0])
+        return applied, max(discover_migrations() or {0: None})
+
     def ensure_vector_copy(self, conn: object) -> bool:
         """Re-apply pg_066's body when it has something to do: pgvector offered but
         not created (the role may have the right now), or an embedding table
-        without the copy column. The body is idempotent."""
+        without the copy column. The body is idempotent.
+
+        The chain comes first: re-applying pg_066's body to a store whose earlier
+        migrations never ran would give it pg_066 without the ones before it."""
+        self.ensure_schema()
         cur = conn.cursor()  # type: ignore[attr-defined]
         status = _vector_copy_status(cur)
         cur.execute(

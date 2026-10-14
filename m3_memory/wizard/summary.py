@@ -12,6 +12,14 @@ from m3_memory._platform import is_macos, is_windows
 from .ui import _ok, _warn
 
 
+def _custom_config_root(config_root: str) -> bool:
+    """True when the chosen config folder is not the default (~/.m3/config)."""
+    import os
+
+    default = os.path.normcase(os.path.normpath(os.path.expanduser(os.path.join("~", ".m3", "config"))))
+    return bool(config_root) and os.path.normcase(os.path.normpath(os.path.expanduser(config_root))) != default
+
+
 def _summary(plan, governor_result: dict | None = None, verified: bool = True, brief: bool = False) -> None:
     """End-of-run summary so the user knows exactly what to do next.
 
@@ -58,7 +66,11 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
     else:
         print("No agents were wired. Run `m3 setup` again or wire one by hand.")
     print()
-    if plan.decouple_roots or plan.fips_mode:
+    # Every choice setup made is in m3_config.toml. The one thing a file cannot
+    # carry is where that file is: a config folder outside the default needs
+    # the M3_CONFIG_ROOT locator, so say so then, and only then.
+    _custom_root = plan.decouple_roots and _custom_config_root(plan.config_root)
+    if _custom_root:
         import os as _os
         import sys as _sys
 
@@ -71,32 +83,14 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
         def _p(path: str) -> str:
             return _os.path.normpath(path) if path else path
 
-        print("Security & Path Configuration:")
+        print("Your settings folder:")
+        print(f"  {_p(plan.config_root)} is not the default, so m3 finds it only through")
         if _is_win:
-            print("  To persist these across sessions (visible to your agents), run in a")
-            print("  Command Prompt or PowerShell (setx writes them to your user environment;")
-            print("  open a NEW terminal afterwards for them to take effect):")
-            if plan.decouple_roots:
-                print(f'    setx M3_CONFIG_ROOT "{_p(plan.config_root)}"')
-                print(f'    setx M3_ENGINE_ROOT "{_p(plan.engine_root)}"')
-            if plan.fips_mode:
-                print("    setx M3_FIPS_MODE 1")
-                if plan.fips_strict:
-                    print("    setx M3_FIPS_STRICT 1   & REM requires the CMVP-validated wolfCrypt")
-                print("    REM FIPS needs wolfSSL present (build: m3 fips install-wolfssl).")
-                print("    REM Verify + get the SHA-256 to pin: m3 doctor  (crypto section)")
+            print("  M3_CONFIG_ROOT. Run once, then open a new terminal:")
+            print(f'    setx M3_CONFIG_ROOT "{_p(plan.config_root)}"')
         else:
-            print("  To persist these across sessions (visible to your agents), add to your")
-            print("  shell profile (~/.bashrc, ~/.zshrc, or ~/.profile), then open a new shell:")
-            if plan.decouple_roots:
-                print(f'    export M3_CONFIG_ROOT="{_p(plan.config_root)}"')
-                print(f'    export M3_ENGINE_ROOT="{_p(plan.engine_root)}"')
-            if plan.fips_mode:
-                print("    export M3_FIPS_MODE=1")
-                if plan.fips_strict:
-                    print("    export M3_FIPS_STRICT=1   # requires the CMVP-validated wolfCrypt")
-                print("    # FIPS needs wolfSSL present (build: m3 fips install-wolfssl).")
-                print("    # Verify + get the SHA-256 to pin: m3 doctor  (crypto section)")
+            print("  M3_CONFIG_ROOT. Add to your shell profile (~/.bashrc, ~/.zshrc or ~/.profile):")
+            print(f'    export M3_CONFIG_ROOT="{_p(plan.config_root)}"')
         print()
 
     # ── governor migration results ─────────────────────────────────────────

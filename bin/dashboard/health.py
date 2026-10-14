@@ -145,7 +145,7 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
             "just slowly. The native tier (`m3 embedder install-gpu`) speeds it up."
         )
 
-    if s.get("chatlog") == "unreadable":
+    if str(s.get("chatlog") or "").startswith("unreadable"):
         reasons.append("Chatlog DB is unreadable — capture may be failing; check `m3 chatlog status`.")
 
     # Inference-backend stall: the cognitive loop / entity extraction / enrichment

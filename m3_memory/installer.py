@@ -1904,7 +1904,9 @@ def status_summary() -> dict:
         # Shared mode turns the in-process tier off, so a native wheel being
         # installed does not mean embeds run in-process.
         if shared_mode_enabled():
-            out["embedder"] = "shared server (:8082)"
+            from m3_memory.embedder_admin import _embed_server_port
+
+            out["embedder"] = f"shared server (port {_embed_server_port()})"
         elif active_embedder_tier().get("native"):
             out["embedder"] = "native (in-process)"
         else:
@@ -1921,7 +1923,7 @@ def status_summary() -> dict:
         elif stats["error"] == "file not found":
             out["chatlog"] = "no captures yet"
         else:
-            out["chatlog"] = "unreadable"
+            out["chatlog"] = f"unreadable ({stats['error']})"
 
     # Verdict: broken if not installed; degraded if installed but a subsystem is
     # off; healthy otherwise.
@@ -1929,11 +1931,12 @@ def status_summary() -> dict:
         out["verdict"] = "broken"
         out["headline"] = "NOT installed — run `m3 setup`"
     else:
-        degraded = out["embedder"].startswith("pure-Python") or out["chatlog"] == "unreadable"
+        degraded = out["embedder"].startswith("pure-Python") or out["chatlog"].startswith("unreadable")
         out["verdict"] = "degraded" if degraded else "healthy"
         mem = "?" if out["memories"] is None else out["memories"]
         out["headline"] = (
-            f"{out['verdict'].upper()} · {mem} memories · embedder: {out['embedder']} · chatlog: {out['chatlog']}"
+            f"{out['verdict'].upper()} · {mem} {'memory' if mem == 1 else 'memories'} · "
+            f"embedder: {out['embedder']} · chatlog: {out['chatlog']}"
         )
     return out
 

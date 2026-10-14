@@ -21,6 +21,44 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **An installed m3 carries all of its schema migrations.** The package left out
+  two migration sets, so after an upgrade `m3 doctor --fix` failed with "no
+  migrations found" and the upgrade reported itself incomplete.
+  **Affected:** installs from a built package (pip, pipx, `m3 upgrade`) ·
+  **Action:** none · **Data status:** none.
+
+- **A PostgreSQL store from an earlier release is brought up to date on first
+  use.** Choosing PostgreSQL with `m3 config set db.backend postgres` against an
+  existing store left it on its old schema while `m3 doctor` reported it healthy.
+  The store now migrates the first time m3 uses it (one process at a time),
+  `m3 doctor` shows its schema version, and `m3 doctor --fix` migrates it and says
+  what it applied.
+  **Affected:** PostgreSQL stores selected after install · **Action:** none ·
+  **Data status:** missing tables and columns are added; existing data is kept.
+
+- **On a computer shared by several people, setup no longer touches another
+  user's m3.** It no longer offers to stop another account's background service
+  (or asks for a password to do so). When another account's m3 already uses the
+  embedder or dashboard port, setup and `m3 doctor` say so and name the setting
+  to change, instead of reporting this account's server as running.
+  **Affected:** Linux and macOS computers with more than one m3 user ·
+  **Action:** none · **Data status:** none.
+
+- **A new install starts clean.** A fresh store no longer reports "DEGRADED ·
+  chatlog: unreadable" before its first capture, and no longer gets an automatic
+  weekly report as its first memory (the first one now comes a week after
+  install). Commands no longer print a line per request to the embedder, and
+  pressing Ctrl-D at `m3 secret set` stops cleanly instead of showing an error.
+  **Affected:** new installs; every CLI user · **Action:** none ·
+  **Data status:** none.
+
+- **Choosing FIPS mode in setup is saved.** It is written to `m3_config.toml`
+  instead of asking you to add environment variables to your shell profile, and
+  setup asks for an environment variable only when you put your settings folder
+  somewhere other than the default.
+  **Affected:** installs choosing FIPS mode or a custom settings folder ·
+  **Action:** none · **Data status:** none.
+
 - **An upgrade no longer drops the rest of a migration when a column already
   exists.** On SQLite, a migration that adds a column the store already had was
   rolled back whole and still recorded as applied, so its other statements never

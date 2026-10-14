@@ -294,6 +294,19 @@ class StorageBackend(Protocol):
         """Return this backend's SQL dialect helper (see `dialect.py`)."""
         ...
 
+    def on_selected(self) -> None:
+        """Called once by the selector when this instance becomes a store m3
+        serves (the configured store, or a named one). A backend whose schema
+        is not created lazily elsewhere starts migrating it on first use here;
+        an instance built directly (a tool, a test) is left alone."""
+        ...
+
+    def schema_status(self, conn: object) -> tuple[int, int]:
+        """(applied, known): the store's highest applied migration, and the
+        highest this release ships. Applied below known means the store is
+        behind; the doctor reports it and never calls such a store healthy."""
+        ...
+
     def ensure_schema(self) -> None:
         """Idempotently create the primary schema if absent.
 

@@ -59,7 +59,7 @@ from m3_core.registry_payload import (  # noqa: F401
     parse_payload,
 )
 from m3_core.runtime import iso_local_timestamp
-from m3_core.seams import is_windows
+from m3_core.seams import is_windows, owned_by_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -391,6 +391,12 @@ def scan_db_writer_processes(engine_root: str | None = None) -> list[ProcInfo]:
         try:
             pid = proc.info["pid"]
             if pid == self_pid:
+                continue
+            # Another user's process cannot hold THIS user's store, and on a
+            # shared machine counting it made setup offer to kill another
+            # user's m3. Only a definite "not mine" is skipped: an owner the OS
+            # will not reveal (an elevated process of ours) is still counted.
+            if owned_by_current_user(proc) is False:
                 continue
             cmdline = " ".join(proc.info.get("cmdline") or [])
             name = (proc.info.get("name") or "").lower()

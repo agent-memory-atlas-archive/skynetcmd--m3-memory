@@ -27,6 +27,15 @@ from conftest import pg_dsn, use_backend
 pytestmark = pytest.mark.requires_pg
 
 
+@pytest.fixture(autouse=True)
+def _hand_built_schema(monkeypatch):
+    """These tests drop and rebuild memory_items by hand to own its shape; the
+    selected store's first-use migration would apply the full schema over it."""
+    from memory.backends.postgres_backend import PostgresBackend
+
+    monkeypatch.setattr(PostgresBackend, "on_selected", lambda self: None)
+
+
 def _dsn() -> str:
     """Resolve the DSN LAZILY, at fixture time — never at module import.
 

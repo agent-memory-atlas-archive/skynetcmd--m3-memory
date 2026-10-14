@@ -2,7 +2,7 @@
 
 `m3 embedder install` printed
 
-    [OK] sovereign CPU embedder running on port 8082
+    [OK] embedder running on port 8082
 
 while `m3 embedder status` said `stopped`. A stray `embed_server_inproc.py` left
 running by the same install still held :8082, so the freshly registered service
@@ -143,7 +143,7 @@ def test_live_service_is_reported_ok(pair, monkeypatch, capsys):
     rc = ea._verify_started_or_explain(binary, gguf, start_rc=0)
 
     assert rc == 0
-    assert "[OK] sovereign CPU embedder running on port 8082" in capsys.readouterr().out
+    assert "[OK] embedder running on port 8082" in capsys.readouterr().out
 
 
 def test_dead_service_with_a_free_port_gets_start_advice(pair, monkeypatch, capsys):
@@ -232,7 +232,7 @@ def test_cmd_install_does_not_claim_success_when_the_service_stays_down(pair, mo
 
     cap = capsys.readouterr()
     assert rc == ea.EXIT_REGISTERED_NOT_RUNNING
-    assert "[OK] sovereign CPU embedder running" not in cap.out
+    assert "[OK] embedder running" not in cap.out
     assert "REGISTERED but NOT running" in cap.err
 
 
@@ -248,7 +248,7 @@ def test_cmd_install_reports_ok_when_the_service_comes_up(pair, monkeypatch, cap
     rc = ea.cmd_install(SimpleNamespace(concurrency=2))
 
     assert rc == 0
-    assert "[OK] sovereign CPU embedder running on port 8082" in capsys.readouterr().out
+    assert "[OK] embedder running on port 8082" in capsys.readouterr().out
 
 
 def test_already_registered_and_running_is_not_restarted(pair, monkeypatch, capsys):

@@ -185,7 +185,16 @@ def run(brief: bool = False, fix: bool = False) -> int:
         url = f"http://{host}:{port}"
 
         if _port_serving(host, port):
-            # Healthy: alive AND serving.
+            from m3_memory._ports import held_by_another_owner
+
+            if held_by_another_owner(port, host):
+                print(
+                    f"[!] {url} answers, but not from this account's dashboard (pid {p.pid}): another "
+                    "user's m3 or another program holds the port. fix: m3 dashboard --stop, then "
+                    "m3 dashboard --port <free port>"
+                )
+                continue
+            # Healthy: alive AND serving, and the server is ours.
             print(f"[OK] Web Dashboard available at: {url}  (pid {p.pid})")
             continue
 

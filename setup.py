@@ -39,6 +39,26 @@ from setuptools import setup
 # subdir becomes its own package entry (setuptools maps one dir per package).
 # installer.py resolves these from Path(m3_memory.__file__).parent / <component>
 # (or their per-component $M3_PATH_* override).
+def migration_trees():
+    """The schema-chain directories under memory/, by name. Raises when none is
+    found: a build without its migrations must fail, not ship a broken package."""
+    found = (
+        sorted(
+            d
+            for d in os.listdir("memory")
+            if (d == "migrations" or d.endswith("_migrations")) and os.path.isdir(os.path.join("memory", d))
+        )
+        if os.path.isdir("memory")
+        else []
+    )
+    if "migrations" not in found:
+        raise SystemExit(
+            "setup.py: memory/migrations not found next to setup.py; refusing to build a "
+            "package without its schema migrations (is this an incomplete sdist?)"
+        )
+    return found
+
+
 def _payload_mapping():
     # (import-name-prefix, root-dir) — each root tree grafts under m3_memory/.
     # memory/migrations + memory/chatlog_migrations carry the schema .sql that
@@ -54,9 +74,12 @@ def _payload_mapping():
         # graft they never ship in the wheel and every pass logs "SLM profile
         # not found" and no-ops.
         ("m3_memory.config", "config"),
-        ("m3_memory.memory.migrations", os.path.join("memory", "migrations")),
-        ("m3_memory.memory.chatlog_migrations", os.path.join("memory", "chatlog_migrations")),
     ]
+    # Every schema chain under memory/ (migrations, chatlog_, dispatch_,
+    # warehouse_migrations, and any added later) ships, found on disk rather than
+    # listed: a hand list once left two chains out of the wheel, so installed
+    # m3 could not find its dispatch or warehouse migrations.
+    trees += [("m3_memory.memory." + name, os.path.join("memory", name)) for name in migration_trees()]
     package_dir = {}
     packages = []
     package_data = {}

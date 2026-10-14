@@ -22,7 +22,8 @@ graft docs
 graft _assets
 graft examples
 include install_os.py
-recursive-include memory/migrations *.sql
+# Every schema chain under memory/ (setup.py ships each memory/*migrations dir).
+recursive-include memory *.sql
 
 global-exclude __pycache__/*
 global-exclude *.py[cod]

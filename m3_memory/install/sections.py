@@ -151,8 +151,13 @@ def _chatlog_db_stats(db_path: Path) -> dict:
         finally:
             _cm.__exit__(None, None, None)
     except sqlite3.OperationalError as e:
-        # Table may not exist yet (fresh install before first write).
-        out["error"] = str(e)
+        if "no such table" in str(e).lower():
+            # A fresh install before the first capture: an empty chat log, not
+            # an unreadable one (reporting it unreadable made a new install
+            # read DEGRADED).
+            out["ok"] = True
+        else:
+            out["error"] = str(e)
     return out
 
 

@@ -353,7 +353,20 @@ def main() -> int:
 
             print(f"store: SQLite — {resolve_db_path(args.database)}")
         else:
-            print(f"store: {_b.name} (pooled; db_path is a label, not a location)")
+            print(f"store: {_b.name}")
+            # The schema the store is on, against the one this release ships: a
+            # store behind it is never reported healthy.
+            try:
+                with _b.connection() as _c:
+                    _applied, _known = _b.schema_status(_c)
+                if _applied < _known:
+                    print(f"⚠️  store schema: v{_applied}, this release expects v{_known} — fix: `m3 doctor --fix`")
+                    exit_code = max(exit_code, 1)
+                else:
+                    print(f"       schema: v{_applied} (current)")
+            except Exception as e:  # noqa: BLE001 — report, never crash the doctor
+                print(f"⚠️  store schema: could not be read ({type(e).__name__}: {e})")
+                exit_code = max(exit_code, 1)
             # An agent_memory.db beside a pooled backend is NOT the live store.
             try:
                 from m3_core.paths import resolve_engine_file
@@ -361,9 +374,8 @@ def main() -> int:
                 _stray = resolve_engine_file("agent_memory.db")
                 if os.path.exists(_stray):
                     print(
-                        f"       note: {_stray} exists but is NOT in use — a "
-                        "leftover from a pre-2026-08 install. Safe to archive "
-                        "once you have confirmed the PG store is authoritative."
+                        f"       note: {_stray} exists but is not the store in use "
+                        f"({_b.name} is). Archive it once you no longer need what it holds."
                     )
             except Exception:  # noqa: BLE001 — a note is never worth failing on
                 pass

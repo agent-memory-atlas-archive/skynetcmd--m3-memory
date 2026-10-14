@@ -468,6 +468,16 @@ def _embed_server_port() -> int:
     return _config.setting("embed.server.port")  # malformed fails at config load (R-loud)
 
 
+def _port_held_by_someone_else(port: int) -> bool:
+    """True when the port's listener is not this account's, on an OS where the
+    embedder is a per-user service (Linux, macOS). On Windows it is one machine-
+    wide LocalSystem service by design, so another owner there is normal."""
+    from m3_memory._platform import current_uid
+    from m3_memory._ports import held_by_another_owner
+
+    return current_uid() is not None and held_by_another_owner(port)
+
+
 def _port_in_use(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bool:
     """True if something is already accepting TCP connections on host:port.
 
@@ -803,9 +813,19 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, q
     if _confirm_started(binary, gguf):
         # RUNNING means the process exists; it answers only once the model has
         # loaded. A check fired in between (setup's doctor) reads tier-2 offline.
-        if _wait_serving(port):
+        serving = _wait_serving(port)
+        if serving and _port_held_by_someone_else(port):
+            print(
+                f"[!] port {port} answers, but not from this account's embedder: another user's m3, or "
+                "another program, holds it, so this account's own embedder cannot start.\n"
+                f"  m3 will use the server already on port {port}. To run your own instead, pick a free "
+                "port: m3 config set embed.server.port <port>",
+                file=sys.stderr,
+            )
+            return EXIT_REGISTERED_NOT_RUNNING
+        if serving:
             if not quiet_ok:
-                print(f"[OK] sovereign CPU embedder running on port {port}")
+                print(f"[OK] embedder running on port {port}")
         else:
             print(
                 f"[!] m3-embed-server is running but port {port} has not answered "

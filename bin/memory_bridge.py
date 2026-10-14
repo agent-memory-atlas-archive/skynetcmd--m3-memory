@@ -13,6 +13,11 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 logger = logging.getLogger("memory_bridge")
+# The HTTP client logs every request at INFO ("HTTP Request: POST .../embedding").
+# One line per embed is noise in the server log, and the CLI imports this module,
+# so it reached the user's terminal on every command. Its warnings still show.
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # Server instructions — delivered to the client at MCP handshake, so they land in
 # the agent's context EVERY session. That reach is the point: without this, an

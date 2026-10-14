@@ -483,6 +483,20 @@ class SqliteBackend:
         ``memory.db._lazy_init``. Present for seam symmetry with PostgreSQL."""
         return
 
+    def on_selected(self) -> None:
+        """No-op: SQLite migrates lazily on first `_db()` touch already."""
+        return
+
+    def schema_status(self, conn: object) -> tuple[int, int]:
+        """(applied, known) from schema_versions and memory/migrations."""
+        from migrate_memory import MIGRATIONS_DIR, discover_migrations
+
+        has = conn.execute(  # type: ignore[attr-defined]
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_versions'"
+        ).fetchone()
+        row = conn.execute("SELECT COALESCE(MAX(version), 0) FROM schema_versions").fetchone() if has else (0,)  # type: ignore[attr-defined]
+        return int(row[0]), max(discover_migrations(MIGRATIONS_DIR) or {0: None})
+
     def schema_version(self) -> int | None:
         """MAX(version) from schema_versions, or None if the table is absent.
 
