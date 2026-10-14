@@ -258,7 +258,7 @@ LEAK=""
 # Anonymized placeholder identities used in fixtures and docs. These match the
 # home-path SHAPE the scan looks for, so they blocked legitimate pushes — and a
 # gate that fires on correct work teaches people to reach for --no-verify, which
-# is exactly when a real leak walks through (see m3 memory d8579b92).
+# is exactly when a real leak walks through.
 #
 # Deliberately NOT an exclusion of tests/ wholesale: a real credential can land
 # in a test file, and excluding the directory would create a blind spot. Only
