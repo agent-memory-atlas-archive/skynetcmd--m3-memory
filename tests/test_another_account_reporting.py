@@ -78,3 +78,50 @@ def test_a_failed_ownership_check_is_reported_not_read_as_ours(monkeypatch):
     monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", boom)
     whose = p._server_is_someone_elses()
     assert isinstance(whose, str) and "probe broke" in whose
+
+
+def _stub_probe(monkeypatch, p, *, others: bool, started: list):
+    monkeypatch.setattr(p, "_read_config", lambda: {"disable_inproc_embedder": True})
+    monkeypatch.setattr(p, "_server_health", lambda *a, **k: ("ok", {}))
+    monkeypatch.setattr(p, "_classify_embed_model", lambda cfg, body: (None, []))
+    monkeypatch.setattr(p, "_keepalive", lambda: ("rust-service", False))
+    monkeypatch.setattr(p, "_detect_inproc_env_leak", lambda: [])
+    monkeypatch.setattr(p, "_server_is_someone_elses", lambda: others)
+    monkeypatch.setattr(p, "_rust_service_state", lambda: "stopped")
+    monkeypatch.setattr(p, "_fix_start_rust_service", lambda: started.append(1) or True)
+
+
+def test_doctor_does_not_restart_a_service_that_cannot_bind(monkeypatch, capsys):
+    """Found in a trial install: with another account on the port, this
+    account's service failed to bind and was restarted every few seconds,
+    loading the model each time; `doctor --fix` would have started it again."""
+    from doctor import shared_embedder_probe as p
+
+    started: list = []
+    _stub_probe(monkeypatch, p, others=True, started=started)
+    assert p.run(brief=True, fix=True) == 0
+    assert started == []
+    assert "another account's" in capsys.readouterr().out
+
+
+def test_doctor_still_restarts_this_accounts_stopped_service(monkeypatch):
+    """The guard must be able to fail: with no other owner, a stopped service is
+    the problem it always was, and --fix starts it."""
+    from doctor import shared_embedder_probe as p
+
+    started: list = []
+    _stub_probe(monkeypatch, p, others=False, started=started)
+    p.run(brief=True, fix=True)
+    assert started == [1]
+
+
+def test_setup_stops_the_service_another_account_blocks(monkeypatch, tmp_path, capsys):
+    calls: list = []
+    monkeypatch.setattr(embedder_admin, "_confirm_started", lambda *a, **k: True)
+    monkeypatch.setattr(embedder_admin, "_wait_serving", lambda *a, **k: True)
+    monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", lambda *a, **k: True)
+    monkeypatch.setattr(embedder_admin, "_service_cmd_quiet", lambda b, g, sub, *e: calls.append(sub) or 0)
+    rc = embedder_admin._verify_started_or_explain(tmp_path / "bin", tmp_path / "m.gguf")
+    assert rc == embedder_admin.EXIT_REGISTERED_NOT_RUNNING
+    assert calls == ["stop"]
+    assert "stopped so it does not keep retrying" in capsys.readouterr().err

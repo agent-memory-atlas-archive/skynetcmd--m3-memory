@@ -614,7 +614,11 @@ def run(brief: bool = False, fix: bool = False) -> int:
     # 3. Keep-alive: a Rust OS service OR the Python scheduled task must exist so
     #    the server survives a crash/reboot. Flag only if NEITHER is present.
     ka_kind, ka_ok = _keepalive()
-    if not ka_ok:
+    # Another account's server holds the port: this account's own service cannot
+    # bind there, so its state is not a problem, and starting it (--fix) would
+    # only make it fail and retry, loading the model each time.
+    whose = _server_is_someone_elses() if health == "ok" else False
+    if not ka_ok and whose is not True:
         problems.append("keepalive-missing")
 
     # 4. Inproc env leak: M3_EMBED_GGUF anywhere forces a per-process CUDA embedder
@@ -682,7 +686,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
     manual_only = (problems == ["inproc-env-leak"]) and _manual_env_leak_remains()
 
     if brief:
-        whose = _server_is_someone_elses() if healthy else False
+        if not healthy:
+            whose = False
         if isinstance(whose, str):
             print(f"shared-embedder: settings OK; could not check who runs the server ({whose})")
         elif whose:

@@ -454,7 +454,9 @@ the policy is forward-going only.
   "port already in use" note is dropped when the start check already names the
   owner. A dashboard or embedder that answers from another account is no longer
   reported as started or as this install's server, and setup does not suggest
-  `m3 doctor --fix` for a port another account holds.
+  `m3 doctor --fix` for a port another account holds. Setup stops this account's
+  embedder service when another account holds its port, instead of leaving it to
+  fail and restart every few seconds, and `m3 doctor --fix` no longer starts it.
   **Affected:** Linux and macOS machines with more than one m3 user ·
   **Action:** give each account its own port (`m3 config set embed.server.port`) ·
   **Data status:** none.
@@ -485,7 +487,8 @@ the policy is forward-going only.
 - **`m3 secret set NAME --stdin` stores a value piped in by a script.** The value
   could only be typed at a prompt, so scripted setups could not store the
   database address. A terminal on standard input is refused, so a typed value is
-  never shown.
+  never shown. With no keyring on the computer, the lookup note now says so
+  instead of suggesting a package to install.
   **Affected:** scripted and automated installs · **Action:** none ·
   **Data status:** none.
 

@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: 17a1fa7a3cff
-mtime_utc: 2026-10-14T05:23:45.587241+00:00
-generated_utc: 2026-10-14T05:25:28.648461+00:00
+sha1: 5e89a1b10f54
+mtime_utc: 2026-10-14T17:03:58.877466+00:00
+generated_utc: 2026-10-14T17:04:04.774596+00:00
 private: false
 ---
 
@@ -45,8 +45,8 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', name, '-w']`` (line 511)
-- `subprocess.run()` (line 556)
+- `subprocess.run()  → `['security', 'find-generic-password', '-s', name, '-w']`` (line 516)
+- `subprocess.run()` (line 561)
 
 
 ---

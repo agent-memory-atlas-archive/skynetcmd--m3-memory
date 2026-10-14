@@ -91,6 +91,11 @@ def _keyring_read(service_name: str, username: str) -> tuple[str | None, str | N
             if success:
                 return result, None
             logger.debug(f"Keyring lookup failed: {result}")
+            if isinstance(result, keyring.errors.NoKeyringError):
+                # No keyring service on this computer (a headless box): the
+                # library's own text suggests installing a fallback, which m3
+                # does not need; its secrets file is the store.
+                return None, "keyring: none on this computer"
             return None, f"keyring: {type(result).__name__}: {result}"
         except queue.Empty:
             logger.warning(

@@ -89,3 +89,19 @@ def test_other_errors_still_raise(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["m3", "status"])
     with pytest.raises(RuntimeError, match="a real bug"):
         cli.main()
+
+
+def test_a_missing_keyring_reads_as_none_not_as_install_advice(monkeypatch):
+    """On a headless box the keyring library's error suggests installing a
+    fallback package; m3 does not need one, so the lookup note says only that
+    there is no keyring."""
+    import auth_utils
+    import keyring
+
+    def no_backend(*_a, **_k):
+        raise keyring.errors.NoKeyringError("No recommended backend was available. Install keyrings.alt")
+
+    monkeypatch.setattr(keyring, "get_password", no_backend)
+    value, err = auth_utils._keyring_read("system", "M3_PRIMARY_PG_URL")
+    assert value is None
+    assert err == "keyring: none on this computer"

@@ -828,11 +828,19 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, q
         # loaded. A check fired in between (setup's doctor) reads tier-2 offline.
         serving = _wait_serving(port)
         if serving and _port_held_by_someone_else(port):
+            # Left running, the service fails to bind and is restarted every few
+            # seconds, loading the model each time.
+            stopped = _service_cmd_quiet(binary, gguf, "stop") == 0
             print(
                 f"[!] port {port} answers, but not from this account's embedder: another user's m3, or "
                 "another program, holds it, so this account's own embedder cannot start.\n"
-                f"  m3 will use the server already on port {port}. To run your own instead, pick a free "
-                "port: m3 config set embed.server.port <port>",
+                f"  m3 will use the server already on port {port}. "
+                + (
+                    "This account's embedder service is stopped so it does not keep retrying. "
+                    if stopped
+                    else "Could not stop this account's embedder service; it keeps retrying: m3 embedder stop. "
+                )
+                + "To run your own instead: m3 config set embed.server.port <free port>, then m3 embedder start",
                 file=sys.stderr,
             )
             return EXIT_REGISTERED_NOT_RUNNING
