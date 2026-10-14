@@ -21,6 +21,19 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Moving settings out of shell startup files reads only real settings.** A value
+  the shell works out when it starts, such as `$(security find-generic-password ...)`,
+  was stored as the secret itself; lines inside functions and heredocs, and
+  `NAME=value command` prefixes, were read as settings; and `$HOME/...` was called a
+  disagreement with the same path written out. Such values are now reported and
+  never stored, `$HOME` and `~` are expanded, and a setting found only in shell
+  startup files says that m3's background services will now use it.
+  **Affected:** macOS and Linux installs whose shell startup files set m3 variables ·
+  **Action:** if an upgrade printed "stored" for a secret your shell reads from the
+  keychain, run `m3 secret set NAME` with the real value ·
+  **Data status:** a wrongly stored secret could make m3 read the wrong key when the
+  keychain is locked; no memory data is affected.
+
 - **`m3 schedules verify` names the agent the notification waiter watches.** With
   no agent registered it printed "watching every registered agent ... (0 of 0)"
   while it watched `claude-code`.

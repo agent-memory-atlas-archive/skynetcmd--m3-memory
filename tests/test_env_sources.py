@@ -29,6 +29,47 @@ def test_shell_assignment_reads_the_last_effective_assignment(text, expected):
     assert env_sources.shell_assignment(text, "X") == expected
 
 
+_HEREDOC = """cat > "$d/.env" <<EOF
+X=${X:-}
+{
+  "nested": "json"
+}
+EOF
+export X=after
+"""
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        # Shapes found in a macOS upgrade trial's .zshenv/.zshrc.
+        (
+            "export X=$(security find-generic-password -s X -w 2>/dev/null)\n",
+            ("$(security find-generic-password -s X -w 2>/dev/null)", True),
+        ),
+        ("export X=$OTHER\n", ("$OTHER", True)),
+        ("export X=`cat f`\n", ("`cat f`", True)),
+        ("export X='$literal'\n", ("$literal", False)),
+        ("    X=0.0.0.0 python3 ~/bin/proxy.py &\n", None),  # one-command prefix
+        ('function f {\n  export X="inside"\n}\n', None),
+        ("f() {\n  X=inside\n}\nexport X=top\n", ("top", False)),
+        ('function g { export X="${X:-y}"; run; }\n', None),
+        (_HEREDOC, ("after", False)),
+        ("cat > f <<EOF\nX=${X:-}\nEOF\n", None),
+        ("if [ -f a ]; then\n  export X=1\nfi\n", ("1", False)),
+        ("export X=1 Y=2\n", ("1", False)),
+    ],
+)
+def test_shell_setting_reads_only_top_level_settings(text, expected):
+    assert env_sources.shell_setting(text, "X") == expected
+
+
+def test_shell_setting_expands_home(monkeypatch, tmp_path):
+    monkeypatch.setattr(env_sources, "_home", lambda: tmp_path)
+    for text in ('export X="$HOME/.m3/engine"\n', "export X=${HOME}/.m3/engine\n", "export X=~/.m3/engine\n"):
+        assert env_sources.shell_setting(text, "X") == (f"{tmp_path}/.m3/engine", False), text
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     from m3_memory import installer

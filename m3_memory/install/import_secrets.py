@@ -82,15 +82,19 @@ def import_secrets(
     for key in sorted((k for k in REGISTRY if k.klass is KeyClass.SECRET), key=lambda k: k.name):
         name = key.name
         hits = by_key.get(name, [])
+        elsewhere = any(f.kind != "process" for f in hits)
         for f in hits:
             if f.kind == "mcp" and not f.m3_server:
                 lines.append(f"  [i] {name}: {f.name} in {f.place} belongs to another tool; m3 leaves it there")
-            elif f.kind == "process":
+            elif f.kind == "process" and not elsewhere:
                 lines.append(
                     f"  [i] {name}: set only in this process's environment ({f.name}); not stored. "
                     f"m3 does not read it there: `m3 secret set {name}`"
                 )
-        legacy = [f for f in hits if f.persistent and f.value.strip()]
+        # A value the shell works out at startup (`$(security ...)`, `$OTHER`)
+        # is not the secret: an upgrade once stored that text as the vault key.
+        computed = [f for f in hits if f.computed]
+        legacy = [f for f in hits if f.persistent and f.value.strip() and not f.computed]
         listed = next((entries[k] for k in store_keys_for(name) if k in entries), None)
         if listed is not None:
             differs = [f for f in legacy if not isinstance(listed, KeyringRef) and f.value.strip() != listed.strip()]
@@ -109,6 +113,11 @@ def import_secrets(
             if legacy:
                 lines.append(f"      legacy copies, which m3 no longer reads: {_places(legacy)}")
             continue
+        if computed:
+            lines.append(
+                f"  [i] {name}: {_places(computed)} works it out when the shell starts "
+                f"(for example from the macOS keychain); not stored. Store it once with `m3 secret set {name}`"
+            )
         if not legacy:
             continue
         by_value: dict[str, list[EnvFound]] = {}

@@ -53,6 +53,7 @@ class _Candidate:
     values: dict[str, list[EnvFound]] = field(default_factory=dict)  # shown value -> its sources
     parsed: dict[str, ConfigValue] = field(default_factory=dict)  # shown value -> parsed
     bad: list[tuple[EnvFound, str]] = field(default_factory=list)  # unparseable, with the reason
+    computed: list[EnvFound] = field(default_factory=list)  # worked out by the shell: not a value
 
 
 def _shown(value: object) -> str:
@@ -77,6 +78,9 @@ def _candidates(found: list[EnvFound]) -> tuple[dict[str, _Candidate], list[EnvF
         if key.klass is not KeyClass.CONFIG:
             continue
         c = out.setdefault(key.name, _Candidate(key))
+        if f.computed:
+            c.computed.append(f)
+            continue
         try:
             value = key.coerce_env_value(f.value)
         except ConfigValueError as e:
@@ -123,6 +127,11 @@ def _plan(
         c = candidates[name]
         for f, why in c.bad:
             lines.append(f"  [!] {name}: {f.name}={f.value!r} in {f.where} does not read ({why}); not imported")
+        for f in c.computed:
+            lines.append(
+                f"  [i] {name}: {f.name} in {f.where} is worked out by the shell when it starts "
+                f"({f.value}); not imported. If m3 needs it: `m3 config set {name} VALUE`"
+            )
         if not c.values:
             continue
         if current.resolved[name].origin.startswith("file:"):
@@ -143,6 +152,12 @@ def _plan(
             continue
         chosen[c.key] = c.parsed[shown]
         lines.append(f"  [+] {verb} {name} = {shown}  (from {_where(c.values[shown])})")
+        if all(f.kind == "rc" for f in c.values[shown]):
+            # A value only shell startup files set reached terminals, never the
+            # services (launchd/systemd do not read them); from the file, it does.
+            lines.append(
+                "      only shell startup files set it, which m3's background services do not read; they use it from now on"
+            )
     return chosen, lines, secrets
 
 

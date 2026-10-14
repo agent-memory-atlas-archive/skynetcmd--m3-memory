@@ -153,6 +153,45 @@ def test_a_secret_only_in_this_process_is_listed_not_stored(world, capsys, monke
     assert "ANTHROPIC_API_KEY: set only in this process's environment" in out and "sk-process" not in out
 
 
+def test_a_value_the_shell_works_out_is_never_stored_or_imported(world, capsys):
+    """Found in a macOS upgrade trial: the text `$(security ...)` was stored as
+    AGENT_OS_MASTER_KEY, a heredoc line as another secret, a one-command prefix
+    became mcp.proxy_host, and "$HOME/.m3/engine" was called a disagreement
+    with the same path written out."""
+    home = world["home"]
+    (home / ".zshenv").write_text(
+        "export AGENT_OS_MASTER_KEY=$(security find-generic-password -s AGENT_OS_MASTER_KEY -w 2>/dev/null)\n"
+        'export M3_MODELS_ROOT="$HOME/.m3/models"\n',
+        encoding="utf-8",
+    )
+    (home / ".zshrc").write_text(
+        f"export M3_MODELS_ROOT={home}/.m3/models\n"
+        "function claw {\n"
+        '  cat > "$d/.env" <<EOF\n'
+        "OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}\n"
+        "EOF\n"
+        "  MCP_PROXY_HOST=0.0.0.0 python3 ~/bin/mcp_proxy.py &\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert _secrets() == {}
+    assert "AGENT_OS_MASTER_KEY" in out and "works it out when the shell starts" in out
+    assert "security find-generic-password" not in out  # a secret's source text is not shown either
+    data = _file(world)
+    # M3_MODELS_ROOT, not M3_ENGINE_ROOT: the test harness pins the engine root
+    # in the process environment, which would be a third source.
+    assert Path(data["paths"]["models_root"]) == home / ".m3" / "models"
+    assert "mcp" not in data and "disagree" not in out
+
+
+def test_a_setting_only_in_shell_startup_files_says_the_services_now_use_it(world, capsys):
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    assert _run(world) == 0
+    assert "background services do not read; they use it from now on" in capsys.readouterr().out
+
+
 def test_another_tools_mcp_entry_is_never_a_source_but_m3s_own_is(world, capsys, monkeypatch):
     import json
 

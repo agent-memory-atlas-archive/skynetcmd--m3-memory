@@ -36,6 +36,7 @@ class EnvFound:
     kind: str  # "process" | "mcp" | "dotenv" | "rc" | "registry" | "llmfile"
     server: str | None = None  # kind "mcp": the server entry's name
     m3_server: bool = False  # kind "mcp": the entry runs m3 (not another tool)
+    computed: bool = False  # kind "rc": the shell works the value out at startup; ``value`` is the text
 
     @property
     def place(self) -> str:
@@ -70,20 +71,101 @@ def is_m3_server(name: str, entry: dict) -> bool:
     return bool(runs_m3([str(entry.get("command") or ""), *(str(a) for a in (entry.get("args") or []))]))
 
 
-def shell_assignment(text: str, name: str) -> str | None:
-    """The value of the LAST assignment of ``name`` at a line start in shell
-    startup text (``NAME=``, ``export NAME=``, csh ``set NAME=``), or None. A
-    commented-out line does not count, and ``M3_CDW_PG_URL=`` is not ``PG_URL``.
-    The one owner of this reading."""
+_HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_]\w*)\2")
+_BRACE_OPEN = re.compile(r"(?:^|[\s;])\{(?=\s|$)")
+_BRACE_CLOSE = re.compile(r"(?:^|[\s;])\}(?=[\s;]|$)")
+_NEEDS_SHELL = re.compile(r"[$`]")
+
+
+def _top_level_lines(text: str) -> Iterable[str]:
+    """The lines a shell runs as top-level statements of the file: not inside a
+    heredoc body, a function body or a ``{ }`` group. A heredoc that writes
+    ``NAME=...`` into another tool's .env, or a line inside a function, is not
+    a setting of this shell."""
+    depth = 0
+    heredoc: tuple[str, bool] | None = None  # (delimiter, leading tabs allowed)
+    for line in text.splitlines():
+        if heredoc is not None:
+            if (line.lstrip("\t") if heredoc[1] else line) == heredoc[0]:
+                heredoc = None
+            continue
+        if depth == 0:
+            yield line
+        code = line.split("#", 1)[0]
+        depth = max(0, depth + len(_BRACE_OPEN.findall(code)) - len(_BRACE_CLOSE.findall(code)))
+        m = _HEREDOC.search(code)
+        if m:
+            heredoc = (m.group(3), m.group(1) == "-")
+
+
+def _shell_word(s: str) -> tuple[str, str]:
+    """Split the shell word at the start of ``s`` into (word, rest): quotes,
+    ``$( )``, ``${ }`` and backticks keep their spaces inside the word."""
+    i, depth, quote = 0, 0, ""
+    while i < len(s):
+        c = s[i]
+        if quote:
+            if c == quote:
+                quote = ""
+            elif c == "\\" and quote == '"':
+                i += 1
+        elif c in "\"'`":
+            quote = c
+        elif c == "\\":
+            i += 1
+        elif s.startswith(("$(", "${"), i):
+            depth += 1
+            i += 1
+        elif c in "({" and depth:
+            depth += 1
+        elif c in ")}" and depth:
+            depth -= 1
+        elif not depth and (c.isspace() or c == ";"):
+            break
+        i += 1
+    return s[:i], s[i:]
+
+
+def shell_setting(text: str, name: str) -> tuple[str, bool] | None:
+    """The LAST top-level setting of ``name`` in shell startup text
+    (``NAME=``, ``export NAME=``, csh ``set NAME=``) as ``(value, computed)``,
+    or None. The one owner of this reading.
+
+    Not a setting: a commented-out line, a line inside a heredoc, function or
+    ``{ }`` group, and ``NAME=value command`` (that sets NAME for the one
+    command). ``M3_CDW_PG_URL=`` is not ``PG_URL``. ``$HOME``, ``${HOME}`` and
+    a leading ``~`` are expanded; a value still needing the shell
+    (``$(security ...)``, ``$OTHER``, backticks) comes back as written with
+    ``computed`` True, so no caller mistakes the text for the value: an upgrade
+    once stored ``$(security find-generic-password ...)`` as a secret."""
+    pattern = re.compile(rf"^\s*(export\s+|set\s+)?{re.escape(name)}\s*=(.*)$")
     last = None
-    for m in re.finditer(rf"(?m)^\s*(?:export\s+|set\s+)?{re.escape(name)}\s*=(.*)$", text):
-        rhs = m.group(1).strip()
-        if rhs[:1] in ('"', "'") and rhs.count(rhs[0]) >= 2:
-            rhs = rhs[1 : rhs.index(rhs[0], 1)]
-        else:
-            rhs = rhs.split("#", 1)[0].strip()
-        last = rhs
+    for line in _top_level_lines(text):
+        m = pattern.match(line)
+        if not m:
+            continue
+        word, rest = _shell_word(m.group(2))
+        rest = rest.strip()
+        if rest and not rest.startswith(("#", ";")) and not (m.group(1) or re.match(r"[A-Za-z_]\w*=", rest)):
+            continue  # NAME=value command: a one-command prefix, not a setting
+        if len(word) >= 2 and word[0] == word[-1] == "'":
+            last = (word[1:-1], False)  # single quotes: literal
+            continue
+        if len(word) >= 2 and word[0] == word[-1] == '"':
+            word = word[1:-1]
+        home = str(_home())
+        value = re.sub(r"\$HOME(?!\w)", "${HOME}", word).replace("${HOME}", home)
+        if value == "~" or value.startswith("~/"):
+            value = home + value[1:]
+        last = (value, bool(_NEEDS_SHELL.search(value)))
     return last
+
+
+def shell_assignment(text: str, name: str) -> str | None:
+    """The value ``shell_setting`` reads (as written when the shell computes it),
+    or None: for callers asking only whether, or to what literal, a name is set."""
+    hit = shell_setting(text, name)
+    return None if hit is None else hit[0]
 
 
 def _home() -> Path:
@@ -163,9 +245,9 @@ def scan(
             skipped.append(f"{f} ({type(e).__name__}: {e})")
             continue
         for n in wanted:
-            value = shell_assignment(text, n)
-            if value is not None:
-                out.append(EnvFound(n, value, str(f), "rc"))
+            setting = shell_setting(text, n)
+            if setting is not None:
+                out.append(EnvFound(n, setting[0], str(f), "rc", computed=setting[1]))
 
     from m3_memory import installer as _I
 
