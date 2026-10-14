@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import UTC
@@ -117,6 +118,57 @@ class VectorHit:
 
     memory_id: str
     score: float
+
+
+@dataclass(frozen=True, slots=True)
+class EmbeddingRow:
+    """One ``memory_embeddings`` row, as every writer hands it to the backend.
+
+    ``embedding`` is the packed float32 blob (``embedding_utils.pack``) and stays
+    the source of truth on every backend. The optional columns are written only
+    when set, so a writer that leaves ``created_at`` unset gets the table's
+    default rather than a NULL.
+    """
+
+    id: str
+    memory_id: str
+    embedding: bytes | None
+    embed_model: str | None
+    dim: int | None
+    created_at: str | None = None
+    content_hash: str | None = None
+    vector_kind: str | None = None
+
+
+_EMBEDDING_REQUIRED = ("id", "memory_id", "embedding", "embed_model", "dim")
+_EMBEDDING_OPTIONAL = ("created_at", "content_hash", "vector_kind")
+
+EmbeddingConflict = Literal["error", "ignore", "update"]
+
+# The tables an embedding row may be written to: the core store's, and the chat
+# log's clone on a backend that keeps the chat log in the same database
+# (dialect.chatlog_table_for). A name outside this set is refused, not quoted.
+EMBEDDING_TABLES = frozenset({"memory_embeddings", "chat_log_embeddings"})
+
+
+def embedding_table(table: str) -> str:
+    if table not in EMBEDDING_TABLES:
+        raise ValueError(f"not an embedding table: {table!r} (expected one of {sorted(EMBEDDING_TABLES)})")
+    return table
+
+
+def embedding_row_groups(rows: Sequence[EmbeddingRow]) -> list[tuple[list[str], list[tuple]]]:
+    """Group rows by the optional columns they set: ``[(columns, value_tuples)]``.
+
+    One INSERT per group, so an unset optional column falls to its default
+    instead of being written as NULL. Order within a group is preserved.
+    """
+    groups: dict[tuple[str, ...], list[tuple]] = {}
+    for r in rows:
+        opt = tuple(c for c in _EMBEDDING_OPTIONAL if getattr(r, c) is not None)
+        cols = _EMBEDDING_REQUIRED + opt
+        groups.setdefault(cols, []).append(tuple(getattr(r, c) for c in cols))
+    return [(list(cols), vals) for cols, vals in groups.items()]
 
 
 class SnapshotError(RuntimeError):
@@ -530,6 +582,31 @@ class StorageBackend(Protocol):
         Use this where a conflicting row must be LEFT ALONE — immutable records
         such as relationship edges, where the existing row is authoritative and a
         re-push must be a no-op rather than a rewrite.
+        """
+        ...
+
+    def insert_embeddings(
+        self,
+        conn: object,
+        rows: Sequence[EmbeddingRow],
+        *,
+        on_conflict: EmbeddingConflict = "error",
+        table: str = "memory_embeddings",
+    ) -> int:
+        """Write ``memory_embeddings`` rows: the ONE embedding write path. Backend-blind.
+
+        Every writer (memory write, re-embed, import, sweeper, sync) calls this
+        rather than spelling its own INSERT, because a backend may keep more than
+        the BYTEA blob: PostgreSQL with pgvector also writes the ``embedding_vec``
+        copy that its in-database search scores. A writer that bypassed this
+        would leave rows without that copy and quietly drop search to the slower
+        baseline path.
+
+        ``on_conflict`` on the ``id`` key: ``"error"`` (plain INSERT), ``"ignore"``
+        (keep the existing row), ``"update"`` (overwrite every written column).
+        ``table`` is one of :data:`EMBEDDING_TABLES` (the chat log's clone on a
+        shared-database backend). Runs inside the caller's transaction; never
+        commits. Returns rows sent.
         """
         ...
 

@@ -105,12 +105,6 @@ class _StandaloneSqliteDialect:
         # datetime() bound matches every same-day row. Matches the seam.
         return f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || {days_placeholder} || ' days')"
 
-    def insert_or_ignore(self) -> str:
-        return "INSERT OR IGNORE INTO"
-
-    def on_conflict_ignore(self, **_kw) -> str:
-        return ""
-
     def table_exists(self, table: str) -> tuple:
         return ("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?", (table,))
 
@@ -558,30 +552,19 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     # memory_core's connection pool (keeps WAL / busy_timeout behavior
     # consistent with the rest of the codebase). Returns True iff a row
     # was newly written.
-    d = _sql()
+    # Through the backend's one embedding write path, so a backend that keeps
+    # more than the blob (PostgreSQL's pgvector copy) gets it here too.
+    from memory.backends import active_backend
+    from memory.backends.base import EmbeddingRow
+
     _, embeddings = _tables(args)
-    insert_sql = (
-        f"{d.insert_or_ignore()} {embeddings} "
-        "(id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
-        f"VALUES ({d.placeholder(7)}) {d.on_conflict_ignore()}"
-    ).rstrip()
 
     def _write(mid: str, vec: list[float], model_str: str, content_hash: str) -> bool:
-        now_iso = utc_iso()
+        row = EmbeddingRow(_new_uuid(), mid, mc._pack(vec), model_str, len(vec), utc_iso(), content_hash)
         with mc._db() as db:
-            cur = db.execute(
-                insert_sql,
-                (
-                    _new_uuid(),
-                    mid,
-                    mc._pack(vec),
-                    model_str,
-                    len(vec),
-                    now_iso,
-                    content_hash,
-                ),
-            )
-            if cur.rowcount > 0:
+            # The id is fresh, so the only conflict key cannot collide: the row
+            # is always written.
+            if active_backend().insert_embeddings(db, [row], on_conflict="ignore", table=embeddings):
                 written.add(mid)
                 return True
             return False

@@ -360,14 +360,14 @@ class M3StorageBackend:
         import uuid
 
         from embedding_utils import pack as _pack
-        from memory.backends import dialect
+        from memory.backends import active_backend, dialect
+        from memory.backends.base import EmbeddingRow
         from memory.db import _db
         from memory.textprep import _content_hash
 
         dim = len(vec)
         model = mapping.crewai_embed_model(dim)
         _d = dialect()
-        now = _d.now()
         # Fetch the content to hash (matches write.py's content_hash-per-vector).
         with _db() as db:
             row = db.execute(
@@ -375,19 +375,20 @@ class M3StorageBackend:
                 (memory_id,),
             ).fetchone()
             content = (row[0] if row else "") or ""
-            db.execute(
-                "INSERT INTO memory_embeddings "
-                "(id, memory_id, embedding, embed_model, dim, created_at, "
-                f"content_hash, vector_kind) VALUES ({_d.placeholder(7)}, {now})",
-                (
-                    str(uuid.uuid4()),
-                    memory_id,
-                    _pack([float(x) for x in vec]),
-                    model,
-                    dim,
-                    _content_hash(content),
-                    "crewai",
-                ),
+            # created_at left unset: the column's default stamps it server-side.
+            active_backend().insert_embeddings(
+                db,
+                [
+                    EmbeddingRow(
+                        str(uuid.uuid4()),
+                        memory_id,
+                        _pack([float(x) for x in vec]),
+                        model,
+                        dim,
+                        content_hash=_content_hash(content),
+                        vector_kind="crewai",
+                    )
+                ],
             )
             db.commit()
 

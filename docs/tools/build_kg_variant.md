@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: a60334770c39
-mtime_utc: 2026-10-10T21:05:16.686941+00:00
-generated_utc: 2026-10-12T23:24:27.118862+00:00
+sha1: af4690e84b66
+mtime_utc: 2026-10-14T03:17:25.052296+00:00
+generated_utc: 2026-10-14T03:18:55.982716+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ uses the configured database and refuses a path.
 
 ## Entry points
 
-- `def main()` (line 212)
+- `def main()` (line 209)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -68,7 +68,8 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `m3_core.context (pointed_store_connection)`
-- `m3_core.paths (resolve_cli_store, seam_dialect)`
+- `m3_core.paths (resolve_cli_store, seam_backend, seam_dialect)`
+- `memory.backends.base (EmbeddingRow)`
 - `numpy`
 
 ---

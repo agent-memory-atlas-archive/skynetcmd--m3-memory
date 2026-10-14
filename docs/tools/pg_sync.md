@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_sync.py
-sha1: be4796c7c623
-mtime_utc: 2026-10-13T10:49:42.142163+00:00
-generated_utc: 2026-10-13T10:51:52.912776+00:00
+sha1: 94df75dff151
+mtime_utc: 2026-10-14T03:37:33.122080+00:00
+generated_utc: 2026-10-14T03:38:46.470528+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 1719)
+- `def main()` (line 1704)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -61,11 +61,12 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.secret_store (bump_secret_generation)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
+- `memory.backends.base (EmbeddingRow)`
 - `memory.backends.dialect (chatlog_table_for)`
 - `memory.backends.dialect (dialect_for)`
 - `memory.backends.dialect (dialect_for_connection)`
+- `memory.backends.postgres_backend (insert_embeddings_on)`
 - `memory.backends.selector (backend_for)`
-- `psycopg2 (Binary)`
 - `psycopg2.extras (execute_values)`
 - `yaml`
 

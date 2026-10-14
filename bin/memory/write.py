@@ -411,7 +411,8 @@ async def memory_write_impl(
                 meta_dict["entities"] = ents
                 metadata = json.dumps(meta_dict)
 
-    from memory.backends import dialect
+    from memory.backends import active_backend, dialect
+    from memory.backends.base import EmbeddingRow
 
     _d1 = dialect()
     _blank_json = _d1.empty_json_default()
@@ -523,12 +524,13 @@ async def memory_write_impl(
         any_inserted = False
         for kind, sub_text, cvec, m in windows:
             with _db() as db:
-                db.execute(
-                    (
-                        "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
-                        f"VALUES ({_d1.placeholder(8)})"
-                    ).rstrip(),
-                    (str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind),
+                active_backend().insert_embeddings(
+                    db,
+                    [
+                        EmbeddingRow(
+                            str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind
+                        )
+                    ],
                 )
             any_inserted = True
             if first_vec is None:
@@ -771,7 +773,8 @@ async def rewindow_memory(item_id: str) -> int:
     'default' row (unreachable by default search). Nothing is deleted when the
     embedder returns nothing: the old rows stay and 0 is returned.
     """
-    from memory.backends import dialect
+    from memory.backends import active_backend, dialect
+    from memory.backends.base import EmbeddingRow
 
     d = dialect()
     p = d.param()
@@ -795,12 +798,13 @@ async def rewindow_memory(item_id: str) -> int:
     now = datetime.now(UTC).isoformat()
     with _db() as db:
         db.execute(f"DELETE FROM memory_embeddings WHERE memory_id = {p}", (item_id,))
-        for kind, sub_text, cvec, m in windows:
-            db.execute(
-                "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, "
-                f"vector_kind) VALUES ({d.placeholder(8)})",
-                (str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind),
-            )
+        active_backend().insert_embeddings(
+            db,
+            [
+                EmbeddingRow(str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind)
+                for kind, sub_text, cvec, m in windows
+            ],
+        )
     return len(windows)
 
 
@@ -1468,7 +1472,8 @@ async def memory_write_bulk_impl(
         await gather_or_cancel(*(_enrich_one(p) for p in prepared))
 
     # Phase 1: INSERT memory_items + history in one transaction.
-    from memory.backends import dialect
+    from memory.backends import active_backend, dialect
+    from memory.backends.base import EmbeddingRow
 
     _db_bulk = dialect()
     with _db() as db:
@@ -1567,6 +1572,7 @@ async def memory_write_bulk_impl(
         # Track per-item default-kind embed success so we only enqueue once.
         default_ok: set[str] = set()
         default_fail: set[str] = set()
+        emb_rows: list[EmbeddingRow] = []
         with _db() as db:
             for p, kind, idx in emit_plan:
                 vec, m = unique_vecs[idx]
@@ -1579,24 +1585,14 @@ async def memory_write_bulk_impl(
                     if kind == "default" and p.get("_dual_default_embed_text")
                     else p["embed_text"]
                 )
-                db.execute(
-                    (
-                        "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
-                        f"VALUES ({_db_bulk.placeholder(8)})"
-                    ).rstrip(),
-                    (
-                        str(uuid.uuid4()),
-                        p["id"],
-                        _pack(vec),
-                        m,
-                        len(vec),
-                        now,
-                        _content_hash(text_for_hash),
-                        kind,
-                    ),
+                emb_rows.append(
+                    EmbeddingRow(
+                        str(uuid.uuid4()), p["id"], _pack(vec), m, len(vec), now, _content_hash(text_for_hash), kind
+                    )
                 )
                 if kind == "default":
                     default_ok.add(p["id"])
+            active_backend().insert_embeddings(db, emb_rows)
         for mid in default_fail - default_ok:
             logger.warning(f"memory_write_bulk_impl: embed failed for {mid}; skipping memory_embeddings insert")
 
@@ -2077,7 +2073,8 @@ async def memory_write_batch_impl(items: list[dict]):
     Speed Optimization: Parallelized batch memory write (Speed #1).
     Expects list of dicts with keys matching memory_write_impl args.
     """
-    from memory.backends import dialect
+    from memory.backends import active_backend, dialect
+    from memory.backends.base import EmbeddingRow
 
     _d_batch = dialect()
 
@@ -2139,6 +2136,7 @@ async def memory_write_batch_impl(items: list[dict]):
             logger.error(f"Batch embedding timed out after 120s for {len(write_tasks)} items")
             embeddings = [None] * len(write_tasks)
 
+        emb_rows: list[EmbeddingRow] = []
         with _db() as db:
             for (mid, text), result in zip(write_tasks, embeddings, strict=True):
                 # gather(return_exceptions=True) yields BaseException, not just
@@ -2152,14 +2150,11 @@ async def memory_write_batch_impl(items: list[dict]):
                     continue
                 vec, m = result
                 if vec:
-                    db.execute(
-                        (
-                            "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
-                            f"VALUES ({_d_batch.placeholder(7)})"
-                        ).rstrip(),
-                        (str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now, _content_hash(text)),
+                    emb_rows.append(
+                        EmbeddingRow(str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now, _content_hash(text))
                     )
                 else:
                     logger.warning(f"Batch embed empty vec for {mid}; skipping memory_embeddings insert")
+            active_backend().insert_embeddings(db, emb_rows)
 
     return f"Batch created: {len(results)} items"

@@ -1757,10 +1757,12 @@ async def conversation_append_impl(conversation_id, role, content, agent_id="", 
     if embed:
         vec, m = await _embed(content)
         if vec:
+            from memory.backends import active_backend
+            from memory.backends.base import EmbeddingRow
+
             with _db() as db:
-                db.execute(
-                    f"INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at) VALUES ({_p},{_p},{_p},{_p},{_p},{_p})",
-                    (str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now),
+                active_backend().insert_embeddings(
+                    db, [EmbeddingRow(str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now)]
                 )
     return f"Appended: {mid}"
 

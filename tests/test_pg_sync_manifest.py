@@ -37,7 +37,7 @@ def _build_psycopg2_stub():
     stub.Binary = bytes
     extras = types.ModuleType("psycopg2.extras")
 
-    def _execute_values(cur, sql, values):
+    def _execute_values(cur, sql, values, template=None, page_size=100, fetch=False):
         """Minimal shim: pass the values list to cur.execute() as-is."""
         cur.execute(sql, values)
 

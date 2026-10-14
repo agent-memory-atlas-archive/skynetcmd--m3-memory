@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: 1a713442b81c
-mtime_utc: 2026-10-14T00:12:31.650527+00:00
-generated_utc: 2026-10-14T00:13:09.173909+00:00
+sha1: 5efa61ce73ee
+mtime_utc: 2026-10-14T03:15:55.490911+00:00
+generated_utc: 2026-10-14T03:18:56.663292+00:00
 private: false
 ---
 
@@ -52,7 +52,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 2339)
+- `httpx.AsyncClient()` (line 2340)
 
 
 ---
@@ -67,7 +67,9 @@ _(none detected)_
 - `memory (confidence)`
 - `memory (config)`
 - `memory (trust)`
+- `memory.backends (active_backend)`
 - `memory.backends (dialect)`
+- `memory.backends.base (EmbeddingRow)`
 - `memory.db (flush_read_log)`
 - `memory.db (savepoint)`
 - `memory.db (tolerant_schema)`

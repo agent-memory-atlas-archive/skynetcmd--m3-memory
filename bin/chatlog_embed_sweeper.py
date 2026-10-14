@@ -428,31 +428,16 @@ async def embed_batch(
 
     if not dry_run:
         try:
-            rows_to_insert = []
-            for (mem_id, _, _, _), (vec, model_str) in zip(batch, embeddings, strict=True):
-                if vec is not None:
-                    packed = _pack(vec)
-                    embed_id = str(uuid.uuid4())
-                    rows_to_insert.append(
-                        (
-                            embed_id,
-                            mem_id,
-                            packed,
-                            model_str,
-                            len(vec),  # dim
-                            datetime.now(UTC).isoformat(),
-                        )
-                    )
+            from memory.backends import active_backend
+            from memory.backends.base import EmbeddingRow
 
+            rows_to_insert = [
+                EmbeddingRow(str(uuid.uuid4()), mem_id, _pack(vec), model_str, len(vec), datetime.now(UTC).isoformat())
+                for (mem_id, _, _, _), (vec, model_str) in zip(batch, embeddings, strict=True)
+                if vec is not None
+            ]
             if rows_to_insert:
-                conn.executemany(
-                    """
-                    INSERT OR IGNORE INTO memory_embeddings
-                    (id, memory_id, embedding, embed_model, dim, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    rows_to_insert,
-                )
+                active_backend().insert_embeddings(conn, rows_to_insert, on_conflict="ignore")
                 conn.commit()
         except sqlite3.Error as e:
             logger.error("Failed to insert embeddings: %s", e)
@@ -700,25 +685,24 @@ async def main() -> int:
         def _write(mid: str, vec: list[float], model_str: str, content_hash: str) -> bool:
             if args.dry_run:
                 return True  # count it but don't write
+            from memory.backends import active_backend
+            from memory.backends.base import EmbeddingRow
+
             try:
-                cur = conn.execute(
-                    """
-                    INSERT OR IGNORE INTO memory_embeddings
-                    (id, memory_id, embedding, embed_model, dim, created_at, content_hash)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        str(uuid.uuid4()),
-                        mid,
-                        _mc_pack(vec),
-                        model_str,
-                        len(vec),
-                        datetime.now(UTC).isoformat(),
-                        content_hash,
-                    ),
+                row = EmbeddingRow(
+                    str(uuid.uuid4()),
+                    mid,
+                    _mc_pack(vec),
+                    model_str,
+                    len(vec),
+                    datetime.now(UTC).isoformat(),
+                    content_hash,
                 )
+                # The id is fresh, so the only conflict key cannot collide: the
+                # row is always written.
+                written = active_backend().insert_embeddings(conn, [row], on_conflict="ignore")
                 conn.commit()
-                return cur.rowcount > 0
+                return written > 0
             except sqlite3.Error as e:
                 logger.error("Failed to insert embedding for %s: %s", mid[:8], e)
                 return False

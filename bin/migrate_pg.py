@@ -176,9 +176,14 @@ def current_version(conn) -> int:
 def _validate_migration_sql(filepath: str, sql: str) -> None:
     """Reject files that issue their own COMMIT/ROLLBACK/BEGIN — those break the
     single-transaction-per-file atomicity. Comments stripped first so prose using
-    those words doesn't trip it."""
+    those words doesn't trip it, and dollar-quoted bodies ($$...$$, $tag$...$tag$)
+    too: inside a DO block or function, BEGIN/END are PL/pgSQL block keywords, not
+    transaction control."""
     stripped = re.sub(r"--[^\n]*", "", sql)
     stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.DOTALL)
+    # The tag group always participates (possibly empty): a back-reference to a group
+    # that did not take part fails in Python instead of matching "", so `$$` needs it.
+    stripped = re.sub(r"\$([A-Za-z_][A-Za-z0-9_]*|)\$.*?\$\1\$", "", stripped, flags=re.DOTALL)
     m = _FORBIDDEN_STATEMENTS_RE.search(stripped)
     if m:
         raise ValueError(

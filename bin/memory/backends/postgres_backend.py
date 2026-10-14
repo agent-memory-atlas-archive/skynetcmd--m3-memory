@@ -28,7 +28,7 @@ import os
 import re
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,10 +39,14 @@ from m3_core.config import settings as _m3cfg
 from .base import (
     BackendName,
     Capabilities,
+    EmbeddingConflict,
+    EmbeddingRow,
     KeywordHit,
     Snapshot,
     SnapshotError,
     VectorHit,
+    embedding_row_groups,
+    embedding_table,
     snapshot_target,
 )
 from .dialect import Dialect, ParamStyle
@@ -64,6 +68,73 @@ _DEFAULT_MAXCONN = 16
 # single statement stays comfortably parseable and a failure rolls back a
 # bounded amount of work. Overridable for tuning against a slow link.
 _UPSERT_PAGE_SIZE = _m3cfg.setting("db.postgres.upsert_page_size")
+
+
+def _has_vec_column(cur: Any, table: str) -> bool:
+    """Whether ``table`` as this session resolves it (its search_path) has pg_066's
+    ``embedding_vec`` column. Read on every write rather than cached: one catalog
+    lookup per batch, and never stale after the extension is added or the
+    migration is reversed, nor wrong for a second schema on the same DSN."""
+    cur.execute(
+        "SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass(%s) AND attname = 'embedding_vec' AND NOT attisdropped",
+        (table,),
+    )
+    return cur.fetchone() is not None
+
+
+def _vector_literal(blob: bytes | None) -> str | None:
+    """pgvector's text form of a packed float32 blob. ``repr`` of each float32
+    widened to a double is exact, and pgvector parses it back to the same float4,
+    so the copy equals the blob bit for bit."""
+    if blob is None:
+        return None
+    from embedding_utils import unpack
+
+    return "[" + ",".join(map(repr, unpack(blob))) + "]"
+
+
+def insert_embeddings_on(
+    cur: Any,
+    rows: Sequence[EmbeddingRow],
+    *,
+    on_conflict: EmbeddingConflict = "error",
+    table: str = "memory_embeddings",
+) -> int:
+    """Write embedding rows through ``cur``, a cursor on a PostgreSQL database.
+
+    BYTEA always; with pgvector (pg_066's column present) also the
+    ``embedding_vec`` copy, so the row is searchable in the database the moment
+    it lands. Batched with execute_values (one statement per page, not one round
+    trip per row). A module function, not only the backend method, because
+    pg_sync writes to a warehouse through a connection of its own and has no
+    backend instance for it.
+    """
+    if not rows:
+        return 0
+    from psycopg2.extras import execute_values
+
+    table = embedding_table(table)
+    with_vec = _has_vec_column(cur, table)
+    for cols, vals in embedding_row_groups(rows):
+        marks = ["%s"] * len(cols)
+        if with_vec:
+            vals = [(*v, _vector_literal(v[2])) for v in vals]
+            cols = [*cols, "embedding_vec"]
+            marks.append("%s::vector")
+        if on_conflict == "ignore":
+            tail = POSTGRES.on_conflict_ignore(conflict_target="(id)")
+        elif on_conflict == "update":
+            tail = POSTGRES.on_conflict_update("(id)", cols[1:])
+        else:
+            tail = ""
+        execute_values(
+            cur,
+            f"INSERT INTO {table} ({', '.join(cols)}) VALUES %s {tail}".rstrip(),
+            vals,
+            template="(" + ", ".join(marks) + ")",
+            page_size=_UPSERT_PAGE_SIZE,
+        )
+    return len(rows)
 
 
 def _make_compat_cursor_factory():
@@ -1173,6 +1244,19 @@ class PostgresBackend:
         cur = conn.cursor()  # type: ignore[attr-defined]
         execute_values(cur, sql, rows, page_size=_UPSERT_PAGE_SIZE)
         return len(rows)
+
+    def insert_embeddings(
+        self,
+        conn: object,
+        rows: Sequence[EmbeddingRow],
+        *,
+        on_conflict: EmbeddingConflict = "error",
+        table: str = "memory_embeddings",
+    ) -> int:
+        """BYTEA always; with pgvector also the ``embedding_vec`` copy. See
+        :func:`insert_embeddings_on`, which this delegates to."""
+        cur = conn.cursor()  # type: ignore[attr-defined]
+        return insert_embeddings_on(cur, rows, on_conflict=on_conflict, table=table)
 
     def maintenance_checkpoint(self, conn: object, *, final: bool = False) -> None:
         """No-op: PostgreSQL manages its own WAL (checkpointer + bgwriter).

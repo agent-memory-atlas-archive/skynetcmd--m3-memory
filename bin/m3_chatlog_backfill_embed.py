@@ -120,10 +120,12 @@ def _write_embeddings_batch(
     if not embeddings:
         return 0
     from embedding_utils import pack as _pack
+    from memory.backends.base import EmbeddingRow
 
     now = utc_iso()
     d = seam_dialect()
-    with seam_backend().connection() as conn:
+    backend = seam_backend()
+    with backend.connection() as conn:
         cur = conn.cursor()
         # Detect schema variant — newer m3_chatlog DBs may not have content_hash
         # column. Via the dialect: a bare `PRAGMA table_info` is SQLite-only AND
@@ -136,23 +138,20 @@ def _write_embeddings_batch(
         has_kind = "vector_kind" in embed_cols
         has_chash = "content_hash" in embed_cols
 
-        cols = ["id", "memory_id", "embedding", "embed_model", "dim", "created_at"]
-        if has_kind:
-            cols.append("vector_kind")
-        if has_chash:
-            cols.append("content_hash")
-        placeholders = d.placeholder(len(cols))
-        sql = f"INSERT INTO memory_embeddings ({','.join(cols)}) VALUES ({placeholders})"
-
-        n = 0
-        for mid, vec, model in embeddings:
-            row = [str(uuid.uuid4()), mid, _pack(vec), model, len(vec), now]
-            if has_kind:
-                row.append("default")
-            if has_chash:
-                row.append("")  # backfilled, content unchanged from DB
-            cur.execute(sql, row)
-            n += 1
+        rows = [
+            EmbeddingRow(
+                str(uuid.uuid4()),
+                mid,
+                _pack(vec),
+                model,
+                len(vec),
+                now,
+                "" if has_chash else None,  # backfilled, content unchanged from DB
+                "default" if has_kind else None,
+            )
+            for mid, vec, model in embeddings
+        ]
+        n: int = backend.insert_embeddings(conn, rows)
         conn.commit()
         return n
 

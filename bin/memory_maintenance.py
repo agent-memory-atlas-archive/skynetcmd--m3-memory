@@ -1976,7 +1976,9 @@ def memory_import_impl(data: str):
     except Exception as e:
         return f"Error parsing import data: {e}"
 
+    from memory.backends import active_backend
     from memory.backends import dialect as _dialect
+    from memory.backends.base import EmbeddingRow
 
     _d = _dialect()
     _p = _d.param()
@@ -2024,24 +2026,19 @@ def memory_import_impl(data: str):
             # 2. Re-insert embeddings. INSERT OR REPLACE is SQLite-only → dialect
             #    upsert on the id PK (overwrite the row's mutable columns).
             mid = clean_item["id"]
-            _emb_cols = ["embedding", "embed_model", "dim", "created_at", "content_hash"]
-            _emb_upsert = _d.on_conflict_update("(id)", _emb_cols)
-            for edata in item.get("embeddings", []):
-                eblob = base64.b64decode(edata["embedding"]) if edata.get("embedding") else None
-                db.execute(
-                    f"{_d.insert_or_ignore()} memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
-                    f"VALUES ({_d.placeholder(7)}) {_emb_upsert}",
-                    (
-                        str(uuid.uuid4()),
-                        mid,
-                        eblob,
-                        edata.get("embed_model"),
-                        edata.get("dim"),
-                        edata.get("created_at"),
-                        edata.get("content_hash"),
-                    ),
+            emb_rows = [
+                EmbeddingRow(
+                    str(uuid.uuid4()),
+                    mid,
+                    base64.b64decode(edata["embedding"]) if edata.get("embedding") else None,
+                    edata.get("embed_model"),
+                    edata.get("dim"),
+                    edata.get("created_at"),
+                    edata.get("content_hash"),
                 )
-                e_count += 1
+                for edata in item.get("embeddings", [])
+            ]
+            e_count += active_backend().insert_embeddings(db, emb_rows, on_conflict="update")
 
             # 3. Re-insert relationships. Idempotent on the (from,to,type) unique
             #    edge (migration 039) — re-import is a no-op, not a dup.
@@ -2088,7 +2085,9 @@ async def memory_consolidate_impl(
     now_dt = datetime.now(UTC)
     stale_cutoff = (now_dt - timedelta(days=stale_days)).isoformat() if stale_days > 0 else None
 
+    from memory.backends import active_backend
     from memory.backends import dialect as _dialect
+    from memory.backends.base import EmbeddingRow
 
     _d = _dialect()
     _p = _d.param()
@@ -2215,17 +2214,19 @@ async def memory_consolidate_impl(
                         raise
 
             if s_vec:
-                db.execute(
-                    f"INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) VALUES ({_d.placeholder(7)})",
-                    (
-                        str(uuid.uuid4()),
-                        summary_id,
-                        _pack(s_vec),
-                        s_model,
-                        len(s_vec),
-                        now,
-                        _content_hash(summary_text),
-                    ),
+                active_backend().insert_embeddings(
+                    db,
+                    [
+                        EmbeddingRow(
+                            str(uuid.uuid4()),
+                            summary_id,
+                            _pack(s_vec),
+                            s_model,
+                            len(s_vec),
+                            now,
+                            _content_hash(summary_text),
+                        )
+                    ],
                 )
 
             # 6. Link to sources and 7. Soft-delete

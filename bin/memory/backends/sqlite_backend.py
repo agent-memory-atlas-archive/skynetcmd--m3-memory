@@ -14,6 +14,7 @@ Cycle-break (§2): resolve `M3Context` lazily; do not top-level-import
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from typing import override
@@ -21,10 +22,14 @@ from typing import override
 from .base import (
     BackendName,
     Capabilities,
+    EmbeddingConflict,
+    EmbeddingRow,
     KeywordHit,
     Snapshot,
     SnapshotError,
     VectorHit,
+    embedding_row_groups,
+    embedding_table,
     snapshot_target,
 )
 from .dialect import Dialect, ParamStyle
@@ -710,6 +715,27 @@ class SqliteBackend:
         sql = f"{d.insert_or_ignore()} {table} ({', '.join(columns)}) VALUES ({d.placeholder(len(columns))})"
         cur = conn.cursor()  # type: ignore[attr-defined]
         cur.executemany(sql, rows)
+        return len(rows)
+
+    def insert_embeddings(
+        self,
+        conn: object,
+        rows: Sequence[EmbeddingRow],
+        *,
+        on_conflict: EmbeddingConflict = "error",
+        table: str = "memory_embeddings",
+    ) -> int:
+        """The blob is all SQLite stores. One ``execute`` per row: in-process, so
+        there is no round trip to batch away, and it needs only the ``execute``
+        every connection wrapper has."""
+        d = self.dialect()
+        table = embedding_table(table)
+        for cols, vals in embedding_row_groups(rows):
+            verb = d.insert_or_ignore() if on_conflict == "ignore" else "INSERT INTO"
+            tail = d.on_conflict_update("(id)", cols[1:]) if on_conflict == "update" else ""
+            sql = f"{verb} {table} ({', '.join(cols)}) VALUES ({d.placeholder(len(cols))}) {tail}".rstrip()
+            for v in vals:
+                conn.execute(sql, v)  # type: ignore[attr-defined]
         return len(rows)
 
     def maintenance_checkpoint(self, conn: object, *, final: bool = False) -> None:

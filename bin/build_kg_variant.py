@@ -34,8 +34,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from m3_core.context import pointed_store_connection  # noqa: E402
-from m3_core.paths import resolve_cli_store, seam_dialect  # noqa: E402
+from m3_core.paths import resolve_cli_store, seam_backend, seam_dialect  # noqa: E402
 from m3_sdk import add_database_arg, getenv_compat  # noqa: E402
+from memory.backends.base import EmbeddingRow  # noqa: E402
 
 
 def _unpack(blob) -> np.ndarray:
@@ -130,12 +131,8 @@ def copy_items_and_embeddings(db, source: str, target: str) -> dict[str, str]:
         ).fetchone()
         if er is None:
             continue
-        emb_batch.append((str(uuid.uuid4()), new_id, er[0], er[1], er[2], now, er[3]))
-    db.executemany(
-        "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
-        f"VALUES ({d.placeholder(7)})",
-        emb_batch,
-    )
+        emb_batch.append(EmbeddingRow(str(uuid.uuid4()), new_id, er[0], er[1], er[2], now, er[3]))
+    seam_backend().insert_embeddings(db, emb_batch)
     db.commit()
     log(f"  inserted {len(emb_batch)} embeddings")
     return id_map

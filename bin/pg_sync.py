@@ -786,8 +786,6 @@ def _warn_on_embed_family_mismatch(sl_cur, pg_cur, target_name: str) -> None:
 def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
     """Synchronizes the memory_embeddings table bi-directionally with watermark logic."""
     logger.info(f"[{target_name}] Synchronizing memory_embeddings...")
-    from psycopg2 import Binary
-    from psycopg2.extras import execute_values
 
     now = datetime.now(UTC).isoformat()
 
@@ -838,28 +836,15 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
             logger.info(f"[{target_name}] Skipping {skipped_fk} embeddings whose memory_item is not yet in PG")
 
         try:
-            # Convert sqlite3.Row to tuples with Binary-wrapped embedding blobs
-            values = []
-            for row in filtered_rows:
-                row_list = list(row)
-                # row[2] is the embedding blob — wrap for PG BYTEA
-                row_list[2] = Binary(row_list[2])
-                values.append(tuple(row_list))
+            # The warehouse is PostgreSQL, reached through this sync's own
+            # connection; the shared writer also fills the pgvector copy when
+            # the warehouse has it (pg_066).
+            from memory.backends.base import EmbeddingRow
+            from memory.backends.postgres_backend import insert_embeddings_on
 
+            values = [EmbeddingRow(r[0], r[1], bytes(r[2]), r[3], r[4]) for r in filtered_rows]
             for chunk in batched(values, BATCH_SIZE):
-                execute_values(
-                    pg_cur,
-                    """
-                    INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim)
-                    VALUES %s
-                    ON CONFLICT (id) DO UPDATE SET
-                        embedding = EXCLUDED.embedding,
-                        embed_model = EXCLUDED.embed_model,
-                        dim = EXCLUDED.dim
-                """,
-                    chunk,
-                )
-                push_count += len(chunk)
+                push_count += insert_embeddings_on(pg_cur, chunk, on_conflict="update")
         except Exception as exc:
             push_errors = max(1, len(filtered_rows) - push_count)
             _direction_failed(target_name, "emb_push", exc, push_count, len(filtered_rows))

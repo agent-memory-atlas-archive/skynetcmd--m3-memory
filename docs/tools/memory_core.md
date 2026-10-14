@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_core.py
-sha1: bdb6feab76c5
-mtime_utc: 2026-10-13T16:43:04.872051+00:00
-generated_utc: 2026-10-13T16:43:05.750708+00:00
+sha1: e573acc7acbb
+mtime_utc: 2026-10-14T03:15:34.657284+00:00
+generated_utc: 2026-10-14T03:18:56.625168+00:00
 private: false
 ---
 
@@ -106,7 +106,9 @@ _(no subprocess / http / sqlite calls detected)_
 - `importlib`
 - `m3_core.errors (log_swallowed)`
 - `memory (records)`
+- `memory.backends (active_backend)`
 - `memory.backends (dialect)`
+- `memory.backends.base (EmbeddingRow)`
 - `memory.config (FACT_ENRICH_CONCURRENCY)`
 - `memory.db (record_reads)`
 - `memory.deletion (hard_delete_requested)`

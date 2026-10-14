@@ -209,6 +209,9 @@ _ALLOWED_BACKEND_ONLY = {
     # entity_extraction_queue only. No reader of fact_enrichment_queue.status on
     # either backend (grep, 2026-10-10), so the extra PG column is inert.
     "fact_enrichment_queue": {"only_pg": {"status"}},
+    # pg_066: pgvector's copy of the BYTEA embedding, present only where the server
+    # has pgvector. SQLite scores the blob directly and has no counterpart.
+    "memory_embeddings": {"only_pg": {"embedding_vec"}},
 }
 
 

@@ -30,7 +30,7 @@ def _build_psycopg2_stub():
     stub.Binary = bytes  # Binary(x) is used as a no-op wrapper
     extras = types.ModuleType("psycopg2.extras")
 
-    def _execute_values(cur, sql, values):  # minimal shim
+    def _execute_values(cur, sql, values, template=None, page_size=100, fetch=False):  # real signature
         cur.execute(sql, values)
 
     extras.execute_values = _execute_values

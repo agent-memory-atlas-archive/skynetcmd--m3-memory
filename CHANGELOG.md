@@ -760,6 +760,16 @@ the policy is forward-going only.
 
 ### Added
 
+- **PostgreSQL stores a pgvector copy of each embedding where pgvector is
+  available.** Migration `pg_066` installs the `vector` extension when the server
+  offers it and the role may create it, and adds an `embedding_vec` column to
+  `memory_embeddings` and `chat_log_embeddings`. Every embedding write fills it;
+  a trigger clears a copy left stale by a write that changes only the blob. On a
+  server without pgvector, or a role that may not create it, the migration
+  changes nothing.
+  **Affected:** PostgreSQL stores on a server with pgvector · **Action:** none ·
+  **Data status:** additive; the BYTEA embedding stays the source of truth.
+
 - **`m3 batch` runs several commands in one process.** Each line of stdin is a
   command as it would follow `m3` (the same quoting on every OS), or a JSON
   array of its arguments. Results come back as one JSON object per command;
