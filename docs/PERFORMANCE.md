@@ -115,7 +115,8 @@ describes a specific case, not the general one.
 ### Exact vector search by store size
 
 Vector search is exact on both backends: each query scores every stored vector
-(pgvector / HNSW approximate search is planned). Its cost grows with the number of
+(approximate HNSW search is planned). On PostgreSQL with pgvector the scoring runs in
+the database; see [PostgreSQL with pgvector](#postgresql-with-pgvector). Its cost grows with the number of
 memories stored, not with `k`.
 
 **SQLite** (m3's own cosine path; sqlite-vec was not installed):
@@ -150,6 +151,34 @@ backends) were measured 2026-10-13 on an Apple M3 Max, PostgreSQL 16 on the same
 1024-dimension vectors, `k=8`, 20–30 queries per size, through m3's own write and search
 code with the embedder stubbed (the cost of an exact scan depends on how many vectors are
 stored, not their values). Every search returned all 8 results; every memory had a vector.
+
+### PostgreSQL with pgvector
+
+When the server has the pgvector extension, m3 keeps a `vector` copy of each embedding
+(migration `pg_066`) and, once every row has its copy, PostgreSQL scores the query with
+`<=>` and returns only the top results. It is still exact: the same rows, in the same
+order, with scores equal to the Rust path's within 1e-5 (checked by
+`tests/test_vector_search_pgvector_parity_pg_live.py`). The difference is where the
+scoring runs, which matters most when the database is across a network: without
+pgvector, every stored vector (4 KB each at 1024 dimensions) travels to m3.
+
+| 50,000 memories, vector stage | without pgvector | with pgvector | |
+|---|---|---|---|
+| m3 on the database machine | 638 ms | 201 ms | 3.2× |
+| m3 across a network | 10.3 s | 0.20 s | 51× |
+
+Measured 2026-10-14 on the Apple M3 Max, PostgreSQL 18.6 with pgvector 0.8, 1024-dimension
+vectors, median of 5 queries, `k=8` (`k=2,000`, what the hybrid search requests, costs
+the same within 10%). The network row ran from the Windows measurement host through an
+SSH tunnel on the local network, which slows the bulk transfer; a direct connection is
+faster, but the without-pgvector cost still grows with every vector stored, and the
+with-pgvector cost does not depend on the link. These time the vector stage alone,
+through the backend's two search paths; full search adds the hydrate and ranking steps
+measured above.
+
+Filling the copy for rows written before `pg_066` (`m3 doctor --fix`, or the cognitive
+loop's embed pass) ran at about 2,000 rows/s: 25 s for 50,000, in committed batches of
+1,000 that each took 0.5 s, so no long lock is held.
 
 ### SQLite: many agents writing at once
 

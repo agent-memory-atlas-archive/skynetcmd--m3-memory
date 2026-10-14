@@ -61,6 +61,10 @@ def store(pg_url):
             "embed_model TEXT DEFAULT 'jina-embeddings-v5', dim BIGINT DEFAULT 1024, "
             "created_at TIMESTAMPTZ DEFAULT NOW(), content_hash TEXT, vector_kind TEXT NOT NULL DEFAULT 'default')"
         )
+        # pg_066 also touches chat_log_embeddings. A clone in THIS schema shadows
+        # any `public` one on the search_path, so the migration (up and down) never
+        # reaches a table outside the throwaway schema.
+        cur.execute("CREATE TABLE chat_log_embeddings (LIKE memory_embeddings INCLUDING ALL)")
         cur.execute("INSERT INTO memory_items VALUES ('m1'), ('m2')")
         conn.commit()
         try:
@@ -178,3 +182,71 @@ def test_down_removes_the_column_and_writes_continue(store):
     cur = conn.cursor()
     cur.execute("SELECT count(*) FROM memory_embeddings")
     assert cur.fetchone()[0] == 1
+
+
+def _raw_insert(conn, eid, mid, floats):
+    """A row written before pg_066, or by a writer that bypassed the seam."""
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim) VALUES (%s, %s, %s, 'mod', %s)",
+        (eid, mid, _blob(floats), len(floats)),
+    )
+    conn.commit()
+
+
+def test_fill_copies_rows_written_before_the_column(store):
+    backend, conn = store
+    _raw_insert(conn, "e1", "m1", [0.25, -0.5])
+    _raw_insert(conn, "e2", "m2", [1.5, 2.0])
+    _with_vector_column(conn)
+    # Keyed by table: the test database may hold m3's own chat_log_embeddings in
+    # `public`, which this session's search_path also reaches.
+    assert backend.vector_copy_status(conn).missing["memory_embeddings"] == 2
+    assert backend.fill_vector_copy(conn, limit=1) == 1
+    assert backend.fill_vector_copy(conn, limit=10) == 1
+    assert backend.fill_vector_copy(conn, limit=10) == 0
+    conn.commit()
+    assert backend.vector_copy_status(conn).missing["memory_embeddings"] == 0
+    assert _vec(conn, "e1") == [0.25, -0.5]
+    assert _vec(conn, "e2") == [1.5, 2.0]
+
+
+def test_ensure_restores_the_column_after_it_was_dropped(store):
+    backend, conn = store
+    _with_vector_column(conn)
+    _migrate(conn, "down")
+    status = backend.vector_copy_status(conn)
+    assert status.installed and "memory_embeddings" not in status.missing
+    assert backend.ensure_vector_copy(conn) is True
+    conn.commit()
+    assert _has_column(conn)
+    assert backend.ensure_vector_copy(conn) is True  # idempotent: nothing left to do
+
+
+def test_status_without_the_column(store):
+    backend, conn = store
+    assert "memory_embeddings" not in backend.vector_copy_status(conn).missing
+    assert backend.fill_vector_copy(conn) == 0
+
+
+def test_the_chat_log_clone_gets_the_copy_too(store):
+    from memory.backends.base import EmbeddingRow
+
+    backend, conn = store
+    _with_vector_column(conn)
+    backend.insert_embeddings(
+        conn, [EmbeddingRow("c1", "m1", _blob([0.5, 4.0]), "mod", 2)], table="chat_log_embeddings"
+    )
+    conn.commit()
+    cur = conn.cursor()
+    cur.execute("SELECT embedding_vec::text FROM chat_log_embeddings WHERE id = 'c1'")
+    assert cur.fetchone()[0] == "[0.5,4]"
+    assert backend.vector_copy_status(conn).missing["chat_log_embeddings"] == 0
+
+
+def test_an_unknown_table_is_refused(store):
+    from memory.backends.base import EmbeddingRow
+
+    backend, conn = store
+    with pytest.raises(ValueError, match="not an embedding table"):
+        backend.insert_embeddings(conn, [EmbeddingRow("x", "m1", _blob([1.0]), "mod", 1)], table="memory_items")

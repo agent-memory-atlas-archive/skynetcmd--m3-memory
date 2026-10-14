@@ -202,9 +202,9 @@ These are the real traps (some we hit building it):
   reported success. Check `~/.m3/logs/sync_all.log` for the `FdwUnavailable` reason; the
   refusal message names it. (A **SQLite** primary uses the generic bridge as its
   normal path and is unaffected.)
-- **Vector search on a PG primary is currently brute-force cosine.** (Unrelated to
-  sync, but relevant if you're standing up a PG primary — pgvector/HNSW ANN
-  indexing is a future item; see [ARCHITECTURE.md](ARCHITECTURE.md).)
+- **Vector search on a PG primary is exact.** (Unrelated to sync, but relevant if
+  you're standing up a PG primary: with pgvector it scores in the database;
+  approximate HNSW indexing is a future item; see [ARCHITECTURE.md](ARCHITECTURE.md).)
 
 ---
 

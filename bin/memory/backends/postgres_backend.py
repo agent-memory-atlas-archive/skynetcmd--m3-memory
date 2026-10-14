@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any, override
 from m3_core.config import settings as _m3cfg
 
 from .base import (
+    EMBEDDING_TABLES,
     BackendName,
     Capabilities,
     EmbeddingConflict,
@@ -44,6 +45,7 @@ from .base import (
     KeywordHit,
     Snapshot,
     SnapshotError,
+    VectorCopyStatus,
     VectorHit,
     embedding_row_groups,
     embedding_table,
@@ -70,6 +72,10 @@ _DEFAULT_MAXCONN = 16
 _UPSERT_PAGE_SIZE = _m3cfg.setting("db.postgres.upsert_page_size")
 
 
+# The migration that creates the vector copy; ensure_vector_copy re-applies it.
+_VECTOR_COPY_MIGRATION = 66
+
+
 def _has_vec_column(cur: Any, table: str) -> bool:
     """Whether ``table`` as this session resolves it (its search_path) has pg_066's
     ``embedding_vec`` column. Read on every write rather than cached: one catalog
@@ -80,6 +86,29 @@ def _has_vec_column(cur: Any, table: str) -> bool:
         (table,),
     )
     return cur.fetchone() is not None
+
+
+def _vector_copy_ready(cur: Any) -> bool:
+    """Whether search may score in the database: the core table has the copy
+    column and no row lacks a copy (pg_066's partial index makes this cheap)."""
+    if not _has_vec_column(cur, "memory_embeddings"):
+        return False
+    cur.execute("SELECT NOT EXISTS (SELECT 1 FROM memory_embeddings WHERE embedding_vec IS NULL)")
+    return bool(cur.fetchone()[0])
+
+
+def _vector_copy_status(cur: Any) -> VectorCopyStatus:
+    cur.execute(
+        "SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector'), "
+        "EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')"
+    )
+    available, installed = cur.fetchone()
+    missing: dict[str, int] = {}
+    for table in sorted(EMBEDDING_TABLES):
+        if _has_vec_column(cur, table):
+            cur.execute(f"SELECT count(*) FROM {table} WHERE embedding_vec IS NULL")
+            missing[table] = int(cur.fetchone()[0])
+    return VectorCopyStatus(bool(available), bool(installed), missing)
 
 
 def _vector_literal(blob: bytes | None) -> str | None:
@@ -1258,6 +1287,50 @@ class PostgresBackend:
         cur = conn.cursor()  # type: ignore[attr-defined]
         return insert_embeddings_on(cur, rows, on_conflict=on_conflict, table=table)
 
+    def vector_copy_status(self, conn: object) -> VectorCopyStatus | None:
+        """pgvector's state here, and per embedding table with the copy column,
+        the rows still lacking a copy (pg_066's partial index answers that)."""
+        return _vector_copy_status(conn.cursor())  # type: ignore[attr-defined]
+
+    def ensure_vector_copy(self, conn: object) -> bool:
+        """Re-apply pg_066's body when it has something to do: pgvector offered but
+        not created (the role may have the right now), or an embedding table
+        without the copy column. The body is idempotent."""
+        cur = conn.cursor()  # type: ignore[attr-defined]
+        status = _vector_copy_status(cur)
+        cur.execute(
+            "SELECT to_regclass('memory_embeddings') IS NOT NULL, to_regclass('chat_log_embeddings') IS NOT NULL"
+        )
+        core, clone = cur.fetchone()
+        tables = [t for t, present in (("memory_embeddings", core), ("chat_log_embeddings", clone)) if present]
+        lacking = [t for t in tables if t not in status.missing]
+        if (status.available and not status.installed) or (status.installed and lacking):
+            from migrate_pg import discover_migrations
+
+            cur.execute(Path(discover_migrations()[_VECTOR_COPY_MIGRATION]["up"]).read_text(encoding="utf-8"))
+        return _has_vec_column(cur, "memory_embeddings")
+
+    def fill_vector_copy(self, conn: object, *, table: str = "memory_embeddings", limit: int = 1000) -> int:
+        """One batch: read up to ``limit`` blobs lacking a copy, write their copies
+        in one statement. Changing only the copy, so pg_066's trigger keeps it."""
+        from psycopg2.extras import execute_values
+
+        table = embedding_table(table)
+        cur = conn.cursor()  # type: ignore[attr-defined]
+        if not _has_vec_column(cur, table):
+            return 0
+        cur.execute(f"SELECT id, embedding FROM {table} WHERE embedding_vec IS NULL LIMIT %s", (limit,))
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+        execute_values(
+            cur,
+            f"UPDATE {table} AS t SET embedding_vec = v.vec::vector FROM (VALUES %s) AS v(id, vec) WHERE t.id = v.id",
+            [(r[0], _vector_literal(bytes(r[1]))) for r in rows],
+            page_size=_UPSERT_PAGE_SIZE,
+        )
+        return len(rows)
+
     def maintenance_checkpoint(self, conn: object, *, final: bool = False) -> None:
         """No-op: PostgreSQL manages its own WAL (checkpointer + bgwriter).
 
@@ -1503,18 +1576,24 @@ class PostgresBackend:
     ) -> list[VectorHit]:
         """Vector search, dispatched by capability to the best available path.
 
-        The result SHAPE is identical regardless of arm (base.py invariant). Today
-        only the add-on-free baseline exists; the ``if caps.has("pgvector")`` fork
-        is the declared SEAM POINT so a future pgvector/HNSW ANN arm is a NEW ARM
-        in this file, not a signature change across the seam (§1: CPU-only floor
-        never regresses; pgvector is a Phase-4 opt-in behind the probe).
+        Both arms are EXACT (every stored vector is scored) and return the same
+        list[VectorHit]. With pgvector and a complete vector copy (pg_066, every
+        row filled), PostgreSQL scores in the database and sends back only the
+        top ``limit``; otherwise the baseline ships the candidate blobs to the
+        Rust scorer. "Complete" matters: a row without its copy would be missed,
+        so one missing copy anywhere sends the search to the baseline.
         """
-        if self._detect_vector_accelerator(conn):
-            # Placeholder for the pgvector ANN arm (Phase-4 opt-in). It MUST return
-            # the same list[VectorHit] shape as the baseline. Until implemented,
-            # fall through to the always-correct baseline (no behavior change).
-            # Probes the CALLER'S conn, never a fresh pooled connection.
-            pass
+        cur = conn.cursor()  # type: ignore[attr-defined]
+        if _vector_copy_ready(cur):
+            return self._vector_search_pgvector(
+                cur,
+                query_vector,
+                limit=limit,
+                dim=dim,
+                embed_models=embed_models,
+                tenancy_sql=tenancy_sql,
+                tenancy_params=tenancy_params,
+            )
         return self._vector_search_baseline(
             conn,
             query_vector,
@@ -1524,6 +1603,43 @@ class PostgresBackend:
             tenancy_sql=tenancy_sql,
             tenancy_params=tenancy_params,
         )
+
+    def _vector_search_pgvector(
+        self,
+        cur: Any,
+        query_vector: list,
+        *,
+        limit: int,
+        dim: int,
+        embed_models: tuple = (),
+        tenancy_sql: str = "",
+        tenancy_params: tuple = (),
+    ) -> list[VectorHit]:
+        """The pgvector arm: the same filters and the same scores as the baseline,
+        computed by ``<=>`` (cosine distance) in the database.
+
+        One hit per embedding row, highest cosine first, like the baseline. A
+        zero-norm vector has no cosine: pgvector yields NaN, which the baseline
+        scores 0.0, so NaN is read as distance 1 (cosine 0). Ties are broken by
+        id so the order is deterministic."""
+        d = self.dialect()
+        model_sql = ""
+        if embed_models:
+            model_sql = f" AND me.embed_model IN ({d.placeholder(len(embed_models))})"
+        q = "[" + ",".join(map(repr, map(float, query_vector))) + "]"
+        dist = f"COALESCE(NULLIF(me.embedding_vec <=> {d.param()}::vector, 'NaN'::float8), 1)"
+        cur.execute(
+            f"""
+            SELECT mi.id AS id, 1 - {dist} AS score
+            FROM memory_items mi
+            JOIN memory_embeddings me ON mi.id = me.memory_id
+            WHERE mi.is_deleted = 0 AND me.dim = {d.param()}{model_sql}{tenancy_sql}
+            ORDER BY score DESC, me.id
+            LIMIT {d.param()}
+            """,
+            (q, dim, *embed_models, *tenancy_params, limit),
+        )
+        return [VectorHit(memory_id=r[0], score=float(r[1])) for r in cur.fetchall()]
 
     def _vector_search_baseline(
         self,

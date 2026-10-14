@@ -157,6 +157,21 @@ def embedding_table(table: str) -> str:
     return table
 
 
+@dataclass(frozen=True, slots=True)
+class VectorCopyStatus:
+    """The state of a backend's in-database vector copy (PostgreSQL: pgvector).
+
+    ``available``: the server offers the extension. ``installed``: it is created
+    in this database. ``missing``: per embedding table that has the copy column,
+    the rows still lacking a copy; a table without the column is absent. Search
+    may score in the database only for a table whose ``missing`` is 0.
+    """
+
+    available: bool
+    installed: bool
+    missing: dict[str, int] = field(default_factory=dict)
+
+
 def embedding_row_groups(rows: Sequence[EmbeddingRow]) -> list[tuple[list[str], list[tuple]]]:
     """Group rows by the optional columns they set: ``[(columns, value_tuples)]``.
 
@@ -608,6 +623,26 @@ class StorageBackend(Protocol):
         shared-database backend). Runs inside the caller's transaction; never
         commits. Returns rows sent.
         """
+        ...
+
+    def vector_copy_status(self, conn: object) -> VectorCopyStatus | None:
+        """The in-database vector copy's state, or None for a backend that keeps
+        none (SQLite scores the blob directly). Read-only."""
+        ...
+
+    def ensure_vector_copy(self, conn: object) -> bool:
+        """Add the vector copy column where the backend can and it is missing
+        (PostgreSQL: re-applies pg_066's idempotent body, which a later
+        ``CREATE EXTENSION vector`` needs because the migration is already
+        recorded). Returns whether the core table now has the column. Never
+        commits."""
+        ...
+
+    def fill_vector_copy(self, conn: object, *, table: str = "memory_embeddings", limit: int = 1000) -> int:
+        """Fill up to ``limit`` rows of ``table`` that lack a vector copy, from
+        their blobs. Returns the rows filled: 0 when none are left or the backend
+        keeps no copy. Short by design: the caller commits per call, so a large
+        backfill never holds a long lock."""
         ...
 
     def maintenance_checkpoint(self, conn: object, *, final: bool = False) -> None:

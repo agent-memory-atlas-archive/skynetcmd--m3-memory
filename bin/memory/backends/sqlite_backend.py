@@ -27,6 +27,7 @@ from .base import (
     KeywordHit,
     Snapshot,
     SnapshotError,
+    VectorCopyStatus,
     VectorHit,
     embedding_row_groups,
     embedding_table,
@@ -737,6 +738,16 @@ class SqliteBackend:
             for v in vals:
                 conn.execute(sql, v)  # type: ignore[attr-defined]
         return len(rows)
+
+    def vector_copy_status(self, conn: object) -> VectorCopyStatus | None:
+        """None: SQLite keeps no vector copy; it scores the blob directly."""
+        return None
+
+    def ensure_vector_copy(self, conn: object) -> bool:
+        return False
+
+    def fill_vector_copy(self, conn: object, *, table: str = "memory_embeddings", limit: int = 1000) -> int:
+        return 0
 
     def maintenance_checkpoint(self, conn: object, *, final: bool = False) -> None:
         """WAL checkpoint: PASSIVE mid-batch, TRUNCATE at clean exit (§10).

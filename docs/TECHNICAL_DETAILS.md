@@ -171,7 +171,7 @@ can explain its score (`explain=True`).
   vector kind is searched) go on to ranking, so the cap is a backstop rather
   than the active bound.
 - Embedding cache: content hash lookup avoids re-embedding identical text
-- On a **PostgreSQL primary backend** (`[db] backend = "postgres"`), vector search is still brute-force Rust cosine over the candidate set — the same algorithm, not an index-accelerated ANN. pgvector/HNSW approximate nearest-neighbor is a **future accelerator, not yet implemented**, so choosing PG-primary today buys a shared/server-hosted store, not faster vector search.
+- On a **PostgreSQL primary backend** (`[db] backend = "postgres"`), vector search is exact. With the pgvector extension, migration `pg_066` keeps a `vector` copy of each embedding beside the BYTEA blob, and once every row has its copy PostgreSQL scores with `<=>` and returns only the top results; one row without a copy sends search back to the Rust path, so no row is ever missed. A trigger clears a copy left stale by a blob-only update; `m3 doctor --fix` and the cognitive loop fill missing copies. Approximate (HNSW) search is planned.
 
 **Stage 3 — MMR Re-Ranking**
 - Maximal Marginal Relevance with λ=0.7
@@ -401,7 +401,7 @@ Always-on: when `metadata.temporal_anchors` is supplied, resolved ISO dates are 
 
 ### Test Suite (`tests/`)
 
-6,400+ collected tests (6,800+ with the native core) from 4,700+ test functions across 550+ files (parametrised cases expand the total), run in CI on Linux, macOS and Windows × Python 3.12–3.15 plus a PostgreSQL lane, and at release on 3 OSes × SQLite and PostgreSQL × pure-Python and native core (12 lanes, about 75,000 executions in all, measured 2026-10-10), across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
+6,900+ collected tests (7,300+ with the native core) from 5,100+ test functions across 600+ files (parametrised cases expand the total), run in CI on Linux, macOS and Windows × Python 3.12–3.15 plus a PostgreSQL lane, and at release on 3 OSes × SQLite and PostgreSQL × pure-Python and native core (12 lanes, about 75,000 executions in all, measured 2026-10-10), across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
 
 | Category | Tests | What's Verified |
 |----------|-------|----------------|

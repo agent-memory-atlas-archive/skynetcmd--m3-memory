@@ -82,3 +82,10 @@ def test_groups_keep_order_and_split_by_shape():
     ]
     groups = embedding_row_groups(rows)
     assert [(cols[-1], [v[0] for v in vals]) for cols, vals in groups] == [("content_hash", ["a", "c"]), ("dim", ["b"])]
+
+
+def test_sqlite_keeps_no_vector_copy(conn):
+    b = SqliteBackend()
+    assert b.vector_copy_status(conn) is None
+    assert b.ensure_vector_copy(conn) is False
+    assert b.fill_vector_copy(conn) == 0

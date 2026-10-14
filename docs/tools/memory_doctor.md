@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_doctor.py
-sha1: 56a52bd4caab
-mtime_utc: 2026-10-10T21:05:16.579890+00:00
-generated_utc: 2026-10-12T23:24:27.657939+00:00
+sha1: d0bda045c915
+mtime_utc: 2026-10-14T04:10:57.393911+00:00
+generated_utc: 2026-10-14T04:11:36.504448+00:00
 private: false
 ---
 
@@ -19,6 +19,7 @@ Phases (each in its own module under bin/doctor/):
   - embed_server_probe Rust-side `m3-embed-server doctor` subprocess
   - oxidation_probe    m3_core_rs native-extension presence/staleness report
   - embed_space_probe  mixed embed-space check (vectors from >1 model in one index)
+  - vector_copy_probe  in-database vector copy (PostgreSQL + pgvector)
 
 Each phase can be skipped via --skip-*. Exit code is the maximum across
 the non-skipped phases (most-severe wins). The embed-server and oxidation
@@ -32,7 +33,7 @@ tested in isolation.
 
 ## Entry points
 
-- `def main()` (line 89)
+- `def main()` (line 90)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -110,6 +111,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `doctor (schedule_probe)`
 - `doctor (shared_embedder_probe)`
 - `doctor (startup_tools_probe)`
+- `doctor (vector_copy_probe)`
 - `m3_core.paths (resolve_engine_file)`
 - `memory.backends (active_backend)`
 - `memory.doctor (memory_doctor_fix_impl)`

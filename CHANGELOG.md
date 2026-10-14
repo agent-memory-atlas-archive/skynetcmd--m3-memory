@@ -760,14 +760,24 @@ the policy is forward-going only.
 
 ### Added
 
-- **PostgreSQL stores a pgvector copy of each embedding where pgvector is
-  available.** Migration `pg_066` installs the `vector` extension when the server
-  offers it and the role may create it, and adds an `embedding_vec` column to
-  `memory_embeddings` and `chat_log_embeddings`. Every embedding write fills it;
-  a trigger clears a copy left stale by a write that changes only the blob. On a
-  server without pgvector, or a role that may not create it, the migration
-  changes nothing.
-  **Affected:** PostgreSQL stores on a server with pgvector · **Action:** none ·
+- **On PostgreSQL with pgvector, vector search scores in the database.** Search
+  is still exact (the same rows and order as before), but PostgreSQL returns only
+  the top results instead of sending every stored vector to m3: at 50,000
+  memories, 3× faster on the database machine and about 50× faster across a
+  network.
+  - **Migration `pg_066`** installs the `vector` extension when the server offers
+    it and the role may create it, and adds an `embedding_vec` copy of each
+    embedding to `memory_embeddings` and `chat_log_embeddings`. Every embedding
+    write fills it. A trigger clears a copy that a write left stale by changing
+    only the blob.
+  - **Search uses the database only when every row has its copy;** otherwise it
+    uses the previous path, so no row is missed.
+  - **`m3 doctor`** reports pgvector's state. `m3 doctor --fix` fills missing
+    copies, and it re-applies `pg_066` after a superuser has run
+    `CREATE EXTENSION vector`. The cognitive loop's embed pass also fills them.
+  - **Without pgvector** (or when the role may not create it), nothing changes.
+  **Affected:** PostgreSQL stores on a server with pgvector · **Action:** none;
+  existing rows are filled by the cognitive loop or `m3 doctor --fix` ·
   **Data status:** additive; the BYTEA embedding stays the source of truth.
 
 - **`m3 batch` runs several commands in one process.** Each line of stdin is a

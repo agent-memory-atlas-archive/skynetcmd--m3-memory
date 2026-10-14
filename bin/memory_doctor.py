@@ -8,6 +8,7 @@ Phases (each in its own module under bin/doctor/):
   - embed_server_probe Rust-side `m3-embed-server doctor` subprocess
   - oxidation_probe    m3_core_rs native-extension presence/staleness report
   - embed_space_probe  mixed embed-space check (vectors from >1 model in one index)
+  - vector_copy_probe  in-database vector copy (PostgreSQL + pgvector)
 
 Each phase can be skipped via --skip-*. Exit code is the maximum across
 the non-skipped phases (most-severe wins). The embed-server and oxidation
@@ -260,6 +261,14 @@ def main() -> int:
 
             dashboard_probe.run(brief=brief, fix=not args.dry_run)
 
+        # The in-database vector copy (PostgreSQL + pgvector): re-apply pg_066
+        # when it has work and fill missing copies in committed batches. A
+        # no-op on a backend that keeps no copy. Dry-run only reports.
+        if not getattr(args, "skip_vector_copy", False):
+            from doctor import vector_copy_probe
+
+            vector_copy_probe.run(brief=brief, fix=not args.dry_run)
+
         # Hook re-wiring is opt-in even under --fix: ~/.claude/settings.json is
         # the USER'S file (their own non-m3 hooks live there), so a bad merge
         # breaks their whole Claude Code setup, not just m3. --fix reports; only
@@ -424,6 +433,14 @@ def main() -> int:
         # deliberate one-time cost the operator chooses, so this warns and never
         # bumps the exit code.
         embed_space_probe.run(brief=brief)
+
+    if not getattr(args, "skip_vector_copy", False):
+        from doctor import vector_copy_probe
+
+        # Report-only: without pgvector, search still scores every vector
+        # exactly in m3, so a missing extension or unfilled copies are
+        # information plus the command that moves them forward.
+        vector_copy_probe.run(brief=brief)
 
     if not getattr(args, "skip_startup_tools", False):
         from doctor import startup_tools_probe

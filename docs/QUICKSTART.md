@@ -460,10 +460,10 @@ opt in with `m3 config set db.backend postgres` + the `M3_PRIMARY_PG_URL` secret
 (`m3 secret set M3_PRIMARY_PG_URL`), chosen at install
 (the installer prompts) or non-interactively with
 `mcp-memory install-m3 --db-backend postgres`. SQLite remains the recommended
-default for single-user/local. Note: on a PostgreSQL primary, vector search is
-currently brute-force Rust cosine — pgvector/HNSW ANN is a future accelerator,
-not yet implemented — so pick PG for a shared/server store, not for faster
-vector search.
+default for single-user/local. Note: vector search on a PostgreSQL primary is exact.
+With the pgvector extension it scores in the database (`m3 doctor` reports its
+state); without it m3 scores every vector itself. Approximate (HNSW) search is
+planned.
 
 ---
 

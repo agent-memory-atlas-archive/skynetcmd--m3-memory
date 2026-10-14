@@ -1017,6 +1017,46 @@ def has_spill_work() -> bool:
         return False  # conservative: mirrors has_embed_work's contract
 
 
+# Vector copies filled per embed pass. Filling needs no model (it decodes stored
+# blobs), so a pass can do far more of these than embeddings; bounded so one
+# cycle cannot hold the store for long.
+_VECTOR_COPY_PER_PASS = 20_000
+_VECTOR_COPY_BATCH = 1000
+
+
+def _vector_copy_missing() -> int:
+    """Rows lacking the backend's in-database vector copy, over every embedding
+    table (PostgreSQL + pgvector). 0 on a backend that keeps no copy."""
+    try:
+        from memory.backends import active_backend
+
+        backend = active_backend()
+        with backend.connection() as conn:
+            status = backend.vector_copy_status(conn)
+        return sum(status.missing.values()) if status else 0
+    except Exception as e:  # noqa: BLE001 — a work-gate probe must not stop the loop
+        log_swallowed(logger, e, f"vector copy work-gate probe failed (non-fatal): {e}")
+        return 0
+
+
+def _fill_vector_copies(budget: int = _VECTOR_COPY_PER_PASS) -> int:
+    """Fill up to ``budget`` missing vector copies, committing per batch."""
+    from memory.backends import active_backend
+
+    backend = active_backend()
+    filled = 0
+    with backend.connection() as conn:
+        status = backend.vector_copy_status(conn)
+        for table in status.missing if status else ():
+            while filled < budget:
+                n = backend.fill_vector_copy(conn, table=table, limit=min(_VECTOR_COPY_BATCH, budget - filled))
+                conn.commit()
+                if not n:
+                    break
+                filled += n
+    return filled
+
+
 def has_embed_work(core_db: str | None) -> bool:
     """Is there embed-pass work — unembedded rows, or spill waiting to drain?
 
@@ -1036,6 +1076,8 @@ def has_embed_work(core_db: str | None) -> bool:
     2026-07-14/17 still on disk.
     """
     if has_spill_work():
+        return True
+    if _vector_copy_missing():
         return True
     try:
         import embed_backfill
@@ -1255,6 +1297,19 @@ async def run_embed_pass(args):
                 f"the embedder; check store reachability. Will retry this database "
                 f"next cycle."
             )
+
+    # Vector copies (PostgreSQL + pgvector): rows written before pg_066, or by a
+    # writer that changed only the blob. After the sweep, so this cycle's new
+    # embeddings already carry their copy.
+    try:
+        filled = await asyncio.to_thread(_fill_vector_copies)
+        if filled:
+            logger.info(f"Embed pass: filled {filled} vector cop{'y' if filled == 1 else 'ies'}")
+    except Exception as e:  # noqa: BLE001 — never let this abort the pass
+        logger.error(
+            f"observed: vector copy fill failed ({type(e).__name__}: {e}). possible: the store "
+            f"is locked or the column was dropped. inspect: `m3 doctor`. Will retry next cycle."
+        )
 
 
 def has_classify_work(core_db: str | None) -> bool:

@@ -181,9 +181,9 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 ## 📦 Planned — Distribution & Deployment
 
-> **Order after the next release:** health and Prometheus metrics endpoint, pgvector / HNSW, official Docker image (on demand), server / multi-user deployment guide, stable public SDK, search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
+> **Order after the next release:** health and Prometheus metrics endpoint, HNSW approximate search, official Docker image (on demand), server / multi-user deployment guide, stable public SDK, search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
 
-- [ ] **pgvector / HNSW ANN on the PostgreSQL primary backend** — PostgreSQL can already be m3's primary live store (`[db] backend = "postgres"` + the `M3_PRIMARY_PG_URL` secret), but vector search there is still **brute-force Rust cosine**, the same as on SQLite. Index-accelerated approximate nearest-neighbor via pgvector/HNSW is not yet implemented — so PG-primary today is about a shared/server store, not faster vector search.
+- [ ] **HNSW approximate search on the PostgreSQL primary backend** — exact search already scores in the database when the server has pgvector (migration `pg_066` keeps a `vector` copy of each embedding; `m3 doctor --fix` fills it for older rows). An HNSW index would trade exactness for speed on stores far larger than 50,000 memories.
 - [ ] **Docker image** — built on community demand: today's users run m3 directly (`pip install` and `m3 setup`) and have not asked for one. Shape if built: `docker run -v ~/.m3-memory:/data ghcr.io/skynetcmd/m3-memory:latest`
 - [ ] **TestPyPI as a release gate** — TestPyPI is published alongside PyPI today; make it pass before PyPI publishes
 - [ ] **Homebrew formula** — `brew install m3-memory` (macOS / Linuxbrew)

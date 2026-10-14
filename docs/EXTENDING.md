@@ -85,9 +85,9 @@ changes — the backend registers itself and the readers discover it.
    a written row via both keyword and vector search on the CPU-only floor.
 
 **Accelerators are opt-in, behind a probe.** `vector_search` dispatches on a
-per-connection capability probe with a single baseline arm today; a native ANN
-index (pgvector HNSW, sqlite-vec) is a *new arm in your backend file*, not a
-change to the seam signature.
+per-connection capability probe; PostgreSQL has two arms (the baseline, and exact
+in-database scoring with pgvector). A further index (HNSW, sqlite-vec) is a *new
+arm in your backend file*, not a change to the seam signature.
 
 ---
 
@@ -182,4 +182,4 @@ Points to watch when adapting a new framework:
 
 *See [DESIGN_PHILOSOPHIES.md](DESIGN_PHILOSOPHIES.md) for the tenets these seams
 uphold. Out of scope today (documented future paths, not built): a fully
-per-backend `keyword_search`/`vector_search`, and a pgvector ANN accelerator.*
+per-backend `keyword_search`/`vector_search`, and an approximate (HNSW) accelerator.*
