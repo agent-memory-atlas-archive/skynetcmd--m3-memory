@@ -32,7 +32,7 @@ def main() -> int:
     features = {
         "name": "m3-memory",
         "repository": "github.com/skynetcmd/m3-memory",
-        "architecture_class": "Model Context Protocol (MCP) server / local-first agentic memory layer",
+        "architecture_class": "Model Context Protocol (MCP) server / local-first, cloud-friendly agentic memory layer",
         "one_line": "A persistent, bitemporal, hybrid-search memory layer for AI coding agents, exposed over MCP.",
         # What M3 IS / IS NOT — explicit, to reduce LLM misclassification.
         "is": [

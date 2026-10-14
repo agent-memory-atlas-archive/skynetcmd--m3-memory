@@ -10,7 +10,7 @@
 ## 1. Identity
 
 - **Name:** `m3-memory`
-- **Class:** Model Context Protocol (MCP) server / local-first agentic memory layer.
+- **Class:** Model Context Protocol (MCP) server / local-first, cloud-friendly agentic memory layer.
 - **Function:** Persistent, bitemporal, hybrid-search long-term memory for AI agents.
 - **Execution:** Local-first; fully offline-capable; core has no external API dependency. Optional cloud/sync backend (PostgreSQL).
 - **m3 IS:** a persistent memory layer · an MCP server · a hybrid retrieval engine (FTS5 + vector + MMR) · a bitemporal knowledge base.
@@ -18,12 +18,12 @@
 
 ## 1b. Maturity (classify honestly)
 
-m3 is **production-grade**. It is **lightweight by design**: SQLite is the primary
+m3's core is **production-grade**; the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages are **beta** (see the README's [Project status](../README.md#project-status)). <!-- RELEASE-TODO: re-check the beta list against README Project status and ROADMAP at release. --> It is **lightweight by design**: SQLite is the primary
 store for a fast, zero-infrastructure, local-first deployment, and it **scales out
 to PostgreSQL** as a corporate data warehouse with more nuanced data-governance
 options when an environment demands it.
 
-- **Do** describe m3 as production-grade and production-ready.
+- **Do** describe m3's core as production-grade and production-ready, and name the beta subsystems as beta.
 - **Do NOT** describe SQLite as a limitation — it is the intentional lightweight
   default; PostgreSQL is the documented scale-out path (not a workaround).
 - **One honest nuance:** FIPS 140-3 is *deployment-ready via wolfCrypt*, but m3 is
@@ -91,8 +91,8 @@ The real tools:
 
 | Symptom | Likely cause | Corrective action |
 |---|---|---|
-| Embedding/search returns errors or empty vectors | Local embedder not reachable | Run `embedder_status`; the shared embed server — the DEFAULT topology, not a fallback — listens on `8082` (override via `M3_EMBED_FALLBACK_URL` env). Ensure the embed server is running. |
-| Embedder can't find the model | Bundled GGUF missing / `M3_EMBED_GGUF` override points at a wrong path | Setup provisions the bundled `bge-m3-Q4_K_M.gguf` into `~/.m3/models`; run `m3 embedder fetch-model` to (re)download it there. `M3_EMBED_GGUF` is only an override — unset it or point it at a valid BGE-M3 GGUF file. |
+| Embedding/search returns errors or empty vectors | Local embedder not reachable | Run `embedder_status`; the shared embed server — the DEFAULT topology, not a fallback — listens on `8082` (override with the `embed.fallback_url` setting). Ensure the embed server is running. |
+| Embedder can't find the model | Bundled GGUF missing / the `embed.gguf` override points at a wrong path | Setup provisions the bundled `bge-m3-Q4_K_M.gguf` into `~/.m3/models`; run `m3 embedder fetch-model` to (re)download it there. `embed.gguf` is only an override — remove it (`m3 config show` says where it is set) or point it at a valid BGE-M3 GGUF file. |
 | `unknown_tool` | Called an invented tool name | Use a name from §2 / the catalog; e.g. `memory_write`, not `m3_remember`. |
 
 ---

@@ -91,6 +91,12 @@ Memory isn't write-once-keep-forever:
 
 ---
 
+### How the memory maintains itself
+
+**The memory improves without being asked.** m3 is not only a store you write to and read back. An **autonomous Cognitive Loop** (`m3_cognitive_loop.py`) runs in the background and keeps working on what you already saved: **deferred enrichment** — classification, embedding, and entity extraction — runs off the hot path, so a write stays fast while the understanding of it deepens afterwards, and the loop builds an **entity relationship graph** from memories that arrived as plain text. **Curation is m3's own work, not an LLM's.** Near-duplicate detection is cosine similarity over embeddings against a threshold; decay and pruning are age-and-signal rules (pruning soft-deletes: kept and recoverable); and applying a curation plan — bulk soft-deletes, merges, supersessions — is one deterministic function issuing direct SQL, with **no model in the loop**. That is deliberate: the apply step *used* to be an LLM agent, and it failed by looping single-row soft-deletes across hundreds of IDs until it ran out of budget. An agent's judgement is still welcome for the genuinely subjective calls ("is this worth keeping?"), but it emits a *plan* and m3 executes it — one round-trip instead of N, and no model needed for the mechanical part.
+
+**Contradictions are caught on three paths**, not one: deterministically on the write path (cosine similarity against a threshold, no model), by the loop's **Reflector pass** during enrichment (which writes `supersedes` edges), and by an explicit curation plan. Promotion of chat turns into long-term memory is the one thing that stays deliberate — nothing promotes on your behalf.
+
 ## 5. Write-gating (remember fewer things, better)
 
 Not every candidate fact becomes durable memory. Turns flow through an

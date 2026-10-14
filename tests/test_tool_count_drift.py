@@ -535,7 +535,7 @@ def test_readme_test_count_floor_is_honest():
         assert actual - claimed < 500, (
             f"README claims {claimed:,} tests while {actual:,} `def test_` functions "
             "exist -- the floor is stale. Round the real number down and update it "
-            "(the At-a-Glance table and the Why Trust This section)."
+            "(the 'Tested' line of the README's 'm3 at a glance' list)."
         )
 
 
