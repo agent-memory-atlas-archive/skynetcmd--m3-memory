@@ -64,7 +64,10 @@ def test_headline_names_the_shared_server_in_shared_mode(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
     from m3_memory import rust_core_install
 
+    from m3_memory import embedder_admin
+
     monkeypatch.setattr(rust_core_install, "active_embedder_tier", lambda: {"native": True})
+    monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", lambda *a, **k: False)
     assert installer.status_summary()["embedder"] == "shared server (port 8082)"
 
 
@@ -103,6 +106,9 @@ def test_tier_summary_names_the_shared_server_in_shared_mode(monkeypatch, tmp_pa
     fake.EmbeddedEmbedder = object
     fake.__version__ = "3.10.1"
     monkeypatch.setitem(sys.modules, "m3_core_rs", fake)
+    from m3_memory import embedder_admin
+
+    monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", lambda *a, **k: False)
     tier = rust_core_install.active_embedder_tier()
     assert tier["native"] is True
     assert tier["summary"].startswith("local server on port 8082")

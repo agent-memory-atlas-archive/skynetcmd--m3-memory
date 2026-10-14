@@ -127,7 +127,7 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
 
         tier = active_embedder_tier()
         print("Embedder:")
-        if tier.get("native"):
+        if tier.get("native") and not tier.get("others_server"):
             _ok(f"  {tier['summary']}")
         else:
             _warn(f"  {tier['summary']}")

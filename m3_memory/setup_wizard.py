@@ -432,16 +432,17 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         print("  install one (Claude Code, Gemini CLI, Cursor, ...), connect it with:")
         print("    m3 setup --agents claude      (or gemini, cursor, cline, opencode, ...)")
         print()
-    print("  Agents detected on PATH:")
-    print(f"    {'[x]' if detected.claude else '[ ]'} Claude Code          (claude)")
-    print(f"    {'[x]' if detected.gemini else '[ ]'} Gemini CLI           (gemini)")
-    print(f"    {'[x]' if detected.antigravity else '[ ]'} Antigravity CLI/Desktop (antigravity)")
-    print(f"    {'[x]' if detected.opencode else '[ ]'} OpenCode             (opencode)")
-    print(f"    {'[x]' if detected.openclaw else '[ ]'} OpenClaw             (native MCP since 2026.3.22)")
-    print(f"    {'[x]' if detected.hermes else '[ ]'} Hermes Agent         (file-based memory-provider plugin)")
-    print(f"    {'[x]' if detected.cursor else '[ ]'} Cursor               (~/.cursor/mcp.json)")
-    print(f"    {'[x]' if detected.cline else '[ ]'} Cline                (VS Code extension MCP settings)")
-    print()
+    else:  # a list of empty boxes says nothing the line above did not
+        print("  Agents found on this computer:")
+        print(f"    {'[x]' if detected.claude else '[ ]'} Claude Code")
+        print(f"    {'[x]' if detected.gemini else '[ ]'} Gemini CLI")
+        print(f"    {'[x]' if detected.antigravity else '[ ]'} Antigravity CLI/Desktop")
+        print(f"    {'[x]' if detected.opencode else '[ ]'} OpenCode")
+        print(f"    {'[x]' if detected.openclaw else '[ ]'} OpenClaw")
+        print(f"    {'[x]' if detected.hermes else '[ ]'} Hermes Agent")
+        print(f"    {'[x]' if detected.cursor else '[ ]'} Cursor")
+        print(f"    {'[x]' if detected.cline else '[ ]'} Cline")
+        print()
 
     if detected.claude:
         plan.targets.claude = _ask_yes_no("  Wire m3 into Claude Code?", default=True)
@@ -1653,9 +1654,6 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     ok = True
 
     # ── Probe 0: decoupled paths and FIPS configuration ─────────────────
-    if plan.decouple_roots:
-        _ok(f"  settings folder: {plan.config_root}")
-        _ok(f"  data folder:     {plan.engine_root}")
     if plan.fips_mode:
         _ok("  strict FIPS 140-3 execution mode: ENABLED")
 
@@ -2461,9 +2459,9 @@ def _step_shared_embedder(plan: SetupPlan, *, non_interactive: bool = False) -> 
         # source of truth shared with the installer/doctor, so all stay in lockstep.
         _path, _wrote = seed_shared_config(port=8082)
         if _wrote or not quiet:
-            print(f"    [OK] shared-mode config {'written' if _wrote else 'already set'}: {_path}")
+            print(f"    [OK] embedder setting {'saved' if _wrote else 'already set'}: {_path}")
     except Exception as e:  # noqa: BLE001 — non-fatal; user can run `m3 embedder shared` later
-        print(f"    [!] could not write shared-mode config ({e}); run `m3 embedder shared` later.")
+        print(f"    [!] could not save the embedder setting ({e}); run `m3 embedder shared` later.")
         return True
 
     # Register the self-healing embed-server task so the shared server is always
@@ -3932,14 +3930,20 @@ def _step_verify_daemons(plan=None) -> bool:
     running = [r for r in expected if r in live_roles]
     # The dashboard is registered from inside its own process, so a dashboard
     # crash-looping on a port another user's m3 already holds still shows as
-    # registered. Running means serving from THIS account's process.
-    if "dashboard" in running:
+    # registered. Running means serving from THIS account's process. A dashboard
+    # that could not bind at all is missing for the same reason, and restarting
+    # it will not help, so it gets the port fix rather than `doctor --fix`.
+    port_taken = False
+    if "dashboard" in expected:
         from m3_memory._ports import held_by_another_owner
 
         port = int(getattr(plan, "dashboard_port", 8088) or 8088)
         if held_by_another_owner(port):
-            running.remove("dashboard")
-            missing.append("dashboard")
+            port_taken = True
+            if "dashboard" in running:
+                running.remove("dashboard")
+            if "dashboard" not in missing:
+                missing.append("dashboard")
             _warn(
                 f"  dashboard: port {port} answers, but not from this account's dashboard (another "
                 f"user's m3 or another program holds it). fix: m3 setup --dashboard-port <free port>"
@@ -3952,10 +3956,12 @@ def _step_verify_daemons(plan=None) -> bool:
     for role in missing:
         _warn(f"  {role}: NOT running")
     if missing:
-        _warn(
-            f"  {len(missing)} of {len(expected)} background service(s) are "
-            f"not running. `m3 doctor --fix` restarts what self-repairs."
-        )
+        restartable = [r for r in missing if not (port_taken and r == "dashboard")]
+        if restartable:
+            _warn(
+                f"  {len(missing)} of {len(expected)} background service(s) are "
+                f"not running. `m3 doctor --fix` restarts what self-repairs."
+            )
         return False
     return True
 

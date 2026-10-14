@@ -452,7 +452,9 @@ the policy is forward-going only.
   warns instead of saying OK when the embedder this account reaches belongs to
   another user, the stale-server check ignores other users' servers, and the
   "port already in use" note is dropped when the start check already names the
-  owner.
+  owner. A dashboard or embedder that answers from another account is no longer
+  reported as started or as this install's server, and setup does not suggest
+  `m3 doctor --fix` for a port another account holds.
   **Affected:** Linux and macOS machines with more than one m3 user ·
   **Action:** give each account its own port (`m3 config set embed.server.port`) ·
   **Data status:** none.

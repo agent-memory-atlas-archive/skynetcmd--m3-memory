@@ -606,7 +606,7 @@ def test_pip_success_is_not_labelled_a_pypi_install(monkeypatch, capsys):
     assert rci.install_rust_core() == 0
     out = capsys.readouterr().out
     assert "PyPI prebuilt" not in out, f"unverifiable PyPI claim returned: {out!r}"
-    assert "prebuilt wheel via pip" in out, out
+    assert "prebuilt package via pip" in out, out
 
 
 # ---------------------------------------------------------------------------

@@ -681,10 +681,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
 
     if brief:
         if healthy and _server_is_someone_elses():
-            print(
-                "⚠️  shared-embedder: the embedder this account uses runs under another account; "
-                "this account's own is not running. fix: m3 config set embed.server.port <free port>"
-            )
+            # embed-server already warns with the fix; one problem, one warning.
+            print("shared-embedder: settings OK; the server it reaches is another account's (see embed-server)")
         elif healthy:
             print("✅ shared-embedder: OK (settings, server and keep-alive)")
         elif manual_only:

@@ -1904,9 +1904,11 @@ def status_summary() -> dict:
         # Shared mode turns the in-process tier off, so a native wheel being
         # installed does not mean embeds run in-process.
         if shared_mode_enabled():
-            from m3_memory.embedder_admin import _embed_server_port
+            from m3_memory.embedder_admin import _embed_server_port, _port_held_by_someone_else
 
-            out["embedder"] = f"shared server (port {_embed_server_port()})"
+            port = _embed_server_port()
+            whose = "another account's server" if _port_held_by_someone_else(port) else "shared server"
+            out["embedder"] = f"{whose} (port {port})"
         elif active_embedder_tier().get("native"):
             out["embedder"] = "native (in-process)"
         else:

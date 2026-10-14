@@ -1635,6 +1635,15 @@ def _confirm_service_live(name: str, *, deadline_s: float = 25.0):
         return None
     port = _m3cfg.setting("dashboard.port") or 8088
     url = url_tpl.format(port=port)
+    # An answer from another account's program is not this service serving;
+    # this one cannot bind while it holds the port.
+    try:
+        from m3_memory._ports import held_by_another_owner
+
+        if held_by_another_owner(int(port)):
+            return f"port {port} is held by another account's program, so this one cannot start there"
+    except ImportError:
+        pass
     import urllib.error
     import urllib.request
 

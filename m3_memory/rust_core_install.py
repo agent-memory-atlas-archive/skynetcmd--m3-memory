@@ -308,10 +308,16 @@ def active_embedder_tier() -> dict:
         shared = False
     if shared:
         # The core is installed, but shared mode routes embeds to :8082.
-        from m3_memory.embedder_admin import _embed_server_port
+        from m3_memory.embedder_admin import _embed_server_port, _port_held_by_someone_else
 
+        port = _embed_server_port()
+        if _port_held_by_someone_else(port):
+            # Its build is not this install's; claim nothing about it.
+            out["summary"] = f"another account's server on port {port}"
+            out["others_server"] = True
+            return out
         gpu = f", {out['backend']}" if out["backend"] and out["backend"] != "cpu" else ""
-        out["summary"] = f"local server on port {_embed_server_port()}, with the speed-up module{gpu}"
+        out["summary"] = f"local server on port {port}, with the speed-up module{gpu}"
         return out
     gpu = f", {out['backend']}" if out["backend"] and out["backend"] != "cpu" else ""
     out["summary"] = f"in each m3 program, with the speed-up module{gpu}"
@@ -458,7 +464,7 @@ def _core_imports() -> tuple[bool, str]:
 def _reject_unimportable(attempt: BackendChoice, why: str) -> None:
     """Remove a wheel that installed but cannot import, so the next backend in
     the chain does not sit beside a broken module of the same name."""
-    print(f"[rust-core] {attempt.package} installed but does not import: {why}", file=sys.stderr)
+    print(f"[speed-up] {attempt.package} installed but does not import: {why}", file=sys.stderr)
     install_log(f"install REJECTED: package={attempt.package} import failed: {why}")
     _pip("uninstall", "-y", attempt.package)
 
@@ -655,7 +661,7 @@ def _pip_install_with_pep668_fallback(*pip_args: str) -> int:
             print(result.stderr, file=sys.stderr, end="")
         return result.returncode
 
-    print("[rust-core] pip refused (PEP 668 externally-managed-environment); retrying with --user ...", file=sys.stderr)
+    print("[speed-up] pip refused (PEP 668 externally-managed-environment); retrying with --user ...", file=sys.stderr)
     user_result = _pip("--user", *pip_args)
     if user_result.returncode == 0:
         return 0
@@ -667,21 +673,21 @@ def _pip_install_with_pep668_fallback(*pip_args: str) -> int:
 
     if can_sudo:
         print(
-            "[rust-core] --user install also failed. You have sudo access — "
+            "[speed-up] --user install also failed. You have sudo access — "
             "run this command to install system-wide:\n"
             f"    {sudo_cmd}",
             file=sys.stderr,
         )
     elif in_group:
         print(
-            "[rust-core] --user install also failed. You are in the sudo/wheel "
+            "[speed-up] --user install also failed. You are in the sudo/wheel "
             "group but sudo requires your password. Open another shell and run:\n"
             f"    {sudo_cmd}",
             file=sys.stderr,
         )
     else:
         print(
-            "[rust-core] --user install also failed and you do not appear to "
+            "[speed-up] --user install also failed and you do not appear to "
             "have sudo access.\n"
             "Ask a system administrator to open a root shell and run:\n"
             f"    {sudo_cmd}\n"
@@ -706,7 +712,7 @@ def install_prebuilt(choice: BackendChoice, *, version: str = M3_CORE_RS_VERSION
     PEP 668 advisory already printed) signals to fall back to a source build.
     """
     spec = f"{choice.package}=={version}"
-    print(f"[rust-core] installing prebuilt wheel: {spec}  ({choice.reason})")
+    print(f"[speed-up] installing prebuilt wheel: {spec}  ({choice.reason})")
     return _pip_install_with_pep668_fallback("install", "--upgrade", "--only-binary=:all:", spec)
 
 
@@ -801,7 +807,7 @@ def _print_manual_build_recommendation(choice: BackendChoice, *, pypi_rc: int, r
     # path to unlock because it is already running.
     if active_embedder_tier().get("native"):
         print(
-            f"\n[rust-core] No prebuilt wheel available for {choice.package} "
+            f"\n[speed-up] No prebuilt wheel available for {choice.package} "
             f"{M3_CORE_RS_VERSION} on this Python.\n"
             f"            PyPI returned exit {pypi_rc}; "
             f"GitHub Release returned exit {release_rc}.\n"
@@ -812,7 +818,7 @@ def _print_manual_build_recommendation(choice: BackendChoice, *, pypi_rc: int, r
         return
 
     print(
-        f"\n[rust-core] No prebuilt wheel available for {choice.package} "
+        f"\n[speed-up] No prebuilt wheel available for {choice.package} "
         f"{M3_CORE_RS_VERSION} on this Python.\n"
         f"            PyPI returned exit {pypi_rc}; "
         f"GitHub Release returned exit {release_rc}.\n"
@@ -868,10 +874,10 @@ def _emit_download_progress(downloaded: int, total: int, *, tty: bool) -> None:
         pct = min(100.0, downloaded * 100.0 / total)
         filled = int(pct // 5)  # 20-cell bar
         bar = "#" * filled + "-" * (20 - filled)
-        msg = f"[rust-core]   [{bar}] {pct:5.1f}%  {mib:,.0f}/{total / (1024 * 1024):,.0f} MiB"
+        msg = f"[speed-up]   [{bar}] {pct:5.1f}%  {mib:,.0f}/{total / (1024 * 1024):,.0f} MiB"
     else:
         # No Content-Length: report what is known rather than a fake percentage.
-        msg = f"[rust-core]   {mib:,.0f} MiB"
+        msg = f"[speed-up]   {mib:,.0f} MiB"
     try:
         if tty:
             # Pad to a fixed width: the previous line may have been longer
@@ -953,14 +959,14 @@ def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] |
     url = str(entry.get("browser_download_url", ""))
     # Same scheme pin as the wheel download: this URL is external data.
     if not url.lower().startswith("https://"):
-        print(f"[rust-core] refusing non-https SHA256SUMS URL ({url!r}); skipping digest verification", file=sys.stderr)
+        print(f"[speed-up] refusing non-https SHA256SUMS URL ({url!r}); skipping digest verification", file=sys.stderr)
         return None
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:  # nosec B310 - https validated
             text = resp.read().decode("utf-8", "replace")
     except (urllib.error.URLError, OSError, ValueError) as e:
         print(
-            f"[rust-core] could not fetch SHA256SUMS for {git_tag} "
+            f"[speed-up] could not fetch SHA256SUMS for {git_tag} "
             f"({type(e).__name__}: {e}); skipping digest verification",
             file=sys.stderr,
         )
@@ -1100,18 +1106,18 @@ def install_from_github_release(
     except urllib.error.HTTPError as e:
         if e.code == 404:
             print(
-                f"[rust-core] release {git_tag} not found on GitHub "
+                f"[speed-up] release {git_tag} not found on GitHub "
                 f"(may be draft or not yet published); skipping Release fallback",
                 file=sys.stderr,
             )
         else:
             print(
-                f"[rust-core] GitHub API HTTP {e.code} fetching {git_tag}; skipping Release fallback", file=sys.stderr
+                f"[speed-up] GitHub API HTTP {e.code} fetching {git_tag}; skipping Release fallback", file=sys.stderr
             )
         return 1
     except (urllib.error.URLError, OSError, ValueError) as e:
         print(
-            f"[rust-core] GitHub API fetch failed ({type(e).__name__}: {e}); skipping Release fallback", file=sys.stderr
+            f"[speed-up] GitHub API fetch failed ({type(e).__name__}: {e}); skipping Release fallback", file=sys.stderr
         )
         return 1
 
@@ -1122,7 +1128,7 @@ def install_from_github_release(
     )
     if not matches:
         print(
-            f"[rust-core] no Release asset matches {asset_prefix}*.whl ({len(assets)} assets in {git_tag})",
+            f"[speed-up] no Release asset matches {asset_prefix}*.whl ({len(assets)} assets in {git_tag})",
             file=sys.stderr,
         )
         return 1
@@ -1137,10 +1143,10 @@ def install_from_github_release(
     # can't redirect the installer to file:// (local-file read) or a plaintext
     # http downgrade. Fail loud rather than fetch an untrusted scheme.
     if not wheel_url.lower().startswith("https://"):
-        print(f"[rust-core] refusing non-https asset URL ({wheel_url!r}); skipping Release fallback", file=sys.stderr)
+        print(f"[speed-up] refusing non-https asset URL ({wheel_url!r}); skipping Release fallback", file=sys.stderr)
         return 1
 
-    print(f"[rust-core] downloading {wheel_name} ({wheel_size / (1024 * 1024):.1f} MiB)...")
+    print(f"[speed-up] downloading {wheel_name} ({wheel_size / (1024 * 1024):.1f} MiB)...")
 
     # Download into a temp DIR, keeping the original filename: pip parses
     # the wheel filename per PEP 427 to identify the package, so the file
@@ -1157,14 +1163,14 @@ def install_from_github_release(
         expected = (sums or {}).get(wheel_name)
         if sums is None:
             print(
-                f"[rust-core] note: {git_tag} publishes no SHA256SUMS asset; "
+                f"[speed-up] note: {git_tag} publishes no SHA256SUMS asset; "
                 f"installing without digest verification (releases before "
                 f"v2026.9.16 predate it)",
                 file=sys.stderr,
             )
         elif expected is None:
             print(
-                f"[rust-core] note: SHA256SUMS for {git_tag} has no entry for "
+                f"[speed-up] note: SHA256SUMS for {git_tag} has no entry for "
                 f"{wheel_name}; installing without digest verification",
                 file=sys.stderr,
             )
@@ -1179,24 +1185,24 @@ def install_from_github_release(
             try:
                 downloaded, actual = _download_wheel_once(wheel_url, wheel_path)
             except (urllib.error.URLError, OSError) as e:
-                print(f"[rust-core] wheel download failed ({type(e).__name__}: {e})", file=sys.stderr)
+                print(f"[speed-up] wheel download failed ({type(e).__name__}: {e})", file=sys.stderr)
                 install_log(
                     f"code=wheel_download_failed wheel={wheel_name} "
                     f"tag={git_tag} error={type(e).__name__}: {e} "
                     f"attempt={attempt} of {attempts}"
                 )
                 if attempt < attempts:
-                    print(f"[rust-core] retrying download ({attempt + 1} of {attempts})...", file=sys.stderr)
+                    print(f"[speed-up] retrying download ({attempt + 1} of {attempts})...", file=sys.stderr)
                     continue
                 return 1
 
             if downloaded == 0:
-                print("[rust-core] wheel download yielded 0 bytes", file=sys.stderr)
+                print("[speed-up] wheel download yielded 0 bytes", file=sys.stderr)
                 install_log(
                     f"code=wheel_empty_download wheel={wheel_name} tag={git_tag} attempt={attempt} of {attempts}"
                 )
                 if attempt < attempts:
-                    print(f"[rust-core] retrying download ({attempt + 1} of {attempts})...", file=sys.stderr)
+                    print(f"[speed-up] retrying download ({attempt + 1} of {attempts})...", file=sys.stderr)
                     continue
                 return 1
 
@@ -1206,7 +1212,7 @@ def install_from_github_release(
             # looking at the wrong thing.
             if wheel_size and downloaded != wheel_size:
                 print(
-                    f"[rust-core] size mismatch, download is incomplete: "
+                    f"[speed-up] size mismatch, download is incomplete: "
                     f"code=wheel_size_mismatch wheel={wheel_name} "
                     f"expected_bytes={wheel_size} actual_bytes={downloaded}",
                     file=sys.stderr,
@@ -1217,7 +1223,7 @@ def install_from_github_release(
                     f"actual_bytes={downloaded} attempt={attempt} of {attempts}"
                 )
                 if attempt < attempts:
-                    print(f"[rust-core] retrying download ({attempt + 1} of {attempts})...", file=sys.stderr)
+                    print(f"[speed-up] retrying download ({attempt + 1} of {attempts})...", file=sys.stderr)
                     continue
                 return 1
 
@@ -1231,9 +1237,8 @@ def install_from_github_release(
                 # byte-identical to the published one. Short digest prefix --
                 # enough to eyeball against SHA256SUMS, not a wall of hex.
                 print(
-                    f"[rust-core] sha256 OK: {wheel_name} matches the digest "
-                    f"published in {git_tag} SHA256SUMS "
-                    f"(sha256={actual[:16]}..., {downloaded} bytes)"
+                    f"[speed-up] sha256 OK: the download matches the published "
+                    f"checksum ({git_tag}, {actual[:16]}...)"
                 )
                 install_log(
                     f"sha256 OK wheel={wheel_name} tag={git_tag} sha256={actual} bytes={downloaded} attempt={attempt}"
@@ -1244,7 +1249,7 @@ def install_from_github_release(
             # one: in-flight corruption is far likelier, which is exactly why we
             # retry. Say what was observed and let the repeat decide.
             print(
-                f"[rust-core] sha256 MISMATCH, the download does not match the "
+                f"[speed-up] sha256 MISMATCH, the download does not match the "
                 f"digest published for this release: "
                 f"code=wheel_sha256_mismatch wheel={wheel_name} "
                 f"expected={expected} actual={actual}",
@@ -1257,13 +1262,13 @@ def install_from_github_release(
             )
             if attempt < attempts:
                 print(
-                    f"[rust-core] this usually means corruption in flight; "
+                    f"[speed-up] this usually means corruption in flight; "
                     f"re-downloading ({attempt + 1} of {attempts})...",
                     file=sys.stderr,
                 )
                 continue
             print(
-                f"[rust-core] digest still wrong after {attempts} downloads, "
+                f"[speed-up] digest still wrong after {attempts} downloads, "
                 f"so the published asset is likely bad rather than the "
                 f"transfer. NOT installing it. Verify by hand with:\n"
                 f"    gh release download {git_tag} --repo {repo} "
@@ -1278,7 +1283,7 @@ def install_from_github_release(
                 pass
             return 1
 
-        print(f"[rust-core] downloaded {downloaded / (1024 * 1024):.1f} MiB; installing via pip...")
+        print(f"[speed-up] downloaded {downloaded / (1024 * 1024):.1f} MiB; installing...")
         return _pip_install_with_pep668_fallback(
             "install",
             "--force-reinstall",
@@ -1306,7 +1311,7 @@ def install_from_source(choice: BackendChoice, *, git_tag: str = M3_CORE_RS_GIT_
     missing = _check_build_tools()
     if missing:
         print(
-            f"[rust-core] source build requires: {', '.join(missing)}\n"
+            f"[speed-up] source build requires: {', '.join(missing)}\n"
             "  cmake + C++:\n"
             "    Debian/Ubuntu:  sudo apt install cmake build-essential\n"
             "    Fedora/RHEL:    sudo dnf install cmake gcc-c++\n"
@@ -1335,7 +1340,7 @@ def install_from_source(choice: BackendChoice, *, git_tag: str = M3_CORE_RS_GIT_
     if feats:
         # maturin reads build args from --config-settings build-args=...
         args += ["--config-settings", f"build-args=--features {','.join(feats)}"]
-    print(f"[rust-core] building from source @ {git_tag} (features={feats or '(none)'}); this needs Rust + a compiler")
+    print(f"[speed-up] building from source @ {git_tag} (features={feats or '(none)'}); this needs Rust + a compiler")
     return _pip_install_with_pep668_fallback(*args)
 
 
@@ -1366,7 +1371,7 @@ def install_rust_core(
     try:
         pip_command()
     except PipUnavailable as e:
-        print(f"[rust-core] {e}", file=sys.stderr)
+        print(f"[speed-up] {e}", file=sys.stderr)
         install_log(f"install FAILED: {e}")
         return 1
 
@@ -1377,7 +1382,7 @@ def install_rust_core(
     # user may be switching cpu<->cuda). `force` always proceeds too.
     if not force and backend is None and is_rust_core_current():
         cur = active_embedder_tier()
-        print(f"[rust-core] already current: {cur['summary']} — skipping install (use --force to reinstall).")
+        print(f"[speed-up] already current: {cur['summary']} — skipping install (use --force to reinstall).")
         return 0
 
     if backend is not None:
@@ -1385,7 +1390,7 @@ def install_rust_core(
         if (os_tok, backend) not in _VALID:
             valid_backends = [b for o, b in _VALID if o == os_tok]
             print(
-                f"[rust-core] invalid backend '{backend}' for {os_tok}. "
+                f"[speed-up] invalid backend '{backend}' for {os_tok}. "
                 f"Valid options: {', '.join(sorted(valid_backends))}",
                 file=sys.stderr,
             )
@@ -1395,14 +1400,14 @@ def install_rust_core(
         # installing a different backend than the one named would defeat the
         # flag's only purpose. No chain here — this backend or nothing.
         chain = [choice]
-        print(f"[rust-core] backend override: {choice.package}")
+        print(f"[speed-up] backend override: {choice.package}")
     else:
         chain = detect_backend_chain(os_tok)
         choice = chain[0]
         print(f"[speed-up] build for this computer: {choice.backend} ({choice.reason})")
 
     if (choice.os_tok, choice.backend) not in _VALID:
-        print(f"[rust-core] unsupported combination {choice.os_tok}-{choice.backend}", file=sys.stderr)
+        print(f"[speed-up] unsupported combination {choice.os_tok}-{choice.backend}", file=sys.stderr)
         return 2
 
     # Three-tier install cascade — GITHUB RELEASE FIRST.
@@ -1458,12 +1463,12 @@ def install_rust_core(
     for attempt in chain:
         installed = attempt
         if attempt is not choice:
-            print(f"[rust-core] falling back to {attempt.package} ({attempt.reason})", file=sys.stderr)
+            print(f"[speed-up] falling back to {attempt.package} ({attempt.reason})", file=sys.stderr)
         rc_gh = install_from_github_release(attempt)
         if rc_gh == 0:
             ok, why = _core_imports()
             if ok:
-                print(f"[rust-core] installed {attempt.package} {M3_CORE_RS_VERSION} (GitHub Release)")
+                print(f"[speed-up] installed {M3_CORE_RS_VERSION} ({attempt.package})")
                 install_log(
                     f"install OK: {_before or '(none)'} -> "
                     f"{M3_CORE_RS_VERSION} package={attempt.package} "
@@ -1476,7 +1481,7 @@ def install_rust_core(
             continue
 
         print(
-            f"[rust-core] GitHub Release unavailable for {attempt.package} (exit {rc_gh}); trying pip prebuilt.",
+            f"[speed-up] GitHub Release unavailable for {attempt.package} (exit {rc_gh}); trying pip prebuilt.",
             file=sys.stderr,
         )
         rc = install_prebuilt(attempt)
@@ -1495,7 +1500,7 @@ def install_rust_core(
         # was provably wrong for CUDA: `m3-core-rs-windows-cuda` is a 404 on
         # PyPI by design, yet a cache hit still printed "(PyPI prebuilt)" — a
         # misleading claim in exactly the place someone debugs distribution.
-        print(f"[rust-core] installed {installed.package} {M3_CORE_RS_VERSION} (prebuilt wheel via pip)")
+        print(f"[speed-up] installed {M3_CORE_RS_VERSION} ({installed.package}, prebuilt package via pip)")
         install_log(
             f"install OK: {_before or '(none)'} -> {M3_CORE_RS_VERSION} "
             f"package={installed.package} channel=pip-prebuilt "
@@ -1507,7 +1512,7 @@ def install_rust_core(
         # The detected backend's wheel installed and failed to import; a source
         # build of the same backend would fail the same way.
         print(
-            f"[rust-core] no backend imports on this host "
+            f"[speed-up] no backend imports on this host "
             f"(tried: {', '.join(rejected)}). m3 keeps running on the HTTP "
             f"embed path.",
             file=sys.stderr,
@@ -1522,14 +1527,14 @@ def install_rust_core(
         return rc_gh
 
     print(
-        f"[rust-core] no prebuilt wheel available for {choice.package} "
+        f"[speed-up] no prebuilt wheel available for {choice.package} "
         f"(Release={rc_gh}, PyPI={rc}); falling back to source build.",
         file=sys.stderr,
     )
     rc_src = install_from_source(choice)
     if rc_src != 0:
         print(
-            f"[rust-core] source build failed (exit {rc_src}). The CPU "
+            f"[speed-up] source build failed (exit {rc_src}). The CPU "
             f"embedder still serves embeddings; see docs/EMBED_DEPLOYMENT.md.",
             file=sys.stderr,
         )

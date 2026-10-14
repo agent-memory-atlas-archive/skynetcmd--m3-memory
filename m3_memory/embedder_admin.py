@@ -1097,7 +1097,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     # getattr default: cmd_start delegates here to auto-install, and the `start`
     # subparser has no --concurrency flag (install's default of 2 applies).
     concurrency = getattr(args, "concurrency", 2)
-    print(f"[~] registering m3-embed-server (concurrency={concurrency})")
+    print(f"[~] setting up the embedder service ({concurrency} requests at a time)")
     extra: list[str] = []
     if concurrency:
         extra += ["--concurrency", str(concurrency)]
@@ -1144,7 +1144,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         )
         return rc
 
-    print("[~] starting m3-embed-server")
+    print("[~] starting the embedder service")
     start_rc = run_svc(binary, gguf, "start")
     # Do not trust the exit code in EITHER direction; ask `status`.
     #   nonzero  — may mean "already running": builds <= 3.7.28 flatten
