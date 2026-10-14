@@ -231,7 +231,7 @@ def advance_counter(
 
 def seed_counter(history_path: Path, today: str) -> dict | None:
     """A counter from a private per-day history: complete days only."""
-    if not history_path.is_file():
+    if not os.path.isfile(history_path):  # os.path: Path.is_file raises under an untraversable parent (3.12/3.13)
         return None
     rows = {str(k): int(v) for k, v in json.loads(history_path.read_text("utf-8")).items() if str(k) < today}
     if not rows:
@@ -268,7 +268,7 @@ def main() -> int:
     badges = Path(args.badges_dir)
     history = Path(args.history_dir).expanduser() if args.history_dir else None
     counters_path = badges / "counters.json"
-    counters: dict = json.loads(counters_path.read_text("utf-8")) if counters_path.is_file() else {}
+    counters: dict = json.loads(counters_path.read_text("utf-8")) if os.path.isfile(counters_path) else {}
     today = _today()
     changed = False
 

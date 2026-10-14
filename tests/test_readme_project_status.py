@@ -63,9 +63,16 @@ def test_every_link_in_the_section_resolves():
             assert anchor in slugs, f"Project status links to {path}#{anchor}, which has no such heading"
 
 
+def _beta() -> list[str]:
+    """The Beta row's items; [] when the README has no Beta row (nothing is beta)."""
+    if not re.search(r"^\| \*\*Beta\*\* \|", _section(), re.MULTILINE):
+        return []
+    return _row("Beta")
+
+
 def test_beta_matches_the_roadmaps_hardening_list():
     hardening = re.findall(r"^- \[x\] \*\*([^*]+)\*\*", _roadmap_section("## 🚧 In progress"), re.MULTILINE)
-    beta = _row("Beta")
+    beta = _beta()
     assert len(beta) == len(hardening), f"README Beta {beta} vs ROADMAP still-hardening {hardening}"
     for item in beta:
         # Short README names ("Web dashboard"): every significant word must be in the item.
@@ -87,7 +94,7 @@ def test_the_at_a_glance_status_line_names_exactly_the_beta_items():
     m = re.search(r"^- \*\*Status:\*\* (.+)$", _README, re.MULTILINE)
     assert m, "README's 'm3 at a glance' list has no Status line"
     line = _words(m.group(1))
-    for item in _row("Beta"):
+    for item in _beta():
         assert _words(item) <= line, f"the at-a-glance Status line does not name the Beta item {item!r}"
 
 

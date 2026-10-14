@@ -112,11 +112,29 @@ faster than the median. That is the FTS short-circuit — when a query has an
 exact lexical match, m3 skips the vector side entirely. It is real, but it
 describes a specific case, not the general one.
 
-### PostgreSQL: exact vector search by store size
+### Exact vector search by store size
 
-On PostgreSQL, vector search is exact: each query scores every stored vector (pgvector /
-HNSW approximate search is planned). Its cost grows with the number of memories stored,
-not with `k`:
+Vector search is exact on both backends: each query scores every stored vector
+(pgvector / HNSW approximate search is planned). Its cost grows with the number of
+memories stored, not with `k`.
+
+**SQLite** (m3's own cosine path; sqlite-vec was not installed):
+
+| Memories stored | vector search p50 | p95 | hybrid search p50 | p95 |
+|---|---|---|---|---|
+| 1,000 | 8 ms | 8 ms | 9 ms | 9 ms |
+| 10,000 | 73 ms | 75 ms | 79 ms | 81 ms |
+| 20,000 | 148 ms | 153 ms | 162 ms | 164 ms |
+| 50,000 | 386 ms | 399 ms | 428 ms | 435 ms |
+
+About 7.5 ms per thousand memories, linear, roughly twice as fast as PostgreSQL at the
+same size. **A real store:** the developer's own chatlog, 160,924 memories, every one
+embedded, searched on the measurement host (Windows) with the real embedder in a warmed
+process: vector search 1.83 s p50 (1.92 s p95), hybrid search (the default) **0.97 s p50**
+(2.08 s p95); every search returned all 8 results. Hybrid is faster at the median because
+a query with an exact keyword match skips the vector scan.
+
+**PostgreSQL:**
 
 | Memories stored | vector search p50 | p95 | hybrid search p50 | p95 |
 |---|---|---|---|---|
@@ -127,11 +145,11 @@ not with `k`:
 | 20,000 | 330 ms | 345 ms | 330 ms | 346 ms |
 | 50,000 | 802 ms | 819 ms | 819 ms | 836 ms |
 
-About 16 ms per thousand memories past ~2,500, linear. Measured 2026-10-13 on an Apple
-M3 Max, PostgreSQL 16 on the same machine, 1024-dimension vectors, `k=8`, 20–30 queries
-per size, through m3's own write and search code with the embedder stubbed (the cost of
-an exact scan depends on how many vectors are stored, not their values). Every search
-returned all 8 results; every memory had a vector.
+About 16 ms per thousand memories past ~2,500, linear. The synthetic tables (both
+backends) were measured 2026-10-13 on an Apple M3 Max, PostgreSQL 16 on the same machine,
+1024-dimension vectors, `k=8`, 20–30 queries per size, through m3's own write and search
+code with the embedder stubbed (the cost of an exact scan depends on how many vectors are
+stored, not their values). Every search returned all 8 results; every memory had a vector.
 
 ### SQLite: many agents writing at once
 

@@ -57,23 +57,22 @@ walks you through your first saved memory.
 - **Tools:** 100+ tools, of which 10 load at startup, about 2% of a 200K context window; the rest load on demand. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
 - **Configuration:** one file, `m3_config.toml`. `m3 config show` prints every setting and where it came from. ([Config reference](docs/CONFIG_REFERENCE.md))
 - **Tested:** 5,000+ tests on Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
-- **Status:** the core and the web dashboard are stable; the autonomous cognitive loop and the Observer & Reflector stages are beta. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
+- **Status:** stable: the core, the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
 - **For AI agents:** [llm-context.md](docs/llm-context.md) lists the real tool names and usage rules, and [features.json](docs/features.json) is the machine-readable summary.
 
 ---
 
 ## <a id="project-status"></a>📍 Project status
 
-**The core is stable; some subsystems are beta.** One summary line per point, each linked to the doc that owns the detail. The test suite checks these lines against the code and the [ROADMAP](docs/ROADMAP.md).
+**The core is stable, and so is everything else m3 ships.** One summary line per point, each linked to the doc that owns the detail. The test suite checks these lines against the code and the [ROADMAP](docs/ROADMAP.md).
 
 | Status | What it means | Features |
 | :--- | :--- | :--- |
-| **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync · web dashboard |
-| **Beta** | Shipped and usable, still being hardened on real workloads; behaviour may change between releases ([ROADMAP: in progress](docs/ROADMAP.md#-in-progress)). | Autonomous cognitive loop · Observer & Reflector stages |
+| **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync · web dashboard · autonomous cognitive loop · Observer & Reflector stages |
 | **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · pgvector / HNSW approximate search on PostgreSQL · official Docker image, if users ask for one · server / multi-user deployment guide · stable public SDK with semver guarantees |
 
 *   **Tested on** Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; the full matrix runs before every release ([Testing](docs/TESTING.md)).
-*   **Limit: vector search on PostgreSQL is exact, not approximate:** every query scores every stored vector, so search time grows with the number of memories stored (not with k): about 0.17 s at 10,000 memories, 0.33 s at 20,000 and 0.8 s at 50,000 ([measured](docs/PERFORMANCE.md#postgresql-exact-vector-search-by-store-size)). Stores far beyond that will want the planned pgvector / HNSW arm ([Architecture](docs/ARCHITECTURE.md)).
+*   **Limit: vector search is exact, not approximate, on both backends:** every query scores every stored vector, so search time grows with the number of memories stored (not with k). SQLite: about 0.07 s at 10,000 memories and 0.4 s at 50,000; a real 160,000-memory store answers a default search in about 1 s. PostgreSQL: about 0.17 s at 10,000 and 0.8 s at 50,000 ([measured](docs/PERFORMANCE.md#exact-vector-search-by-store-size)). Stores far beyond that will want the planned pgvector / HNSW arm ([Architecture](docs/ARCHITECTURE.md)).
 *   **Limit: SQLite has one writer at a time:** writes take milliseconds, so concurrent writers wait briefly instead of failing. 16 agents writing at once lost nothing and waited at most half a second ([measured](docs/PERFORMANCE.md#sqlite-many-agents-writing-at-once)). Agents on several machines, or a busier fleet, should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
 *   **Reads are audited:** every memory read (get or search hit) is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)). <!-- RELEASE-TODO: built in the GDPR pass (plan G2); confirm retention (90 days), export and erasure match what shipped. -->
 *   **Configuration lives in `m3_config.toml`:** `m3 config show` prints every setting and where it came from, and `m3 config set` changes one ([Config reference](docs/CONFIG_REFERENCE.md)). Older environment-variable names keep working with a warning for two releases, and `m3 doctor` and `m3 config import-env` name any still in use ([Environment variables](docs/ENVIRONMENT_VARIABLES.md)).
@@ -425,7 +424,7 @@ m3 ships a Rust compute core (`m3_core_rs`) that speeds up MMR re-ranking by **9
 *   **You value privacy:** Zero external cloud requests or subscriptions required.
 
 ### m3 is NOT a fit if...
-*   **You need approximate vector search over hundreds of thousands of memories today:** exact search takes about 0.8 s at 50,000 memories, and pgvector / HNSW is planned (see [Project status](#project-status)).
+*   **You need approximate vector search over hundreds of thousands of memories today:** exact search takes about 0.4 s (SQLite) to 0.8 s (PostgreSQL) at 50,000 memories and about 1 s at 160,000 on SQLite; pgvector / HNSW is planned (see [Project status](#project-status)).
 *   You need a hosted SaaS dashboard with managed infrastructure (use [Letta](https://letta.ai)).
 *   **You don't want persistent memory:** you want each session to start fresh, with no ability to retrieve prior sessions' knowledge — m3 exists to do the opposite, so your agent's built-in defaults are the simpler fit.
 

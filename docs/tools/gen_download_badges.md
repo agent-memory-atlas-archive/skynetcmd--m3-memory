@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_download_badges.py
-sha1: 49abe7c40a36
-mtime_utc: 2026-10-14T02:30:27.123267+00:00
-generated_utc: 2026-10-14T02:30:42.991551+00:00
+sha1: 390a9e72a1e1
+mtime_utc: 2026-10-14T02:46:08.063563+00:00
+generated_utc: 2026-10-14T02:46:14.318050+00:00
 private: false
 ---
 

@@ -19,6 +19,8 @@ Built and under test; not yet released. Details in the
 ## ✅ Shipped — 2026-Q4 so far
 
 - [x] **Web dashboard / observability portal — stable** (moved from hardening, 2026-10-13) (`bin/dashboard_server.py`) — local FastAPI + HTMX UI: multi-DB overview, graph explorer, KB browser, conflict & audit log, background maintenance launcher. Run `m3 dashboard` (listens on `127.0.0.1:8088`; override via `M3_DASHBOARD_HOST`/`M3_DASHBOARD_PORT`).
+- [x] **Autonomous cognitive loop — stable** (moved from hardening, 2026-10-13) (`bin/m3_cognitive_loop.py`) — background daemon running eleven independently skippable passes — including entity extraction, observation extraction with reflection (contradiction resolution), classification, embedding backfill, belief consolidation, procedural distillation, sync, and maintenance (see [ARCHITECTURE.md](ARCHITECTURE.md#the-passes)).
+- [x] **Observer & Reflector SLM stages — stable** (moved from hardening, 2026-10-13) (`bin/run_observer.py`, `bin/run_reflector.py`) — LLM-based semantic contradiction detection beyond embeddings.
 - [x] **Verified backups** — backups taken by maintenance tools are complete and verified, and tools refuse a store they were not meant for (v2026.10.4.0).
 - [x] **Upgrades that finish on their own** — on Windows and Linux, without manual steps, and an upgrade can no longer remove m3 (v2026.10.5.0 → v2026.10.7.1).
 - [x] **Fresh pipx installs work** (v2026.10.4.3).
@@ -173,18 +175,13 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 ## 🚧 In progress
 
-**Shipped — still hardening.** These subsystems are **shipped and usable today** (`pip install` includes them; the cognitive loop is featured in the README) and are still being hardened on real workloads. Try them and please file issues.
-
-- [x] **Autonomous cognitive loop** (`bin/m3_cognitive_loop.py`) — background daemon running eleven independently skippable passes — including entity extraction, observation extraction with reflection (contradiction resolution), classification, embedding backfill, belief consolidation, procedural distillation, sync, and maintenance (see [ARCHITECTURE.md](ARCHITECTURE.md#the-passes)).
-- [x] **Observer & Reflector SLM stages** (`bin/run_observer.py`, `bin/run_reflector.py`) — LLM-based semantic contradiction detection beyond embeddings.
-
 - [ ] **LoCoMo audit** — harness scaffolded under `benchmarks/locomo/`; full run pending
 
 ---
 
 ## 📦 Planned — Distribution & Deployment
 
-> **Order after the next release:** health and Prometheus metrics endpoint, written exit criteria for the beta subsystems, pgvector / HNSW, official Docker image (on demand), server / multi-user deployment guide, stable public SDK, search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
+> **Order after the next release:** health and Prometheus metrics endpoint, pgvector / HNSW, official Docker image (on demand), server / multi-user deployment guide, stable public SDK, search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
 
 - [ ] **pgvector / HNSW ANN on the PostgreSQL primary backend** — PostgreSQL can already be m3's primary live store (`[db] backend = "postgres"` + the `M3_PRIMARY_PG_URL` secret), but vector search there is still **brute-force Rust cosine**, the same as on SQLite. Index-accelerated approximate nearest-neighbor via pgvector/HNSW is not yet implemented — so PG-primary today is about a shared/server store, not faster vector search.
 - [ ] **Docker image** — built on community demand: today's users run m3 directly (`pip install` and `m3 setup`) and have not asked for one. Shape if built: `docker run -v ~/.m3-memory:/data ghcr.io/skynetcmd/m3-memory:latest`

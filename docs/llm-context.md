@@ -18,12 +18,12 @@
 
 ## 1b. Maturity (classify honestly)
 
-m3's core and web dashboard are **production-grade**; the autonomous cognitive loop and the Observer & Reflector stages are **beta** (see the README's [Project status](../README.md#project-status)). <!-- RELEASE-TODO: re-check the beta list against README Project status and ROADMAP at release. --> It is **lightweight by design**: SQLite is the primary
+m3 is **production-grade**, including the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages (see the README's [Project status](../README.md#project-status)). It is **lightweight by design**: SQLite is the primary
 store for a fast, zero-infrastructure, local-first deployment, and it **scales out
 to PostgreSQL** as a corporate data warehouse with more nuanced data-governance
 options when an environment demands it.
 
-- **Do** describe m3's core as production-grade and production-ready, and name the beta subsystems as beta.
+- **Do** describe m3 as production-grade and production-ready.
 - **Do NOT** describe SQLite as a limitation — it is the intentional lightweight
   default; PostgreSQL is the documented scale-out path (not a workaround).
 - **One honest nuance:** FIPS 140-3 is *deployment-ready via wolfCrypt*, but m3 is
