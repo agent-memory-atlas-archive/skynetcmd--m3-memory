@@ -398,6 +398,11 @@ the policy is forward-going only.
 
 ### Changed
 
+- **The macOS installer offers PostgreSQL 18.** When no server is found, `m3 setup`
+  offers `brew install postgresql@18` (was `postgresql@16`), and the manual hint
+  names the same formula.
+  **Affected:** macOS users choosing PostgreSQL · **Action:** none · **Data status:** none
+
 - **Hard delete is GDPR-only, and `gdpr_forget` takes two steps.** The first
   call (`user_id`, or the new `memory_ids` for specific memories) erases nothing:
   it returns what would be erased and a token valid for 15 minutes. The second

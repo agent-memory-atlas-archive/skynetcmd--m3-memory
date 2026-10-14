@@ -1149,7 +1149,7 @@ def _pg_install_offer(interactive: bool) -> str | None:
     # (label, command-as-list, needs_elevation_note)
     offer: tuple[str, list[str], str] | None = None
     if osname == "Darwin" and shutil.which("brew"):
-        offer = ("Homebrew", ["brew", "install", "postgresql@16"], "")
+        offer = ("Homebrew", ["brew", "install", "postgresql@18"], "")
     elif osname == "Linux" and shutil.which("apt-get"):
         offer = (
             "apt",
@@ -1172,7 +1172,7 @@ def _pg_install_offer(interactive: bool) -> str | None:
     if offer is None:
         # No package manager we can drive — print manual guidance and return.
         manual = {
-            "Darwin": "Install Homebrew then: brew install postgresql@16",
+            "Darwin": "Install Homebrew then: brew install postgresql@18",
             "Linux": "sudo apt-get install -y postgresql  (or your distro's package)",
             "Windows": "Install from https://www.postgresql.org/download/windows/ "
             "(EDB installer), or `winget install PostgreSQL.PostgreSQL`",
