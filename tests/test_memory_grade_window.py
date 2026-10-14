@@ -298,6 +298,20 @@ def test_the_grading_record_survives_a_restart(store):
     assert stats["last_7_days"]["rejection_rate"] == pytest.approx(0.5)
 
 
+def test_a_store_without_the_daily_record_still_grades_and_says_so(store, caplog):
+    """A store short of migration 058: the grade applies, the skipped record is
+    named in the response and the log (never silent), and the stats say so too."""
+    mid = store(accessed_minutes_ago=0)
+    with mc._db() as db:
+        db.execute("DROP TABLE memory_grade_daily")  # this test's own copy of the store
+    with caplog.at_level("WARNING"):
+        res = mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])
+    assert res["applied"] is True and res["graded"] == 1
+    assert "migration 058" in res["daily_record"] and "migrate_memory.py up" in res["daily_record"]
+    assert "memory_grade_daily is missing" in caplog.text
+    assert "error" in mm.memory_feedback_stats_impl()["today"]
+
+
 def test_the_lifecycle_summary_reports_grading(store):
     mid = store(accessed_minutes_ago=0)
     mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])

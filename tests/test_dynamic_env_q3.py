@@ -4,21 +4,22 @@ the registry, or stop reading env at all."""
 from __future__ import annotations
 
 import json
-import warnings
 
 import pytest
 
 
-def test_get_setting_is_deprecated_and_reads_the_registry(m3_settings):
+def test_get_setting_is_deprecated_and_reads_the_registry(m3_settings, monkeypatch, caplog):
+    from m3_core import context
     from m3_core.context import M3Context
 
+    monkeypatch.setattr(context, "_GET_SETTING_WARNED", False)
     m3_settings({"search.row_cap": 7})
     ctx = object.__new__(M3Context)  # get_setting touches no instance state
-    with pytest.warns(DeprecationWarning, match="settings.setting"):
+    with caplog.at_level("WARNING", logger="memory_core"):
         assert ctx.get_setting("search.row_cap") == 7
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
         assert ctx.get_setting("NOT_AN_M3_NAME", "dflt") == "dflt"
+    notices = [r.getMessage() for r in caplog.records if "get_setting" in r.getMessage()]
+    assert len(notices) == 1 and "settings.setting(name)" in notices[0], notices
 
 
 def test_get_setting_takes_an_env_name_of_a_key(m3_settings):
@@ -27,9 +28,7 @@ def test_get_setting_takes_an_env_name_of_a_key(m3_settings):
 
     m3_settings({"search.row_cap": 9})
     env_name = REGISTRY.get("search.row_cap").env_names[0]
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        assert object.__new__(M3Context).get_setting(env_name) == 9
+    assert object.__new__(M3Context).get_setting(env_name) == 9
 
 
 def test_the_default_user_id_is_a_setting(m3_settings):

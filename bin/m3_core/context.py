@@ -1,5 +1,6 @@
 import asyncio
 import atexit
+import logging
 import os
 import queue
 import random
@@ -71,6 +72,9 @@ _CB_COOLDOWN = 60
 _HTTP_CLIENT: httpx.AsyncClient | None = None
 _HTTP_CLIENT_LOOP_ID: int | None = None
 _HTTP_CLIENT_LOCK = threading.Lock()
+
+
+_GET_SETTING_WARNED = False  # get_setting's deprecation notice, once per process
 
 
 class M3Context:
@@ -158,16 +162,18 @@ class M3Context:
         ``m3_core.config.settings.setting(name)``. ``key`` is a registry key name or
         one of its env names; anything else returns ``default`` (the environment is
         no longer read here)."""
-        import warnings
-
         from m3_core.config import REGISTRY
         from m3_core.config import settings as _m3cfg
 
-        warnings.warn(
-            "M3Context.get_setting is deprecated; use m3_core.config.settings.setting(name)",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        global _GET_SETTING_WARNED
+        if not _GET_SETTING_WARNED:
+            # A log line, not warnings.warn (diagnostics go to logs: IDIOMS 5).
+            _GET_SETTING_WARNED = True
+            logging.getLogger("memory_core").warning(
+                "observed: M3Context.get_setting(%r) was called; it is deprecated and reads the settings "
+                "registry, not the environment. fix: call m3_core.config.settings.setting(name).",
+                key,
+            )
         k = REGISTRY.get(key) or REGISTRY.by_env(key)
         if k is None:
             return default

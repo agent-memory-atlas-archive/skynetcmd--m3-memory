@@ -48,6 +48,8 @@ the only thing this module states is WHICH keys to keep.
 
 from __future__ import annotations
 
+from types import MappingProxyType
+
 from .spec import ToolSpec
 from .tools_chatlog import TOOLS as _CHATLOG_TOOLS
 from .tools_memory import TOOLS as _MEMORY_TOOLS
@@ -157,7 +159,7 @@ def _slim_of(name: str) -> ToolSpec:
         validators=src.validators,
         default_allowed=src.default_allowed,
         inject_agent_id=src.inject_agent_id,
-        fixed_args={**src.fixed_args, **_FIXED.get(name, {})},
+        fixed_args=MappingProxyType({**src.fixed_args, **_FIXED.get(name, {})}),
     )
 
 

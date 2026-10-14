@@ -270,7 +270,7 @@ _NOT_A_COLLECTION = {
     "chatlog_status": "one status object, not a collection",
     "files_stats": "one stats object, not a collection",
     "embedder_status": "one status object, not a collection",
-    "memory_feedback_stats": "process-local counters, one object",
+    "memory_feedback_stats": "counters (this process, today, last 7 days), one object",
     "chatlog_cost_report": "one aggregate report object",
     "files_corpus_list": "already returns structured rows, no display string",
     "files_dedup_list": "already returns structured rows, no display string",

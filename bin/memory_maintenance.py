@@ -499,6 +499,13 @@ _fb_window_cache: dict = {"ts": 0.0, "mtime": None, "minutes": None}
 _FEEDBACK_WINDOW_REJECTIONS = {"accepted": 0, "rejected": 0}
 
 
+_GRADE_RECORD_MISSING = (
+    "observed: memory_grade_daily is missing, so this grade was applied but not recorded "
+    "in the daily grading record. cause: the store has not reached migration 058. "
+    "fix: python bin/migrate_memory.py up --yes"
+)
+
+
 def _utc_day(days_ago: int = 0) -> str:
     """A UTC date as YYYY-MM-DD (the memory_grade_daily key)."""
     return (datetime.now(UTC).date() - timedelta(days=days_ago)).isoformat()
@@ -805,8 +812,16 @@ def memory_grade_impl(grades=None, window_minutes=None):
                     f"UPDATE memory_items SET {col} = COALESCE({col}, 0) + 1 WHERE id IN ({cph})",
                     tuple(chunk),
                 )
+        # The daily record must not fail the grade it records. A store short of
+        # migration 058 skips it, loudly (log + response), and the grade stands.
+        record_skipped = False
         if accepted or rejected:
-            _record_grade_day(db, len(accepted), len(rejected))
+            from memory.db import tolerant_schema
+
+            record_skipped = True
+            with tolerant_schema(db):
+                _record_grade_day(db, len(accepted), len(rejected))
+                record_skipped = False
 
     _FEEDBACK_WINDOW_REJECTIONS["accepted"] += len(accepted)
     _FEEDBACK_WINDOW_REJECTIONS["rejected"] += len(rejected)
@@ -836,6 +851,9 @@ def memory_grade_impl(grades=None, window_minutes=None):
         out["inspect"] = "raise `feedback_window_minutes` in .governor_config.json if long turns are being rejected"
     if unknown:
         out["unknown"] = len(unknown)
+    if record_skipped:
+        out["daily_record"] = _GRADE_RECORD_MISSING
+        logger.warning(_GRADE_RECORD_MISSING)
     return out
 
 
@@ -855,8 +873,13 @@ def memory_feedback_stats_impl():
     a = _FEEDBACK_WINDOW_REJECTIONS["accepted"]
     r = _FEEDBACK_WINDOW_REJECTIONS["rejected"]
     total = a + r
-    with _db() as db:
+    from memory.db import tolerant_schema
+
+    today = week = None
+    with _db() as db, tolerant_schema(db):
         today, week = _grade_days(db, 1), _grade_days(db, 7)
+    if today is None:  # pre-058 store: say so instead of reporting zeros
+        today = week = {"error": _GRADE_RECORD_MISSING}
     return {
         "ok": True,
         "accepted": a,
