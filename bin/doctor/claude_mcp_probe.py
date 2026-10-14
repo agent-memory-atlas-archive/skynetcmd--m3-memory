@@ -275,11 +275,12 @@ def _fix(a: dict, brief: bool = False) -> None:
             )
 
     if not acted:
-        print(
-            "✅ Claude Code: connected to m3 once (as m3_memory)"
-            if brief
-            else "  (nothing to converge — already single-server)"
-        )
+        if brief:
+            # Nothing changed, so the verdict is the plain check's -- including
+            # "nothing to check" where Claude Code is not installed.
+            run(brief=True)
+        else:
+            print("  (nothing to converge — already single-server)")
     else:
         print("  Restart Claude Code for the change to take effect (server env re-resolves only on restart).")
 

@@ -337,3 +337,30 @@ def test_a_converged_fix_is_one_line_when_brief(monkeypatch, capsys, brief):
     out = capsys.readouterr().out
     assert ("convergence (fix)" in out) is not brief
     assert ("✅ Claude Code: connected to m3 once" in out) is brief
+
+
+def test_fix_without_claude_does_not_claim_a_connection(monkeypatch, capsys):
+    """Found in a trial upgrade: `m3 doctor --fix` printed "connected to m3
+    once" on a machine where Claude Code is not installed, two lines after the
+    plain check said there was nothing to check."""
+    from doctor import claude_mcp_probe as p
+
+    a = {
+        "direct": {},
+        "direct_present": False,
+        "legacy_present": False,
+        "plugin": _plugin(),
+        "direct_active": False,
+        "double_run": False,
+        "two_direct": False,
+        "legacy_rootless": False,
+        "problem": False,
+        "none": True,
+        "local": [],
+    }
+    monkeypatch.setattr(p, "_assess", lambda: a)
+    monkeypatch.setattr(p.shutil, "which", lambda *_a, **_k: None)
+    p.run(brief=True, fix=True)
+    out = capsys.readouterr().out
+    assert "connected to m3 once" not in out
+    assert "nothing to check" in out

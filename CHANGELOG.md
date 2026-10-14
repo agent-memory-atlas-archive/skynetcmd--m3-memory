@@ -455,6 +455,13 @@ the policy is forward-going only.
   owner. A dashboard or embedder that answers from another account is no longer
   reported as started or as this install's server, and setup does not suggest
   `m3 doctor --fix` for a port another account holds.
+
+- **`m3 doctor --fix` no longer reports a Claude Code connection that does not
+  exist.** With nothing to change it now gives the same verdict as `m3 doctor`,
+  including "nothing to check" where Claude Code is not installed, and says when
+  no agent is set up instead of "all healthy".
+  **Affected:** machines without Claude Code or without wired agents ·
+  **Action:** none · **Data status:** none.
   **Affected:** Linux and macOS machines with more than one m3 user ·
   **Action:** give each account its own port (`m3 config set embed.server.port`) ·
   **Data status:** none.

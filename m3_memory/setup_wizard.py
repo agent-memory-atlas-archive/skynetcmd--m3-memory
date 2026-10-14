@@ -2358,7 +2358,7 @@ def _step_rust_core(plan: SetupPlan) -> bool:
     try:
         if is_rust_core_current():
             cur = active_embedder_tier()
-            _ok_unchanged(f"native core current: m3_core_rs {cur.get('version')} ({cur.get('backend') or 'cpu'})")
+            _ok_unchanged(f"speed-up module current: {cur.get('version')} ({cur.get('backend') or 'cpu'})")
             return True
     except Exception:  # noqa: BLE001 — fall through and (re)install
         pass

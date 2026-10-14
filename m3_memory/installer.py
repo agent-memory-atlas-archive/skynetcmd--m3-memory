@@ -2673,7 +2673,12 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     if brief:
         if fix:
             n = _heal_all_agents()
-            print(f"agent MCP configs: {n} repointed." if n else "agent MCP configs: all healthy.")
+            if n:
+                print(f"agent MCP configs: {n} repointed.")
+            elif _scan_agent_configs():
+                print("agent MCP configs: all healthy.")
+            else:
+                print("agent MCP configs: no agent is set up to use m3 yet")
         else:
             _agent_config_section()
             for line in _heal_config_bridge_path(apply=False):
