@@ -41,9 +41,9 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
     else:
         _warn("Setup finished, but VERIFICATION FAILED.")
         _warn(
-            "m3 is installed and may partly work; the doctor output above "
-            "names each issue and its fix. Do not assume capture or search "
-            "is running until `m3 doctor` is clean."
+            "m3 is installed and may partly work; the lines marked [!] above "
+            "name each issue and its fix. Do not assume capture or search "
+            "is running until they are fixed."
         )
     print()
     restart_lines = []
@@ -139,8 +139,8 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
     print("─" * 60)
     if not verified:
         # "live" is a health claim; the doctor just declined to make it.
-        _warn("M3 is installed but failed verification. Fix what `m3 doctor`")
-        print("    reports above, then run `m3 doctor` again.")
+        _warn("M3 is installed but failed verification. Fix what is marked")
+        print("    [!] above, then run `m3 doctor` again.")
     elif plan.targets.any():
         _ok("M3 is installed and live. Restart your agent (above) and your")
         print("    memory + chatlog start working immediately — nothing else to do.")

@@ -58,3 +58,11 @@ def test_headline_names_another_accounts_server(monkeypatch):
     monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", lambda *a, **k: True)
     monkeypatch.setattr(rust_core_install, "active_embedder_tier", lambda: {"native": True})
     assert installer.status_summary()["embedder"] == "another account's server (port 8082)"
+
+
+def test_start_check_reason_is_recognised_by_its_caller(monkeypatch):
+    """The caller drops the "check its log" advice for this reason; the two
+    must share the one phrase."""
+    monkeypatch.setattr(_ports, "held_by_another_owner", lambda *a, **k: True)
+    detail = isch._confirm_service_live("m3-dashboard.service", deadline_s=0.1)
+    assert isch._HELD_BY_OTHER in detail

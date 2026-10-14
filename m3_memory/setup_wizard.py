@@ -3954,7 +3954,8 @@ def _step_verify_daemons(plan=None) -> bool:
         for role in running:
             _ok(f"  {role}: running")
     for role in missing:
-        _warn(f"  {role}: NOT running")
+        if not (port_taken and role == "dashboard"):  # already explained above
+            _warn(f"  {role}: NOT running")
     if missing:
         restartable = [r for r in missing if not (port_taken and r == "dashboard")]
         if restartable:

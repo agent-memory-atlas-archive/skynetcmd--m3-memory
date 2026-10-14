@@ -1623,6 +1623,9 @@ _SERVICE_HEALTH_URLS = {
 }
 
 
+_HELD_BY_OTHER = "is held by another account's program, so this one cannot start there"
+
+
 def _confirm_service_live(name: str, *, deadline_s: float = 25.0):
     """Poll a started service until it answers.
 
@@ -1641,7 +1644,7 @@ def _confirm_service_live(name: str, *, deadline_s: float = 25.0):
         from m3_memory._ports import held_by_another_owner
 
         if held_by_another_owner(int(port)):
-            return f"port {port} is held by another account's program, so this one cannot start there"
+            return f"port {port} {_HELD_BY_OTHER}"
     except ImportError:
         pass
     import urllib.error
@@ -2141,6 +2144,10 @@ def _start_longlived_tasks(tasks: list) -> None:
                 _safe_print(f"{OK} Started {service}")
             elif detail is True:
                 _safe_print(f"{OK} Started {service} (serving)")
+            elif _HELD_BY_OTHER in detail:
+                # Its log holds nothing new and restarting cannot help; setup's
+                # service check gives the port fix.
+                _safe_print(f"{WARN} {service} cannot start: {detail}")
             else:
                 _safe_print(f"{WARN} Started {service} but it is NOT serving: {detail}")
                 _safe_print(f"        check its log, then: {' '.join(cmd)}")
