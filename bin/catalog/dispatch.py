@@ -49,7 +49,7 @@ def _pop_database(args: dict, tool: str) -> str | None:
         PostgreSQL addresses its one pooled DSN regardless;
       * on any files tool, every backend -- files_memory resolves its own
         store and never reads the ContextVar (m3 ``e03425ec``).
-    Named stores (``--store``, plan step 2C.3) replace this refusal with
+    Named stores (``--store``) replace this refusal with
     routing. Gated on ``== "sqlite"``, never ``!= "postgres"``, so a future
     backend is refused until it can honour the argument.
     """
@@ -101,7 +101,7 @@ def _pop_store(args: dict, tool: str) -> str | None:
             f"{tool}: observed: store={name!r} ({type(name).__name__}). inspect: `store` is a store name such as 'main'"
         )
     name = name.strip()
-    # Files tools follow it too: a store is core + files (§14, plan 2C.3c).
+    # Files tools follow it too: a store is core + files (§14).
     from m3_core.config.stores import resolve_store
 
     resolve_store(name)  # StoreError (a ValueError) for an unknown name

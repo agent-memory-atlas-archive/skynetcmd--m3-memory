@@ -1,5 +1,5 @@
 """Render a flat TOML table. THE owner for m3's generated TOML files (the
-secrets file, m3-embed-server's [embed] file) until tomlkit (U11) edits the
+secrets file, m3-embed-server's [embed] file) until tomlkit edits the
 user's own m3_config.toml.
 
 JSON string escapes (``\\" \\\\ \\n \\uXXXX``) are all valid TOML basic-string

@@ -114,7 +114,7 @@ def test_destructive_exposed(proxy_allowing_destructive):
 
 def test_full_catalog_count(proxy_allowing_destructive):
     """With destructive enabled the proxy exposes every MCP tool (CLI-only commands
-    are never MCP tools, U8). Derived from mcp_tool_catalog.MCP_TOOLS, not a literal:
+    are never MCP tools). Derived from mcp_tool_catalog.MCP_TOOLS, not a literal:
     a hand-edited count drifts (63 -> 110)."""
     tools = importlib.import_module("mcp_tool_catalog").MCP_TOOLS
     assert len(proxy_allowing_destructive._build_catalog_tools()[0]) == len(tools)

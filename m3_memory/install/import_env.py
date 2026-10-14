@@ -1,5 +1,4 @@
-"""`m3 config import-env`: move settings from the legacy places into m3_config.toml
-(plan 2F.1 slice 2; design ~/.m3-private/plans/2026.10.12-IMPORT_ENV_DESIGN.md).
+"""`m3 config import-env`: move settings from the legacy places into m3_config.toml.
 
 Sources are the one sweep (``env_sources.scan``): this process's environment,
 MCP client env blocks (``~/.claude.json`` among them), the ``.env`` files, home rc

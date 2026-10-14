@@ -1,4 +1,4 @@
-"""Registry tables for runtime and services (plan 2C.1; survey 2026-10-09):
+"""Registry tables for runtime and services:
 [crypto], [mcp], [tools], [dispatch], [identity], [integrations.hermes],
 [dashboard], [services], [governor], [gpu], [log], [install], [sync] and
 memory safety flags.

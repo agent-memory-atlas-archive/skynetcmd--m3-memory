@@ -1,6 +1,6 @@
 """Registry tables [chatlog], [ingest], [observer], [reflector], [slm], [loop],
-[autonomy], [governor], [wiki.*] and memory write-path flags (plan 2C.1;
-survey 2026-10-09 over chatlog_*.py, memory/config.py, m3_cognitive_loop.py,
+[autonomy], [governor], [wiki.*] and memory write-path flags (surveyed
+over chatlog_*.py, memory/config.py, m3_cognitive_loop.py,
 run_observer.py, run_reflector.py, slm_intent.py, wiki/*).
 
 Today .spill_config.json, .cognitive_loop_config.json and .governor_config.json

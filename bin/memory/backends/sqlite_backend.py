@@ -536,7 +536,7 @@ class SqliteBackend:
     def from_store(cls, store) -> SqliteBackend:
         """A SQLite store is the UNPINNED instance: m3_core.paths.resolve_db_path
         returns the active store's path, so every caller that opens the store
-        through memory.db._db() (not only this instance) follows it (2C.3)."""
+        through memory.db._db() (not only this instance) follows it."""
         return cls()
 
     @classmethod

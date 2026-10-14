@@ -1,4 +1,4 @@
-"""m3_core.config: registry invariants, the locator, and the file loader (plan 2C.1).
+"""m3_core.config: registry invariants, the locator, and the file loader.
 
 Planted bad files, each of which must fail LOUD with the file and the key named
 (CONFIG_DESIGN §3): unknown key, wrong type, invalid value, a secret placed in
@@ -39,7 +39,7 @@ def test_bool_parser_is_canonical():
 
 
 def test_no_key_can_let_env_outrank_the_file():
-    """U9's one exception (db.backend) was reversed 2026-10-12: no
+    """The one former exception (db.backend) is gone: no
     key's env value outranks m3_config.toml, so the machinery for one is gone.
     Bringing it back is a design change, not a flag."""
     from dataclasses import fields

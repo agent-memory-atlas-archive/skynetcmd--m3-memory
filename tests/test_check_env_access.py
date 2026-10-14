@@ -1,4 +1,4 @@
-"""bin/check_env_access.py: the environment-access inventory gate (plan Step 2A.1).
+"""bin/check_env_access.py: the environment-access inventory gate.
 
 It must catch every planted shape (selftest) and must scan every production
 file. The counts are held by the ratchet in tests/test_env_access_ratchet.py;

@@ -15,8 +15,8 @@ The failure was durable rather than transient, and it hid well: once any other
 path happened to create the schema, the test passed for the wrong reason. These
 tests DROP the schema first so they measure the bootstrap, not the leftovers.
 
-Skips cleanly without a reachable cluster (requires_pg). See
-~/.m3-private/runbooks/WSL_POSTGRES_TEST_DB_RUNBOOK.md to stand one up.
+Skips cleanly without a reachable cluster (requires_pg); point
+`pytest --m3-pg-url` at a throwaway database to run it.
 """
 
 from __future__ import annotations

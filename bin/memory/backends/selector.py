@@ -63,7 +63,7 @@ def active_backend() -> StorageBackend:
 
     factory = backend_factory_for(name)
     # One instance per (backend, store): the default store keys on the name alone,
-    # exactly as before 2C.3; a named store asks its backend for the key (§14).
+    # as it did before named stores; a named store asks its backend for the key (§14).
     key = name if store is None else f"{name}|{factory.store_cache_key(store)}"
     cached = _backends.get(key)
     if cached is not None:

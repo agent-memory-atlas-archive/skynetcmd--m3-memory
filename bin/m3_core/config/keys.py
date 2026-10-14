@@ -1,4 +1,4 @@
-"""The registered keys, table by table (plan 2C.1: framework first, then tables).
+"""The registered keys, table by table.
 
 Each table lands in its own commit with its own tests. A name the env scanner
 finds that is in no table yet is listed in ``tests/data/config_unregistered.txt``,
@@ -60,7 +60,7 @@ DB: list[Key] = [
         doc="Seconds to wait for a pooled SQLite connection.",
     ),
     # sqlite_pragmas.py:91,156: today a non-integer is SILENTLY ignored; the
-    # registry rejects it (intended-change list, plan 2C.1).
+    # registry rejects it (intended-change list).
     Key[int](
         name="db.sqlite_mmap_size",
         parse=parse_int,
@@ -98,7 +98,7 @@ DB_POSTGRES: list[Key] = [
         default=500,
         validate=_POSITIVE,
         env_names=("M3_PG_UPSERT_PAGE_SIZE",),
-        doc="Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob).",
+        doc="Rows per bulk upsert page; lower it over a slow link (a deliberate tuning knob).",
     ),
     Key[list[str]](
         name="db.postgres.forbidden_hosts",
@@ -281,12 +281,12 @@ RETIRED: dict[str, str] = {
 }
 
 NOT_SETTINGS: dict[str, str] = {
-    # U4 bucket B: dev-tool parameters.
-    "M3_DIFF_REF_PYTHON": "search_differential.py's own parameter (U4 B)",
-    "M3_DIFF_REF_BIN": "search_differential.py's own parameter (U4 B)",
-    "M3_DIFF_REF_REV": "search_differential.py's own parameter (U4 B)",
-    "M3_DIFF_STORE": "search_differential.py's own parameter (U4 B)",
-    "M3_TRACE_FILE": "setup-wizard debug breadcrumbs (U4 B)",
+    # Dev-tool parameters.
+    "M3_DIFF_REF_PYTHON": "search_differential.py's own parameter",
+    "M3_DIFF_REF_BIN": "search_differential.py's own parameter",
+    "M3_DIFF_REF_REV": "search_differential.py's own parameter",
+    "M3_DIFF_STORE": "search_differential.py's own parameter",
+    "M3_TRACE_FILE": "setup-wizard debug breadcrumbs",
     # CONFIG_DESIGN §2 read path 1: it decides WHICH m3_config.toml is read, so it
     # cannot be a key in that file.
     "M3_CONFIG_ROOT": "the config locator (CONFIG_DESIGN §2, read path 1)",
@@ -295,13 +295,13 @@ NOT_SETTINGS: dict[str, str] = {
     "M3_HOME": "the hooks' bootstrap locator for the code checkout",
     # CONFIG_DESIGN §2 read path 3: a diagnostic switch read before config loads.
     "M3_DEBUG": "the diagnostic switch (CONFIG_DESIGN §2, read path 3)",
-    # U20: retired as a user setting, no env read and no TOML key;
-    # 2D.2 replaces its 5 parse sites with one Rust-availability probe.
-    "M3_CORE_RS_DISABLE": "retired as a user setting (U20); tests use a fixture, 2D.2",
+    # Retired as a user setting, no env read and no TOML key; one
+    # Rust-availability probe replaces its parse sites.
+    "M3_CORE_RS_DISABLE": "retired as a user setting; tests use a fixture",
     # The Rust/Python route-decider switch is dev and
-    # bench plumbing; 2D.2 folds it into the test-only Rust-availability seam.
+    # bench plumbing, folded into the test-only Rust-availability seam.
     "M3_ROUTE_SHADOW_MODE": "dev plumbing: the Rust/Python route decider",
-    # Read only by a live judge test (as U4 bucket B: test plumbing, not settings).
+    # Read only by a live judge test (test plumbing, not settings).
     "M3_WIKI_DRIFT_PRECISION_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:183)",
     "M3_WIKI_DRIFT_RECALL_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:182)",
     # CONFIG_DESIGN §4(d): in-process handoffs from `m3 serve` to the bridge, which
@@ -314,6 +314,6 @@ NOT_SETTINGS: dict[str, str] = {
     "_M3_UTF8_REEXEC": "internal guard against re-executing twice for UTF-8 mode",
     # As GH_TOKEN: release tooling only.
     "M3_STARGAZER": "release tooling token (gen_download_badges.py; as GITHUB_TOKEN)",
-    # As U4 bucket B: a test hook with no production writer.
+    # A test hook with no production writer.
     "M3_SKIP_MIGRATIONS": "test hook: skip schema migrations (memory/db.py:282)",
 }

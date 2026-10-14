@@ -622,7 +622,7 @@ async def _embed_windows(item_id: str, embed_text: str) -> list[tuple[str, str, 
     first labelled 'default', later ones 'window_<n>', dense-overflow chunks split
     into '_dense_<j>' sub-windows. Returns (vector_kind, sub_text, vector, model)
     in insertion order and writes nothing, so memory_write_impl and
-    rewindow_memory store exactly the same rows (one owner, plan 2D.V).
+    rewindow_memory store exactly the same rows (one owner).
     """
     chunks = _chunk_for_sliding_window(embed_text)
 
@@ -766,7 +766,7 @@ async def rewindow_memory(item_id: str) -> int:
     embedding rows in one transaction: the first window 'default', later ones
     'window_<n>'. Returns the number of rows written.
 
-    The one owner for re-embedding (plan 2D.V). It replaces a blanket
+    The one owner for re-embedding. It replaces a blanket
     ``UPDATE memory_embeddings SET embedding = ? WHERE memory_id = ?``, which wrote
     ONE vector over every window row of a long memory, so its tail stopped being
     searchable, and it repairs memories windowed before 2026.9.8.0 that have no

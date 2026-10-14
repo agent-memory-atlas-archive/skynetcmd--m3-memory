@@ -1,5 +1,5 @@
-"""The generated [embed] file for m3-embed-server (CONFIG_DESIGN §6; plan 2C.1's
-round-trip guard).
+"""The generated [embed] file for m3-embed-server (CONFIG_DESIGN §6;
+the round-trip guard).
 
 The Rust server drops unknown [embed] keys silently (serde without
 deny_unknown_fields), so the generator may emit only the server's own fields,

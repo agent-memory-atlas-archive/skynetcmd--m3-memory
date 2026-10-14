@@ -900,7 +900,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     print("\n── 37: Configurable Constants ──────────────────────────────────")
     # Settings are read once, at import (memory.config._setting: "restart
     # required"), so configurability is checked in a fresh process, through the
-    # canonical name. Re-importing in this process tested the pre-2D.1 contract.
+    # canonical name. Re-importing in this process tested the old import-time contract.
     probe = await asyncio.create_subprocess_exec(
         sys.executable,
         "-c",

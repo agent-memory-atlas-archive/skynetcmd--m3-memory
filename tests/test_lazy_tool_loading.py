@@ -269,7 +269,7 @@ def test_bridge_lazy_mode_registers_only_essentials_and_meta():
 
 def test_bridge_eager_mode_registers_all_tools():
     """With M3_TOOLS_LAZY=0, every MCP tool is registered up-front (the legacy
-    behavior); CLI-only commands never are (U8)."""
+    behavior); CLI-only commands never are."""
     mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "0"})
     assert mb._LAZY_MODE is False
     all_names = {t.name for t in mcp_tool_catalog.MCP_TOOLS}

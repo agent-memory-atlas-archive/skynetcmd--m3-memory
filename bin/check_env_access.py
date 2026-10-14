@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inventory every process-environment access in m3's production code (plan Step 2A.1).
+"""Inventory every process-environment access in m3's production code.
 
 The configuration redesign (CONFIG_DESIGN) moves every m3 setting behind ONE
 resolver. Until then m3 reads and writes the environment from hundreds of
@@ -23,7 +23,7 @@ on its line or alone on the line above. Its verdict is ``owner``, not
 marker without a reason is ignored.
 
 REPORT MODE: print the inventory and exit 0. The counts are a RATCHET
-(tests/test_env_access_ratchet.py, plan 2D.2 rule 2): they may only fall, and a
+(tests/test_env_access_ratchet.py): they may only fall, and a
 fall must lower the stored budget. ``--tests`` counts the other side, env WRITES
 of non-OS names in tests/ (tests that configure m3 through the environment
 instead of the ``m3_settings`` fixture). A file that does not parse is NOT
@@ -58,7 +58,7 @@ SCAN_ROOTS = ("bin", "m3_memory")
 
 # Modules allowed to touch the environment; paths are repo-relative, POSIX style.
 # The config package reads env in exactly one module (CONFIG_DESIGN §2, read
-# path 6); the child_env helper joins in 2E.1.
+# path 6), plus the child_env helper.
 ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py", "m3_memory/_childenv.py"})
 
 # Names m3 reads that are NOT m3 settings: the OS's (measured readers, plan
@@ -87,7 +87,7 @@ OS_NAMES: frozenset[str] = frozenset(
         "OneDrive",
         "OneDriveConsumer",
         "OneDriveCommercial",
-        # U4 bucket A
+        # Terminals' own
         "ANSICON",
         "FORCE_COLOR",
         "WT_SESSION",
@@ -104,7 +104,7 @@ OS_NAMES: frozenset[str] = frozenset(
         "OPENCODE_DATA_DIR",
         # The OS's and toolchains' own. Reads only: a
         # write (GGML_LOG_LEVEL, PYTHONUTF8 for children) stays a violation until
-        # child_env (2E.1) owns it.
+        # child_env owns it.
         "SSH_CONNECTION",
         "SSH_TTY",
         "CUDA_PATH",
@@ -532,7 +532,7 @@ def scan_test_source(src: str, rel: str) -> list[Finding]:
     """Environment WRITES in a test file: monkeypatch setenv/delenv, patch.dict on
     os.environ, and the production write forms. OS names (``OS_NAMES``) are not counted:
     the ratchet tracks tests that configure m3 through the environment instead of the
-    ``m3_settings`` fixture (plan 2D.2 rule 1)."""
+    ``m3_settings`` fixture."""
     tree = ast.parse(src, filename=rel)
     found: list[Finding] = []
     for n in ast.walk(tree):

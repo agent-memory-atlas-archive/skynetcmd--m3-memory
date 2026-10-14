@@ -22,8 +22,7 @@ On PG this is a **schema**, not a second database — a single DSN reaches it, s
 cross-store promotion joins (`files.x JOIN public.memory_items`) work in-database.
 Application code never uses `SET search_path`; it qualifies every files-store table
 via the `files_table()` seam helper (`dialect().qualified_table(name,
-schema="files")`) so a pooled PG connection carries no leaky session state. See
-`~/.m3-private/plans/FILES_DB_TO_PG_PLAN.md` for the full rationale.
+schema="files")`) so a pooled PG connection carries no leaky session state.
 
 ## Runner + version tracking
 

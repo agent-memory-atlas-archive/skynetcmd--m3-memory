@@ -1,7 +1,7 @@
 """Every place an environment name is set, with its value: the one sweep.
 
 ``installer._find_env_var_locations`` (doctor's "set in ...", the PG_URL refusal)
-and ``m3 config import-env`` (plan 2F.1) both read it, so a place one of them
+and ``m3 config import-env`` both read it, so a place one of them
 knows about the other cannot miss. Sources:
 
   - this process's environment;

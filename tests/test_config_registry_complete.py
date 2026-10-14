@@ -1,11 +1,11 @@
-"""Every env name m3 reads is accounted for by the config registry (plan 2C.1).
+"""Every env name m3 reads is accounted for by the config registry.
 
 A name the env gate (bin/check_env_access.py, the one inventory) finds in
 production code must be one of:
   * an env name of a registry key (canonical or legacy alias);
   * declared not-a-setting, with the reason (keys.NOT_SETTINGS);
   * retired: documented but with no effect (keys.RETIRED);
-  * a legacy store locator (config.stores.LEGACY_LOCATORS, plan 2C.3);
+  * a legacy store locator (config.stores.LEGACY_LOCATORS);
   * an OS / foreign name (the gate's own allowlist: not a finding at all);
   * listed in tests/data/config_unregistered.txt, the names still to register.
 

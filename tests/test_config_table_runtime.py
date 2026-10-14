@@ -1,4 +1,4 @@
-"""Runtime and service tables (plan 2C.1). Security defaults are pinned exactly."""
+"""Runtime and service tables. Security defaults are pinned exactly."""
 
 from __future__ import annotations
 

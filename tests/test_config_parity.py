@@ -1,4 +1,4 @@
-"""bin/config_parity.py: the config parity snapshot (plan Step 2A.2).
+"""bin/config_parity.py: the config parity snapshot.
 
 The real OS keyring is never touched. Keyring-behaviour tests use in-memory
 fakes and stop before any capture. Every test that CAPTURES runs the CLI in a

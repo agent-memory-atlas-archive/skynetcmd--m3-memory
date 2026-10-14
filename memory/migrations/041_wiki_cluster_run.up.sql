@@ -1,6 +1,5 @@
 -- 041_wiki_cluster_run.up.sql
--- Wiki compile provenance + membership cache (plan G1,
--- ~/.m3-private/plans/WIKI_SYNTHESIS_MEMORY_TYPE.md).
+-- Wiki compile provenance + membership cache.
 --
 -- Follows 040.
 --

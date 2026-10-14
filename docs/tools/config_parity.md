@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: 41c2b94763c7
-mtime_utc: 2026-10-14T03:46:05.038062+00:00
-generated_utc: 2026-10-14T03:47:37.943939+00:00
+sha1: a87911118d0c
+mtime_utc: 2026-10-14T03:56:38.766615+00:00
+generated_utc: 2026-10-14T03:57:13.033785+00:00
 private: false
 ---
 
@@ -10,7 +10,7 @@ private: false
 
 ## Purpose
 
-Config parity snapshot: what m3 resolves today, so the config migration can prove it changed nothing (plan Step 2A.2).
+Config parity snapshot: what m3 resolves today, so the config migration can prove it changed nothing.
 
 Before the first setting moves behind the new resolver, capture every setting
 as today's code sees it; after each migration step, ``check`` recaptures and
@@ -18,7 +18,7 @@ diffs. Only entries on the user-reviewed intended-change list may differ
 (CONFIG_DESIGN §8).
 
 Four layers per snapshot:
-  env     every constant env name m3 reads (the 2A.1 inventory,
+  env     every constant env name m3 reads (the inventory of
           ``check_env_access``), BEFORE and AFTER M3Context loads ``.env``
   parsed  the constants m3's config modules compute from the env at import:
           the per-key legacy parser, whatever today's code makes of the string

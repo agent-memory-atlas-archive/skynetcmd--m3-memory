@@ -1,4 +1,4 @@
-"""`m3 config import-env` (plan 2F.1 slice 2; design 2026.10.12-IMPORT_ENV_DESIGN).
+"""`m3 config import-env` (design 2026.10.12-IMPORT_ENV_DESIGN).
 Every legacy source is read (env_sources.scan); a key is imported only when all
 sources agree; on a disagreement a person at the console chooses, and with no
 one there nothing is written for that key and every source is listed. The file is backed up (GuardedRewrite) and every

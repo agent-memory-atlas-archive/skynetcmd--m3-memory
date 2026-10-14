@@ -1,4 +1,4 @@
-"""`database` is refused wherever it would be silently ignored (plan U25).
+"""`database` is refused wherever it would be silently ignored.
 
 The universal `database` argument names a SQLite file. Before this guard it was
 dropped on the floor in two places, and the call ran against the default store:

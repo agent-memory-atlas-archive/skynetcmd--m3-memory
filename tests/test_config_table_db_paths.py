@@ -1,8 +1,8 @@
-"""Registry table [db] / [db.postgres] / [paths] (plan 2C.1, first table).
+"""Registry table [db] / [db.postgres] / [paths].
 
 Defaults are pinned to today's readers where the code holds them in a named
 constant or a callable, so the registry cannot drift from what runs; literals
-inside a call (the SQLite pool's 5 / 30) are covered by the 2A.2 parity capture.
+inside a call (the SQLite pool's 5 / 30) are covered by the parity capture.
 """
 
 from __future__ import annotations

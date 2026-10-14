@@ -1,5 +1,5 @@
-"""Registry tables [llm], [cloud], [extraction], [promote] (plan 2C.1; survey
-2026-10-09 over llm_failover.py, m3_core/llm_config.py, memory/config.py,
+"""Registry tables [llm], [cloud], [extraction], [promote] (surveyed
+over llm_failover.py, m3_core/llm_config.py, memory/config.py,
 memory/extraction.py, promote_pipeline.py, mcp_proxy.py, m3_core/runtime.py).
 
 Today ``.llm_config.json`` (endpoints, url, the LM Studio toggle) and

@@ -273,7 +273,7 @@
             },
             "upsert_page_size": {
               "type": "integer",
-              "description": "Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob).",
+              "description": "Rows per bulk upsert page; lower it over a slow link (a deliberate tuning knob).",
               "default": 500
             }
           }

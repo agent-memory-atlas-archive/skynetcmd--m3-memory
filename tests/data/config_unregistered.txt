@@ -1,8 +1,8 @@
-# Env names m3 reads that are not yet in the config registry (plan 2C.1).
+# Env names m3 reads that are not yet in the config registry.
 # A RATCHET: names only ever leave this file (tests/test_config_registry_complete.py).
 # What is left waits for a later step, by design:
 #   GGML_LOG_LEVEL, PYTHONPATH, PYTHONUTF8: WRITTEN for child processes (their reads are
-#     allowed foreign names) -> child_env owns them, plan 2E.1 (CONFIG_DESIGN §5).
-# (The store locations left in 2C.3: m3_core.config.stores.LEGACY_LOCATORS.)
+#     allowed foreign names) -> child_env owns them (CONFIG_DESIGN §5).
+# (The legacy store locations: m3_core.config.stores.LEGACY_LOCATORS.)
 GGML_LOG_LEVEL
 PYTHONUTF8

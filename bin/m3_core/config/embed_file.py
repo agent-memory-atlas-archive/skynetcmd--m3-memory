@@ -7,7 +7,7 @@ know is dropped without a word. ``render`` therefore emits only the fields in
 ``SERVER_FIELDS`` and refuses anything else, and only values the registry holds:
 gguf, host, port, ctx. The Rust-only knobs (streams, seq_max, n_batch, n_ubatch,
 coalesce_ms, max_batch_tokens) keep the server's own defaults until the
-registry adopts them (§6 #P11, plan 2E.4: they carry a stated crash risk).
+registry adopts them (they carry a stated crash risk).
 
 Where the file lives, per OS, is the server's ``default_config_path()``
 (config.rs:113-124); ``server_config_path`` mirrors it, cited, because the two

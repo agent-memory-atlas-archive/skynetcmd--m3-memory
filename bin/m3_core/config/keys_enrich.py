@@ -1,5 +1,5 @@
 """Registry tables [enrich], [entity], [entity.coalesce], [gliner] and the fact /
-entity extraction knobs of [memory] (plan 2C.1; survey 2026-10-09 over
+entity extraction knobs of [memory] (surveyed over
 m3_enrich.py, enrich/prep.py, m3_entities*.py, memory/config.py,
 files_memory/entity_coalesce.py).
 

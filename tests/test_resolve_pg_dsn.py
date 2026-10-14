@@ -1,4 +1,4 @@
-"""m3_core.secret_store.resolve_pg_dsn / explain_pg_dsn: the one DSN owner (plan 2B.1).
+"""m3_core.secret_store.resolve_pg_dsn / explain_pg_dsn: the one DSN owner.
 
 The keyring and vault tiers are replaced by fakes keyed by name, so no real
 keyring or vault is touched; the secrets file is the sandbox's own. The

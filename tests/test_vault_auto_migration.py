@@ -1,4 +1,4 @@
-"""A legacy vault row is re-encrypted on read, on every backend (plan 2B.1, R3).
+"""A legacy vault row is re-encrypted on read, on every backend.
 
 Reading a secret that was stored in the legacy format (Fernet, or AES-GCM under
 the old PBKDF2 iteration count) is meant to rewrite it in the current format.

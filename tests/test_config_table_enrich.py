@@ -1,4 +1,4 @@
-"""Registry tables [enrich], [entity], [entity.coalesce], [gliner] (plan 2C.1)."""
+"""Registry tables [enrich], [entity], [entity.coalesce], [gliner]."""
 
 from __future__ import annotations
 

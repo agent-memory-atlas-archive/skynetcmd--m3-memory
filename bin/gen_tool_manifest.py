@@ -99,7 +99,7 @@ def build_manifest() -> dict:
     import tool_domains
 
     tools: list[dict] = []
-    for spec in mcp_tool_catalog.MCP_TOOLS:  # CLI-only commands are not MCP tools (U8)
+    for spec in mcp_tool_catalog.MCP_TOOLS:  # CLI-only commands are not MCP tools
         tools.append(
             {
                 "name": spec.name,

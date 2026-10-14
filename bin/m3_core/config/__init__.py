@@ -1,6 +1,6 @@
 """m3's configuration: the registry, the m3_config.toml loader, the resolver.
 
-CONFIG_DESIGN.md (private) is the design; plan Step 2C.1 the build order. Only
+Only
 this package reads m3-owned environment variables once the cutover lands (N+3);
 until then legacy readers keep working beside it (2D converts them).
 """

@@ -1,4 +1,4 @@
-"""The installed package's route to the config registry (plan 2D.2 batch (b)).
+"""The installed package's route to the config registry.
 
 `m3_core.config` lives in the payload's `bin/`, which the package reaches only
 through `sys.path`. These delegate after `m3_memory._bin.ensure_on_path()`, so a

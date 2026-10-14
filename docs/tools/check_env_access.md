@@ -1,8 +1,8 @@
 ---
 tool: bin/check_env_access.py
-sha1: ec09e67373b9
-mtime_utc: 2026-10-14T03:47:29.831313+00:00
-generated_utc: 2026-10-14T03:47:37.919772+00:00
+sha1: ba0120f33117
+mtime_utc: 2026-10-14T03:56:38.766615+00:00
+generated_utc: 2026-10-14T03:57:13.010811+00:00
 private: false
 ---
 
@@ -10,7 +10,7 @@ private: false
 
 ## Purpose
 
-Inventory every process-environment access in m3's production code (plan Step 2A.1).
+Inventory every process-environment access in m3's production code.
 
 The configuration redesign (CONFIG_DESIGN) moves every m3 setting behind ONE
 resolver. Until then m3 reads and writes the environment from hundreds of
@@ -34,7 +34,7 @@ on its line or alone on the line above. Its verdict is ``owner``, not
 marker without a reason is ignored.
 
 REPORT MODE: print the inventory and exit 0. The counts are a RATCHET
-(tests/test_env_access_ratchet.py, plan 2D.2 rule 2): they may only fall, and a
+(tests/test_env_access_ratchet.py): they may only fall, and a
 fall must lower the stored budget. ``--tests`` counts the other side, env WRITES
 of non-OS names in tests/ (tests that configure m3 through the environment
 instead of the ``m3_settings`` fixture). A file that does not parse is NOT

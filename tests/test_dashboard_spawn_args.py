@@ -1,5 +1,4 @@
-"""The detached dashboard child gets its address as --host/--port, not through env
-(2E.1 part 2): an env handoff is ignored once the child reads config, and it would
+"""The detached dashboard child gets its address as --host/--port, not through env: an env handoff is ignored once the child reads config, and it would
 fall back to the default address without a word."""
 
 from __future__ import annotations

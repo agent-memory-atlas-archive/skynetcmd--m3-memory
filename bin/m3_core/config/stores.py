@@ -42,8 +42,8 @@ LOCATOR_KEYS: dict[str, dict[str, bool]] = {
 
 # The legacy env names that LOCATE a part of the default store (or, for the
 # chatlog, the process-wide chat store, D1). They are settings, so not
-# NOT_SETTINGS, but not flat registry keys either (plan 2C.1 note): their home is
-# [stores.main], declarable from 2D, when each reader moves to the store model
+# NOT_SETTINGS, but not flat registry keys either: their home is
+# [stores.main], declarable when each reader moves to the store model
 # and these become its deprecated aliases. Until then each keeps its reader.
 # name: what it locates.
 LEGACY_LOCATORS: dict[str, str] = {
@@ -172,7 +172,7 @@ def current_store_name() -> str:
 
 def child_store_args() -> list[str]:
     """The argv that puts a child m3 process on the store in effect here:
-    ``[]`` on main, else ``["--store", name]`` (plan 2C.3e; first caller 2E.1's
+    ``[]`` on main, else ``["--store", name]`` (first caller:
     spawn_m3_child). Owned by the store layer, not by StorageBackend as first
     designed: one backend instance serves every store naming its database, so a
     backend cannot know which store NAME is active. Passed in argv, never env,
@@ -182,7 +182,7 @@ def child_store_args() -> list[str]:
 
 
 def set_process_store(name: str) -> StoreRef | None:
-    """Select ``name`` for the whole process: a CLI's ``--store`` (plan 2C.3d).
+    """Select ``name`` for the whole process: a CLI's ``--store``.
     Every thread sees it; a per-call ``active_store`` still overrides it. Set once
     at startup; ``main`` selects the default store."""
     store = resolve_store(name)

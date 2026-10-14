@@ -570,7 +570,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                 # loop, and up to 300s of migration would stall every other call.
                 result = await asyncio.to_thread(
                     subprocess.run,
-                    # The store reaches the child as --database, not env (2E.1 part 2).
+                    # The store reaches the child as --database, not env.
                     [sys.executable, mig_script, "--database", str(db_path), "up", "--yes"],
                     capture_output=True,
                     text=True,

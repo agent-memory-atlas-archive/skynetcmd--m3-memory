@@ -29,7 +29,7 @@ logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(mess
 logger = logging.getLogger("embed_proxy_gpu")
 
 # M3_-namespaced like LLAMA_PORT; the bare names still work, with a deprecation
-# notice (getenv_compat), until the alias window closes (U4, 2026-10-08).
+# notice (getenv_compat), until the alias window closes.
 # The registry key owns both names (M3_ and the bare legacy alias, with its notice).
 LLAMA_SERVER_EXE = str(
     _m3cfg.setting("embed.gpu.llama_server_exe")

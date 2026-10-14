@@ -4,7 +4,7 @@
 names `pg_fdw_sync.FdwUnavailable`. When the import (or the m3_sdk import beside
 it) failed, evaluating that except clause raised UnboundLocalError, which
 escaped the function and hid the real import error. Found by mypy
-`possibly-undefined` (plan 2D.M).
+`possibly-undefined`.
 """
 
 from __future__ import annotations

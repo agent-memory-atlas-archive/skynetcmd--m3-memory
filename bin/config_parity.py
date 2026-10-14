@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Config parity snapshot: what m3 resolves today, so the config migration can prove it changed nothing (plan Step 2A.2).
+"""Config parity snapshot: what m3 resolves today, so the config migration can prove it changed nothing.
 
 Before the first setting moves behind the new resolver, capture every setting
 as today's code sees it; after each migration step, ``check`` recaptures and
@@ -7,7 +7,7 @@ diffs. Only entries on the user-reviewed intended-change list may differ
 (CONFIG_DESIGN §8).
 
 Four layers per snapshot:
-  env     every constant env name m3 reads (the 2A.1 inventory,
+  env     every constant env name m3 reads (the inventory of
           ``check_env_access``), BEFORE and AFTER M3Context loads ``.env``
   parsed  the constants m3's config modules compute from the env at import:
           the per-key legacy parser, whatever today's code makes of the string
@@ -87,7 +87,7 @@ PARSED_MODULES = (
 # The config files of CONFIG_DESIGN §11. Other JSON files in the config root are
 # runtime state (heartbeats, pass stamps, watchdog state) or another app's, and
 # would show as drift every few minutes; they are listed by NAME only, for the
-# 2A.3 classification, never compared.
+# classification, never compared.
 CONFIG_FILES = (
     ".llm_config.json",
     ".cognitive_loop_config.json",
@@ -244,11 +244,11 @@ def record(name: str, value: object, key: bytes, markers: list[str]) -> dict:
 
 # ── capture ───────────────────────────────────────────────────────────────────
 def _env_names() -> tuple[list[str], int]:
-    """Constant env names m3 reads: the 2A.1 inventory's direct reads, plus every
+    """Constant env names m3 reads: the inventory's direct reads, plus every
     name a config-registry key answers to, plus the count of dynamic-name sites a
     snapshot cannot enumerate.
 
-    The registry half matters more as 2D.2 proceeds: a reader converted from
+    The registry half matters more as readers convert: a reader converted from
     ``os.environ.get("M3_X")`` to the registry no longer appears in the direct-read
     inventory, so without it every conversion silently shrank parity's coverage
     (a converted M3_TOOL_TIMEOUT stopped registering as drift, 2026-10-11)."""

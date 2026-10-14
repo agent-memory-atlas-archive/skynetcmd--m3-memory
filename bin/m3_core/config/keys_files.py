@@ -1,11 +1,11 @@
-"""Registry table [files] (plan 2C.1; survey 2026-10-09 over bin/files_memory/).
+"""Registry table [files] (survey 2026-10-09 over bin/files_memory/).
 
 Only knobs that TAKE EFFECT today are registered. Read-but-unused or
 always-overridden names (M3_FILES_DEFAULT_SCOPE, _EXTRACT_CONCURRENCY,
 _EXTRACT_MAX_ATTEMPTS, _DB_PROMPT_ON_FIRST_USE, _CORPUS, _DEDUP_*,
 _PROMO_SUGGEST_THRESHOLD) stay on the ratchet until the user decides to wire
 or retire each: registering them would publish a setting that does nothing
-(DESIGN_PHILOSOPHIES §3). M3_FILES_DB_PATH is a store location (2C.3).
+(DESIGN_PHILOSOPHIES §3). M3_FILES_DB_PATH is a store location.
 """
 
 from __future__ import annotations

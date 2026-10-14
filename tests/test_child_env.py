@@ -1,4 +1,4 @@
-"""child_env: the one owner of a child process's environment (CONFIG_DESIGN §5, 2E.1)."""
+"""child_env: the one owner of a child process's environment (CONFIG_DESIGN §5)."""
 
 from __future__ import annotations
 

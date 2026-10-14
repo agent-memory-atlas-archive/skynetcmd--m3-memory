@@ -1,6 +1,5 @@
 """A call scoped with ``active_database()`` resolves its scoped DB, whatever
-``M3_DATABASE`` says (M3_DATABASE design, approved 2026-10-12, phase 1; plan
-Step 2E.2, R5).
+``M3_DATABASE`` says.
 
 The env value used to outrank the ContextVar, so a scoped call that "worked"
 might only have worked because env happened to name the same file: a scope that

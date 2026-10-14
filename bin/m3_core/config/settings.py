@@ -128,7 +128,7 @@ _ALIAS_WARNED: set[str] = set()
 
 def _warn_deprecated_aliases(settings: Settings) -> None:
     """Once per process per name, as getenv_compat did for the keys it served
-    before they moved to the registry (plan 2D.1)."""
+    before they moved to the registry."""
     for old, new in sorted(settings.deprecated_aliases_in_use().items()):
         if old not in _ALIAS_WARNED:
             _ALIAS_WARNED.add(old)
@@ -234,7 +234,7 @@ def _setting(name: str) -> ConfigValue | None:
     """Key ``name``'s current value: m3_config.toml, then the key's env names, then
     its default, parsed by the key's one parser.
 
-    The ONE accessor for code converted off direct env reads (plan 2D.2 batch (b)).
+    The ONE accessor for code converted off direct env reads.
     A private ``_setting`` per module would be ~100 copies of these three lines.
     A name that is not a registry key raises, rather than reading a default
     nobody declared.
@@ -263,7 +263,7 @@ def set_from_cli(values: Mapping[str, ConfigValue | None]) -> None:
     ``setting()`` see the value with no plumbing, it survives config reloads, and
     nothing leaks into the environment of unrelated children. A ``None`` value
     (flag not given) changes nothing. Validated like any value: a bad flag fails
-    here, loud. A child that needs the value gets the flag, not env (2E.1)."""
+    here, loud. A child that needs the value gets the flag, not env."""
     given: dict[Key, ConfigValue] = {}
     for name, value in values.items():
         if value is None:

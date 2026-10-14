@@ -34,7 +34,7 @@ logger = logging.getLogger("M3_SDK")
 # block would never appear). Every getenv_compat(new, old) call site MUST have a
 # matching entry here; tests/test_env_rename_map_drift.py enforces that so the map
 # can't silently fall out of sync with the call sites. Aliases of config-registry
-# keys live in the registry instead (registry_env_renames(); plan 2D.1).
+# keys live in the registry instead (registry_env_renames()).
 DEPRECATED_ENV_RENAMES: dict[str, str] = {
     "AGENT_DB": "M3_AGENT_DB",
     # CHATLOG_DB / CHATLOG_DB_PATH are NOT here: renaming them to another env name
@@ -103,7 +103,7 @@ def all_env_renames() -> dict[str, str]:
 
 def registry_env_renames() -> dict[str, str]:
     """{legacy alias: canonical name} for every config-registry key. Keys read
-    through the registry (plan 2D.1 onward) resolve their aliases there, not via
+    through the registry resolve their aliases there, not via
     getenv_compat, so their pairs are not in DEPRECATED_ENV_RENAMES (whose drift
     test pins it to getenv_compat call sites); the registry is their one owner."""
     from m3_core.config import REGISTRY
@@ -153,7 +153,7 @@ def deprecated_env_in_use() -> dict[str, str]:
     `m3 doctor` to report migration TODOs. Only reflects names actually READ — a
     var set but never consulted won't show.
 
-    Keys read through the config registry (plan 2D.1 onward) resolve their legacy
+    Keys read through the config registry resolve their legacy
     aliases there, not through getenv_compat, so their half comes from the
     config snapshot. A config file that does not load is reported by doctor's
     own config check; here it only means the registry half is unknown, and the
@@ -269,7 +269,7 @@ class _Unset(enum.Enum):
 # Read it only through current_store(). A store outranks the legacy SQLite path
 # (M3_DATABASE / active_database) in resolve_db_path and decides
 # resolve_backend_name: §14's order. With no store
-# anywhere, both resolvers behave exactly as before 2C.3.
+# anywhere, both resolvers behave exactly as they did before named stores.
 # A store, None for an explicit "main", or UNSET (defer to the process's store).
 type _StoreSelection = StoreRef | None | Literal[_Unset.UNSET]
 
@@ -767,7 +767,7 @@ def _looks_like_dsn(value: str) -> bool:
 def resolve_db_path(explicit: str | None = None) -> str:
     """Resolve an absolute SQLite DB path.
 
-    Order: explicit arg > the active named SQLite store (2C.3, §14) >
+    Order: explicit arg > the active named SQLite store (§14) >
     active_database ContextVar > configured_main_db() (the --database pin, else
     the legacy M3_DATABASE env var) > default
     (memory/agent_memory.db). Returns an absolute path so pool-cache keys are
@@ -776,7 +776,7 @@ def resolve_db_path(explicit: str | None = None) -> str:
     The ContextVar outranks env (M3_DATABASE design, approved 2026-10-12, Q3
     phase 1): a call scoped with ``active_database()`` must resolve its scoped
     DB, and an env value that happened to agree used to mask a scope that was
-    never set (R5).
+    never set.
 
     Raises ``ValueError`` when the resolved candidate is a DSN. This function
     answers "which SQLite FILE", so a connection string is a configuration
@@ -1096,8 +1096,7 @@ def resolve_backend_name() -> str:
     """The configured backend name: registry key ``db.backend``.
 
     THE single owner of this predicate; ``memory.backends.selector`` re-exports
-    it. An ordinary registry key (U9's env override reversed 2026-10-12, m3
-    9cbed0af): a ``--set`` flag, then ``[db] backend`` in m3_config.toml, then the
+    it. An ordinary registry key: a ``--set`` flag, then ``[db] backend`` in m3_config.toml, then the
     legacy env names ``M3_DB_BACKEND`` / ``DB_BACKEND`` (below the file, warned
     once per process, until N+3), then ``sqlite``. An unrecognised value raises —
     a typo like ``postgre`` must not silently run SQLite.
@@ -1338,7 +1337,7 @@ def add_database_arg(parser: argparse.ArgumentParser) -> None:
     """Attach the standard --database and --store flags to a CLI parser.
 
     ``--store NAME`` selects a named store from m3_config.toml for the process
-    (its core and files data; config §14, plan 2C.3d) and outranks the legacy
+    (its core and files data; config §14) and outranks the legacy
     path. ``--database PATH`` is that SQLite path: --database > the legacy
     M3_DATABASE env (warned once) > default (memory/agent_memory.db); scripts
     activate it with pin_database() for the process or active_database() for a

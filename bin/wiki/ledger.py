@@ -1,6 +1,6 @@
 """Wiki compile ledger — `cluster_run` (provenance) + `cluster_members` (cache).
 
-Plan G1 (~/.m3-private/plans/WIKI_SYNTHESIS_MEMORY_TYPE.md). Two tables with
+Two tables with
 different natures (do not conflate):
 
   * ``cluster_run`` is PROVENANCE — a compile decision made at a moment. NOT

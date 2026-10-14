@@ -1131,7 +1131,7 @@ def main(argv: list[str] | None = None) -> int:
         return rc
 
     # Settings still kept in env, rc files, .env and MCP env blocks move into
-    # m3_config.toml (plan 2F.1 slice 4). Non-interactive by decision (m3
+    # m3_config.toml. Non-interactive by decision (m3
     # 7200dbed): a disagreement is listed with its fix, never decided here. It
     # never fails the upgrade: the settings keep working where they are.
     if _has_import_env(m3, dry):

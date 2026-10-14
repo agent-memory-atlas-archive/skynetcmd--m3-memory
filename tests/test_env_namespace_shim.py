@@ -71,7 +71,7 @@ def test_documented_m3_knob_now_takes_effect(monkeypatch):
     """Regression for the real symptom: M3_TITLE_MATCH_BOOST is the documented
     name but the code used to read only bare TITLE_MATCH_BOOST, silently
     ignoring the documented one. The new name must now win."""
-    # memory.config reads the config snapshot at call time (plan 2D.1); the env
+    # memory.config reads the config snapshot at call time; the env
     # is read when the snapshot is built, so rebuild it where this test used to
     # reload the module.
     from m3_core.config import settings as st

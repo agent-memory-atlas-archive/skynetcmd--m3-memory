@@ -103,7 +103,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `pg_restore` | path | (none) | `M3_PG_RESTORE` | pg_restore used to verify snapshots; unset: beside pg_dump, else on PATH. |
 | `pool_max` | integer | `16` | `M3_PG_POOL_MAX` | restart to apply; Maximum connections in the PostgreSQL pool (at least pool_min). |
 | `pool_min` | integer | `1` | `M3_PG_POOL_MIN` | restart to apply; Minimum connections in the PostgreSQL pool. |
-| `upsert_page_size` | integer | `500` | `M3_PG_UPSERT_PAGE_SIZE` | Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob). |
+| `upsert_page_size` | integer | `500` | `M3_PG_UPSERT_PAGE_SIZE` | Rows per bulk upsert page; lower it over a slow link (a deliberate tuning knob). |
 
 ## [dispatch]
 

@@ -1,4 +1,4 @@
-"""`m3 config get|set|unset` (plan 2F.1 slice 1; design 2026.10.12-IMPORT_ENV_DESIGN):
+"""`m3 config get|set|unset` (design 2026.10.12-IMPORT_ENV_DESIGN):
 CONFIG keys only, parsed by the key's own parser, written under the §12 lock; a
 security-sensitive key needs a person at the console or --yes."""
 

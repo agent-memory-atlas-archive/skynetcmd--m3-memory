@@ -1,7 +1,7 @@
 """Registry table [embed] (CONFIG_DESIGN §6).
 
-Every default and env name is taken from today's readers (2C.1 table 2 survey,
-2026-10-09; bin/memory/config.py, embed.py, tokens.py, chunking.py,
+Every default and env name is taken from today's readers (surveyed in
+bin/memory/config.py, embed.py, tokens.py, chunking.py,
 embed_server_inproc.py, embed_server_gpu.py, m3_memory/embedder_admin.py).
 Where a reader parsed a value differently from the canonical parser, that
 reading is ``legacy_parse``: the canonical one wins and the difference is
@@ -49,7 +49,7 @@ def _str(name: str, env: tuple[str, ...], default: str | None, doc: str) -> Key[
 # Most embed knobs are read at import today (memory/config.py, embed.py), so none
 # is reloadable until 2D turns those constants into accessors.
 EMBED: list[Key] = [
-    # ── identity and location (U24) ──
+    # ── identity and location ──
     _str(
         "embed.model",
         ("M3_EMBED_MODEL", "EMBED_MODEL"),
@@ -248,7 +248,7 @@ EMBED: list[Key] = [
         8,
         "Largest request still treated as interactive.",
     ),
-    # ── [embed.gpu]: the llama-server proxy (embed_server_gpu.py; U4 C renames) ──
+    # ── [embed.gpu]: the llama-server proxy (embed_server_gpu.py) ──
     _str(
         "embed.gpu.host",
         ("M3_EMBED_SERVER_GPU_HOST", "EMBED_SERVER_GPU_HOST"),

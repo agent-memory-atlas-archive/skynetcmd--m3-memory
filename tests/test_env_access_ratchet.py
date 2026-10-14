@@ -1,10 +1,10 @@
-"""The environment-access inventory is a ratchet (plan 2D.2 rule 2).
+"""The environment-access inventory is a ratchet.
 
 bin/check_env_access.py is the one counter (plan "Pre-Registered Metrics"). Two
 budgets: production violations (reads, writes, whole-env copies and dotenv loads of
 m3 names outside the config package) and test-side env writes of non-OS names
 (tests that configure m3 through the environment instead of the ``m3_settings``
-fixture, plan 2D.2 rule 1). Each may only go down: a rise fails, and a fall fails
+fixture). Each may only go down: a rise fails, and a fall fails
 too until the budget is lowered to lock it in, like the OS-seam ratchet.
 """
 

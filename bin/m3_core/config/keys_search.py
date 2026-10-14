@@ -1,4 +1,4 @@
-"""Registry tables [search], [memory.*] (plan 2C.1; survey 2026-10-09 over
+"""Registry tables [search], [memory.*] (surveyed over
 bin/memory/config.py, search.py, search_routing.py, search_ranking.py, entity.py).
 
 Held on the ratchet for the user (read but unused, or parsed several ways):

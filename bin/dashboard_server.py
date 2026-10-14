@@ -3483,7 +3483,7 @@ def _spawn_detached(host: str, port: int) -> int:
     """
     import subprocess
 
-    # host and port reach the child as its own --host/--port (2E.1 part 2): an env
+    # host and port reach the child as its own --host/--port: an env
     # handoff is ignored once the child reads config, and it would silently fall
     # back to the default address.
     script = os.path.abspath(__file__)

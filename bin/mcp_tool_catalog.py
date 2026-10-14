@@ -172,7 +172,7 @@ _DATABASE_PARAM_SCHEMA = {
 }
 
 
-# The universal `store` parameter (config §14, plan 2C.3b): a named store from
+# The universal `store` parameter (config §14): a named store from
 # [stores.<name>] in m3_config.toml, or "main". Injected and popped exactly like
 # `database` (catalog.dispatch.pop_call_scope owns both).
 _STORE_PARAM_SCHEMA = {
@@ -253,6 +253,6 @@ _inject_database_arg()
 _BY_NAME: dict[str, ToolSpec] = {t.name: t for t in TOOLS}
 
 # What any MCP surface may offer (direct server, proxy, m3_call, the catalog and
-# its generated docs): TOOLS minus CLI-only commands (ToolSpec.mcp=False, U8). The
+# its generated docs): TOOLS minus CLI-only commands (ToolSpec.mcp=False). The
 # CLI keeps every tool.
 MCP_TOOLS: list[ToolSpec] = [t for t in TOOLS if t.mcp]

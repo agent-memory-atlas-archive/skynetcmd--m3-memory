@@ -1,5 +1,5 @@
 """Registry tables [chatlog], [ingest], [observer], [reflector], [slm], [loop],
-[autonomy], [governor], [wiki.*] (plan 2C.1)."""
+[autonomy], [governor], [wiki.*]."""
 
 from __future__ import annotations
 

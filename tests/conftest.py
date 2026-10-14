@@ -186,8 +186,8 @@ def pg_dsn() -> "str | None":
 def select_backend(name: str) -> None:
     """Select the backend for the rest of this test the way `m3 --set` does: a
     flag-level setting, live at once, importing nothing from ``memory`` (so it
-    works under a test that blocks that package). No env (U9 reversed, m3
-    9cbed0af); ``_process_flags_cleared`` undoes it after the test. Use
+    works under a test that blocks that package). No env;
+    ``_process_flags_cleared`` undoes it after the test. Use
     ``use_backend`` instead when the test needs the file and a stored DSN."""
     from m3_core.config import settings as st
 
@@ -1552,8 +1552,8 @@ def _reset_storage_backend_cache():
         _paths = sys.modules.get("m3_core.paths")
         if _paths is not None:
             _paths._process_store = None
-        # memory.config serves registry-backed names through __getattr__ (plan
-        # 2D.1). monkeypatch's undo re-binds the value it read as a REAL
+        # memory.config serves registry-backed names through __getattr__.
+        # monkeypatch's undo re-binds the value it read as a REAL
         # attribute, which would shadow the accessor with a stale value for
         # every later test; drop any such binding.
         _mcfg = sys.modules.get("memory.config")

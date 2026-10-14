@@ -1,4 +1,4 @@
-"""Registry tables [search], [memory.*] (plan 2C.1). Defaults pinned to today's constants."""
+"""Registry tables [search], [memory.*]. Defaults pinned to today's constants."""
 
 from __future__ import annotations
 

@@ -3,8 +3,7 @@
 memory_core exports ~230 names through a module __getattr__, which Python does
 NOT consult for a bare-name lookup inside the module. The eager-bind block at
 the bottom of memory_core resolves the eight symbols its functions call by
-bare name; config SETTINGS are deliberately never bound (read at call time,
-2D.1). conversation_summarize used the setting LLM_TIMEOUT by bare name and
+bare name; config SETTINGS are deliberately never bound (read at call time). conversation_summarize used the setting LLM_TIMEOUT by bare name and
 raised NameError (found by bin/test_memory_bridge.py, 2026-10-10).
 
 Static: every bare-name read of a lazy export inside a memory_core function

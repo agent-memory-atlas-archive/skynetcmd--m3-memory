@@ -1,8 +1,7 @@
 -- pg_045_wiki_cluster_run.up.sql
 --
 -- PostgreSQL mirror of SQLite migration 041_wiki_cluster_run.up.sql — wiki
--- compile provenance (cluster_run) + membership cache (cluster_members), plan G1
--- (~/.m3-private/plans/WIKI_SYNTHESIS_MEMORY_TYPE.md). Keeps the PG primary
+-- compile provenance (cluster_run) + membership cache (cluster_members). Keeps the PG primary
 -- schema in parity with SQLite (gated by tests/test_schema_parity_pg_live.py).
 --
 -- Type mapping mirrors the SQLite intent: TEXT->TEXT, INTEGER->BIGINT,

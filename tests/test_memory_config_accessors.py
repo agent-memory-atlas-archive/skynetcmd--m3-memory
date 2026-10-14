@@ -1,6 +1,6 @@
-"""memory.config serves registry-backed names at CALL time (plan 2D.1).
+"""memory.config serves registry-backed names at CALL time.
 
-Before 2D.1 they were env reads bound at import: m3_config.toml never reached
+They used to be env reads bound at import: m3_config.toml never reached
 them, and neither did the settings test fixture, so a test that wanted a value
 had to patch the module attribute and depended on import order.
 """
@@ -87,8 +87,8 @@ def test_doctor_still_renames_every_registry_alias():
         for alias in key.env_names[1:]:
             assert renames.get(alias) == key.env_names[0], (alias, key.name)
     assert renames["TITLE_MATCH_BOOST"] == "M3_TITLE_MATCH_BOOST"
-    # An alias is in both while a reader still calls getenv_compat (2D.2 converts
-    # those; the drift test then forces the map entry out). Meanwhile the two
+    # An alias is in both while a reader still calls getenv_compat (until it
+    # converts; the drift test then forces the map entry out). Meanwhile the two
     # must name the same canonical variable.
     registry = {a: k.env_names[0] for k in REGISTRY for a in k.env_names[1:]}
     disagree = {

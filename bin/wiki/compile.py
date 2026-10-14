@@ -5,7 +5,7 @@ persists the compiled prose as a first-class memory (`type="synthesis"`) so it
 gains supersession, contradiction edges, aging, revocation, and graph traversal —
 the machinery a *wrong* synthesis needs even more than a right one.
 
-Design (see the plan, ~/.m3-private/plans/WIKI_SYNTHESIS_MEMORY_TYPE.md):
+Design:
 
   * **confidence = MIN of member confidences.** A synthesis is only as
     trustworthy as its weakest source; mean/max would let one shaky member ride

@@ -60,7 +60,7 @@ def test_the_file_wins_for_an_ordinary_key(config_file, monkeypatch):
 
 
 def test_the_file_wins_for_the_backend_too(config_file, monkeypatch):
-    """U9 reversed: db.backend is an ordinary key, so the file wins."""
+    """db.backend is an ordinary key, so the file wins."""
     from m3_core.config.settings import env_disagreements
     from m3_core.paths import resolve_backend_name
 

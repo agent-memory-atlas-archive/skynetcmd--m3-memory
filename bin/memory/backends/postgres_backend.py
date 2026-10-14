@@ -943,7 +943,7 @@ class PostgresBackend:
 
     @classmethod
     def from_store(cls, store) -> PostgresBackend:
-        """A PostgreSQL store: its own pool on the DSN its ``dsn_secret`` names (2C.3)."""
+        """A PostgreSQL store: its own pool on the DSN its ``dsn_secret`` names."""
         return cls(dsn=_resolve_store_dsn(store))
 
     @classmethod

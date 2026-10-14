@@ -1,4 +1,4 @@
-"""Registry tables [llm], [cloud], [extraction], [promote] (plan 2C.1)."""
+"""Registry tables [llm], [cloud], [extraction], [promote]."""
 
 from __future__ import annotations
 

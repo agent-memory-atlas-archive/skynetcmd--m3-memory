@@ -3,8 +3,8 @@
 -- PostgreSQL mirror of SQLite 001_files_base.up.sql. The files store is a SCHEMA
 -- NAMESPACE (`files`) inside the ONE primary database (single DSN) — NOT a separate
 -- database. Every table is created in that schema; application code addresses them
--- via the qualified_table()/files_table() seam primitive (never search_path — see
--- ~/.m3-private/plans/FILES_DB_TO_PG_PLAN.md).
+-- via the qualified_table()/files_table() seam primitive (never search_path: a
+-- pooled connection must carry no session state).
 --
 -- Type mapping (SQLite -> PG): TEXT->TEXT, INTEGER->BIGINT, REAL->DOUBLE PRECISION,
 -- BLOB->BYTEA, datetime('now') default -> NOW()/TIMESTAMPTZ.

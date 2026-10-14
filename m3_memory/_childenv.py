@@ -1,5 +1,5 @@
 """The environment a child process starts with: the ONE owner (CONFIG_DESIGN §5,
-plan Step 2E.1; env read path 7).
+env read path 7).
 
     child_env()                                 the parent's environment, copied
     child_env(PYTHONUTF8="1")                   plus a non-m3 override
@@ -11,7 +11,7 @@ Each subprocess site used to build this dict itself, about twenty of them, with
 `os.environ.copy()`, `dict(os.environ)` or `{**os.environ, ...}`. The overrides
 are typed (PEP 692, ``**overrides: Unpack[ChildEnv]``), so a site cannot slip an m3
 setting in as an env override: m3 settings reach an m3 child as CLI arguments
-(`spawn_m3_child`, 2E.1 part 2), never as env, or the child would ignore them
+(`spawn_m3_child`), never as env, or the child would ignore them
 after the cutover and silently use its defaults.
 
 The parent's os.environ is never modified. Stdlib-only, beside _roots/_bin, so

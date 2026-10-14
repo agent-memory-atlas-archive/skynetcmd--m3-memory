@@ -176,7 +176,7 @@ def _looks_generated(text: str) -> bool:
 
 
 def _computed_count() -> int:
-    """The number the docs quote: non-meta MCP tools (CLI-only commands excluded, U8)."""
+    """The number the docs quote: non-meta MCP tools (CLI-only commands excluded)."""
     return len([t for t in mcp_tool_catalog.MCP_TOOLS if not t.name.startswith("tools_")])
 
 

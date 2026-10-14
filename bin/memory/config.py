@@ -29,7 +29,7 @@ from m3_core.paths import configured_main_db  # noqa: E402
 
 
 def _setting(name: str) -> Any:
-    """Key ``name``'s value from the config snapshot (plan 2D.1): m3_config.toml,
+    """Key ``name``'s value from the config snapshot: m3_config.toml,
     then the legacy env names, then the registry default, parsed by the key's
     one parser. Read ONCE, at import: none of these keys is reloadable, so the
     import-time binding is their contract, exactly as the env reads it replaces
@@ -484,7 +484,7 @@ EMBED_BREAKER_CLOUD_RESET_SECS: float  # accessor (registry)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Registry-backed names: read at CALL time (plan 2D.1)
+# Registry-backed names: read at CALL time
 # ──────────────────────────────────────────────────────────────────────────────
 # The names annotated "# accessor (registry)" above have no module binding; this
 # table computes each from the config snapshot when it is read, so m3_config.toml,

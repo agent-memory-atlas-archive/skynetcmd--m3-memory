@@ -234,7 +234,7 @@ TOOLS: list[ToolSpec] = [
         is_async=False,
         validators=(),
         default_allowed=False,  # writes the user's config
-        mcp=False,  # U8: a CLI command only; MCP stays read-only for config
+        mcp=False,  # a CLI command only; MCP stays read-only for config
         inject_agent_id=False,
     ),
     ToolSpec(

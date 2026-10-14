@@ -281,7 +281,7 @@ def extract_argparse(tree: ast.Module) -> list[dict]:
     if uses_database_helper:
         # Synthesize the helper's rows so the inventory reflects the actual CLI
         # surface. Read from add_database_arg itself, not re-typed here, so a
-        # flag added to the helper (--store, plan 2C.3d) reaches every page.
+        # flag added to the helper (--store) reaches every page.
         for row in _database_helper_rows():
             if not any(set(row["names"]) & set(a["names"]) for a in args):
                 args.append(row)

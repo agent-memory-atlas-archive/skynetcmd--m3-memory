@@ -8,8 +8,8 @@ delete a name from that tuple and the protection vanishes with no test failing,
 which is §3's "a declared limit with no enforcement site is a lie the tests
 cannot see".
 
-The rule for PostgreSQL testing is a THROWAWAY cluster
-(see ~/.m3-private/runbooks/WSL_POSTGRES_TEST_DB_RUNBOOK.md), never the CDW.
+The rule for PostgreSQL testing is a THROWAWAY database
+(`pytest --m3-pg-url`), never the CDW.
 These assertions make that rule mechanical rather than remembered.
 """
 

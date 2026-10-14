@@ -1,4 +1,4 @@
-"""m3_core.secret_store: the user-only secrets file tier (plan 2B.1, CONFIG_DESIGN §10)."""
+"""m3_core.secret_store: the user-only secrets file tier (CONFIG_DESIGN §10)."""
 
 from __future__ import annotations
 
@@ -130,7 +130,7 @@ def test_the_shipped_profiles_declare_only_known_or_listed_names():
 
 @posix_only
 def test_a_file_another_user_owns_is_refused(monkeypatch):
-    """Planted foreign owner (plan 2C.1): the loader refuses, naming both uids."""
+    """Planted foreign owner: the loader refuses, naming both uids."""
     from m3_core import secret_store as secrets
 
     p = secrets.set_secret("M3_SERVE_TOKEN", "1")

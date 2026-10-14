@@ -24,8 +24,8 @@ one:
   * importance_raw is appended to the SELECT conditionally, and search_pg.py
     hydrates its own column list independently of search.py.
 
-Skips cleanly without a reachable cluster (requires_pg). See
-~/.m3-private/runbooks/WSL_POSTGRES_TEST_DB_RUNBOOK.md to stand one up.
+Skips cleanly without a reachable cluster (requires_pg); point
+`pytest --m3-pg-url` at a throwaway database to run it.
 """
 
 from __future__ import annotations

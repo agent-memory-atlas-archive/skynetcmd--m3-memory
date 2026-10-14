@@ -166,7 +166,7 @@ def test_files_tools_refuse_the_database_argument(files_db, tmp_path):
 
     Measured 2026-10-08: `m3 files files_stats --database <new
     path>` returned the default store's counts and created nothing at the path.
-    The refusal stands until named stores (`--store`, plan step 2C.3) route it."""
+    The refusal stands until named stores (`--store`) route it."""
     _seed_routing_probe(files_db)
     elsewhere = tmp_path / "elsewhere.db"
     proc = _run_cli("files", "files_corpus_get", "--corpus_id", "routing-probe", "--database", str(elsewhere))

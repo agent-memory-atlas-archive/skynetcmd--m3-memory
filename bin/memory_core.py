@@ -351,7 +351,7 @@ def __getattr__(name: str) -> Any:
             mod = importlib.import_module(mod_name)
             val = getattr(mod, name)
             if mod_name == "memory.config" and name in mod.SETTING_NAMES:
-                # Read at call time from the config snapshot (plan 2D.1): binding
+                # Read at call time from the config snapshot: binding
                 # it here would freeze the first value seen for every later reader.
                 return val
         globals()[name] = val
@@ -428,7 +428,7 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
                 {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}, chat_url
             ),
             headers={"Authorization": f"Bearer {token}"},
-            # A setting, read at call time (2D.1): never bound into this
+            # A setting, read at call time: never bound into this
             # module's globals, so the bare name raised NameError here.
             timeout=importlib.import_module("memory.config").LLM_TIMEOUT,
         )

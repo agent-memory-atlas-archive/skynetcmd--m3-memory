@@ -4,7 +4,7 @@ urlparse reads only the URI form. Given `host=h dbname=d password=p` it returns
 the whole text as the path, so the hand-rolled parsers this replaced saw no host,
 took the password for part of the database name, and judged two spellings of one
 database different. Each case below failed before (found while testing a named
-store on a second PostgreSQL database, plan 2C.3c).
+store on a second PostgreSQL database).
 """
 
 from __future__ import annotations

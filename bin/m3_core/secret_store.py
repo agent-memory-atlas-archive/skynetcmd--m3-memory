@@ -268,7 +268,7 @@ def _rewrite_file(p: Path, change) -> None:
     atomic_write(p, tomlkit.dumps(doc))
 
 
-# ── PostgreSQL DSNs: the one owner (plan 2B.1, review S5) ─────────────────────
+# ── PostgreSQL DSNs: the one owner ─────────────────────
 class PgRole(StrEnum):
     PRIMARY = "primary"  # the live store (db.backend = "postgres")
     WAREHOUSE = "warehouse"  # the pg_sync fan-in mirror (CDW)

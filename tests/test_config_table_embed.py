@@ -1,4 +1,4 @@
-"""Registry table [embed] (plan 2C.1, table 2; CONFIG_DESIGN §6, U24).
+"""Registry table [embed] (CONFIG_DESIGN §6).
 
 Defaults are compared with what today's readers produce: their module
 constants, imported in a FRESH interpreter with every registry env name

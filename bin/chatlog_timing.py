@@ -45,7 +45,7 @@ import sys
 
 # Locate the m3 payload's bin/ so the seam imports resolve. When this file
 # lives IN the repo (bin/chatlog_timing.py) its own directory is the answer;
-# when it is parked elsewhere (e.g. ~/.m3-private/perf/) fall back to the
+# when it is parked elsewhere, fall back to the
 # installed payload, then to $M3_PATH_BIN. Without this the seam imports fail
 # with ModuleNotFoundError: m3_core the moment the file is moved.
 def _find_bin() -> str | None:
