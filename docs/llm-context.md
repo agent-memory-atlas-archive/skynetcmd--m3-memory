@@ -18,7 +18,7 @@
 
 ## 1b. Maturity (classify honestly)
 
-m3's core is **production-grade**; the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages are **beta** (see the README's [Project status](../README.md#project-status)). <!-- RELEASE-TODO: re-check the beta list against README Project status and ROADMAP at release. --> It is **lightweight by design**: SQLite is the primary
+m3's core and web dashboard are **production-grade**; the autonomous cognitive loop and the Observer & Reflector stages are **beta** (see the README's [Project status](../README.md#project-status)). <!-- RELEASE-TODO: re-check the beta list against README Project status and ROADMAP at release. --> It is **lightweight by design**: SQLite is the primary
 store for a fast, zero-infrastructure, local-first deployment, and it **scales out
 to PostgreSQL** as a corporate data warehouse with more nuanced data-governance
 options when an environment demands it.

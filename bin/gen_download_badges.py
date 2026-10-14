@@ -5,8 +5,9 @@ Writes two shields.io *endpoint* JSON files that the README badges point at:
 
   * docs/badges/pypi-downloads.json  — estimated TOTAL PyPI downloads
         (pypistats "overall", WITHOUT mirrors — excludes bandersnatch/CI mirror
-        bots, so it approximates real installs). pypistats keeps ~180 days; for a
-        package younger than that this is effectively all-time.
+        bots, so it approximates real installs). pypistats keeps only ~180 days,
+        and m3 outgrew that on 2026-10-13, so each day's count is accumulated in
+        docs/badges/pypi-history.json across runs (dedup by day) and summed.
   * docs/badges/github-clones.json   — TOTAL unique GitHub clones
         (the repo traffic API's rolling 14-day `uniques`). GitHub only retains a
         14-day window, so a running total is accumulated in
@@ -114,16 +115,16 @@ def _write_badge_svg(path: Path, label: str, message: str, color: str, logo: str
 # ── PyPI ─────────────────────────────────────────────────────────────────────
 
 
-def pypi_total_without_mirrors(package: str) -> int:
-    """Sum of daily downloads (category without_mirrors) over pypistats' window.
-
-    without_mirrors excludes PyPI mirror bots (bandersnatch etc.), so it best
-    approximates real installs. For a package younger than pypistats' ~180-day
-    retention this is effectively the all-time total.
-    """
+def pypi_days_without_mirrors(package: str) -> list[tuple[str, int]]:
+    """[(YYYY-MM-DD, downloads), ...] for category without_mirrors, over pypistats'
+    ~180-day window. without_mirrors excludes PyPI mirror bots (bandersnatch etc.),
+    so it best approximates real installs."""
     data = _get_json(f"{PYPISTATS_API}/{package}/overall")
-    rows = data.get("data", [])
-    return sum(int(r.get("downloads", 0)) for r in rows if r.get("category") == "without_mirrors")
+    return [
+        (str(r.get("date", ""))[:10], int(r.get("downloads", 0)))
+        for r in data.get("data", [])
+        if r.get("category") == "without_mirrors" and r.get("date")
+    ]
 
 
 # ── GitHub clones (running total across the 14-day window) ───────────────────
@@ -148,13 +149,14 @@ def github_clone_days(repo: str, token: str) -> list[tuple[str, int]]:
     return out
 
 
-def accumulate_clone_total(history_path: Path, fresh_days: list[tuple[str, int]]) -> int:
-    """Merge the 14-day window into a persisted per-day history (dedup by date,
-    newest value wins) and return the running total of unique clones.
+def accumulate_daily_total(history_path: Path, fresh_days: list[tuple[str, int]]) -> int:
+    """Merge a source's rolling window into a persisted per-day history (dedup by
+    date, newest value wins) and return the running total.
 
-    GitHub only exposes 14 days, so a scheduled run stitches successive windows
-    into an all-time-since-first-run total. A day already in history is updated to
-    the latest reported value (the same day can appear in two overlapping windows).
+    GitHub exposes 14 days of clones and pypistats ~180 days of downloads, so a
+    scheduled run stitches successive windows into an all-time total. A day already
+    in history is updated to the latest reported value (the same day can appear in
+    two overlapping windows, and the newest is the authoritative count).
     """
     history: dict[str, int] = {}
     if os.path.exists(history_path):
@@ -197,7 +199,7 @@ def main() -> int:
 
     # PyPI — never fatal to the whole run if one source is down; report + continue.
     try:
-        pypi_total = pypi_total_without_mirrors(args.package)
+        pypi_total = accumulate_daily_total(badges / "pypi-history.json", pypi_days_without_mirrors(args.package))
         if _write_json(
             badges / "pypi-downloads.json",
             _shields_endpoint("PyPI downloads", f"{_fmt(pypi_total)}", "blue"),
@@ -206,7 +208,7 @@ def main() -> int:
         # Self-hosted SVG (Camo-reliable) — the README points at this, not the JSON.
         if _write_badge_svg(badges / "pypi-downloads.svg", "PyPI downloads", _fmt(pypi_total), "blue", logo="pypi"):
             changed = True
-        print(f"[pypi] total (without mirrors): {pypi_total:,} -> {_fmt(pypi_total)}")
+        print(f"[pypi] running total (without mirrors): {pypi_total:,} -> {_fmt(pypi_total)}")
     except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as e:
         print(f"[pypi] WARNING: could not fetch downloads ({type(e).__name__}: {e})", file=sys.stderr)
 
@@ -221,7 +223,7 @@ def main() -> int:
     else:
         try:
             days = github_clone_days(args.repo, token)
-            total = accumulate_clone_total(badges / "clone-history.json", days)
+            total = accumulate_daily_total(badges / "clone-history.json", days)
             if _write_json(
                 badges / "github-clones.json",
                 _shields_endpoint("GitHub clones", f"{_fmt(total)}", "24292e"),

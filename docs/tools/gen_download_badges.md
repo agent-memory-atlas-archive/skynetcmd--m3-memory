@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_download_badges.py
-sha1: face9f575127
-mtime_utc: 2026-10-10T23:43:02.140250+00:00
-generated_utc: 2026-10-10T23:43:51.553883+00:00
+sha1: 3d67d878de76
+mtime_utc: 2026-10-14T02:10:56.139181+00:00
+generated_utc: 2026-10-14T02:11:31.112391+00:00
 private: false
 ---
 
@@ -16,8 +16,9 @@ Writes two shields.io *endpoint* JSON files that the README badges point at:
 
   * docs/badges/pypi-downloads.json  — estimated TOTAL PyPI downloads
         (pypistats "overall", WITHOUT mirrors — excludes bandersnatch/CI mirror
-        bots, so it approximates real installs). pypistats keeps ~180 days; for a
-        package younger than that this is effectively all-time.
+        bots, so it approximates real installs). pypistats keeps only ~180 days,
+        and m3 outgrew that on 2026-10-13, so each day's count is accumulated in
+        docs/badges/pypi-history.json across runs (dedup by day) and summed.
   * docs/badges/github-clones.json   — TOTAL unique GitHub clones
         (the repo traffic API's rolling 14-day `uniques`). GitHub only retains a
         14-day window, so a running total is accumulated in
@@ -41,7 +42,7 @@ Standard library only.
 
 ## Entry points
 
-- `def main()` (line 188)
+- `def main()` (line 190)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -86,6 +87,7 @@ _(only stdlib)_
 - `clone-history.json`
 - `github-clones.json`
 - `pypi-downloads.json`
+- `pypi-history.json`
 
 ---
 

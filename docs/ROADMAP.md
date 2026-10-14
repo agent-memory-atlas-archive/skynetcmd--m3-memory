@@ -18,6 +18,7 @@ Built and under test; not yet released. Details in the
 
 ## ✅ Shipped — 2026-Q4 so far
 
+- [x] **Web dashboard / observability portal — stable** (moved from hardening, 2026-10-13) (`bin/dashboard_server.py`) — local FastAPI + HTMX UI: multi-DB overview, graph explorer, KB browser, conflict & audit log, background maintenance launcher. Run `m3 dashboard` (listens on `127.0.0.1:8088`; override via `M3_DASHBOARD_HOST`/`M3_DASHBOARD_PORT`).
 - [x] **Verified backups** — backups taken by maintenance tools are complete and verified, and tools refuse a store they were not meant for (v2026.10.4.0).
 - [x] **Upgrades that finish on their own** — on Windows and Linux, without manual steps, and an upgrade can no longer remove m3 (v2026.10.5.0 → v2026.10.7.1).
 - [x] **Fresh pipx installs work** (v2026.10.4.3).
@@ -172,9 +173,8 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 ## 🚧 In progress
 
-**Shipped — still hardening.** These subsystems are **shipped and usable today** (`pip install` includes them; the dashboard and cognitive loop are featured in the README) and are still being hardened on real workloads. Try them and please file issues.
+**Shipped — still hardening.** These subsystems are **shipped and usable today** (`pip install` includes them; the cognitive loop is featured in the README) and are still being hardened on real workloads. Try them and please file issues.
 
-- [x] **Web dashboard / observability portal** (`bin/dashboard_server.py`) — local FastAPI + HTMX UI: multi-DB overview, graph explorer, KB browser, conflict & audit log, background maintenance launcher. Run `m3 dashboard` (listens on `127.0.0.1:8088`; override via `M3_DASHBOARD_HOST`/`M3_DASHBOARD_PORT`).
 - [x] **Autonomous cognitive loop** (`bin/m3_cognitive_loop.py`) — background daemon running eleven independently skippable passes — including entity extraction, observation extraction with reflection (contradiction resolution), classification, embedding backfill, belief consolidation, procedural distillation, sync, and maintenance (see [ARCHITECTURE.md](ARCHITECTURE.md#the-passes)).
 - [x] **Observer & Reflector SLM stages** (`bin/run_observer.py`, `bin/run_reflector.py`) — LLM-based semantic contradiction detection beyond embeddings.
 
@@ -196,7 +196,7 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 ## 📈 Planned — Observability & Web UI
 
-> The **web dashboard** has shipped and is listed under [In progress / Available now](#-in-progress); the items below extend it.
+> The **web dashboard** has shipped and is stable (see [Shipped — 2026-Q4](#-shipped--2026-q4-so-far)); the items below extend it.
 
 - [x] **Search explain mode** — `memory_search(explain=true)` attaches a per-result breakdown (vector, keyword, title overlap, importance)
 - [ ] **Real-time contradiction log** — surfaced in dashboard and via `memory_verify` tool

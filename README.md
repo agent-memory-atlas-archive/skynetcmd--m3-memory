@@ -19,6 +19,9 @@ remote MCP endpoint. <!-- RELEASE-TODO: test ChatGPT and the Gemini app against 
 
 <p align="center">
   <a href="https://pypi.org/project/m3-memory/"><img alt="PyPI" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/pypi-version.svg"></a>
+  <a href="https://pypi.org/project/m3-memory/"><img alt="PyPI downloads" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/pypi-downloads.svg"></a>
+  <a href="https://github.com/skynetcmd/m3-memory"><img alt="GitHub clones" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/github-clones.svg"></a>
+  <a href="https://star-history.com/#skynetcmd/m3-memory&Date"><img alt="Star history" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/star-history.svg"></a>
   <a href="https://www.python.org"><img alt="Python 3.12+" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/python.svg"></a>
   <a href="https://github.com/skynetcmd/m3-memory/blob/main/LICENSE"><img alt="Apache 2.0" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/license.svg"></a>
   <a href="https://modelcontextprotocol.io"><img alt="MCP" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/mcp.svg"></a>
@@ -57,7 +60,7 @@ walks you through your first saved memory.
 - **Tools:** 100+ tools, of which 10 load at startup, about 2% of a 200K context window; the rest load on demand. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
 - **Configuration:** one file, `m3_config.toml`. `m3 config show` prints every setting and where it came from. ([Config reference](docs/CONFIG_REFERENCE.md))
 - **Tested:** 5,000+ tests on Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
-- **Status:** the core is stable; the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages are beta. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
+- **Status:** the core and the web dashboard are stable; the autonomous cognitive loop and the Observer & Reflector stages are beta. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
 - **For AI agents:** [llm-context.md](docs/llm-context.md) lists the real tool names and usage rules, and [features.json](docs/features.json) is the machine-readable summary.
 
 ---
@@ -68,8 +71,8 @@ walks you through your first saved memory.
 
 | Status | What it means | Features |
 | :--- | :--- | :--- |
-| **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync |
-| **Beta** | Shipped and usable, still being hardened on real workloads; behaviour may change between releases ([ROADMAP: in progress](docs/ROADMAP.md#-in-progress)). | Web dashboard · autonomous cognitive loop · Observer & Reflector stages |
+| **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync · web dashboard |
+| **Beta** | Shipped and usable, still being hardened on real workloads; behaviour may change between releases ([ROADMAP: in progress](docs/ROADMAP.md#-in-progress)). | Autonomous cognitive loop · Observer & Reflector stages |
 | **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · pgvector / HNSW approximate search on PostgreSQL · official Docker image, if users ask for one · server / multi-user deployment guide · stable public SDK with semver guarantees |
 
 *   **Tested on** Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; the full matrix runs before every release ([Testing](docs/TESTING.md)).
