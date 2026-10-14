@@ -51,7 +51,7 @@ def _brief_strings() -> str:
 def test_the_brief_stale_warning_names_a_command():
     """THE regression: a warning the default invocation shows must be actionable."""
     text = _brief_strings()
-    assert "STALE" in text, (
+    assert "out of date" in text, (
         "the brief-mode stale warning disappeared from oxidation_probe; this test "
         "pins its remediation and can no longer see it"
     )

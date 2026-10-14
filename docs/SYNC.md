@@ -244,15 +244,15 @@ own:
 
 ```bash
 # machine B
-M3_EMBED_URL=http://machine-a:8082   # where to send embed requests
-M3_EMBED_INPROC=0                    # do not load a local GGUF in-process
+m3 config set embed.url http://machine-a:8082   # where to send embed requests
+m3 config set embed.inproc false                # do not load a local model in-process
 ```
 
-`M3_EMBED_URL` alone is not sufficient. Tier-1 **auto-detects** a bge-m3 GGUF in
-the canonical model directories when `M3_EMBED_GGUF` is unset
-(`M3_EMBED_GGUF_AUTODETECT` defaults to `1`), so a machine that happens to have
-one — via LM Studio, say — will still load it in-process. In-process embedding is
-gated by `M3_EMBED_INPROC` / `.embed_config.json`: the design is
+`embed.url` alone is not sufficient. m3 **auto-detects** a bge-m3 model file in
+the usual model folders when `embed.gguf` is unset (`embed.autodetect` is on by
+default), so a machine that happens to have one — via LM Studio, say — will still
+load it in-process. In-process embedding is gated by `embed.inproc` /
+`.embed_config.json`: the design is
 *safe-by-default — route to the shared server unless inproc is clearly intended*,
 so being explicit here keeps B on that path.
 

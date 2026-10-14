@@ -425,6 +425,12 @@ def run(brief: bool = False, fix: bool = False) -> int:
         return 0
 
     if res["status"] == "unknown":
+        import shutil
+
+        if shutil.which("claude") is None and not os.path.isdir(os.path.dirname(_claude_settings_path())):
+            # No Claude Code here at all: nothing to verify, and nothing wrong.
+            print("chat capture: Claude Code is not installed here (nothing to check)")
+            return 0
         # Not "healthy" — nothing was verified. Saying OK here would be the
         # same lie this probe exists to catch.
         print("⚠️  chatlog hooks: SKIPPED — ~/.claude/settings.json absent or unreadable; hook wiring was NOT verified")

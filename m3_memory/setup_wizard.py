@@ -423,6 +423,15 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     print()
     _say("m3-memory setup — answer a few quick questions, then sit back.")
     print()
+    _any_agent = any(
+        getattr(detected, a, False)
+        for a in ("claude", "gemini", "antigravity", "opencode", "openclaw", "hermes", "cursor", "cline")
+    )
+    if not _any_agent:
+        print("  No AI agents found on this computer yet. m3 installs anyway; once you")
+        print("  install one (Claude Code, Gemini CLI, Cursor, ...), connect it with:")
+        print("    m3 setup --agents claude      (or gemini, cursor, cline, opencode, ...)")
+        print()
     print("  Agents detected on PATH:")
     print(f"    {'[x]' if detected.claude else '[ ]'} Claude Code          (claude)")
     print(f"    {'[x]' if detected.gemini else '[ ]'} Gemini CLI           (gemini)")
@@ -474,17 +483,20 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
             default=True,
         )
 
-    print()
-    print("  Chatlog capture mode for Claude Code:")
-    print("    both       = Stop + PreCompact (recommended — zero-gap)")
-    print("    stop       = per-turn capture only")
-    print("    precompact = capture only before context compaction")
-    print("    none       = no chatlog capture")
-    plan.capture_mode = _ask_choice(
-        "  Capture mode?",
-        choices=["both", "stop", "precompact", "none"],
-        default="both",
-    )
+    # Only Claude Code has a capture mode to choose; without it the question
+    # asked a new user about a program they do not have.
+    if detected.claude:
+        print()
+        print("  Saving Claude Code conversations to m3:")
+        print("    both       = after every reply and before Claude shortens its context (recommended)")
+        print("    stop       = after every reply only")
+        print("    precompact = only before Claude shortens its context")
+        print("    none       = do not save conversations")
+        plan.capture_mode = _ask_choice(
+            "  Save conversations when?",
+            choices=["both", "stop", "precompact", "none"],
+            default="both",
+        )
 
     # Embedder prompt — only on a FRESH install. On an UPGRADE (the native wheel
     # is already installed + usable) the decision was already made; re-asking is
@@ -513,26 +525,21 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         )
     else:
         print()
-        print("  Embedder — the native Rust core is installed EITHER WAY (it is")
-        print("  what the shared server binary ships inside). This question is")
-        print("  only about ALSO running the in-process embedder:")
-        print("    TIER 2 (default): one shared server on :8082 that every m3")
-        print("    process reuses — one model, one GPU context.")
-        print("    TIER 1 + TIER 2: additionally embed IN-PROCESS. Speed is not")
-        print("    the reason — an embed call is already low-µs, so per-call")
-        print("    latency is typically not noticeable. Tier 1 pays off for")
-        print("    HIGH-VOLUME bursts (bulk file/directory ingestion), where a")
-        print("    self-contained embedder beats round-tripping every chunk.")
-        print("    The cost: tier 1 can't be shared, so each process that uses")
-        print("    it loads its own model/GPU context.")
+        print("  Embedding (turning text into searchable vectors):")
+        print("    m3 installs one embedder that every m3 program on this computer")
+        print("    shares. That is the right choice for almost everyone.")
+        print("    You can ALSO let each m3 program embed by itself. That only helps")
+        print("    when importing large folders of files, and each program then")
+        print("    loads its own copy of the model (more memory).")
         plan.install_gpu_embedder = _ask_yes_no(
-            "  Also run the tier-1 in-process embedder? (the shared tier-2 server is installed regardless)",
+            "  Also let each m3 program embed by itself?",
             default=False,
         )
         if plan.install_gpu_embedder:
             # Default OFF — never surprise the user with a multi-minute Rust build.
             plan.allow_native_source_build = _ask_yes_no(
-                "    If no prebuilt wheel matches, build it from source? (needs Rust+cmake+C++; slow)",
+                "    If no ready-made build fits this computer, build one from source? "
+                "(needs Rust, CMake and a C++ compiler; takes several minutes)",
                 default=False,
             )
         # Shared-embedder mode is the SHIPPED DEFAULT, not a user choice: ONE
@@ -567,23 +574,16 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         _say(f"    Engine root: {plan.engine_root}")
 
     print()
-    print("  FIPS 140-3 crypto mode (compliance feature — MOST USERS: leave OFF):")
-    print("    WHY you'd turn this ON: only if a policy or contract requires")
-    print("    FIPS-validated cryptography (e.g. US federal / regulated environments).")
-    print("    If that doesn't apply to you, choose 'off' — the default crypto already")
-    print("    uses FIPS-approved algorithms; 'off' is not 'insecure'.")
-    print()
-    print("    off    = default crypto. No extra setup. Recommended for everyone else.")
-    print("    mode   = hardened wolfCrypt (M3_FIPS_MODE). Needs the open-source wolfSSL")
-    print("             library BUILT FROM SOURCE on this machine — so you MUST have a C")
-    print("             build toolchain installed (a C compiler + CMake; on Windows,")
-    print("             Visual Studio Build Tools). If wolfSSL is absent at startup, M3")
-    print("             fails closed (won't start). The wizard can build it for you below.")
-    print("    strict = mode + REQUIRE the CMVP-validated wolfCrypt FIPS module")
-    print("             (M3_FIPS_STRICT). That module is COMMERCIAL (paid wolfSSL FIPS")
-    print("             license); the open-source build the wizard makes will NOT satisfy")
-    print("             strict — it's for testing the plumbing until you swap in the")
-    print("             validated module. Choose this only if you specifically need CMVP.")
+    print("  FIPS 140-3 cryptography (most people: leave it off):")
+    print("    Turn it on only if a policy or contract requires FIPS-validated")
+    print("    cryptography. 'off' is not less secure: m3 already uses approved")
+    print("    algorithms.")
+    print("    off    = the default.")
+    print("    mode   = use wolfCrypt. Needs the open-source wolfSSL library built on")
+    print("             this computer (a C compiler and CMake); setup can build it.")
+    print("             Without it, m3 refuses to start, by design.")
+    print("    strict = mode, and require the validated wolfCrypt module, which is")
+    print("             commercial (a paid wolfSSL license).")
     # Default to 'mode' ONLY when a usable wolfSSL is already on this machine.
     #
     # The blocker for 'mode' is not risk appetite, it is the library: FIPS mode
@@ -971,10 +971,10 @@ def _quiesce_db_writers(args: argparse.Namespace) -> bool:
     # (_restart_stale_embed_server) when that is actually the case.
     if informational and not _called_by_upgrade():
         noted = ", ".join(f"{p.role}(pid {p.pid})" for p in informational)
-        _say(f"  note: {noted} running but holds no DB — not a quiesce blocker")
+        _say(f"  note: {noted} keeps running (it does not hold your memory files)")
 
     if not live:
-        _ok_unchanged("  no autonomous m3 DB-writers running (nothing to quiesce)")
+        _ok_unchanged("  no m3 background service is writing to your memory")
         return True
 
     roles = ", ".join(f"{p.role}(pid {p.pid})" for p in live)
@@ -1651,7 +1651,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     Returns False ONLY for fatal issues that would make install-m3 hang
     (running mcp-memory.exe + non-interactive without --force-kill-mcp).
     """
-    _step(0, "pre-install checks (B15)")
+    _step(0, "checking this computer")
     ok = True
 
     # ── Probe 0: decoupled paths and FIPS configuration ─────────────────
@@ -1681,7 +1681,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     except Exception as e:
         _warn(f"  could not verify package resolution: {type(e).__name__}: {e}")
     else:
-        _ok_unchanged(f"  package resolution: {installed_path}")
+        _ok_unchanged(f"  m3 is installed at {installed_path}")
 
     # ── Probe 1b: stale LAUNCHER shadowing (different from probe 1) ──────
     # Probe 1 catches a stale `m3_memory/` PACKAGE on sys.path. This catches a
@@ -1730,7 +1730,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
                 "Then re-run `m3 doctor` to confirm."
             )
         else:
-            _ok_unchanged("  launchers on PATH: one install")
+            _ok_unchanged("  the `m3` command runs this install")
 
     # ── Probe 2: running mcp-memory.exe will lock the venv binary ──────
     # On Windows, pip install -e cannot overwrite mcp-memory.exe if a
@@ -1762,9 +1762,9 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
             _ok_unchanged("  no running mcp-memory.exe locks")
     else:
         # Unix: rename-into-place during pip install means a running binary
-        # doesn't block reinstall the way Windows file-locking does. Probe
-        # is best-effort informational only.
-        _ok_unchanged("  Unix: running mcp-memory does not block reinstall (rename-in-place)")
+        # doesn't block reinstall the way Windows file-locking does. Nothing to
+        # check, so nothing to say.
+        pass
 
     # ── Probe 2.5: cooperatively quiesce autonomous DB-writers (all OSes) ──
     # The mcp-memory.exe probe above guards the Windows *file-lock*. This guards
@@ -1833,11 +1833,9 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
             except Exception as _e:  # noqa: BLE001 — best-effort, don't abort setup
                 _warn(f"  could not seed shared embedder config: {_e}")
     else:
-        _say("  no BGE-M3 GGUF auto-discovered; tier-2 (:8082) will serve all embeds")
-        _say(
-            "  (drop a bge-m3 GGUF in the LM Studio models dir + run "
-            "`m3 doctor --fix` later to wire tier-1; see EMBEDDER_ARCHITECTURE.md)"
-        )
+        # Step 3 installs the embedder and fetches its model when none is found;
+        # saying "no model found" here contradicted that a few lines later.
+        pass
 
     # ── Probe 5: LLM endpoint detection + failover wiring ───────────────
     # Enrichment features (auto-classify, summarize) discover a chat model via
@@ -1912,8 +1910,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         _say("  enrichment needs a chat model. Start one, then run `m3 setup` again")
         _say("  so the background services pick it up:")
         _say("    LM Studio or Ollama  — load a model; setup detects it")
-        _say('    llama.cpp / vLLM     — M3_LLM_URL="http://localhost:8080/v1" m3 setup')
-        _say("  (see ENVIRONMENT_VARIABLES.md → Endpoint discovery & failover)")
+        _say("    llama.cpp / vLLM     — m3 config set llm.url http://localhost:8080/v1")
         return
 
     for label, url, var, val in reachable:
@@ -2121,11 +2118,11 @@ def _reregister_cognitive_loop() -> None:
     from m3_memory.installer import _register_cognitive_loop_task
 
     if _register_cognitive_loop_task():
-        _ok_unchanged("  cognitive loop service re-registered from this payload")
+        _ok_unchanged("  background service registered")
     else:
         _warn(
-            "  cognitive loop service NOT re-registered; it may still run the "
-            "previous payload's paths. Fix: m3 schedules add cognitive-loop"
+            "  background service NOT registered; it may still run the previous "
+            "version. fix: m3 schedules add cognitive-loop"
         )
 
 
@@ -2139,13 +2136,12 @@ def _step_install_m3(plan: SetupPlan) -> bool:
     """
     from m3_memory.installer import find_bridge
 
-    _step(1, "fetching m3-memory system payload (install-m3)")
+    _step(1, "m3's program files")
 
     # If find_bridge() already resolves (packaged payload or dev checkout),
     # skip the fetch. The payload is already present.
     if find_bridge() is not None:
-        _say_unchanged("  payload already present (packaged or via sibling); skipping fetch")
-        _ok_unchanged("payload available")
+        _ok_unchanged("  program files in place")
         # install-m3 is what registers the loop, so skipping it would leave an
         # upgraded host's unit pointing at the previous payload's paths. On
         # Windows registering a boot task needs elevation; `m3 schedules repair`
@@ -2216,7 +2212,7 @@ def _step_cpu_sovereign_embedder() -> bool:
       3. registers it as a systemd / launchd / Windows Service with concurrency=2
       4. starts it
     """
-    _step(3, "installing sovereign CPU embedder (BGE-M3 on port 8082)")
+    _step(3, "the embedder (turns text into searchable vectors, on this computer)")
     # Lazy import: setup_wizard is imported during install, and embedder_admin
     # pulls in the payload-root helpers (§2 cycle-breaking via lazy imports).
     from m3_memory.embedder_admin import EXIT_REGISTERED_NOT_RUNNING
@@ -2365,7 +2361,7 @@ def _step_rust_core(plan: SetupPlan) -> bool:
         _warn(f"could not probe the native core ({e}); continuing")
         return False
 
-    _step(2, "native core m3-core-rs (shared by every embedder tier)")
+    _step(2, "speed-up module (native code for search and embedding)")
     try:
         if is_rust_core_current():
             cur = active_embedder_tier()
@@ -2462,7 +2458,7 @@ def _step_shared_embedder(plan: SetupPlan, *, non_interactive: bool = False) -> 
     quiet = _called_by_upgrade()  # only changes and problems under the upgrade
     if not quiet:
         print()
-        print("[~] Enabling shared embedder (one shared server for all m3 processes)")
+        print("[~] one embedder serves every m3 program")
     try:
         from m3_memory.embedder_admin import seed_shared_config
 
@@ -2507,10 +2503,7 @@ def _register_embed_server_task(*, non_interactive: bool = False) -> None:
             # step above registered it (it may have been skipped).
             gguf = embedder_admin._find_bundled_gguf() or Path("")
             if embedder_admin._service_reports_installed(binary, gguf):
-                if not _called_by_upgrade():
-                    print(
-                        "    Keep-alive: the Rust m3-embed-server OS service keeps :8082 up — no scheduled task needed."
-                    )
+                pass  # the service manager keeps it running; nothing to report
             else:
                 print(
                     "    [!] the Rust m3-embed-server is present but NOT registered "
@@ -3610,7 +3603,7 @@ def _step_governor_migration(plan: SetupPlan, *, non_interactive: bool = False, 
     eligible = detected.get("eligible", [])
     result["not_migratable"] = gm.not_migratable_lines()
     if not eligible:
-        _say_unchanged("Governor migration: no governor-eligible scheduled tasks found — nothing to replace.")
+        # Nothing to move: say nothing.
         return result
 
     _say(f"Governor migration: removing {len(eligible)} legacy scheduled task(s) so the governor can take over...")
@@ -4229,30 +4222,22 @@ def _print_plan(plan) -> None:
     ]
     _no_targets = "unchanged (current wiring kept)" if plan.agents_kept else "(none)"
     print(f"  agents       : {', '.join(targets) if targets else _no_targets}")
-    print(f"  capture mode : {plan.capture_mode}")
-    print("  Embedder     : sovereign CPU (BGE-M3 on :8082) — always installed")
-    _src = (
-        "prebuilt; source-build if no match"
-        if plan.allow_native_source_build
-        else "prebuilt only (pure-Python fallback if no match)"
-    )
-    print(f"  Rust core    : m3-core-rs, verified latest ({_src})")
+    if getattr(plan.targets, "claude", False):
+        print(f"  save chats   : {plan.capture_mode}")
+    print("  embedder     : runs on this computer, shared by every m3 program")
     if plan.install_gpu_embedder:
-        print("  Embed tiers  : tier 1 (in-process) + tier 2 (shared :8082)")
-    else:
-        print("  Embed tiers  : tier 2 (shared :8082)")
+        print("               + each program can also embed by itself (for bulk imports)")
     if plan.endpoint:
         print(f"  LLM endpoint : {plan.endpoint}")
     if plan.cognitive_loop:
-        print("  cognitive loop: enabled")
-    print(f"  decouple roots: {'yes' if plan.decouple_roots else 'no'}")
+        print("  background   : on (builds links between memories over time)")
     if plan.decouple_roots:
-        print(f"    config root: {plan.config_root}")
-        print(f"    engine root: {plan.engine_root}")
+        print(f"  settings     : {plan.config_root}")
+        print(f"  memory files : {plan.engine_root}")
     if plan.fips_strict:
-        print("  FIPS         : strict (M3_FIPS_STRICT — requires validated wolfCrypt)")
+        print("  FIPS         : strict (needs the validated wolfCrypt module)")
     elif plan.fips_mode:
-        print("  FIPS         : mode (M3_FIPS_MODE — hardened wolfCrypt)")
+        print("  FIPS         : on (wolfCrypt)")
     else:
         print("  FIPS         : off")
     if plan.fips_mode and plan.install_wolfssl:
@@ -4456,161 +4441,119 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "--capture-mode",
         default=None,
         choices=("both", "stop", "precompact", "none"),
-        help="Chatlog capture mode for Claude Code. Default: both.",
+        help="When Claude Code's conversations are saved: both (default), stop, precompact or none.",
     )
-    # ── B15 preflight flags ─────────────────────────────────────────────
+    # ── preflight flags ─────────────────────────────────────────────────
     parser.add_argument(
         "--clean-cache",
         action="store_true",
-        help="Wipe __pycache__ dirs before install (non-interactive default: skip).",
+        help="Clear Python's cached bytecode before installing.",
     )
     parser.add_argument(
         "--force-kill-mcp",
         action="store_true",
-        help="Kill any running mcp-memory.exe before install (Windows only; "
-        "required if MCP is currently in use and you're running "
-        "non-interactively).",
+        help="Windows: stop a running m3 server that would block the install (unattended runs).",
     )
     parser.add_argument(
         "--force-quiesce",
         action="store_true",
-        help="In non-interactive mode, force-kill any autonomous m3 DB-writer "
-        "(cognitive loop / embed / MCP) that hasn't paused within "
-        "--quiesce-timeout, instead of aborting. Cross-platform superset of "
-        "--force-kill-mcp for the HALT_m3 quiesce step.",
+        help="Unattended runs: stop any m3 background service still writing after "
+        "--quiesce-timeout, instead of giving up.",
     )
     parser.add_argument(
         "--quiesce-timeout",
         type=float,
         default=30.0,
-        help="Seconds to wait for autonomous m3 DB-writers to pause before install (HALT_m3 protocol). Default: 30.",
+        help="Seconds to wait for m3 background services to pause before installing. Default: 30.",
     )
-    parser.add_argument(
-        "--gui-child",
-        action="store_true",
-        help="Internal: setup was launched by the graphical front-end "
-        "(setup_gui.py) as its non-interactive worker. Prompts are "
-        "pre-answered via flags, but a HUMAN IS WATCHING the GUI — so Windows "
-        "elevation steps (UAC) for killing a stuck process or deleting a "
-        "scheduled task are still OFFERED/attempted rather than skipped. "
-        "Without this, the GUI's non-interactive child would silently skip "
-        "every UAC prompt (nothing to consent to on a headless run), leaving "
-        "those steps 'insufficient privilege'. NOT the same as --gui (which "
-        "LAUNCHES the graphical window).",
-    )
+    # Internal: the graphical setup's worker process. Hidden from --help.
+    parser.add_argument("--gui-child", action="store_true", help=argparse.SUPPRESS)
 
-    parser.add_argument(
-        "--install-gpu-embedder",
-        action="store_true",
-        help="Force-install the Project Oxidation native in-process embedder "
-        "(CPU/GPU autodetected). Now ON by default — this flag is kept for "
-        "back-compat and is redundant unless paired with a config that "
-        "disabled it.",
-    )
+    # Kept so older scripts still run; the in-process embedder is chosen in the wizard.
+    parser.add_argument("--install-gpu-embedder", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--no-native-wheel",
         action="store_true",
-        help="Do NOT attempt the Project Oxidation native wheel; run pure-Python "
-        "only. m3 stays fully functional but embeds run on the slower HTTP "
-        "fallback path (see docs/BUILD_WHEELS.md).",
+        help="Skip the speed-up module. m3 still works fully; embedding is slower.",
     )
     parser.add_argument(
         "--allow-native-source-build",
         action="store_true",
-        help="If no prebuilt native wheel matches this platform/Python, build it "
-        "from source (needs Rust + cmake + a C++ compiler; multi-minute "
-        "compile). Default: skip the source build and fall back to "
-        "pure-Python.",
+        help="If no ready-made speed-up module fits this computer, build it from source "
+        "(needs Rust, CMake and a C++ compiler; takes several minutes).",
     )
     parser.add_argument(
         "--shared-embedder",
         action="store_true",
-        help="Enable shared-embedder mode: all m3 processes defer to ONE shared "
-        "GPU embedder server (one CUDA context, ~9-10 GB reclaimed). Writes "
-        ".embed_config.json. Toggle later with `m3 embedder shared/unshared`.",
+        help="Use one embedder for every m3 program on this computer (the default).",
     )
     parser.add_argument(
         "--endpoint",
         default=None,
-        help="Pin LLM_ENDPOINTS_CSV (forwarded to install-m3).",
+        help="The address of the chat model m3 uses for enrichment, e.g. http://localhost:8080/v1.",
     )
     parser.add_argument(
         "--cognitive-loop",
         action="store_true",
-        help="Enable the background cognitive loop worker (pre-answers the "
-        "interactive prompt; forces install in non-interactive mode).",
+        help="Install the background service that links and tidies memories (the default).",
     )
     parser.add_argument(
         "--no-cognitive-loop",
         action="store_true",
-        help="Do not install the cognitive loop worker (opt out of the default-yes interactive prompt).",
+        help="Do not install the background service.",
     )
     parser.add_argument(
         "--decouple-roots",
         action="store_true",
-        help="Configure decoupled directories (~/.m3/config and ~/.m3/engine).",
+        help="Keep settings and memory files in separate folders (~/.m3/config and ~/.m3/engine).",
     )
     parser.add_argument(
         "--config-root",
         default=None,
-        help="Explicit M3_CONFIG_ROOT path.",
+        help="The folder for m3's settings (default ~/.m3/config).",
     )
     parser.add_argument(
         "--engine-root",
         default=None,
-        help="Explicit M3_ENGINE_ROOT path.",
+        help="The folder for m3's memory files (default ~/.m3/engine).",
     )
     parser.add_argument(
         "--fips-mode",
         action="store_true",
-        help="Enable M3_FIPS_MODE=1 — route crypto through wolfCrypt (hardened, "
-        "fail-closed; accepts the open-source wolfSSL build).",
+        help="Use FIPS 140-3 cryptography through wolfCrypt. Only if a policy requires it.",
     )
     parser.add_argument(
         "--fips-strict",
         action="store_true",
-        help="Enable M3_FIPS_STRICT=1 (implies --fips-mode) — additionally require "
-        "the CMVP-validated wolfCrypt FIPS module (commercial wolfSSL).",
+        help="Like --fips-mode, and require the validated (commercial) wolfCrypt module.",
     )
     parser.add_argument(
         "--install-wolfssl",
         action="store_true",
-        help="When FIPS is enabled, build + install the open-source wolfSSL from "
-        "source during setup so FIPS mode works (avoids a fail-closed crash).",
+        help="With FIPS: build the open-source wolfSSL during setup (needs a C compiler and CMake).",
     )
     parser.add_argument(
         "--no-governor-migration",
         action="store_true",
-        help="Do NOT replace governor-eligible cron/schtasks entries with the "
-        "Adaptive Background Workload Governor. By default the wizard offers "
-        "to remove legacy scheduled tasks the governor can take over.",
+        help="Leave m3's existing scheduled jobs as they are.",
     )
-    parser.add_argument(
-        "--no-shared-embedder",
-        action="store_true",
-        help="Debug escape hatch: do NOT enable shared-embedder mode. Shared mode "
-        "(one shared embedder server for all m3 processes, GPU or CPU, kept up "
-        "by a self-healing task) is the shipped default; disabling it means "
-        "each process loads its own embedder. Not recommended.",
-    )
+    # A debugging switch; hidden from --help.
+    parser.add_argument("--no-shared-embedder", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--dashboard",
         action="store_true",
-        help="Install the local web dashboard's deps ([dashboard] extra) "
-        "unattended. Interactive setup offers this by default; use this flag "
-        "for headless runs to force it on.",
+        help="Install the local web dashboard (unattended runs; the wizard offers it).",
     )
     parser.add_argument(
         "--no-dashboard",
         action="store_true",
-        help="Do NOT install the web dashboard deps. By default the wizard offers "
-        "the dashboard (fastapi + uvicorn) with a yes default.",
+        help="Do not install the web dashboard.",
     )
     parser.add_argument(
         "--dashboard-port",
         type=int,
         default=None,
         metavar="PORT",
-        help="Port for the web dashboard + its boot service (default 8088).",
+        help="Port for the web dashboard (default 8088).",
     )
     parser.set_defaults(func=run_setup)

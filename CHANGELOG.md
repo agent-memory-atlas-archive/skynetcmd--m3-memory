@@ -436,6 +436,16 @@ the policy is forward-going only.
 
 ### Changed
 
+- **Setup, `m3 doctor` and the install guides speak plainly.** Internal names
+  (project code names, tier numbers, task names, step labels) are replaced by
+  what each part does; setup no longer asks about Claude Code when it is not
+  installed, says how to connect an agent when none is found, and `m3 setup
+  --help` hides internal options. The guides give `m3 config set` commands
+  instead of environment variables, and the README leads with `pipx` (with how
+  to get it on each system).
+  **Affected:** everyone running setup or reading the guides · **Action:** none ·
+  **Data status:** none.
+
 - **The macOS installer offers PostgreSQL 18.** When no server is found, `m3 setup`
   offers `brew install postgresql@18` (was `postgresql@16`), and the manual hint
   names the same formula.

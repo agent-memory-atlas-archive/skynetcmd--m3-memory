@@ -97,7 +97,7 @@ m3 uses your local LLM for features that benefit from language understanding. An
 
 All LLM features use your local model by default — zero API costs, and no data goes to a third party. Cloud endpoints are opt-in.
 
-**Model selection is automatic.** `bin/llm_failover.py:get_best_llm()` discovers loaded chat models across every endpoint in `LLM_ENDPOINTS_CSV`, filters out embedding-only models (anything matching `embed`, `nomic`, `jina`, `bge`, `e5`, `minilm`), and picks the largest available by parameter count. If you want auto-classification and summarization to run cheaply — without loading a heavy generation model you don't otherwise need — load a small instruct model (0.5B–1B, e.g. `qwen2.5:0.5b`, `llama3.2:1b`, or any GGUF equivalent) as your only chat model; these run in hundreds of milliseconds on CPU and are sufficient for classification and short summaries. See [QUICKSTART](QUICKSTART.md#optional-load-a-small-chat-model-for-enrichment) for concrete recipes per runtime.
+**Model selection is automatic.** `bin/llm_failover.py:get_best_llm()` discovers loaded chat models across every endpoint in `llm.endpoints`, filters out embedding-only models (anything matching `embed`, `nomic`, `jina`, `bge`, `e5`, `minilm`), and picks the largest available by parameter count. If you want auto-classification and summarization to run cheaply — without loading a heavy generation model you don't otherwise need — load a small instruct model (0.5B–1B, e.g. `qwen2.5:0.5b`, `llama3.2:1b`, or any GGUF equivalent) as your only chat model; these run in hundreds of milliseconds on CPU and are sufficient for classification and short summaries. See [QUICKSTART](QUICKSTART.md#optional-load-a-small-chat-model-for-enrichment) for concrete recipes per runtime.
 
 ---
 

@@ -31,10 +31,10 @@ is for users who want to wire clients manually or understand what the wizard doe
    Expected: `running`.
 3. **(Optional) In-process (tier-1) embedding** is opt-in and only worth it
    for high-volume bursts such as bulk file ingestion; it costs one model copy
-   per process. It needs `M3_EMBED_INPROC=1` (or an `.embed_config.json` that
+   per process. It needs `embed.inproc = true` (`m3 config set embed.inproc true`) (or an `.embed_config.json` that
    permits it) — a GGUF path alone does **not** enable it:
    ```bash
-   export M3_EMBED_INPROC=1
+   m3 config set embed.inproc true
    export M3_EMBED_GGUF=~/.m3/models/bge-m3-Q4_K_M.gguf   # `m3 embedder fetch-model` puts it here
    ```
    Without this, all embeds go through the shared :8082 server — the
@@ -101,7 +101,7 @@ Manual config — edit `~/.gemini/settings.json`:
 
 Use the server key `memory` — the one `m3 setup` writes — so a later `m3 setup`
 repoints this entry instead of adding a second server. In-process (tier-1)
-embedding is opt-in: it needs `M3_EMBED_INPROC=1`, not just `M3_EMBED_GGUF`.
+embedding is opt-in: it needs `embed.inproc = true` (`m3 config set embed.inproc true`), not just `M3_EMBED_GGUF`.
 
 Restart Gemini CLI. Verify: tool list includes the m3 MCP entries.
 
@@ -134,7 +134,7 @@ This registers the `m3` memory MCP server in `~/.gemini/antigravity-cli/settings
 
 Use the server key `memory` — the one `m3 setup` writes — so a later `m3 setup`
 repoints this entry instead of adding a second server. In-process (tier-1)
-embedding is opt-in: it needs `M3_EMBED_INPROC=1`, not just `M3_EMBED_GGUF`.
+embedding is opt-in: it needs `embed.inproc = true` (`m3 config set embed.inproc true`), not just `M3_EMBED_GGUF`.
 
 Restart the Antigravity CLI or Desktop app.
 

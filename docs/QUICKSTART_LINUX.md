@@ -21,6 +21,9 @@ pipx install m3-memory
 m3 setup
 ```
 
+If `m3` is not found right after `pipx install`, open a new terminal: pipx adds
+`~/.local/bin` to your PATH for new sessions.
+
 > **PEP 668 error (`externally-managed-environment`)?** Your system Python is
 > managed by the OS package manager. Install pipx via the package manager
 > instead of pip:
@@ -54,7 +57,7 @@ m3 setup
 
 `m3 setup` detects every agent on PATH, asks a handful of questions, and drives the rest end-to-end:
 
-- system payload
+- m3's program files
 - embedder (everything's bundled — no LM Studio, no Ollama, no internet, no GPU required)
 - per-agent MCP wiring (Claude Code, Gemini CLI, Antigravity, OpenCode, Cursor, Cline, OpenClaw; Hermes via its plugin)
 - chatlog Stop + PreCompact hooks
@@ -64,7 +67,7 @@ Restart your agent and you're done. The rest of this doc covers the features.
 
 > **Have a GPU?** The wizard asks once whether to add GPU acceleration on top of the default embedder for ~10-50× faster embeddings. You can also add it later with `m3 embedder install-gpu`.
 
-> **Tool catalog stays small in your context.** m3 ships 100+ MCP tools but groups them into 9 domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin). Only 10 tools load at MCP startup (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The agent pulls in a domain on demand — just say "load the files tools" and it does. Set `M3_TOOLS_LAZY=0` to disable.
+> **Tool catalog stays small in your context.** m3 ships 100+ MCP tools but groups them into 9 domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin). Only 10 tools load at MCP startup (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The agent pulls in a domain on demand — just say "load the files tools" and it does. To load every tool at startup instead: `m3 config set tools.lazy false`.
 
 ---
 
@@ -149,7 +152,7 @@ embedder: every m3 process sends embed requests to it, so one model sits in
 RAM for the whole machine. Install it — it is not an optional extra.
 
 The **in-process embedder** (“Tier-1”, llama.cpp linked into the calling
-process) is **opt-in**, not automatic: it requires `M3_EMBED_INPROC=1` or an
+process) is **opt-in**, not automatic: it requires `embed.inproc = true` (`m3 config set embed.inproc true`) or an
 `.embed_config.json` that permits it. A GGUF on disk alone does **not** enable
 it — m3 deliberately routes to the shared server instead, so a stray model file
 cannot spin up a per-process GPU context. It is worth enabling only for

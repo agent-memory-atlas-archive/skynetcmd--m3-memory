@@ -60,10 +60,8 @@ def run(brief: bool = False) -> int:
             # Reassuring, accurate phrasing for the shipped default: the shared
             # server is the fast path; per-process tier-1 is off by design.
             # GATED ON `healthy` — see below.
-            print(
-                f"{glyph} embedding-cascade: {summary} — shared tier-2 embedder "
-                f"online (tier-1 appropriately offline{lat})"
-            )
+            ms = f" in {rt.get('latency_ms')} ms" if rt.get("latency_ms") is not None else ""
+            print(f"{glyph} embedding: working (the local server answered{ms})")
         elif out.get("tier_1", {}).get("shared_mode"):
             # Shared mode but NOT healthy. The reassuring text above used to
             # print unconditionally, so a broken cascade rendered as:
@@ -74,12 +72,11 @@ def run(brief: bool = False) -> int:
             # STATE and what to do instead; tier-1 being off is still by design
             # here, so say that without implying everything is fine.
             print(
-                f"{glyph} embedding-cascade: {summary} — shared mode, tier-2 "
-                f"{t2}{lat} (tier-1 off by design) — fix: `m3 doctor --fix` "
-                f"restarts the shared embedder; `--verbose` for detail"
+                f"{glyph} embedding: {summary} — the local embedder server is {t2}{lat} "
+                f"— fix: `m3 doctor --fix` restarts it; `--verbose` for detail"
             )
         else:
-            print(f"{glyph} embedding-cascade: {summary} (tier1 {t1}, tier2 {t2}{lat})")
+            print(f"{glyph} embedding: {summary} (in-program: {t1}, local server: {t2}{lat})")
         return 0 if summary != "broken" else 1
 
     print()

@@ -98,7 +98,7 @@ def test_single_family_multiple_tags_is_not_flagged(_engine, capsys):
     assert probe.run(brief=True) == 0
     out = capsys.readouterr().out
     assert "MIXED" not in out
-    assert "ok" in out.lower()
+    assert "✅" in out
 
 
 def test_two_families_are_flagged(_engine, capsys):
@@ -157,7 +157,7 @@ def test_separate_vector_kinds_do_not_cross_contaminate(_engine, capsys):
 def test_empty_store_is_ok(_engine, capsys):
     _store(_engine, [])
     assert probe.run(brief=True) == 0
-    assert "ok" in capsys.readouterr().out.lower()
+    assert "✅" in capsys.readouterr().out
 
 
 def test_missing_table_does_not_crash(_engine, capsys):

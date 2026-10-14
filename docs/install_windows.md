@@ -78,7 +78,7 @@ below. Use `m3 setup --terminal` to force the text wizard.
 > conversations, diagnostics, admin). Only 10 tools load at MCP startup
 > (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The
 > agent pulls in a domain on demand — just say "load the files tools" and it does.
-> Set `M3_TOOLS_LAZY=0` to disable.
+> To load every tool at startup instead: `m3 config set tools.lazy false`.
 
 ---
 
@@ -153,7 +153,7 @@ embedder: every m3 process sends embed requests to it, so one model sits in
 RAM for the whole machine. Install it — it is not an optional extra.
 
 The **in-process embedder** (“Tier-1”, llama.cpp linked into the calling
-process) is **opt-in**, not automatic: it requires `M3_EMBED_INPROC=1` or an
+process) is **opt-in**, not automatic: it requires `embed.inproc = true` (`m3 config set embed.inproc true`) or an
 `.embed_config.json` that permits it. A GGUF on disk alone does **not** enable
 it — m3 deliberately routes to the shared server instead, so a stray model file
 cannot spin up a per-process GPU context. It is worth enabling only for

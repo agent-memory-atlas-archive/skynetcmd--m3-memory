@@ -1154,12 +1154,13 @@ class TestCursorClineVisibility:
 @pytest.mark.parametrize(
     "registered, expect",
     [
-        (True, "keeps :8082 up"),
+        (True, ""),  # registered: nothing to report
         (False, "NOT registered"),
     ],
 )
 def test_keep_alive_line_reflects_the_service_manager(monkeypatch, capsys, registered, expect):
-    """The Rust binary being present does not mean step 2 registered it."""
+    """The Rust binary being present does not mean step 2 registered it. A
+    registered service is reported by saying nothing; a missing one, loudly."""
     from m3_memory import embedder_admin
 
     monkeypatch.setattr(embedder_admin, "_server_binary", lambda: Path("/bin/m3-embed-server"))
@@ -1503,7 +1504,7 @@ def test_a_non_blocking_embed_server_is_noted_without_promises(monkeypatch, caps
     assert setup_wizard._quiesce_db_writers(_q_args()) is True
     out = capsys.readouterr().out
     assert "OLD binary" not in out
-    assert ("not a quiesce blocker" in out) is not from_upgrade
+    assert ("does not hold your memory files" in out) is not from_upgrade
 
 
 def test_step_headers_are_numbered_in_order_and_labelled_under_upgrade(monkeypatch, capsys):

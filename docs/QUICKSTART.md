@@ -128,7 +128,7 @@ to list a domain's tools.
 > conversations, diagnostics, admin). Only 10 tools load at MCP startup
 > (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The
 > agent pulls in a domain on demand — just say "load the files tools" and it does.
-> Set `M3_TOOLS_LAZY=0` to disable.
+> To load every tool at startup instead: `m3 config set tools.lazy false`.
 
 ### claude.ai (web/desktop) integration
 
@@ -154,7 +154,7 @@ without further action — the CLI auto-detects a sibling
 `m3 setup` installed the sovereign CPU embedder: BGE-M3 served by the
 **shared embed server** (`m3-embed-server`, from the m3-core-rs wheel) on
 `127.0.0.1:8082`, registered as a service so every m3 process shares one
-model in RAM. In-process embedding is opt-in (`M3_EMBED_INPROC=1`) — see
+model in RAM. In-process embedding is opt-in (`embed.inproc = true` (`m3 config set embed.inproc true`)) — see
 [EMBED_DEPLOYMENT.md](EMBED_DEPLOYMENT.md). No
 LM Studio, no Ollama, no GPU, no internet required for embedding to work.
 
@@ -166,7 +166,7 @@ For ~10–50× faster embeddings, the wizard offers an opt-in GPU build
 
 Some features — `auto_classify`, conversation summaries, write-time
 enrichment — call your local LLM with short prompts. m3 picks up any
-OpenAI-compatible endpoint via `LLM_ENDPOINTS_CSV`; no extra config
+OpenAI-compatible endpoint via `m3 config set llm.endpoints <url>`; no extra config
 needed once a server is running.
 
 Pick whichever fits your hardware and runtime:
@@ -180,11 +180,11 @@ Pick whichever fits your hardware and runtime:
 
 > **Pointing m3 at your runtime:** endpoint discovery probes LM Studio (`:1234`) by
 > default only. Adjust for your setup:
-> - **Ollama** — `export M3_ENABLE_OLLAMA_FAILOVER=1` (add `M3_ENABLE_LMSTUDIO_FAILOVER=0`
+> - **Ollama** — `m3 config set llm.ollama_failover true` (add `m3 config set llm.lmstudio_failover false`
 >   if you don't also run LM Studio).
-> - **llama.cpp / vLLM / LocalAI / remote** — `export M3_LLM_URL="http://localhost:8080/v1"`
+> - **llama.cpp / vLLM / LocalAI / remote** — `m3 config set llm.url http://localhost:8080/v1`
 >   (your server is tried first; the LM Studio probe is auto-disabled).
-> - **Multiple endpoints, specific order** — `export LLM_ENDPOINTS_CSV="url1,url2,…"`.
+> - **Multiple endpoints, specific order** — `m3 config set llm.endpoints "url1,url2,…"`.
 >
 > See [ENVIRONMENT_VARIABLES → Endpoint discovery & failover](ENVIRONMENT_VARIABLES.md#endpoint-discovery--failover).
 

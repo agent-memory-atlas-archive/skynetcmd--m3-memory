@@ -141,7 +141,7 @@ m3 setup
 > conversations, diagnostics, admin). Only 10 tools load at MCP startup
 > (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The
 > agent pulls in a domain on demand — just say "load the files tools" and it does.
-> Set `M3_TOOLS_LAZY=0` to disable.
+> To load every tool at startup instead: `m3 config set tools.lazy false`.
 
 ---
 
@@ -199,7 +199,7 @@ m3 chatlog init --apply-gemini
   @reboot M3_EMBED_GGUF=~/.m3/models/bge-m3-Q4_K_M.gguf m3-embed-server >> ~/.m3/engine/embed-server.log 2>&1 &
   ```
   This shared server (Tier-2) is the default embedder, so keep it running;
-  in-process (Tier-1) embedding is opt-in only (`M3_EMBED_INPROC=1`).
+  in-process (Tier-1) embedding is opt-in only (`embed.inproc = true` (`m3 config set embed.inproc true`)).
 
 - **Hooks can't find Python on a pipx install** — fixed in v2026.4.24.7+;
   the hook scripts probe both `~/.local/share/pipx/venvs/m3-memory` (pipx ≥1.4

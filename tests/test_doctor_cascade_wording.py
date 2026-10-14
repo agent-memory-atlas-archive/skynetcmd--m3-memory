@@ -93,15 +93,14 @@ def test_an_unhealthy_cascade_names_a_remedy(monkeypatch, summary):
 def test_an_unhealthy_cascade_reports_the_tier_that_is_wrong(monkeypatch):
     """`tier-1 off by design` alone explains nothing; tier-2's state is the signal."""
     line = _run_brief(monkeypatch, "broken")
-    assert "tier-2" in line and "unreachable" in line, f"the failing tier's state must appear: {line!r}"
+    assert "local embedder server" in line and "unreachable" in line, f"the failing part's state must appear: {line!r}"
 
 
 def test_a_healthy_shared_cascade_KEEPS_the_reassuring_wording(monkeypatch):
     """The other half. Shared mode with tier-1 off IS correct and must not read
     as a problem — otherwise the fix just trades a false alarm for a false one."""
     line = _run_brief(monkeypatch, "healthy")
-    assert "healthy" in line
-    assert "appropriately offline" in line, "a correct shared-mode cascade must still be described as fine"
+    assert "working" in line, "a correct shared-mode cascade must still be described as fine"
     assert "m3 doctor --fix" not in line, "do not prescribe a fix for a healthy state"
 
 

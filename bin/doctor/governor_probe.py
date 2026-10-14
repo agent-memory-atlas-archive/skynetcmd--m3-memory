@@ -80,7 +80,7 @@ def run(brief: bool = False) -> int:
             else:
                 print(f"⚠️  governor: NAG ({len(eligible)} legacy task(s); run `m3 governor migrate`)")
         else:
-            print("✅ governor: OK (no legacy scheduled tasks)")
+            print("✅ background jobs: OK")
         return 0
 
     if not eligible:

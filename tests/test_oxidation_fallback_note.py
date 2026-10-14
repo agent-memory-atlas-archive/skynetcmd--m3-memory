@@ -92,7 +92,7 @@ def test_active_embedder_tier_no_wheel(monkeypatch):
     assert tier["native"] is False
     assert tier["backend"] is None
     assert "~10-85x" in tier["summary"]
-    assert "pure-Python" in tier["summary"]
+    assert "without the speed-up module" in tier["summary"]
 
 
 def test_active_embedder_tier_with_wheel(monkeypatch):
@@ -109,8 +109,8 @@ def test_active_embedder_tier_with_wheel(monkeypatch):
     assert tier["native"] is True
     assert tier["version"] == "3.6.27"
     assert tier["backend"] == "cpu"
-    assert "Project Oxidation active" in tier["summary"]
-    assert "cpu" in tier["summary"]
+    assert "in each m3 program" in tier["summary"] and "speed-up module" in tier["summary"]
+    assert "cpu" not in tier["summary"], "a CPU build is the ordinary case; only a GPU build is named"
 
 
 def test_active_embedder_tier_wheel_without_embedded_feature(monkeypatch):
@@ -124,7 +124,7 @@ def test_active_embedder_tier_wheel_without_embedded_feature(monkeypatch):
 
     tier = rci.active_embedder_tier()
     assert tier["native"] is False
-    assert "without the embedded feature" in tier["summary"].lower()
+    assert "without embedding support" in tier["summary"].lower()
 
 
 # ── privilege-probe footguns: must be safe & non-crashing everywhere ────────────

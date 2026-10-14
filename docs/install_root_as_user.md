@@ -50,7 +50,7 @@ loginctl enable-linger bob
 This keeps bob's systemd user session (and the `m3-embed-server` service)
 running after bob logs out. Without it, the embed server stops when bob's
 last session exits — and since that shared server is the default embedder
-(in-process embedding is opt-in via `M3_EMBED_INPROC=1`), embeds degrade
+(in-process embedding is opt-in via `embed.inproc = true` (`m3 config set embed.inproc true`)), embeds degrade
 until bob logs in again.
 
 ---

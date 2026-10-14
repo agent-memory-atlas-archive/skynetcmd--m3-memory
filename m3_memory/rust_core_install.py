@@ -277,16 +277,14 @@ def active_embedder_tier() -> dict:
         import m3_core_rs
     except Exception:  # noqa: BLE001 — no wheel installed
         out["summary"] = (
-            "pure-Python (Project Oxidation native wheel not installed — "
-            f"embeds run {OXIDATION_SPEEDUP_X} slower on the HTTP fallback path "
-            "but m3 is fully usable). Run `m3 embedder install-gpu`."
+            "working, without the speed-up module (embedding is "
+            f"{OXIDATION_SPEEDUP_X} slower; m3 is fully usable). To add it: m3 embedder install-gpu"
         )
         return out
     if not hasattr(m3_core_rs, "EmbeddedEmbedder"):
         out["summary"] = (
-            "native wheel present but built WITHOUT the embedded feature — "
-            "embeds use the HTTP fallback. Reinstall with "
-            "`m3 embedder install-gpu`."
+            "the speed-up module is installed without embedding support, so embedding "
+            "takes the slower path. fix: m3 embedder install-gpu"
         )
         return out
     out["native"] = True
@@ -302,7 +300,6 @@ def active_embedder_tier() -> dict:
         if backend:
             break
     out["backend"] = str(backend) if backend else None
-    inner = f"{out['backend']}, " if out["backend"] else ""
     try:
         from m3_memory.embedder_admin import shared_mode_enabled
 
@@ -311,12 +308,13 @@ def active_embedder_tier() -> dict:
         shared = False
     if shared:
         # The core is installed, but shared mode routes embeds to :8082.
-        out["summary"] = (
-            f"shared server (:8082) — native core installed "
-            f"({inner}m3_core_rs {out['version']}), in-process tier off by design"
-        )
+        from m3_memory.embedder_admin import _embed_server_port
+
+        gpu = f", {out['backend']}" if out["backend"] and out["backend"] != "cpu" else ""
+        out["summary"] = f"local server on port {_embed_server_port()}, with the speed-up module{gpu}"
         return out
-    out["summary"] = f"tier-1 in-process — Project Oxidation active ({inner}m3_core_rs {out['version']})"
+    gpu = f", {out['backend']}" if out["backend"] and out["backend"] != "cpu" else ""
+    out["summary"] = f"in each m3 program, with the speed-up module{gpu}"
     return out
 
 
@@ -1087,8 +1085,6 @@ def install_from_github_release(
     py_tag = wheel_python_tag()
     asset_prefix = f"m3_core_rs_{choice.os_tok}_{choice.backend}-{version}-{py_tag}-"
 
-    print(f"[rust-core] looking for GitHub Release asset matching {asset_prefix}*.whl  (repo={repo}, tag={git_tag})")
-
     api_url = f"https://api.github.com/repos/{repo}/releases/tags/{git_tag}"
     try:
         req = urllib.request.Request(
@@ -1403,9 +1399,7 @@ def install_rust_core(
     else:
         chain = detect_backend_chain(os_tok)
         choice = chain[0]
-        print(f"[rust-core] detected backend: {choice.package} ({choice.reason})")
-        if len(chain) > 1:
-            print("[rust-core] fallback order: " + " -> ".join(c.backend for c in chain))
+        print(f"[speed-up] build for this computer: {choice.backend} ({choice.reason})")
 
     if (choice.os_tok, choice.backend) not in _VALID:
         print(f"[rust-core] unsupported combination {choice.os_tok}-{choice.backend}", file=sys.stderr)

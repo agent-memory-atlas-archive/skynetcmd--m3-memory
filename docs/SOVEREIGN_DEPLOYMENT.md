@@ -140,7 +140,7 @@ LFS-tracked model file and any extra wheels you'll need offline.
 > conversations, diagnostics, admin). Only 10 tools load at MCP startup
 > (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The
 > agent pulls in a domain on demand — just say "load the files tools" and it does.
-> Set `M3_TOOLS_LAZY=0` to disable. Especially relevant in air-gapped settings
+> To load every tool at startup instead: `m3 config set tools.lazy false`. Especially relevant in air-gapped settings
 > where every token of context margin counts.
 
 ### Air-gapped install-m3

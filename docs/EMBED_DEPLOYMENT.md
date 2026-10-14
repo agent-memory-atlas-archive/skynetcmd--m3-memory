@@ -77,7 +77,7 @@ Where a page below says "tier-1" or "fallback", map it through this table.
    +------------------------------------------------+
               |
               | 2. OPT-IN INSTEAD: in-process via pyo3, when
-              |    M3_EMBED_INPROC=1 or .embed_config.json
+              |    embed.inproc = true or .embed_config.json
               |    permits it (see the gate below)
               v
    +------------------------------------------------+
@@ -101,10 +101,10 @@ Decision points (implemented in `bin/memory_core.py` around line 2018):
 
 - **In-process** requires BOTH a usable GGUF (`M3_EMBED_GGUF`, or an
   autodetected bge-m3) with an `embedded[-cuda|-vulkan|-metal]` wheel, **AND**
-  explicit permission: either `M3_EMBED_INPROC=1`, or an `.embed_config.json`
+  explicit permission: either `embed.inproc = true` (`m3 config set embed.inproc true`), or an `.embed_config.json`
   at the config root that does not set `disable_inproc_embedder`. A GGUF path
   alone is **not** sufficient — with no config file present and
-  `M3_EMBED_INPROC` unset, m3 logs a warning and routes to the shared server.
+  `embed.inproc` off, m3 logs a warning and routes to the shared server.
   That gate is deliberate (`bin/memory/embed.py:322-345`): a missing config
   means "defer to shared", never "load my own embedder", because the old
   behaviour let a misresolved config root spin up an unbounded per-process CUDA
@@ -481,8 +481,8 @@ env var > config file > default, so a one-off `M3_EMBED_GGUF` still overrides.
 ### Revert
 
 ⚠ **Removing the config does NOT switch processes to in-process embedding.** With
-no `.embed_config.json` present, `bin/memory/embed.py` falls back to
-`M3_EMBED_INPROC`, which defaults to `0` — so every process routes to the shared
+no `.embed_config.json` present, `bin/memory/embed.py` falls back to the
+`embed.inproc` setting, which defaults to off — so every process routes to the shared
 server instead. Running `m3 embedder unshared` and then stopping the shared
 server leaves you with **no embedder at all**: writes still succeed, but
 embedding is deferred and new rows are FTS-only until an embedder returns.
@@ -493,11 +493,9 @@ To actually run per-process in-process embedders:
 
 ```bash
 m3 embedder unshared               # removes .embed_config.json
-# Then set M3_EMBED_INPROC=1 in the environment of EACH m3 process. A headless
-# daemon does not inherit your shell, so this means the MCP server registration
-# and each hook command -- the same split-brain rule as the engine/config roots:
-#   claude mcp add ... --env M3_EMBED_INPROC=1
-# Keep the shared server running until every process is switched over.
+m3 config set embed.inproc true    # every m3 process reads it from m3_config.toml
+# Restart the m3 processes (your agents' MCP server, the background service) so
+# they pick it up; keep the shared server running until they have.
 m3 embedder status                 # confirm which backend each process reports
 ```
 
@@ -560,7 +558,7 @@ implement the dual-path chain:
 
 1. **In-process via `m3_core_rs.EmbeddedEmbedder`.** Requires a GGUF AND the
    wheel built with `embedded[-cuda|...]` AND explicit permission
-   (`M3_EMBED_INPROC=1`, or an `.embed_config.json` that does not disable it) —
+   (`embed.inproc = true` (`m3 config set embed.inproc true`), or an `.embed_config.json` that does not disable it) —
    a GGUF path alone routes to the shared server instead.
    Backend labels recorded: `cuda-inprocess` / `vulkan-inprocess` /
    `metal-inprocess` / `cpu-inprocess`.
@@ -599,7 +597,7 @@ Use this to diagnose distribution between paths:
 - Lots of `http-primary` -> both in-process AND fallback failed; check
   service status and `m3_core_rs.embed_backend_label()`.
 - All `http-primary` from the start -> in-process was never enabled (needs
-  `M3_EMBED_INPROC=1` or a permitting `.embed_config.json`, plus a GGUF) and
+  `embed.inproc = true` (`m3 config set embed.inproc true`) or a permitting `.embed_config.json`, plus a GGUF) and
   the fallback server is unreachable.
 
 Both helpers are thread-safe. `_embed` bumps by 1; `_embed_many` attributes
@@ -616,7 +614,7 @@ defaults:
 
 | Variable                    | Role                                                               |
 |-----------------------------|--------------------------------------------------------------------|
-| `M3_EMBED_GGUF`             | Path to bge-m3 GGUF for the in-process path (which also needs `M3_EMBED_INPROC=1` or `.embed_config.json`). |
+| `M3_EMBED_GGUF`             | Path to bge-m3 GGUF for the in-process path (which also needs `embed.inproc = true` (`m3 config set embed.inproc true`) or `.embed_config.json`). |
 | `M3_EMBED_GGUF_MODEL_TAG`   | `embed_model` cache-namespace tag for in-process + fallback rows.  |
 | `M3_EMBED_URL`              | Legacy primary HTTP endpoint (LM Studio, llama-server).            |
 | `M3_EMBED_FALLBACK_URL`     | CPU HTTP fallback endpoint (default `http://127.0.0.1:8082`).      |

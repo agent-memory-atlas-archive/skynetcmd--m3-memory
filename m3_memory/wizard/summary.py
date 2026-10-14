@@ -98,18 +98,15 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
         removed = governor_result.get("removed", [])
         failed = governor_result.get("failed", [])
         cmds = governor_result.get("privileged_cmds", [])
-        not_migratable = governor_result.get("not_migratable", [])
 
-        if removed or failed or not_migratable:
-            print("Background Workload Governor:")
+        # Tasks that simply stay on their schedule need no word: listing them
+        # (with internal names) told a new user nothing they could act on.
+        if removed or failed:
+            print("Background jobs:")
         if removed:
-            print(f"  Migrated to the governor (removed {len(removed)} legacy scheduled task(s)):")
+            print(f"  {len(removed)} scheduled job(s) replaced by m3's own pacing:")
             for name in removed:
                 print(f"    • {name}")
-        if not_migratable:
-            print("  Left on their schedule (the governor cannot take these over):")
-            for line in not_migratable:
-                print(line)
         if failed:
             print()
             _warn(f"Could not remove {len(failed)} scheduled task(s) — insufficient privilege.")
@@ -122,7 +119,7 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
                 print("  → Run in your shell (prefix with sudo only if it's a system/root crontab):")
             for c in cmds:
                 print(f"      {c}")
-        if removed or failed or not_migratable:
+        if removed or failed:
             print()
 
     # ── embedder tier (Project Oxidation status) ────────────────────────────
@@ -130,7 +127,7 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
         from m3_memory.rust_core_install import active_embedder_tier
 
         tier = active_embedder_tier()
-        print("Embedder (Project Oxidation):")
+        print("Embedder:")
         if tier.get("native"):
             _ok(f"  {tier['summary']}")
         else:

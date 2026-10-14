@@ -86,10 +86,10 @@ def _run_gather(monkeypatch, *, native: bool):
 def _embedder_asked(asked):
     # The fresh-install embedder prompt offers the OPTIONAL tier-1 native wheel
     # (shared tier-2 is the default and isn't prompted). Match its wording
-    # robustly — "tier-1", "native ... wheel", or "oxidation".
+    # robustly: today "let each m3 program embed by itself".
     def _hit(q):
         ql = q.lower()
-        return "oxidation" in ql or "tier-1" in ql or "tier 1" in ql or ("native" in ql and "wheel" in ql)
+        return "embed by itself" in ql or "tier-1" in ql or ("native" in ql and "wheel" in ql)
 
     return any(_hit(q) for q in asked)
 

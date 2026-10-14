@@ -197,7 +197,7 @@ def run(brief: bool = False) -> int:
 
     if not rows:
         if brief:
-            print("embed-space: ok (no embeddings yet)")
+            print("✅ stored vectors: none yet")
         else:
             print()
             print("=== embed space ===")
@@ -262,7 +262,7 @@ def run(brief: bool = False) -> int:
             )
         else:
             fam = next(iter(next(iter(by_kind.values()))))
-            print(f"embed-space: ok (single space: {fam})")
+            print(f"✅ stored vectors: all from one model ({fam})")
         return 0
 
     print()

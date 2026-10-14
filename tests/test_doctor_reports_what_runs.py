@@ -105,7 +105,7 @@ def test_tier_summary_names_the_shared_server_in_shared_mode(monkeypatch, tmp_pa
     monkeypatch.setitem(sys.modules, "m3_core_rs", fake)
     tier = rust_core_install.active_embedder_tier()
     assert tier["native"] is True
-    assert tier["summary"].startswith("shared server (:8082)")
+    assert tier["summary"].startswith("local server on port 8082")
     assert "tier-1 in-process" not in tier["summary"]
 
 

@@ -27,7 +27,7 @@ This document details the core services, frameworks, and engines that power the 
 
 ### Embedding Models (Vectorization)
 - **Role**: Converting text to semantic vectors for similarity search.
-- **Default**: BGE-M3 (1024-dim), served by the `m3-embed-server` binary (from the m3-core-rs wheel) on `127.0.0.1:8082`. In-process embedding is opt-in (`M3_EMBED_INPROC=1`).
+- **Default**: BGE-M3 (1024-dim), served by the `m3-embed-server` binary (from the m3-core-rs wheel) on `127.0.0.1:8082`. In-process embedding is opt-in (`embed.inproc = true` (`m3 config set embed.inproc true`)).
 - **Deployment**: The shared embed server is the default; any OpenAI-compatible embedding endpoint can be configured instead.
 
 ---

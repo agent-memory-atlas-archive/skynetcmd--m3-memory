@@ -131,7 +131,7 @@ def run(brief: bool = False) -> int:
         log_swallowed(logger, e, "version-staleness check skipped: %s", e)
 
     if not missing and not version_stale:
-        _b(f"✅ oxidation: current ({len(present)}/{len(_EXPECTED)} native paths)")
+        _b("✅ speed-up module: current")
         if not brief:
             print("  result   : current — all expected native paths active")
         return 0
@@ -148,9 +148,9 @@ def run(brief: bool = False) -> int:
         # m3_core_rs 3.9.7, expected 3.10.1) — so this line is on a common path,
         # not an edge case. One line, because brief mode must stay one line.
         print(
-            f"⚠️  oxidation: STALE ({len(present)}/{len(_EXPECTED)} paths"
-            f"{', version behind' if version_stale else ''})"
-            " — fix: `m3 embedder install-gpu`"
+            f"⚠️  speed-up module: out of date ({len(present)} of {len(_EXPECTED)} parts"
+            f"{', older version' if version_stale else ''})"
+            " — fix: m3 embedder install-gpu"
         )
         return 0
 

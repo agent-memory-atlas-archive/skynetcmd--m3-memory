@@ -150,7 +150,7 @@ hook scripts are idempotent.
 The plugin exposes six `userConfig` knobs that Claude Code prompts for at
 enable time (you can re-edit later):
 
-- **`endpoint`** — pin `LLM_ENDPOINTS_CSV` for the small chat model used
+- **`endpoint`** — the address of the small chat model used
   by enrichment. The embedder itself is BGE-M3 on the shared embed server
   (`127.0.0.1:8082`) installed by `m3 setup` — this knob is only for
   *generation*. Empty = probe local OpenAI-compatible servers (LM Studio
@@ -160,7 +160,7 @@ enable time (you can re-edit later):
 - **`embed_fallback_url`** — the shared embed server URL
   (`M3_EMBED_FALLBACK_URL`). Default `http://127.0.0.1:8082`.
 - **`embed_gguf`** — path to a BGE-M3 GGUF (`M3_EMBED_GGUF`). Optional;
-  in-process embedding still needs `M3_EMBED_INPROC=1` (or an
+  in-process embedding still needs `embed.inproc = true` (`m3 config set embed.inproc true`) (or an
   `.embed_config.json` that permits it). Default empty.
 - **`engine_root`** / **`config_root`** — advanced overrides for
   `M3_ENGINE_ROOT` / `M3_CONFIG_ROOT`. Leave empty for the defaults

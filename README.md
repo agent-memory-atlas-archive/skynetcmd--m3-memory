@@ -28,10 +28,14 @@ remote MCP endpoint. <!-- RELEASE-TODO: test ChatGPT and the Gemini app against 
 </p>
 
 ```bash
-pip install m3-memory   # or: pipx install m3-memory — pick ONE and stay with it
+pipx install m3-memory  # or pip install m3-memory in a virtual environment; use one, not both
 m3 setup                # finds your agents and connects them to m3
 m3 doctor               # checks that everything is working
 ```
+
+No pipx yet? `sudo apt install pipx` (Debian, Ubuntu), `brew install pipx` (macOS) or
+`py -m pip install --user pipx` (Windows). If `m3` is not found right after installing,
+open a new terminal.
 
 That's the whole install. New here? The [5-minute Getting Started guide](docs/GETTING_STARTED.md)
 walks you through your first saved memory.

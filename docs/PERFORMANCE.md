@@ -283,7 +283,7 @@ confident wrong answer here first:
 1. **m3's write and search entry points are coroutines.** Timing the call
    without awaiting it measures coroutine *construction*: 40 "writes" at
    p50 0.00 ms, an excellent number for code that never ran.
-2. **`M3_EMBED_INPROC=1` does not by itself enable in-process embedding.** A
+2. **`embed.inproc = true` (`m3 config set embed.inproc true`) does not by itself enable in-process embedding.** A
    present `.embed_config.json` takes precedence. A probe that ignores this
    measures the shared server twice and reports the two topologies as identical.
 3. **Small buckets lie.** The 5-sample result above was reproducible and wrong.

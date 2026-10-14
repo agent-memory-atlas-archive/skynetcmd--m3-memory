@@ -21,7 +21,7 @@ m3 Memory is **server-agnostic**. It communicates with local LLMs via the OpenAI
 
 **Known compatible servers:** LM Studio, Ollama, vLLM, LocalAI, llama.cpp server, text-generation-webui (with OpenAI extension), Aphrodite, TGI.
 
-Default endpoint: `http://localhost:1234/v1`. Override with `LLM_ENDPOINTS_CSV` env var for different ports or multi-machine setups (e.g., Ollama defaults to port 11434: `LLM_ENDPOINTS_CSV="http://localhost:11434/v1"`).
+Default endpoint: `http://localhost:1234/v1`. Override with `m3 config set llm.endpoints <url,url>` for different ports or multi-machine setups (e.g., Ollama defaults to port 11434: `m3 config set llm.endpoints "http://localhost:11434/v1"`).
 
 ---
 
@@ -184,7 +184,7 @@ can explain its score (`explain=True`).
 
 ### Embedding System
 
-- **Model:** BGE-M3 by default (`text-embedding-bge-m3`), served by the shared local embed server on `127.0.0.1:8082` from the bundled GGUF — no external embedding service required, and one model in RAM for every m3 process. In-process embedding is opt-in (`M3_EMBED_INPROC=1`). Configurable via `EMBED_MODEL`. **Never mix vectors from different models or quants in one database:** Qwen3-Embedding in particular occupies a different vector space and is bench-only. See [Embed Input Recipe](EMBED_INPUT_RECIPE.md) for the model/tag matrix.
+- **Model:** BGE-M3 by default (`text-embedding-bge-m3`), served by the shared local embed server on `127.0.0.1:8082` from the bundled GGUF — no external embedding service required, and one model in RAM for every m3 process. In-process embedding is opt-in (`embed.inproc = true` (`m3 config set embed.inproc true`)). Configurable via `EMBED_MODEL`. **Never mix vectors from different models or quants in one database:** Qwen3-Embedding in particular occupies a different vector space and is bench-only. See [Embed Input Recipe](EMBED_INPUT_RECIPE.md) for the model/tag matrix.
 - **Dimension:** All models across all devices must produce the same dimension (default 1024, configurable via `EMBED_DIM`). Mismatched dimensions break cosine similarity.
 - **Auto-detection:** `embedding_utils.py` + `llm_failover.get_best_embed()` probe the local LLM server's `/v1/models` endpoint for loaded models, preferring names containing `embed`, `nomic`, or `jina`
 - **Dimension validation:** First embedding call validates actual vs expected dimensions; logs warning on mismatch
@@ -450,5 +450,5 @@ Seeds 20 diverse test memories, runs 10 labeled queries, cleans up after. Gracef
 
 - `get_best_llm(client, token)` — probes endpoints in failover order, filters embedding models, returns `(base_url, model)` for the largest available model by parameter count
 - `get_best_embed(client, token)` — same pattern, but selects embedding models
-- **Failover chain:** `localhost:1234` → additional endpoints (configurable via `LLM_ENDPOINTS_CSV`)
+- **Failover chain:** `localhost:1234` → additional endpoints (configurable via `llm.endpoints`)
 - **Served by:** Any OpenAI-compatible server (e.g., LM Studio, Ollama, vLLM, LocalAI). Supports MLX, GGUF, GPTQ, and other model formats depending on server.

@@ -198,7 +198,7 @@ def run(brief: bool = False) -> int:
 
     if brief:
         if installed is None:
-            print("plugin: not installed via Claude Code (CLI-only / unknown)")
+            print("✅ Claude Code plugin: not used (m3 runs as a command and an MCP server)")
         elif disabled:
             print(f"⚠️  plugin: {installed} but DISABLED — enable it + /reload-plugins")
         elif stale:
