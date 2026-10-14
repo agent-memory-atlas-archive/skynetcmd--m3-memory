@@ -62,9 +62,7 @@ def test_headline_names_the_shared_server_in_shared_mode(monkeypatch, tmp_path):
     cfg = tmp_path / ".embed_config.json"
     cfg.write_text(json.dumps({"disable_inproc_embedder": True}), encoding="utf-8")
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    from m3_memory import rust_core_install
-
-    from m3_memory import embedder_admin
+    from m3_memory import embedder_admin, rust_core_install
 
     monkeypatch.setattr(rust_core_install, "active_embedder_tier", lambda: {"native": True})
     monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", lambda *a, **k: False)

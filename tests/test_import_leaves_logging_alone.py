@@ -54,7 +54,9 @@ def _is_main_guard(node: ast.If) -> bool:
 
 
 def _importers(module: str) -> list[str]:
-    pat = re.compile(rf"^\s*(?:import|from)\s+{re.escape(module)}\b|import_module\(\s*[\"']{re.escape(module)}[\"']", re.M)
+    pat = re.compile(
+        rf"^\s*(?:import|from)\s+{re.escape(module)}\b|import_module\(\s*[\"']{re.escape(module)}[\"']", re.MULTILINE
+    )
     found = []
     for top in _SCANNED:
         for dirpath, _dirs, files in os.walk(os.path.join(_ROOT, top)):

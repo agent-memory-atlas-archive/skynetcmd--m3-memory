@@ -1111,9 +1111,7 @@ def install_from_github_release(
                 file=sys.stderr,
             )
         else:
-            print(
-                f"[speed-up] GitHub API HTTP {e.code} fetching {git_tag}; skipping Release fallback", file=sys.stderr
-            )
+            print(f"[speed-up] GitHub API HTTP {e.code} fetching {git_tag}; skipping Release fallback", file=sys.stderr)
         return 1
     except (urllib.error.URLError, OSError, ValueError) as e:
         print(
@@ -1237,8 +1235,7 @@ def install_from_github_release(
                 # byte-identical to the published one. Short digest prefix --
                 # enough to eyeball against SHA256SUMS, not a wall of hex.
                 print(
-                    f"[speed-up] sha256 OK: the download matches the published "
-                    f"checksum ({git_tag}, {actual[:16]}...)"
+                    f"[speed-up] sha256 OK: the download matches the published checksum ({git_tag}, {actual[:16]}...)"
                 )
                 install_log(
                     f"sha256 OK wheel={wheel_name} tag={git_tag} sha256={actual} bytes={downloaded} attempt={attempt}"
