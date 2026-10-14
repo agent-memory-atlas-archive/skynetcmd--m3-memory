@@ -114,9 +114,8 @@ describes a specific case, not the general one.
 
 ### Exact vector search by store size
 
-Vector search is exact on both backends: each query scores every stored vector
-(approximate HNSW search is planned). On PostgreSQL with pgvector the scoring runs in
-the database; see [PostgreSQL with pgvector](#postgresql-with-pgvector). Its cost grows with the number of
+Vector search is exact on both backends: each query scores every stored vector.
+On PostgreSQL with pgvector the scoring runs in the database; see [PostgreSQL with pgvector](#postgresql-with-pgvector). Its cost grows with the number of
 memories stored, not with `k`.
 
 **SQLite** (m3's own cosine path; sqlite-vec was not installed):
@@ -176,8 +175,8 @@ with-pgvector cost does not depend on the link. These time the vector stage alon
 through the backend's two search paths; full search adds the hydrate and ranking steps
 measured above.
 
-Filling the copy for rows written before `pg_066` (`m3 doctor --fix`, or the cognitive
-loop's embed pass) ran at about 2,000 rows/s: 25 s for 50,000, in committed batches of
+Filling the copy for rows written before `pg_066` (in the background right after the
+upgrade, or by `m3 doctor --fix` and the cognitive loop) ran at about 2,000 rows/s: 25 s for 50,000, in committed batches of
 1,000 that each took 0.5 s, so no long lock is held.
 
 ### SQLite: many agents writing at once

@@ -171,7 +171,7 @@ can explain its score (`explain=True`).
   vector kind is searched) go on to ranking, so the cap is a backstop rather
   than the active bound.
 - Embedding cache: content hash lookup avoids re-embedding identical text
-- On a **PostgreSQL primary backend** (`[db] backend = "postgres"`), vector search is exact. With the pgvector extension, migration `pg_066` keeps a `vector` copy of each embedding beside the BYTEA blob, and once every row has its copy PostgreSQL scores with `<=>` and returns only the top results; one row without a copy sends search back to the Rust path, so no row is ever missed. A trigger clears a copy left stale by a blob-only update; `m3 doctor --fix` and the cognitive loop fill missing copies. Approximate (HNSW) search is planned.
+- On a **PostgreSQL primary backend** (`[db] backend = "postgres"`), vector search is exact. With the pgvector extension, migration `pg_066` keeps a `vector` copy of each embedding beside the BYTEA blob, and once every row has its copy PostgreSQL scores with `<=>` and returns only the top results; one row without a copy sends search back to the Rust path, so no row is ever missed. A trigger clears a copy left stale by a blob-only update. Existing rows are filled in the background right after `pg_066` is applied; `m3 doctor --fix` and the cognitive loop fill any left.
 
 **Stage 3 — MMR Re-Ranking**
 - Maximal Marginal Relevance with λ=0.7

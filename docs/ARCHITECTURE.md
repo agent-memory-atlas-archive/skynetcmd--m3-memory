@@ -87,7 +87,7 @@ row-level bridge; a **PostgreSQL** primary uses the `postgres_fdw` fast path,
 which is not optional there but the *only* supported path (see
 [SYNC_PG_TO_PG.md](SYNC_PG_TO_PG.md)).
 
-**L1 — Primary store** *(pluggable)*. SQLite by default: all reads and writes hit local SQLite first, WAL mode enables concurrent access, no external dependencies — the recommended default for single-user/local. The primary backend can instead be **PostgreSQL** via `[db] backend = "postgres"` + the `M3_PRIMARY_PG_URL` secret (opt-in, chosen at install or with `mcp-memory install-m3 --db-backend postgres`), for a shared/server-hosted live store. Note: vector search on the PostgreSQL primary is exact; with the pgvector extension it scores in the database. Approximate (HNSW) search is planned.
+**L1 — Primary store** *(pluggable)*. SQLite by default: all reads and writes hit local SQLite first, WAL mode enables concurrent access, no external dependencies — the recommended default for single-user/local. The primary backend can instead be **PostgreSQL** via `[db] backend = "postgres"` + the `M3_PRIMARY_PG_URL` secret (opt-in, chosen at install or with `mcp-memory install-m3 --db-backend postgres`), for a shared/server-hosted live store. Note: vector search on the PostgreSQL primary is exact; with the pgvector extension it scores in the database.
 
 **L2 — PostgreSQL warehouse** *(optional, separate role)* provides cross-device sync. Bi-directional delta sync uses UUID-based UPSERT with watermark tracking. Syncs memories, relationships, embeddings, and encrypted secrets. Configured by the `M3_CDW_PG_URL` secret (`m3 secret set M3_CDW_PG_URL`; a vault entry under the older name `PG_URL` still works). This is distinct from using PostgreSQL as the L1 primary store above.
 

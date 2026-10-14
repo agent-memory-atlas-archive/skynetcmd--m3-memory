@@ -203,8 +203,8 @@ These are the real traps (some we hit building it):
   refusal message names it. (A **SQLite** primary uses the generic bridge as its
   normal path and is unaffected.)
 - **Vector search on a PG primary is exact.** (Unrelated to sync, but relevant if
-  you're standing up a PG primary: with pgvector it scores in the database;
-  approximate HNSW indexing is a future item; see [ARCHITECTURE.md](ARCHITECTURE.md).)
+  you're standing up a PG primary: with pgvector it scores in the database; see
+  [ARCHITECTURE.md](ARCHITECTURE.md).)
 
 ---
 

@@ -462,8 +462,7 @@ opt in with `m3 config set db.backend postgres` + the `M3_PRIMARY_PG_URL` secret
 `mcp-memory install-m3 --db-backend postgres`. SQLite remains the recommended
 default for single-user/local. Note: vector search on a PostgreSQL primary is exact.
 With the pgvector extension it scores in the database (`m3 doctor` reports its
-state); without it m3 scores every vector itself. Approximate (HNSW) search is
-planned.
+state); without it m3 scores every vector itself.
 
 ---
 
