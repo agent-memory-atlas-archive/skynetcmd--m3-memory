@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **`m3 schedules verify` names the agent the notification waiter watches.** With
+  no agent registered it printed "watching every registered agent ... (0 of 0)"
+  while it watched `claude-code`.
+  **Affected:** installs with no registered agents · **Action:** none ·
+  **Data status:** none.
+
 - **An installed m3 carries all of its schema migrations.** The package left out
   two migration sets, so after an upgrade `m3 doctor --fix` failed with "no
   migrations found" and the upgrade reported itself incomplete.

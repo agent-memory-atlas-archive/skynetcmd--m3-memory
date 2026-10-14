@@ -326,6 +326,10 @@ def main() -> int:
             for act in prv.get("actions", []):
                 if brief and act["action"] == "marketplace" and act["status"] == "ok":
                     continue  # the plugin line that follows carries the outcome
+                # Keep this exact shape, including the doubled "plugin plugin:" for
+                # the update step: on macOS/Linux `m3 upgrade` keeps running the
+                # OLD release's code and matches this line in the NEW doctor's
+                # output (m3_upgrade._DOCTOR_HEALTHY / _PLUGIN_UPDATED).
                 print(f"  [{act['status']}] plugin {act['action']}: {act['detail']}")
 
         if not args.skip_embed_server:

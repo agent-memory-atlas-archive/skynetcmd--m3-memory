@@ -438,6 +438,24 @@ def test_agent_args_never_returns_empty():
     assert args[0] == "--agent-id"
 
 
+def test_the_fallback_message_names_what_is_watched(monkeypatch, capsys):
+    """Found in a macOS upgrade trial: with no agents registered it printed
+    "watching every registered agent ... (0 of 0)" and then watched claude-code."""
+    if str(_BIN) not in sys.path:
+        sys.path.insert(0, str(_BIN))
+    import importlib
+
+    import install_schedules  # noqa: E402
+
+    orch = importlib.import_module("memory.orchestration")
+    monkeypatch.setattr(orch, "agent_list_impl", lambda *a, **k: "")
+    args = install_schedules._waiter_agent_args()
+    assert args == ["--agent-id", "claude-code"]
+    out = capsys.readouterr().out
+    assert "watching: claude-code" in out
+    assert "0 of 0" not in out
+
+
 @pytest.mark.parametrize("flag", ["--interval", "--supervise", "--timeout"])
 def test_waiter_task_passes_the_flags_the_design_depends_on(flag):
     src = _SCHED.read_text(encoding="utf-8")

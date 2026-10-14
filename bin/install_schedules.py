@@ -2204,6 +2204,7 @@ def _waiter_agent_args() -> list:
     remove.
     """
     ids = []
+    quiet = False
     try:
         import sys as _sys
 
@@ -2230,15 +2231,21 @@ def _waiter_agent_args() -> list:
             # the old fallback (every id) brought back agents an operator had
             # retired, and said nothing about it.
             live = [a for a in ids if _agent_is_live(a, max_age_days=None)]
-            _safe_print(
-                f"[waiter] no agent seen in 30 days; watching every registered agent not marked offline "
-                f"({len(live)} of {len(ids)})"
-            )
+            quiet = True
         ids = live
     except Exception:  # noqa: BLE001 - registry is best-effort at install time
         ids = []
+    # Name what is actually watched: this used to print "(0 of 0)" and then
+    # watch claude-code anyway.
+    if quiet and ids:
+        _safe_print(
+            "[waiter] no agent active in the last 30 days; watching the registered agents "
+            f"not marked offline: {', '.join(ids)}"
+        )
     if not ids:
         ids = ["claude-code"]
+        if quiet:
+            _safe_print("[waiter] no agent registered and active; watching: claude-code")
     out = []
     for a in ids:
         out += ["--agent-id", a]
