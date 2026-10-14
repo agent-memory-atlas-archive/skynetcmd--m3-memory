@@ -1729,10 +1729,12 @@ async def memory_write_bulk_impl(
                 log_swallowed(logger, e, f"gist row emit failed in bulk: {e}")
 
     try:
-        from sqlite_pragmas import checkpoint_passive
+        # Through the storage seam: SQLite checkpoints its WAL, PostgreSQL is a
+        # no-op. A direct PRAGMA here ran on PostgreSQL too and failed every bulk write.
+        from memory.backends import active_backend
 
         with _db() as db:
-            checkpoint_passive(db)
+            active_backend().maintenance_checkpoint(db)
     except Exception as e:
         log_swallowed(logger, e, f"Failed to checkpoint WAL after bulk write: {e}")
 

@@ -39,12 +39,13 @@ from m3_core.config import settings as _m3cfg
 # Universal pragmas applied to every connection regardless of profile.
 # Order is load-bearing: journal_mode must precede wal_autocheckpoint.
 # ---------------------------------------------------------------------------
+_BUSY_TIMEOUT_MS = 30000
 _COMMON_PRAGMAS: list[str] = [
+    f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}",  # first: every later statement may wait on a lock
     "PRAGMA journal_mode = WAL",
     "PRAGMA synchronous = NORMAL",
     "PRAGMA temp_store = MEMORY",
     "PRAGMA foreign_keys = ON",
-    "PRAGMA busy_timeout = 30000",
 ]
 
 # ---------------------------------------------------------------------------
@@ -110,6 +111,37 @@ def profile_for_db(db_path: str | Path) -> str:
     return "production"
 
 
+def _set_wal(conn: sqlite3.Connection, stmt: str) -> None:
+    """Switch the journal to WAL, waiting out a peer that holds the lock.
+
+    Switching INTO WAL needs an exclusive lock, and SQLite answers "database is
+    locked" at once rather than through the busy handler. So several processes
+    opening a brand-new store together crashed on start (found 2026-10-13, two m3
+    processes on one fresh store). Retry within the same budget busy_timeout
+    promises; a store already in WAL takes the first attempt (no lock needed).
+    """
+    import time
+
+    deadline = time.monotonic() + _BUSY_TIMEOUT_MS / 1000
+    delay = 0.01
+    while True:
+        try:
+            conn.execute(stmt)
+            return
+        except sqlite3.OperationalError as e:
+            locked = "locked" in str(e).lower() or "busy" in str(e).lower()
+            if not locked:
+                raise
+            if time.monotonic() >= deadline:
+                raise sqlite3.OperationalError(
+                    f"observed: could not switch the store to WAL within {_BUSY_TIMEOUT_MS // 1000} s ({e}). "
+                    "cause: another process held the store's lock the whole time. "
+                    "inspect: which m3 processes have it open (`m3 doctor`), then retry"
+                ) from e
+            time.sleep(delay)
+            delay = min(delay * 2, 0.25)
+
+
 def apply_pragmas(
     conn: sqlite3.Connection,
     profile: str = "production",
@@ -136,7 +168,10 @@ def apply_pragmas(
 
     # Apply universal pragmas first; journal_mode must come before wal_autocheckpoint.
     for stmt in _COMMON_PRAGMAS:
-        conn.execute(stmt)
+        if "journal_mode" in stmt:
+            _set_wal(conn, stmt)
+        else:
+            conn.execute(stmt)
 
     # Verify journal_mode actually landed — some network filesystems silently
     # downgrade WAL → DELETE.

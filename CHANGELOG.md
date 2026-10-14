@@ -424,6 +424,17 @@ the policy is forward-going only.
   **Affected:** installs that enable an autonomous pass · **Action:** none;
   prefer `[autonomy]` in `m3_config.toml` · **Data status:** none.
 
+- **Several m3 processes can open a new SQLite store at the same time.** The
+  second process to open a brand-new store could fail at start with "database is
+  locked"; it now waits, within the 30-second busy timeout.
+  **Affected:** SQLite stores opened by several processes at once before their first
+  use · **Action:** none · **Data status:** none.
+
+- **Bulk writes on PostgreSQL no longer log a defect.** Every bulk write ran a
+  SQLite-only WAL checkpoint and logged a syntax error on PostgreSQL; the write itself
+  succeeded. Checkpointing now goes through the storage backend.
+  **Affected:** PostgreSQL stores · **Action:** none · **Data status:** none.
+
 - **Agents are asked to grade the memories they used, and grading is measured.**
   The server instructions ask an agent to call `memory_grade` (through `m3_call`)
   after answering. `memory_search` ends its results with `grade_with: [...]`, the

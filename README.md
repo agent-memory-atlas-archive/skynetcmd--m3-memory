@@ -73,8 +73,8 @@ walks you through your first saved memory.
 | **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · pgvector / HNSW approximate search on PostgreSQL · official Docker image, if users ask for one · server / multi-user deployment guide · stable public SDK with semver guarantees |
 
 *   **Tested on** Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; the full matrix runs before every release ([Testing](docs/TESTING.md)).
-*   **Limit: vector search on PostgreSQL is exact, not approximate:** every query scores every stored vector. Fine for personal and team stores; very large stores will want the planned pgvector / HNSW arm ([Architecture](docs/ARCHITECTURE.md)).
-*   **Limit: SQLite has one writer at a time:** concurrent writers wait (WAL, 30 s busy timeout, retries) rather than fail. Many agents writing at once should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
+*   **Limit: vector search on PostgreSQL is exact, not approximate:** every query scores every stored vector, so search time grows with the number of memories stored (not with k): about 0.17 s at 10,000 memories, 0.33 s at 20,000 and 0.8 s at 50,000 ([measured](docs/PERFORMANCE.md#postgresql-exact-vector-search-by-store-size)). Stores far beyond that will want the planned pgvector / HNSW arm ([Architecture](docs/ARCHITECTURE.md)).
+*   **Limit: SQLite has one writer at a time:** writes take milliseconds, so concurrent writers wait briefly instead of failing. 16 agents writing at once lost nothing and waited at most half a second ([measured](docs/PERFORMANCE.md#sqlite-many-agents-writing-at-once)). Agents on several machines, or a busier fleet, should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
 *   **Reads are audited:** every memory read (get or search hit) is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)). <!-- RELEASE-TODO: built in the GDPR pass (plan G2); confirm retention (90 days), export and erasure match what shipped. -->
 *   **Configuration lives in `m3_config.toml`:** `m3 config show` prints every setting and where it came from, and `m3 config set` changes one ([Config reference](docs/CONFIG_REFERENCE.md)). Older environment-variable names keep working with a warning for two releases, and `m3 doctor` and `m3 config import-env` name any still in use ([Environment variables](docs/ENVIRONMENT_VARIABLES.md)).
 *   **Versioning:** calendar versions (`YYYY.M.D.N`). A renamed or removed setting, argument or tool keeps working, with a warning, for at least two releases after its replacement ships ([Changelog](CHANGELOG.md)).
@@ -425,7 +425,7 @@ m3 ships a Rust compute core (`m3_core_rs`) that speeds up MMR re-ranking by **9
 *   **You value privacy:** Zero external cloud requests or subscriptions required.
 
 ### m3 is NOT a fit if...
-*   **You need approximate vector search over a very large PostgreSQL store today, or many agents writing to one SQLite file at once:** see the limits in [Project status](#project-status).
+*   **You need approximate vector search over hundreds of thousands of memories today:** exact search takes about 0.8 s at 50,000 memories, and pgvector / HNSW is planned (see [Project status](#project-status)).
 *   You need a hosted SaaS dashboard with managed infrastructure (use [Letta](https://letta.ai)).
 *   **You don't want persistent memory:** you want each session to start fresh, with no ability to retrieve prior sessions' knowledge — m3 exists to do the opposite, so your agent's built-in defaults are the simpler fit.
 

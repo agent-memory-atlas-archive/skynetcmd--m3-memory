@@ -112,6 +112,45 @@ faster than the median. That is the FTS short-circuit — when a query has an
 exact lexical match, m3 skips the vector side entirely. It is real, but it
 describes a specific case, not the general one.
 
+### PostgreSQL: exact vector search by store size
+
+On PostgreSQL, vector search is exact: each query scores every stored vector (pgvector /
+HNSW approximate search is planned). Its cost grows with the number of memories stored,
+not with `k`:
+
+| Memories stored | vector search p50 | p95 | hybrid search p50 | p95 |
+|---|---|---|---|---|
+| 1,000 | 67 ms | 77 ms | 69 ms | 75 ms |
+| 2,500 | 69 ms | 81 ms | 71 ms | 81 ms |
+| 5,000 | 98 ms | 109 ms | 104 ms | 111 ms |
+| 10,000 | 168 ms | 181 ms | 172 ms | 191 ms |
+| 20,000 | 330 ms | 345 ms | 330 ms | 346 ms |
+| 50,000 | 802 ms | 819 ms | 819 ms | 836 ms |
+
+About 16 ms per thousand memories past ~2,500, linear. Measured 2026-10-13 on an Apple
+M3 Max, PostgreSQL 16 on the same machine, 1024-dimension vectors, `k=8`, 20–30 queries
+per size, through m3's own write and search code with the embedder stubbed (the cost of
+an exact scan depends on how many vectors are stored, not their values). Every search
+returned all 8 results; every memory had a vector.
+
+### SQLite: many agents writing at once
+
+SQLite allows one writer at a time; others wait for the lock (30 s busy timeout).
+Because a write is short, the wait is too. N separate processes, as real agents are,
+wrote 40 memories each to one SQLite store at once:
+
+| Writers | per-write p50 | p95 | slowest | failed |
+|---|---|---|---|---|
+| 1 | 0.6 ms | 0.7 ms | 32 ms | 0 of 40 |
+| 2 | 0.6 ms | 0.7 ms | 62 ms | 0 of 80 |
+| 4 | 0.6 ms | 5.1 ms | 118 ms | 0 of 160 |
+| 8 | 0.6 ms | 10.5 ms | 259 ms | 0 of 320 |
+| 16 | 0.6 ms | 29.0 ms | 491 ms | 0 of 640 |
+
+Every write landed. Measured 2026-10-13 on an Apple M3 Max with the embedder stubbed, so
+the figures are the database write and its locking; an inline embedding adds ~30 ms that
+runs outside the lock.
+
 ## Embedding, and the shared-vs-in-process question
 
 m3's default is a **shared embed server** on `127.0.0.1:8082` — one model in RAM
