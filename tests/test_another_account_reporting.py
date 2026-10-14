@@ -130,6 +130,29 @@ def test_setup_stops_the_service_another_account_blocks(monkeypatch, tmp_path, c
     assert "stopped so it does not keep retrying" in capsys.readouterr().err
 
 
+def test_a_service_that_exited_on_a_taken_port_gets_the_port_fix(monkeypatch, tmp_path, capsys):
+    """Core 3.10.14 exits at once when the port is taken, so setup sees a
+    stopped service, not a running one; the advice to stop the holder cannot
+    work when it is another account's."""
+    monkeypatch.setattr(embedder_admin, "_confirm_started", lambda *a, **k: False)
+    monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", lambda *a, **k: True)
+    monkeypatch.setattr(embedder_admin, "_port_in_use", lambda *a, **k: True)
+    rc = embedder_admin._verify_started_or_explain(tmp_path / "bin", tmp_path / "m.gguf", start_rc=1)
+    assert rc == embedder_admin.EXIT_REGISTERED_NOT_RUNNING
+    err = capsys.readouterr().err
+    assert "m3 config set embed.server.port" in err
+    assert "Stop it, then run" not in err
+
+
+def test_a_port_held_by_this_account_keeps_the_find_and_stop_advice(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(embedder_admin, "_confirm_started", lambda *a, **k: False)
+    monkeypatch.setattr(embedder_admin, "_port_held_by_someone_else", lambda *a, **k: False)
+    monkeypatch.setattr(embedder_admin, "_port_in_use", lambda *a, **k: True)
+    monkeypatch.setattr(embedder_admin, "_port_holder_hint", lambda port: "  (holder)")
+    embedder_admin._verify_started_or_explain(tmp_path / "bin", tmp_path / "m.gguf", start_rc=1)
+    assert "Stop it, then run" in capsys.readouterr().err
+
+
 def _esp_status(monkeypatch, state: str, whose):
     from doctor import embed_server_probe as esp
 

@@ -457,6 +457,8 @@ the policy is forward-going only.
   `m3 doctor --fix` for a port another account holds. Setup stops this account's
   embedder service when another account holds its port, instead of leaving it to
   fail and restart every few seconds, and `m3 doctor --fix` no longer starts it.
+  When this account's embedder has already stopped because the port is taken,
+  setup gives the same port advice instead of asking you to stop the other server.
   **Affected:** Linux and macOS machines with more than one m3 user ·
   **Action:** give each account its own port (`m3 config set embed.server.port`) ·
   **Data status:** none.

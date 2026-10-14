@@ -821,6 +821,28 @@ def _wait_serving_impl(port: int, timeout: float = _SERVE_WAIT_S) -> bool:
 _wait_serving = _wait_serving_impl  # tests stub this name (conftest)
 
 
+def _explain_held_by_other(port: int, stopped: bool | None) -> None:
+    """Another account (or program) holds the port: say so and give the port fix.
+
+    `stopped`: True/False when this call tried to stop this account's service;
+    None when it was not running to begin with.
+    """
+    if stopped is None:
+        service = ""
+    elif stopped:
+        service = "This account's embedder service is stopped so it does not keep retrying. "
+    else:
+        service = "Could not stop this account's embedder service; it keeps retrying: m3 embedder stop. "
+    print(
+        f"[!] port {port} answers, but not from this account's embedder: another user's m3, or "
+        "another program, holds it, so this account's own embedder cannot start.\n"
+        f"  m3 will use the server already on port {port}. "
+        + service
+        + "To run your own instead: m3 config set embed.server.port <free port>, then m3 embedder start",
+        file=sys.stderr,
+    )
+
+
 def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, quiet_ok: bool = False) -> int:
     """Confirm the embedder is really up; explain loudly if it is not (§3).
 
@@ -839,21 +861,10 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, q
         # loaded. A check fired in between (setup's doctor) reads tier-2 offline.
         serving = _wait_serving(port)
         if serving and _port_held_by_someone_else(port):
-            # Left running, the service fails to bind and is restarted every few
-            # seconds, loading the model each time.
+            # Left running, a core before 3.10.14 fails to bind and is restarted
+            # every few seconds, loading the model each time.
             stopped = _service_cmd_quiet(binary, gguf, "stop") == 0
-            print(
-                f"[!] port {port} answers, but not from this account's embedder: another user's m3, or "
-                "another program, holds it, so this account's own embedder cannot start.\n"
-                f"  m3 will use the server already on port {port}. "
-                + (
-                    "This account's embedder service is stopped so it does not keep retrying. "
-                    if stopped
-                    else "Could not stop this account's embedder service; it keeps retrying: m3 embedder stop. "
-                )
-                + "To run your own instead: m3 config set embed.server.port <free port>, then m3 embedder start",
-                file=sys.stderr,
-            )
+            _explain_held_by_other(port, stopped)
             return EXIT_REGISTERED_NOT_RUNNING
         if serving:
             if not quiet_ok:
@@ -869,6 +880,12 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, q
     # The underlying `start` rc is reported in the message below; the RETURN code
     # is the specific one so callers can tell this apart from "never installed".
     rc = EXIT_REGISTERED_NOT_RUNNING
+    # Another account's server cannot be stopped from here, so the advice below
+    # (find the holder, stop it) would not work. Core 3.10.14+ exits at once on
+    # a taken port, so this is the usual path to that case now.
+    if _port_held_by_someone_else(port):
+        _explain_held_by_other(port, None)
+        return rc
     # A held port is the usual cause and needs a different fix than a service
     # that simply will not start, so diagnose it instead of printing generic
     # start advice.
