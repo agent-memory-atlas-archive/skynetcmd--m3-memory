@@ -1,5 +1,5 @@
-"""gdpr_forget is the only hard delete, and it takes two steps (user decision
-2026-10-13): a plan that erases nothing, then a confirmation carrying the plan's
+"""gdpr_forget is the only hard delete, and it takes two steps:
+a plan that erases nothing, then a confirmation carrying the plan's
 token and a compliance record. Every refusal erases nothing.
 """
 

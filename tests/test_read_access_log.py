@@ -1,6 +1,6 @@
 """The read-access audit log records who read which memory, and when (GDPR Art. 30).
 
-User decision 2026-10-11: always on, 90-day retention. Rows are queued by the read
+Always on, 90-day retention. Rows are queued by the read
 paths (memory_get, search hits) with the caller bound by the dispatcher, flushed in
 batches, erased by gdpr_forget, exported by gdpr_export, pruned by maintenance.
 """

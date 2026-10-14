@@ -1,6 +1,6 @@
-"""The warehouse schema comes from its migration chain (user decisions 2026-10-13:
-a chain applied automatically by pg_sync; older `public` warehouses migrated in
-place; one baseline).
+"""The warehouse schema comes from its migration chain: applied
+automatically by pg_sync, older `public` warehouses migrated in place, one
+baseline.
 
 Each test gets a THROWAWAY DATABASE: the shared test database holds the PG
 primary's tables in `public`, which the layout probe would take for an older

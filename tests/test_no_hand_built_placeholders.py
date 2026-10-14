@@ -172,7 +172,7 @@ def test_no_parameter_defaults_to_a_placeholder_literal():
     )
 
 
-# Functional parity (user rule, 2026-10-10): a SQLite-only path is allowed only
+# Functional parity: a SQLite-only path is allowed only
 # when the limitation is VERIFIED inherent; anything else is a parity gap to port.
 _PARITY_GAP_BUDGET = 0
 

@@ -281,7 +281,7 @@ RETIRED: dict[str, str] = {
 }
 
 NOT_SETTINGS: dict[str, str] = {
-    # U4 bucket B (user decision 2026-10-08, m3 2615ab78): dev-tool parameters.
+    # U4 bucket B: dev-tool parameters.
     "M3_DIFF_REF_PYTHON": "search_differential.py's own parameter (U4 B)",
     "M3_DIFF_REF_BIN": "search_differential.py's own parameter (U4 B)",
     "M3_DIFF_REF_REV": "search_differential.py's own parameter (U4 B)",
@@ -290,17 +290,17 @@ NOT_SETTINGS: dict[str, str] = {
     # CONFIG_DESIGN §2 read path 1: it decides WHICH m3_config.toml is read, so it
     # cannot be a key in that file.
     "M3_CONFIG_ROOT": "the config locator (CONFIG_DESIGN §2, read path 1)",
-    # User decision 2026-10-09: the chatlog hooks (Python and shell) read it to
+    # The chatlog hooks (Python and shell) read it to
     # find bin/ before any m3 code runs, so it cannot come from the config file.
-    "M3_HOME": "the hooks' bootstrap locator for the code checkout (user decision 2026-10-09)",
+    "M3_HOME": "the hooks' bootstrap locator for the code checkout",
     # CONFIG_DESIGN §2 read path 3: a diagnostic switch read before config loads.
     "M3_DEBUG": "the diagnostic switch (CONFIG_DESIGN §2, read path 3)",
-    # U20 (m3 a24fa878): retired as a user setting, no env read and no TOML key;
+    # U20: retired as a user setting, no env read and no TOML key;
     # 2D.2 replaces its 5 parse sites with one Rust-availability probe.
     "M3_CORE_RS_DISABLE": "retired as a user setting (U20); tests use a fixture, 2D.2",
-    # User decision 2026-10-09: the Rust/Python route-decider switch is dev and
+    # The Rust/Python route-decider switch is dev and
     # bench plumbing; 2D.2 folds it into the test-only Rust-availability seam.
-    "M3_ROUTE_SHADOW_MODE": "dev plumbing: the Rust/Python route decider (user decision 2026-10-09)",
+    "M3_ROUTE_SHADOW_MODE": "dev plumbing: the Rust/Python route decider",
     # Read only by a live judge test (as U4 bucket B: test plumbing, not settings).
     "M3_WIKI_DRIFT_PRECISION_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:183)",
     "M3_WIKI_DRIFT_RECALL_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:182)",
@@ -312,7 +312,7 @@ NOT_SETTINGS: dict[str, str] = {
     "M3_HTTP_PATH": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
     "M3_HTTP_PUBLIC_HOST": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
     "_M3_UTF8_REEXEC": "internal guard against re-executing twice for UTF-8 mode",
-    # As GH_TOKEN (user decision 2026-10-09): release tooling only.
+    # As GH_TOKEN: release tooling only.
     "M3_STARGAZER": "release tooling token (gen_download_badges.py; as GITHUB_TOKEN)",
     # As U4 bucket B: a test hook with no production writer.
     "M3_SKIP_MIGRATIONS": "test hook: skip schema migrations (memory/db.py:282)",

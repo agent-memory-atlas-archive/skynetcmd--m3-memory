@@ -44,8 +44,7 @@ is *not* done.
 - [x] **Embedded-embedder default switch — SETTLED AND ACTIONED. The tags were
   ONE space; they have been converged to `text-embedding-bge-m3`.**
 
-  ⚠ **Do not re-open.** Full record in m3 memory `a43b1205` (search "embed tag
-  split"), which is the canonical home — this entry is status, not the decision.
+  ⚠ **Do not re-open.** This entry is status; the decision is settled.
   165,571 rows converged out-of-band; `_EMBED_GGUF_MODEL_TAG` now defaults to
   `config.EMBED_SPACE_TAG`; `_LEGACY_SPACE_TAGS` keeps the retired tag readable
   forever. Commit 8f38ca61.

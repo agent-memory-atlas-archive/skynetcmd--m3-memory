@@ -476,7 +476,7 @@ def _backfill_change_agent() -> None:
 
 def ensure_store_migrated(db_path) -> None:
     """Bring a SQLite store to its current schema through the migration runner, the
-    one way m3 schemas change (user decision 2026-10-13): opening it via ``_db()``
+    one way m3 schemas change: opening it via ``_db()``
     under its path applies whatever is pending for its own chain, main or chatlog.
     For callers that then work on the file directly (the enrichment drain, pg_sync).
     PostgreSQL applies its schema when the backend first connects."""
@@ -780,8 +780,8 @@ def _enqueue_access_stamps(ids) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Read-access audit log (GDPR Art. 30: who read what, when; user decision
-# 2026-10-11: always on, 90-day retention). memory_access_log, migration 053/pg_062.
+# Read-access audit log (GDPR Art. 30: who read what, when;
+# always on, 90-day retention). memory_access_log, migration 053/pg_062.
 # ──────────────────────────────────────────────────────────────────────────────
 # Its own batcher, flushed by a DAEMON THREAD, not the access-stamp batcher above:
 # that one runs only inside an event loop, and memory_get is synchronous, so an

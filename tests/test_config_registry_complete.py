@@ -4,7 +4,7 @@ A name the env gate (bin/check_env_access.py, the one inventory) finds in
 production code must be one of:
   * an env name of a registry key (canonical or legacy alias);
   * declared not-a-setting, with the reason (keys.NOT_SETTINGS);
-  * retired: documented but with no effect (keys.RETIRED, user decision);
+  * retired: documented but with no effect (keys.RETIRED);
   * a legacy store locator (config.stores.LEGACY_LOCATORS, plan 2C.3);
   * an OS / foreign name (the gate's own allowlist: not a finding at all);
   * listed in tests/data/config_unregistered.txt, the names still to register.
@@ -53,7 +53,7 @@ def test_every_env_name_is_registered_declared_or_listed():
     assert not missing, (
         "env names read by m3 that the config registry does not account for:\n  "
         + "\n  ".join(missing)
-        + "\nregister each in bin/m3_core/config/keys.py (or, by user decision, "
+        + "\nregister each in bin/m3_core/config/keys.py (or, with a reason, "
         "keys.NOT_SETTINGS); never add a new name to the ratchet file"
     )
 

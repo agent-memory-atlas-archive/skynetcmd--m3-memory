@@ -20,7 +20,7 @@ kept in the OS keyring and never exported, so the snapshot still catches a
 corrupted DSN or token, but only on the machine that took it (#P10; a keyed
 HMAC, not the unsalted hash CWE-759 warns about). On a machine with NO keyring
 backend (a desktop-less Linux box) the key is a user-only file under the
-config root instead (user decision 2026-10-08); a keyring that exists but is
+config root instead; a keyring that exists but is
 locked is an error, never a fallback.
 
 FAIL LOUD (DESIGN_PHILOSOPHIES §3): ``check`` fails when the baseline or the

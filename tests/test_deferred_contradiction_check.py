@@ -4,7 +4,7 @@ The write path checks contradictions only when it has a vector. Without one it n
 flags the row (metadata_json contradiction_check=deferred) and embed_backfill runs
 the check after embedding it, then clears the flag. A missing vector alone is not
 the signal: writes that opted out and legacy rows also lack vectors and must not
-be checked (they could mass-supersede). Plan Step 2D.T, m3 2cc74b3f.
+be checked (they could mass-supersede).
 """
 
 from __future__ import annotations

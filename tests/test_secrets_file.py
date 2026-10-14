@@ -71,7 +71,7 @@ def test_new_file_is_user_only_and_a_loose_one_is_refused():
         secrets.read_secrets()
 
 
-# ── names (CONFIG_DESIGN §10; user decision 2026-10-09) ──────────────────────
+# ── names (CONFIG_DESIGN §10) ──────────────────────
 def _plant(secrets, text):
     p = secrets.secrets_file_path()
     p.parent.mkdir(parents=True, exist_ok=True)

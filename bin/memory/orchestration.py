@@ -72,7 +72,7 @@ def _validate_task_transition(prev: str, new: str) -> str | None:
 # ── Agent activity ("touch") and team membership ─────────────────────────────────
 
 # How recently an agent must have touched the registry to count as a team
-# member (user decision c6aebe9e). Distinct from _NODE_ACTIVE_WINDOW_MINUTES,
+# member. Distinct from _NODE_ACTIVE_WINDOW_MINUTES,
 # which asks "active right now?" for the topology decision.
 TEAM_MEMBERSHIP_WINDOW_HOURS = 24
 

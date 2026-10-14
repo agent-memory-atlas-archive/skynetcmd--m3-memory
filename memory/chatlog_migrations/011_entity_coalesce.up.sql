@@ -3,7 +3,7 @@
 -- Ports main-lane 043 into the CHATLOG lane: the entity-coalescing columns on
 -- `entities` and the candidates / embedding-cache tables. The coalescing pass
 -- added them to chatlog stores at runtime, outside this lane's migrations; m3
--- schemas change only through migrations (user decision 2026-10-13). A store that
+-- schemas change only through migrations. A store that
 -- already has them: the runner skips an existing column and the rest is
 -- IF NOT EXISTS.
 

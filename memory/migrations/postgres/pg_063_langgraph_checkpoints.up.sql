@@ -2,7 +2,7 @@
 --
 -- PostgreSQL counterpart of 054_langgraph_checkpoints.up.sql. The LangGraph
 -- checkpointer's two tables, now owned by migrations (m3 schemas change only
--- through migrations, user decision 2026-10-13). An existing install may already
+-- through migrations). An existing install may already
 -- have them from the integration's first use, so the CREATEs are IF NOT EXISTS
 -- and the column is ADD ... IF NOT EXISTS.
 --

@@ -1,8 +1,8 @@
 """The user-only secrets file: where m3 keeps its secrets, and THE list of them.
 
-Every OS stores secrets here (user decision, m3 c7082b20); the OS keyring holds
+Every OS stores secrets here; the OS keyring holds
 one only when the person asked (`m3 secret set NAME --keyring`), and then the
-file names where it is (m3 0be66297):
+file names where it is:
 
 * ``secrets.file`` in m3_config.toml, else ``<config root>/m3_secrets.toml``;
   one table, ``[secrets]``, of ``NAME = "value"`` or
@@ -20,7 +20,7 @@ file names where it is (m3 0be66297):
 Resolution (``explain_secret``): the file's value -> the keyring entry the file
 points at, or ``system/NAME`` when the file does not list the name -> the vault
 (never for a bootstrap secret, CONFIG_DESIGN §10). The environment is NEVER read
-for a secret (user decision, m3 9cbed0af); a name found there only makes a miss
+for a secret; a name found there only makes a miss
 say so, with the command that stores it.
 """
 
@@ -102,7 +102,7 @@ def _check_private(p: Path) -> None:
 @dataclass(frozen=True, slots=True)
 class KeyringRef:
     """A secrets-file entry naming where the value lives instead of holding it:
-    ``NAME = { keyring = "service/key" }`` (user decision, m3 0be66297)."""
+    ``NAME = { keyring = "service/key" }``."""
 
     service: str
     key: str
@@ -192,7 +192,7 @@ def _store_dsn_secrets() -> set[str]:
 def _check_names(p: Path, table: dict) -> None:
     """CONFIG_DESIGN §10: an unknown name is an error naming the file and key,
     never the value. A name an installed SLM profile declares as its
-    api_key_service is known too (user decision 2026-10-09), so a profile for a
+    api_key_service is known too, so a profile for a
     new provider works without a code change."""
     unknown = sorted(set(table) - _known_secret_names())
     if not unknown:
@@ -225,8 +225,8 @@ def mask_dsn_passwords(text: str) -> str:
 
 
 def mask_secret(value: str) -> str:
-    """A value safe to show a person choosing between copies (user decision,
-    m3 a8083888): a DSN keeps all but its password
+    """A value safe to show a person choosing between copies: a DSN keeps all
+    but its password
     (``postgresql://u:***@host/db``); anything else keeps at most its first 4
     and last 2 characters, and nothing when it is too short for that to hide it."""
     if "://" in value:
@@ -325,10 +325,10 @@ def explain_secret(
     ``store_keys`` are the names the value is stored under. The keyring entry is
     the one the file points at (``NAME = { keyring = "service/key" }``), or
     ``system/NAME`` for a name the file does not list. The environment is never
-    read for the value (m3 9cbed0af); ``env_names`` are only looked up so that a
+    read for the value; ``env_names`` are only looked up so that a
     miss can say "set in the environment, which m3 does not read" and name the
     command that stores it. Every tier's failure is collected, so a miss is never
-    reported as "not set" when a tier was broken (m3 2f4bad6c).
+    reported as "not set" when a tier was broken.
     """
     errors: list[str] = []
     try:
@@ -455,7 +455,7 @@ class DsnStored:
 
 def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
     """Store a role's DSN in the user-only secrets file, verified by read-back.
-    The file on every OS (user decision, m3 c7082b20): m3 writes the keyring
+    The file on every OS: m3 writes the keyring
     only when asked (`m3 secret set NAME --keyring`). Raises SecretsFileError
     naming what failed."""
     key = _STORE_KEYS[role][0]
@@ -552,7 +552,7 @@ def _check_new_file_would_be_private(directory: Path) -> None:
         )
 
 
-# ── Per-process secret cache with a refresh signal (user decision 2026-10-11) ──
+# ── Per-process secret cache with a refresh signal ──
 # A hot path (the cloud embed token, read per embed call) must not touch the
 # keyring every time: a macOS keychain read can prompt. So a secret is resolved
 # once per process and cached. A changed key still reaches long-running processes:

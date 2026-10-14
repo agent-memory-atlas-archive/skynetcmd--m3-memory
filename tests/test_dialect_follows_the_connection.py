@@ -59,7 +59,7 @@ def test_the_global_env_var_cannot_override_a_real_connection(backend, sqlite_co
     # After an earlier test purged the namespace, the first dialect lookup
     # re-imports the package, and its config load rightly raises on a malformed
     # M3_DB_BACKEND (R-loud): that is config loading, not the dialect choice
-    # this test is about (order-dependent failure, m3 683b250b).
+    # this test is about (an order-dependent failure).
     dialect_for_connection(sqlite_conn.cursor())
     monkeypatch.setenv("M3_DB_BACKEND", backend)
     assert dialect_for_connection(sqlite_conn.cursor()).param() == "?", (

@@ -1,8 +1,7 @@
 """`m3 config import-env` (plan 2F.1 slice 2; design 2026.10.12-IMPORT_ENV_DESIGN).
 Every legacy source is read (env_sources.scan); a key is imported only when all
 sources agree; on a disagreement a person at the console chooses, and with no
-one there nothing is written for that key and every source is listed (user
-decision, m3 7200dbed). The file is backed up (GuardedRewrite) and every
+one there nothing is written for that key and every source is listed. The file is backed up (GuardedRewrite) and every
 imported key must resolve from it afterwards, or the backup is restored."""
 
 from __future__ import annotations
@@ -129,7 +128,7 @@ def _secrets():
 
 
 def test_a_secret_goes_to_the_secrets_file_never_the_config_or_stdout(world, capsys):
-    """Slice 3 (m3 a8083888): stored, read back, under the registry name (the
+    """Slice 3: stored, read back, under the registry name (the
     M3_PG_URL alias stores as M3_PRIMARY_PG_URL); never shown, never in
     m3_config.toml or its backup."""
     _rc(world, 'export M3_PG_URL="postgresql://u:s3cret@h/db"\n')

@@ -1,5 +1,5 @@
-"""The chatlog store has one configured owner (chatlog design, user decision
-2026-10-13): ``pin_chatlog_db`` (a script's --chatlog-db) or, until N+3, one of the
+"""The chatlog store has one configured owner:
+``pin_chatlog_db`` (a script's --chatlog-db) or, until N+3, one of the
 legacy chatlog env names, read in one place. Every reader asks it.
 """
 

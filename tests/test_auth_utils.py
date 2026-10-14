@@ -9,8 +9,7 @@ import auth_utils
 
 
 def test_get_master_key_from_the_secrets_file_never_env():
-    """The master key comes from the secrets chain; the environment is ignored
-    (m3 9cbed0af)."""
+    """The master key comes from the secrets chain; the environment is ignored."""
     from m3_core.secret_store import set_secret
 
     with patch.dict(os.environ, {"AGENT_OS_MASTER_KEY": "from-env"}):

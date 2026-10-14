@@ -15,7 +15,7 @@ config package, once it exists, and the ``child_env`` helper) or reads a non-m3
 OS name on the allow-list (HOME, PATH, ...). Writes, whole-environment copies
 and dynamic names are violations wherever an allowed module is not.
 
-OWNERS (user decision 2026-10-13, <dynamic> design Q1): a site whose JOB is reading
+OWNERS: a site whose JOB is reading
 the environment -- an approved locator (the roots), the legacy-name shim, the
 doctor / import-env scanners, the parity snapshot -- carries ``# env-owner: <why>``
 on its line or alone on the line above. Its verdict is ``owner``, not
@@ -62,8 +62,8 @@ SCAN_ROOTS = ("bin", "m3_memory")
 ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py", "m3_memory/_childenv.py"})
 
 # Names m3 reads that are NOT m3 settings: the OS's (measured readers, plan
-# review §4b), plus terminals' and other programs' own variables (U4 bucket A,
-# user decision 2026-10-08). Reads are allowed; a write is still a violation.
+# review §4b), plus terminals' and other programs' own variables.
+# Reads are allowed; a write is still a violation.
 OS_NAMES: frozenset[str] = frozenset(
     {
         "HOME",
@@ -96,13 +96,13 @@ OS_NAMES: frozenset[str] = frozenset(
         "OLLAMA_MODELS",
         "OPENCLAW_STATE_DIR",
         "PYTHONUTF8",
-        # Other programs' own variables (user decision 2026-10-09, as bucket A):
+        # Other programs' own variables:
         # GitHub's tokens (release tooling only), Hermes Agent's and OpenCode's homes.
         "GH_TOKEN",
         "GITHUB_TOKEN",
         "HERMES_HOME",
         "OPENCODE_DATA_DIR",
-        # The OS's and toolchains' own (user decision 2026-10-09). Reads only: a
+        # The OS's and toolchains' own. Reads only: a
         # write (GGML_LOG_LEVEL, PYTHONUTF8 for children) stays a violation until
         # child_env (2E.1) owns it.
         "SSH_CONNECTION",

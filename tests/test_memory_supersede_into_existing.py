@@ -1,6 +1,6 @@
 """memory_supersede with replacement_id: retire into an EXISTING memory, on every backend.
 
-Writing a fresh successor per duplicate multiplied copies (m3 e116b526: 5
+Writing a fresh successor per duplicate multiplied copies (5
 duplicated decisions left 19 active rows for 7). With replacement_id nothing is
 created; the old memory is closed through the same _mark_superseded as the
 content path (supersedes edge new -> old, closed interval, history row), so the

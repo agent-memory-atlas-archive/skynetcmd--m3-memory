@@ -7,8 +7,8 @@ captured a registry function before that module was replaced — saw an empty
 `_REGISTRY` and raised "no dialect registered" for a backend that is shipped,
 allow-listed and importable.
 
-Deliberately does NOT purge the `memory.*` namespace. m3 memory 25df967b
-records that `memory.*` sys.modules manipulation leaks across tests (13
+Deliberately does NOT purge the `memory.*` namespace.
+`memory.*` sys.modules manipulation leaks across tests (13
 unrelated failures in 2026-07, 141 on the Windows PostgreSQL lane in 2026-10,
 all as `'module' object is not callable` from the shadowed `dialect` symbol).
 The package object is never replaced here; only the single

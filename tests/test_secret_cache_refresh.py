@@ -1,5 +1,5 @@
 """Secrets are cached per process, and a change reaches running processes
-(user decision 2026-10-11: "being able to send a signal to refresh").
+through a refresh signal.
 
 A hot path (the cloud embed token) must not hit the keyring per call, so values
 are cached; every m3 secret write and `m3 secret refresh` move a generation marker

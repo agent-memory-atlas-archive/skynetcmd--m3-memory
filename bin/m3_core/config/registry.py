@@ -244,5 +244,5 @@ class Registry:
         return out
 
 
-# No key's env value outranks m3_config.toml: U9's one exception (db.backend,
-# m3 18292d50) was reversed by the user 2026-10-12 (m3 9cbed0af).
+# No key's env value outranks m3_config.toml: the one former exception
+# (db.backend) was removed.

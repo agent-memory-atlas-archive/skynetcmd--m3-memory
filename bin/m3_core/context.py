@@ -85,7 +85,7 @@ class M3Context:
 
         # Inject .env into os.environ (existing values win). Kept until the LAST
         # 2D commit, when every reader has moved to the registry, which reads
-        # .env itself and never injects it (user decision 2026-10-09).
+        # .env itself and never injects it.
         dotenv = dotenv_path()
         if dotenv is not None:
             load_dotenv(dotenv)
@@ -436,7 +436,7 @@ class M3Context:
     @contextmanager
     def get_sqlite_conn(self) -> Iterator[sqlite3.Connection]:
         # The SQLite pool opens a FILE whatever db.backend says. Every caller
-        # is gated today (audited 2026-10-10, m3 5c33bf8a); refuse here so the
+        # is gated today; refuse here so the
         # next ungated one fails loudly instead of writing a stale local file.
         from m3_core.paths import resolve_backend_name
 
@@ -606,7 +606,7 @@ class M3Context:
         queries target chat_log_* tables via memory.backends.chatlog_table; the
         table name separates the stores, not the connection.
         """
-        # The chatlog is PROCESS-WIDE (user decision D1, 2026-10-09): a named
+        # The chatlog is PROCESS-WIDE: a named
         # store active for this call must not move it, so the chatlog's backend
         # and path resolve with the store cleared.
         with without_active_store():
@@ -789,7 +789,7 @@ def _ensure_dispatch_schema(conn) -> None:
     engine root, a new M3_DISPATCH_DB), and an existing store may be BEHIND: both
     are the runner's job. It used to execute 001 itself and return whenever the
     table existed, so a later migration could never have reached an existing store
-    (m3 schemas change only through migrations, user decision 2026-10-13).
+    (m3 schemas change only through migrations).
     """
     # SQLite-only by construction: get_dispatch_conn returns at its server-backend
     # branch before reaching here; PostgreSQL is _ensure_dispatch_schema_pg.
@@ -825,7 +825,7 @@ def verify_salt_cohesion(conn, where: str) -> None:
     M3_ENGINE_ROOT pointing at different machines) cannot decrypt them. The
     first check records the salt's hash; a later mismatch is a WARNING with
     observed/inspect, not an exception: m3 keeps starting and the operator is
-    told (user decision 2026-10-10; the check had never run, because it
+    told (the check had never run, because it
     imported a get_salt_path that did not exist). Best-effort: a failure to
     read the salt or the table is logged and never blocks the caller.
     """

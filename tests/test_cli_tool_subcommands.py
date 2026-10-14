@@ -164,7 +164,7 @@ def test_files_tools_read_the_pinned_files_store(files_db):
 def test_files_tools_refuse_the_database_argument(files_db, tmp_path):
     """`--database` on a files tool is refused, never silently ignored.
 
-    Measured 2026-10-08 (m3 e03425ec): `m3 files files_stats --database <new
+    Measured 2026-10-08: `m3 files files_stats --database <new
     path>` returned the default store's counts and created nothing at the path.
     The refusal stands until named stores (`--store`, plan step 2C.3) route it."""
     _seed_routing_probe(files_db)

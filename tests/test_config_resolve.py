@@ -46,7 +46,7 @@ def test_the_file_beats_the_default(tmp_path):
 
 
 def test_the_file_beats_env_for_the_backend_too(tmp_path):
-    """U9 reversed (m3 9cbed0af): db.backend is an ordinary key. The file wins and
+    """U9 reversed: db.backend is an ordinary key. The file wins and
     the env name it shadows is reported, not dropped."""
     s = _build(tmp_path, '[db]\nbackend = "postgres"\n', {"M3_DB_BACKEND": "SQLite "})
     assert s[_key("db.backend")] == "postgres" and s.origin(_key("db.backend")).startswith("file:")

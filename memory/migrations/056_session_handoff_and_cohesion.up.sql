@@ -1,7 +1,7 @@
 -- 056_session_handoff_and_cohesion.up.sql
 --
 -- Two tables m3 created at first use, now owned by migrations (m3 schemas change
--- only through migrations, user decision 2026-10-13). One definition per backend
+-- only through migrations). One definition per backend
 -- (PostgreSQL pg_064). An existing store already has them in this shape: every
 -- statement is IF NOT EXISTS, so this migration adopts them unchanged.
 --

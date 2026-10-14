@@ -14,7 +14,7 @@ hooks that run under whatever Python an agent has, and fallbacks for a broken
 ``m3_sdk``. Each copy carried a comment defending it, and the copies drifted
 (the models root alone ignored POSIX-style roots on Windows). A module that pulls
 in nothing can be imported from every one of those places, so the copies are
-deleted rather than exempted (user decision 2026-10-11). ``m3_core.paths``
+deleted rather than exempted. ``m3_core.paths``
 delegates here; ``bin/`` reaches it through ``m3_core.seams``.
 
 Roots are OS-varying defaults (home directory, separators), so this sits beside
@@ -110,7 +110,7 @@ def memory_root() -> str:
     """The memory root: ``M3_MEMORY_ROOT``; else ``~/.m3`` once the legacy state has
     been migrated there; else the legacy ``~/.m3-memory``.
 
-    Root-1 (user decision 2026-10-11, migrate-then-flip): the default moves to
+    Root-1: the default moves to
     ``~/.m3`` only AFTER the migration ran, so an un-migrated install keeps its old
     root instead of splitting its audit trail and config across two directories."""
     if memory_root_pin() or not memory_root_migrated():
@@ -215,8 +215,7 @@ _file_values: dict[str, str] = {}
 def _file_paths() -> dict[str, str]:
     """``[paths]`` from ``<config root>/m3_config.toml``, as strings; {} without a file.
 
-    Roots resolve FILE first, then the env var read LIVE, then the derived default
-    (user decision 2026-10-11, m3 d4ea1da9). Read here with stdlib ``tomllib``, NOT
+    Roots resolve FILE first, then the env var read LIVE, then the derived default. Read here with stdlib ``tomllib``, NOT
     through the registry: the registry sits above the database seam and this module
     beside the OS seam, so asking it would be an upward import (§10a), and its
     ``Path`` parsing breaks under a simulated OS. Strings through ``abs_root`` are

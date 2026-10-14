@@ -3,7 +3,7 @@
 It existed to make the log-rotation cap discoverable (headless launchers do
 not inherit M3_LOG_MAX_BYTES, so the file is the knob that reaches them) but
 had no caller. It is now called beside ensure_governor_config at cognitive-loop
-start and by install_schedules --add (plan 2A.3, user decision 2026-10-08).
+start and by install_schedules --add.
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 """conftest.use_backend selects the backend the way a user does: m3_config.toml
-and the secrets file, never an env var (no-env plan step 1, m3 9cbed0af)."""
+and the secrets file, never an env var."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The secrets file is plaintext (user decision, m3 c7082b20), so doctor warns when
+"""The secrets file is plaintext, so doctor warns when
 it sits where it can leave the machine: a git working tree or a synced folder
 (CONFIG_DESIGN §10). The synced-folder locations are OS facts (_platform)."""
 

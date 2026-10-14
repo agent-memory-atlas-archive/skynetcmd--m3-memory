@@ -1,4 +1,4 @@
-"""`m3 batch` (approved interface, m3 009d7cce): several m3 commands from stdin
+"""`m3 batch`: several m3 commands from stdin
 in one process; command text (POSIX quoting) or a JSON array per line; JSON
 Lines results; --set/--config only on the batch; refusals named by line."""
 

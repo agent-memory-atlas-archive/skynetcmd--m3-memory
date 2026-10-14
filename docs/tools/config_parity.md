@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: efa565f522ac
-mtime_utc: 2026-10-14T03:18:55.665469+00:00
-generated_utc: 2026-10-14T03:18:56.144669+00:00
+sha1: 41c2b94763c7
+mtime_utc: 2026-10-14T03:46:05.038062+00:00
+generated_utc: 2026-10-14T03:47:37.943939+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ kept in the OS keyring and never exported, so the snapshot still catches a
 corrupted DSN or token, but only on the machine that took it (#P10; a keyed
 HMAC, not the unsalted hash CWE-759 warns about). On a machine with NO keyring
 backend (a desktop-less Linux box) the key is a user-only file under the
-config root instead (user decision 2026-10-08); a keyring that exists but is
+config root instead; a keyring that exists but is
 locked is an error, never a fallback.
 
 FAIL LOUD (DESIGN_PHILOSOPHIES §3): ``check`` fails when the baseline or the

@@ -923,7 +923,7 @@ def _prompt_db_backend(interactive: bool, backend_flag: str | None) -> tuple[str
     ``backend_flag`` is the explicit ``--db-backend`` override (``sqlite`` /
     ``postgres``); it skips the interactive prompt. A ``postgres`` flag still
     needs a DSN, which comes from the secrets chain (a scripted install writes
-    ``M3_PRIMARY_PG_URL`` into the secrets file first; never env, m3 9cbed0af);
+    ``M3_PRIMARY_PG_URL`` into the secrets file first; never env);
     if none is stored we warn and fall back to SQLite rather than persist a
     backend with no DSN.
 
@@ -1252,16 +1252,15 @@ def _persist_pg_backend(dsn: str) -> list[str]:
     The selector reads registry key ``db.backend`` (``paths.resolve_backend_name``),
     so the choice goes to the file every m3 process reads, and to this process as
     a flag-level setting so its later steps see it. No env, registry or shell
-    profile write: setup writes files, not env (wizard cut-over, user decision
-    2026-10-11, m3 ec79a21b). ``M3_DB_BACKEND`` no longer overrides the file (U9
-    reversed 2026-10-12, m3 9cbed0af); a different value left in the environment
+    profile write: setup writes files, not env.
+    ``M3_DB_BACKEND`` no longer overrides the file; a different value left in the environment
     is reported as a leftover to remove.
 
     The DSN is a secret and goes to the one DSN store owner
     (``m3_core.secret_store.store_pg_dsn``: the user-only secrets file), never to
-    the registry or a profile in plaintext (user decision D2, 2026-10-08). A
+    the registry or a profile in plaintext. A
     plaintext copy an earlier install wrote is left alone and reported: m3 no
-    longer reads it (secrets ignore env, m3 9cbed0af), but it is still on disk.
+    longer reads it (secrets ignore env), but it is still on disk.
     """
     msgs: list[str] = []
     _bin.ensure_on_path()  # never inserts "" (the cwd) when bin/ is missing
@@ -1276,7 +1275,7 @@ def _persist_pg_backend(dsn: str) -> list[str]:
             'm3 stays on SQLite until [db] backend = "postgres" is set in m3_config.toml. inspect: m3 doctor'
         )
     else:
-        # Transition report (user decision 2026-10-12, m3 64ea4eab): an env var
+        # Transition report: an env var
         # that disagrees with what setup writes is named. The file wins, so it is
         # a leftover to remove, not a value m3 uses.
         for name, seen in settings.env_contradicting(DB_BACKEND, "postgres"):
@@ -1441,7 +1440,7 @@ def _post_install(
     if endpoint_choice is not None:
         cfg["llm_endpoints_csv"] = endpoint_choice
         # Recorded where every m3 process reads it (the registry, below env and .env),
-        # not in env: setup writes files, not env (wizard cut-over, m3 ec79a21b).
+        # not in env: setup writes files, not env.
         try:
             _bin.ensure_on_path()
             from m3_core.llm_config import write_llm_setting
@@ -1476,8 +1475,8 @@ def _post_install(
         messages.append(f"[+] primary backend: PostgreSQL ({_mask_dsn(_dsn)})")
         # Record the choice and store the DSN FIRST, where the runtime reads them
         # (m3_config.toml, the secrets file), regardless of reachability: the
-        # schema child below reads both from there (m3 reads no secret from env,
-        # m3 9cbed0af), and the choice stands even if the server comes up later.
+        # schema child below reads both from there (m3 reads no secret from env),
+        # and the choice stands even if the server comes up later.
         messages.extend(_persist_pg_backend(_dsn))
         ok, detail = _pg_reachable(_dsn)
         if ok:
@@ -1650,7 +1649,7 @@ def install_m3(
     from m3_memory import __version__
 
     # Name every place the old PG_URL is still set. m3 no longer reads secrets
-    # from env (m3 9cbed0af), so it is a leftover plaintext DSN, not an ambiguity
+    # from env, so it is a leftover plaintext DSN, not an ambiguity
     # that could arm the wrong store: reported, never a refusal, so the upgrade
     # that moves it (import-env) can run.
     _note_deprecated_pg_url_anywhere()

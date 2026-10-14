@@ -2,7 +2,7 @@
 
 It had never run: it imported auth_utils.get_salt_path, which did not exist,
 and returned at the ImportError. It is SQLite-pool-only no longer, and a
-mismatch is a WARNING with observed/inspect (user decision, 2026-10-10).
+mismatch is a WARNING with observed/inspect.
 """
 
 from __future__ import annotations

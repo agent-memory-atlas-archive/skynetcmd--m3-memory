@@ -9,7 +9,7 @@ fixed, or declared below with its reason under one of two kinds:
 
   INTERFACE  the signature belongs to someone else (a framework, a C API)
   RESERVED   held for a planned feature that is not wired yet (never delete
-             one to quiet this tool; user rule, 2026-10-10)
+             one to quiet this tool)
 
 An undeclared finding fails, and a declaration that no longer matches a finding
 fails too, so the lists cannot rot.
@@ -46,7 +46,7 @@ INTERFACE: dict[tuple[str, str], str] = {
     ("bin/test_fips_integrity.py", "typeH"): "ctypes mock of a wolfCrypt HMAC entry point: the C signature",
 }
 
-# (path, name) -> the planned feature it is held for (m3 3e8f0b21)
+# (path, name) -> the planned feature it is held for
 RESERVED: dict[tuple[str, str], str] = {
     (
         "bin/files_memory/extract.py",

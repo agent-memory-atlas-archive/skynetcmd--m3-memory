@@ -1,4 +1,4 @@
-"""Every version LIMIT m3 declares says why (user rule, 2026-10-10).
+"""Every version LIMIT m3 declares says why.
 
 A ceiling (`<`), an exact pin (`==`, `~=`) or an exclusion (`!=`) is a decision,
 and a decision without its reason gets "cleaned up" by the next person, or kept

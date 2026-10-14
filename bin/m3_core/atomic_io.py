@@ -89,7 +89,7 @@ class GuardedRewrite:
     caller that cannot back up must not rewrite.
 
     The history keeps EVERY previous version in full, secrets in a client config
-    included; no cap, no redaction (user decision 2026-10-12, m3 b55df672). After
+    included; no cap, no redaction. After
     rotating a leaked key, delete the history.
     """
 

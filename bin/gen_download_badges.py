@@ -287,7 +287,7 @@ def main() -> int:
 
     # PyPI — never fatal to the whole run if one source is down; report + continue.
     # The badges show downloads WITH mirrors, labelled "PyPI downloads", as pepy.tech
-    # and most projects' badges do (user decision 2026-10-13), so m3's figure compares
+    # and most projects' badges do, so m3's figure compares
     # like for like. The figures WITHOUT mirrors (closer to real installs) are kept
     # beside them in counters.json, which the README's note points to.
     try:

@@ -1,7 +1,7 @@
 -- 054_langgraph_checkpoints.up.sql
 --
 -- The LangGraph checkpointer's two tables, now owned by migrations (m3 schemas
--- change only through migrations, user decision 2026-10-13). Before this the
+-- change only through migrations). Before this the
 -- integration created them at first use, so an existing install may already have
 -- them in the earlier shape: the CREATEs are IF NOT EXISTS and the ALTER brings
 -- either case to the same end state. One definition per backend (PostgreSQL pg_063).

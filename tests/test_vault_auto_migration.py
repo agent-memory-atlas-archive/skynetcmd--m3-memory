@@ -5,7 +5,7 @@ the old PBKDF2 iteration count) is meant to rewrite it in the current format.
 The rewrite ran on the READ-ONLY connection it had just opened for the SELECT,
 with a hardcoded '?', so it always failed ("attempt to write a readonly
 database" on SQLite; '?' is rejected on PostgreSQL), was swallowed at debug,
-and the "will be auto-migrated" WARNING repeated on every read (m3 2a82d0f2).
+and the "will be auto-migrated" WARNING repeated on every read.
 """
 
 from __future__ import annotations

@@ -45,8 +45,8 @@ class EnvFound:
     @property
     def persistent(self) -> bool:
         """Set in a place that outlives this process, and m3's own: the places
-        import-env may take a secret from (user decision, m3 a8083888). Another
-        tool's MCP entry is never one (m3 c7082b20: report only)."""
+        import-env may take a secret from. Another
+        tool's MCP entry is never one (report only)."""
         return self.kind != "process" and (self.kind != "mcp" or self.m3_server)
 
 

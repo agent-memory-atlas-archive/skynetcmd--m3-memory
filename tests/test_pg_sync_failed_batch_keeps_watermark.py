@@ -2,8 +2,7 @@
 
 pg_sync used to catch a batch error, log it, and advance the watermark anyway:
 the next run asked only for rows newer than the watermark, so a row whose batch
-failed was never sent again unless it was edited, and the run exited 0 (the
-MacBook's "pull reported success" report, m3 64c868d5). Plan Step 2D.U.
+failed was never sent again unless it was edited, and the run exited 0.
 
 Hermetic: the local store is built through the real migration chain; the
 warehouse is a fake cursor, and a failure is injected at the push

@@ -2,7 +2,7 @@
 
 The tool dispatcher knows every call's authenticated agent id, but it injects it
 only into tools that opt in, so a read path could not say who read a memory (the
-read-access audit log, GDPR Art. 30, user decision 2026-10-11). The dispatcher
+read-access audit log, GDPR Art. 30). The dispatcher
 binds the caller here around every tool call; readers ask ``current_caller()``.
 
 A ContextVar, so concurrent calls do not see each other's identity, and

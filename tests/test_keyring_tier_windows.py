@@ -7,7 +7,7 @@ the value.
 
 And on every OS a keyring that RAISED came back as (None, None), identical to
 "not stored": safe_keyring_get_password swallowed the failure at debug, so the
-DSN resolver's "tiers reported" never named it (m3 2f4bad6c). These tests drive
+DSN resolver's "tiers reported" never named it. These tests drive
 a real keyring backend, not a faked tier, so they cannot pass on a fake alone.
 """
 

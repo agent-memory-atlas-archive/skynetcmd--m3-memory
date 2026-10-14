@@ -1,5 +1,4 @@
-"""Root-1: the memory root moves from ~/.m3-memory to ~/.m3, migrate-then-flip
-(user decision 2026-10-11). The default flips only after the migration ran, the
+"""Root-1: the memory root moves from ~/.m3-memory to ~/.m3, migrate-then-flip. The default flips only after the migration ran, the
 migration copies and never deletes, and a second run changes nothing."""
 
 from __future__ import annotations

@@ -1,5 +1,4 @@
-"""A test's child processes stay in the sandbox (test-roots design Q2, user decision
-2026-10-13).
+"""A test's child processes stay in the sandbox.
 
 A child gets isolated roots ONLY by inheriting the sandbox's environment: an
 in-process pin (``--config``, ``pin_database``) does not cross a process boundary.

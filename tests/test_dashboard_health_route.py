@@ -630,7 +630,7 @@ def test_cloud_missing_key_is_auth_failed(monkeypatch):
 
 
 def test_cloud_key_resolver_failure_never_falls_back_to_env(monkeypatch):
-    """A secret is never read from the environment (m3 9cbed0af): when the chain
+    """A secret is never read from the environment: when the chain
     raises, the probe reports the cause instead of using an exported key."""
     import auth_utils
     import dashboard.health as H

@@ -1,7 +1,7 @@
 -- pg_001_baseline.up.sql
 --
--- The warehouse schema as one baseline (user decisions 2026-10-13: a migration
--- chain applied by pg_sync; migrate in place; one baseline). It unifies the three
+-- The warehouse schema as one baseline: a migration chain applied by
+-- pg_sync, which migrates an older warehouse in place. It unifies the three
 -- earlier sources: bin/pg_setup.py's core tables, pg_warehouse_chatlog_v1.sql, and
 -- the DDL pg_sync used to issue on every run.
 --

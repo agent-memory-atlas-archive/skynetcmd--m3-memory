@@ -95,11 +95,11 @@ def test_the_sweeper_deadline_accepts_unbounded(tmp_path):
 
 
 def test_gguf_is_not_an_env_override():
-    """User decision (m3 a24fa878): a per-process override splits the embedders."""
+    """A per-process override would split the embedders."""
     from dataclasses import fields
 
     from m3_core.config import REGISTRY
 
-    # No key can be one now (U9 reversed, m3 9cbed0af), so neither can this one.
+    # No key can be one now, so neither can this one.
     assert REGISTRY.get("embed.gguf") is not None
     assert "env_override" not in {f.name for f in fields(type(REGISTRY.get("embed.gguf")))}

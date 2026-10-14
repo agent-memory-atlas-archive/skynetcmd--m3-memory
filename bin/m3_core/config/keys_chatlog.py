@@ -205,7 +205,7 @@ CHATLOG: list[Key] = [
         "Do not embed the observations the observer writes.",
         legacy=_truthy4,
     ),
-    # ── [audit] read-access log (GDPR Art. 30; user decision 2026-10-11: always on, 90 days) ──
+    # ── [audit] read-access log (GDPR Art. 30; always on, 90 days) ──
     _flag(
         "audit.read_log",
         ("M3_AUDIT_READ_LOG",),

@@ -4,8 +4,8 @@ The scan matches the SHAPE of a home path, so anonymized placeholders in test
 fixtures (`/Users/u/...`) tripped it and blocked legitimate pushes. A gate that
 fires on correct work trains people to reach for --no-verify, which is precisely
 when a real leak walks through -- so the false alarm is itself the hazard
-(DESIGN_PHILOSOPHIES section 3; see m3 memory d8579b92, where the BASELINE was
-fixed but the PATTERNS still could not tell a fixture from a leak).
+(DESIGN_PHILOSOPHIES section 3: once the BASELINE was fixed, the PATTERNS still
+could not tell a fixture from a leak).
 
 The whitelist is deliberately narrow: only specific placeholder identities, and
 only as whole path segments. It is NOT an exclusion of `tests/` wholesale -- a

@@ -2,7 +2,7 @@
 --
 -- PostgreSQL counterpart of 056_session_handoff_and_cohesion.up.sql: two tables m3
 -- created at first use, now owned by migrations (m3 schemas change only through
--- migrations, user decision 2026-10-13). The column types are the ones the runtime
+-- migrations). The column types are the ones the runtime
 -- DDL produced (dialect autoincrement/timestamp types), so an existing table is
 -- adopted unchanged.
 

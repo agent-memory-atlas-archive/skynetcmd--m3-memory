@@ -46,7 +46,7 @@ logger = logging.getLogger("migrate_pg")
 # bin/migrate_pg.py -> repo root is one dir up from bin/.
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _PG_MIGRATIONS_DIR = os.path.join(_BASE_DIR, "memory", "migrations", "postgres")
-# The warehouse chain (user decision 2026-10-13): applied by pg_sync, in the
+# The warehouse chain: applied by pg_sync, in the
 # warehouse's own schema, additive only.
 _WAREHOUSE_MIGRATIONS_DIR = os.path.join(_BASE_DIR, "memory", "warehouse_migrations")
 

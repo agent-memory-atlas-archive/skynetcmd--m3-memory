@@ -96,8 +96,8 @@ _SYS_PATH_ALLOWED = {
 
 def test_m3_memory_puts_bin_on_the_path_only_through_its_owner():
     """About twenty m3_memory sites inserted bin/ themselves, three of them at
-    parents[2]/bin, which is site-packages/bin on a wheel install (user decision
-    2026-10-11: one owner, m3_memory._bin.ensure_on_path)."""
+    parents[2]/bin, which is site-packages/bin on a wheel install. One owner now:
+    m3_memory._bin.ensure_on_path."""
     hits = []
     for p in sorted((_ROOT / "m3_memory").rglob("*.py")):
         rel = p.relative_to(_ROOT).as_posix()
@@ -119,7 +119,7 @@ def test_m3_memory_puts_bin_on_the_path_only_through_its_owner():
 def test_the_roots_owner_imports_only_stdlib_and_the_lower_seams():
     """m3_memory/_roots.py is imported by code that must run without m3_core (the
     installed package, the crypto layer, the chatlog hooks), so it may reach only
-    the stdlib and the version/OS seams (user decision 2026-10-11)."""
+    the stdlib and the version/OS seams."""
     names = _imports(_ROOTS)
     allowed = ("m3_memory._pyver", "m3_memory._platform")
     foreign = {

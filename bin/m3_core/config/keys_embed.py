@@ -1,4 +1,4 @@
-"""Registry table [embed] (CONFIG_DESIGN §6; U24 keys approved, m3 a24fa878).
+"""Registry table [embed] (CONFIG_DESIGN §6).
 
 Every default and env name is taken from today's readers (2C.1 table 2 survey,
 2026-10-09; bin/memory/config.py, embed.py, tokens.py, chunking.py,
@@ -90,7 +90,7 @@ EMBED: list[Key] = [
         env_names=("M3_EMBED_GGUF",),
         reloadable=False,
         doc="The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery "
-        "(embed.autodetect). Not an env override (user decision, m3 a24fa878).",
+        "(embed.autodetect). Not an env override.",
     ),
     Key[bool](
         name="embed.autodetect",

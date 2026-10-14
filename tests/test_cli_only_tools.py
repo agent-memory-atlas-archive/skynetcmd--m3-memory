@@ -1,5 +1,4 @@
-"""ToolSpec.mcp=False: a CLI command, never an MCP tool (U8, user decision
-2026-10-11, m3 dcc9f87d). MCP stays read-only for the user's config."""
+"""ToolSpec.mcp=False: a CLI command, never an MCP tool. MCP stays read-only for the user's config."""
 
 from __future__ import annotations
 

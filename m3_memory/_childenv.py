@@ -41,8 +41,8 @@ class ChildEnv(TypedDict, total=False):
 
 @dataclass(frozen=True, slots=True)
 class Handoff:
-    """A SANCTIONED way to hand m3 values to a child through env (2E.1 part 2,
-    user decision 2026-10-11, m3 9ecda06b). Everything else reaches an m3 child as
+    """A SANCTIONED way to hand m3 values to a child through env.
+    Everything else reaches an m3 child as
     CLI arguments. Each handoff names the only m3 variables it may carry, and why
     env is the one channel; tests/test_child_env.py pins the list."""
 

@@ -1,6 +1,6 @@
 """Pins team membership: touched within 24h, OR client pid alive on its node.
 
-User rule (m3 c6aebe9e): an agent that has not shown activity for 24h and whose
+An agent that has not shown activity for 24h and whose
 client process is gone has left the team. `status` only records what an agent
 last claimed; on 2026-10-07 the live registry showed 12 agents all `active`,
 some last seen in April. Membership is derived, so a session that ended without

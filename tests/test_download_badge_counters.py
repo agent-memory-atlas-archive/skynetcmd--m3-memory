@@ -1,4 +1,4 @@
-"""The public download/clone counters (user decision 2026-10-13: the per-day history
+"""The public download/clone counters (the per-day history
 is private; the repo keeps only a running total and the last complete day counted)."""
 
 from __future__ import annotations

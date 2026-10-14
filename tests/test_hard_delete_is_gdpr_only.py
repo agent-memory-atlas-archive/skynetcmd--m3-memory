@@ -1,4 +1,4 @@
-"""GDPR erasure is the only hard delete of memory content (user rule 2026-10-13).
+"""GDPR erasure is the only hard delete of memory content.
 
 Every production statement that physically removes memory content -- a literal
 `DELETE FROM` one of the protected tables, or ANY `DELETE FROM {dynamic}` (a table

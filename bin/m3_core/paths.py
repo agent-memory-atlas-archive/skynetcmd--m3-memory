@@ -186,7 +186,7 @@ def deprecated_env_in_use() -> dict[str, str]:
 #     store may hold it as PG_URL).
 #
 # Both resolve through the secrets chain (m3_core.secret_store: the secrets file,
-# the keyring, the vault) and NEVER read the environment (m3 9cbed0af). These
+# the keyring, the vault) and NEVER read the environment. These
 # two functions are the SDK's names for it.
 
 # The canonical rename: old PG_URL -> the warehouse (CDW) name. This is NOT pure
@@ -268,7 +268,7 @@ class _Unset(enum.Enum):
 # StoreRef, None for an explicit "main", or UNSET (defer to the process's store).
 # Read it only through current_store(). A store outranks the legacy SQLite path
 # (M3_DATABASE / active_database) in resolve_db_path and decides
-# resolve_backend_name: §14's order, user decision D3 (2026-10-09). With no store
+# resolve_backend_name: §14's order. With no store
 # anywhere, both resolvers behave exactly as before 2C.3.
 # A store, None for an explicit "main", or UNSET (defer to the process's store).
 type _StoreSelection = StoreRef | None | Literal[_Unset.UNSET]
@@ -292,8 +292,7 @@ def current_store() -> StoreRef | None:
 
 @contextmanager
 def without_active_store():
-    """Run a block as if no named store were active. The chatlog is PROCESS-WIDE
-    (user decision D1, 2026-10-09): a `store=` call must not move it, so the
+    """Run a block as if no named store were active. The chatlog is PROCESS-WIDE: a `store=` call must not move it, so the
     chatlog's connection is resolved inside this."""
     token = _active_store.set(None)
     try:
@@ -861,7 +860,7 @@ def pin_chatlog_db(path: "str | os.PathLike[str] | None") -> str | None:
     """Make ``path`` this process's chatlog store for the rest of the run (a
     script's ``--chatlog-db``). ``None`` or "" clears the pin. In-process only: a
     child m3 process gets ``--chatlog-db PATH`` as an argument. Ranks where the
-    chatlog env names did (chatlog design, user decision 2026-10-13)."""
+    chatlog env names did."""
     global _pinned_chatlog
     _pinned_chatlog = str(path) if path else None
     return _pinned_chatlog

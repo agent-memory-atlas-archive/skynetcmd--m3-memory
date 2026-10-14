@@ -1,5 +1,5 @@
 """conftest._read_log_drained: a test's queued reads never reach the next test
-(the background flusher rebuilt a later test's settings snapshot; m3 9cbed0af)."""
+(the background flusher rebuilt a later test's settings snapshot)."""
 
 from __future__ import annotations
 

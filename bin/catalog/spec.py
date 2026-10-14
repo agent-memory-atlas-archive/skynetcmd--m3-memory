@@ -151,8 +151,7 @@ class ToolSpec:
     default_allowed: bool = True
     # False: a CLI command only (`m3 <domain> <tool>`), never an MCP tool on any
     # surface (direct server, proxy, m3_call). For a tool that writes the user's
-    # config: MCP stays read-only for config (U8, user decision 2026-10-11, m3
-    # dcc9f87d). default_allowed=False alone does not do this: the direct server
+    # config: MCP stays read-only for config. default_allowed=False alone does not do this: the direct server
     # registers destructive tools too.
     mcp: bool = True
     inject_agent_id: bool = False

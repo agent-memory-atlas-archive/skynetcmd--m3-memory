@@ -39,7 +39,7 @@ def test_bool_parser_is_canonical():
 
 
 def test_no_key_can_let_env_outrank_the_file():
-    """U9's one exception (db.backend) was reversed 2026-10-12 (m3 9cbed0af): no
+    """U9's one exception (db.backend) was reversed 2026-10-12: no
     key's env value outranks m3_config.toml, so the machinery for one is gone.
     Bringing it back is a design change, not a flag."""
     from dataclasses import fields

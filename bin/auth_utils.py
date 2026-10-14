@@ -48,8 +48,8 @@ def _keyring_read(service_name: str, username: str) -> tuple[str | None, str | N
 
     ``error`` is None for a clean answer (found, or not stored) and names the
     failure otherwise, so a miss caused by a broken keyring is never reported as
-    "not set" (m3 2f4bad6c: it was swallowed at debug, and the DSN error said
-    only that nothing was found).
+    "not set" (it used to be swallowed at debug, and the DSN error said only
+    that nothing was found).
     """
     global _KEYRING_CB_OPEN_UNTIL
 
@@ -317,7 +317,7 @@ def _get_device_salt() -> bytes:
     # Recovery / explicit override: lets an operator restore a lost salt
     # (e.g. from a backup) without putting the file back, or pin the salt in
     # a container: `m3 secret set M3_AGENT_OS_SALT_HEX`. The secrets chain, never
-    # the environment (m3 9cbed0af). Must be exactly 16 bytes (32 hex chars).
+    # the environment. Must be exactly 16 bytes (32 hex chars).
     from m3_core.secret_store import explain_named_secret
 
     salt_hex = explain_named_secret("M3_AGENT_OS_SALT_HEX").value
@@ -489,7 +489,7 @@ def get_api_key(service: str | None) -> str | None:
     2. The OS keyring entry the file points at, else system/<service>
        (python keyring; on macOS also the security CLI)
     3. Encrypted vault (synchronized_secrets), never for a bootstrap secret
-    The environment is never read for a secret (m3 9cbed0af).
+    The environment is never read for a secret.
 
     No service (an SLM profile's api_key_service is optional) means no key, not
     an error: callers pass the profile field straight through.
@@ -525,7 +525,7 @@ def _keyring_tier(key: str, *, service: str = "system") -> tuple[str | None, str
     """The OS keyring entry ``service``/``key`` (python keyring, then for the
     "system" service the macOS security CLI). Returns (value, error): the error
     is what this tier hit, for a caller that must explain a miss instead of
-    reporting "not set" (m3 2f4bad6c)."""
+    reporting "not set"."""
     # Try python keyring if available.
     # Derive the OS name from sys.platform, not platform.system(): the latter
     # can hang on a WMI query on Python 3.14 / Windows. This runs on every
@@ -626,7 +626,7 @@ def _vault_tier(service: str) -> tuple[str | None, str | None]:
 
             # Re-encrypt a legacy row (Fernet, or the old PBKDF2 iteration
             # count) in the current format, through a WRITE connection: this
-            # one is read-only (R3, m3 2a82d0f2 -- the UPDATE used to run here
+            # one is read-only (the UPDATE used to run here
             # and always failed, swallowed at debug).
             if decrypted and needs_migration:
                 _reencrypt_vault_row(service, decrypted, master_key)

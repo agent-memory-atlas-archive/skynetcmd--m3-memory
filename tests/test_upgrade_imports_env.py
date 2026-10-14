@@ -1,6 +1,6 @@
 """`m3 upgrade` runs `m3 config import-env --non-interactive` after setup and
 before doctor (plan 2F.1 slice 4): a disagreement is listed, never decided, and
-a failure never fails the upgrade (m3 7200dbed)."""
+a failure never fails the upgrade."""
 
 from __future__ import annotations
 

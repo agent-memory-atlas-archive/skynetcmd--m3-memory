@@ -1,4 +1,4 @@
-"""Memory credit loop part A (user decision 2026-10-12): grading is reachable and
+"""Memory credit loop part A: grading is reachable and
 measured. Agents are told to grade (through m3_call; the startup set is
 unchanged), memory_search hands back the ids to grade, and the *_slim search
 omits that handle."""

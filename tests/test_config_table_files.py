@@ -26,7 +26,7 @@ def test_defaults_are_what_todays_readers_produce():
 
 
 def test_settings_that_do_nothing_are_retired_not_registered():
-    """Read-but-unused or always-overridden today: retired (user decision 2026-10-09)."""
+    """Read-but-unused or always-overridden today: retired."""
     from m3_core.config import REGISTRY
     from m3_core.config.keys import RETIRED
 

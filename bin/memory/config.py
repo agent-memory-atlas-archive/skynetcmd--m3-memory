@@ -126,7 +126,7 @@ FILES_DB_PATH: str = os.path.abspath(  # noqa: PTH100 — identity string; see a
 # files.db path (and offers to write M3_FILES_DB_PATH to a user-shell env
 # file). Off in non-interactive contexts (CI, MCP server). The ingester
 # auto-disables this when stdin is not a TTY.
-# RETIRED (user decision, 2C.1): no reader; kept for importers. Env has no effect.
+# RETIRED: no reader; kept for importers. Env has no effect.
 FILES_DB_PROMPT_ON_FIRST_USE: bool = True
 
 
@@ -256,7 +256,7 @@ CONFIDENCE_WEIGHT: float  # accessor (registry)
 # Which confidence representation drives ranking: 'transparent' (the stored,
 # user-facing aggregate) or 'bayesian' (the Beta posterior mean kept alongside,
 # for experiments). The displayed `confidence` is always the transparent value.
-# RETIRED (user decision, 2C.1): no consumer; kept for importers. Env has no effect.
+# RETIRED: no consumer; kept for importers. Env has no effect.
 CONFIDENCE_MODEL: str = "transparent"
 
 # M3_ENFORCE_AGENT_ISOLATION: when '1', a search that supplies a requesting agent
@@ -270,7 +270,7 @@ CONFIDENCE_MODEL: str = "transparent"
 ENFORCE_AGENT_ISOLATION: bool  # accessor (registry)
 # When '1', allow the daily maintenance pass to nudge agent trust from observed
 # contradiction/corroboration. Default '0' — explicit agent_set_trust only.
-# RETIRED (user decision, 2C.1): no consumer; kept for importers. Env has no effect.
+# RETIRED: no consumer; kept for importers. Env has no effect.
 TRUST_AUTOTUNE: bool = False
 # When '1', allow the background job to run autonomous episodic->semantic
 # belief consolidation. Default '0' — manual/curator-triggered only.
@@ -475,7 +475,7 @@ AUTO_RELATED_LINK_SCOPE_BY_VARIANT: bool  # accessor (registry)
 M3_ALLOW_CLOUD_FALLBACK: bool  # accessor (registry)
 M3_CLOUD_ENCLAVE_URL: str | None  # accessor (registry)
 M3_CLOUD_AUTH_TOKEN_KEYRING: str | None  # accessor (registry)
-# RETIRED (user decision, 2C.1): no consumer; kept for importers. Env has no effect.
+# RETIRED: no consumer; kept for importers. Env has no effect.
 M3_CLOUD_MINIMIZATION_LEVEL: str = "standard"
 
 # Circuit Breaker for Tier 4 Cloud Enclave

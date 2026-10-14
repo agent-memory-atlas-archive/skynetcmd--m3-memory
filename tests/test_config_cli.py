@@ -51,7 +51,7 @@ def test_show_json_never_carries_a_secret_value(monkeypatch, capsys):
 
 
 def test_a_retired_name_that_is_set_is_said_to_have_no_effect(monkeypatch, capsys):
-    """User decision 2026-10-09: retired settings are named, never silently ignored."""
+    """Retired settings are named, never silently ignored."""
     import config_cli
 
     monkeypatch.setenv("M3_FILES_DEFAULT_SCOPE", "agent")

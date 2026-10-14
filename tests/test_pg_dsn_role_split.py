@@ -3,7 +3,7 @@
 No database needed. They lock in the invariant that killed the footgun: the
 primary store and the data-warehouse resolve from DISJOINT stored names, so
 neither can silently arm the other. Secrets come from the (sandboxed) secrets
-file, never the environment (m3 9cbed0af).
+file, never the environment.
 """
 
 from __future__ import annotations

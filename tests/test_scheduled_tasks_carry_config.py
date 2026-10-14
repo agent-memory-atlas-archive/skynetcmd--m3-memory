@@ -3,7 +3,7 @@ them. A task runs with none of the registering shell's environment (launchd,
 systemd, Task Scheduler, cron), so a NON-default config root, chosen by
 `--config` or by M3_CONFIG_ROOT, reaches the job only as a `--config` argument
 in its definition. Without it the MCP server and hooks (pinned) and the
-scheduled jobs (defaults) split across two stores (m3 f9b29261)."""
+scheduled jobs (defaults) split across two stores."""
 
 from __future__ import annotations
 

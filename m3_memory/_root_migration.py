@@ -27,7 +27,7 @@ def pending() -> bool:
 
 
 def migrate_memory_root(old_root=None, new_root=None, config_root=None):
-    """Root-1 (user decision 2026-10-11, migrate-then-flip): move the legacy memory
+    """Root-1: move the legacy memory
     root's live state (~/.m3-memory) into ~/.m3, then write the marker that makes
     ``m3_memory._roots.memory_root()`` default to ~/.m3.
 

@@ -1,4 +1,4 @@
-"""The transition report (user decision 2026-10-12, m3 64ea4eab): until the user
+"""The transition report: until the user
 retires it, `m3 doctor` and setup name every env var that DISAGREES with a value
 set in m3_config.toml, both values and which one m3 uses. An env var that agrees
 is never reported (§3: a warning that fires when nothing is wrong trains people
@@ -60,7 +60,7 @@ def test_the_file_wins_for_an_ordinary_key(config_file, monkeypatch):
 
 
 def test_the_file_wins_for_the_backend_too(config_file, monkeypatch):
-    """U9 reversed (m3 9cbed0af): db.backend is an ordinary key, so the file wins."""
+    """U9 reversed: db.backend is an ordinary key, so the file wins."""
     from m3_core.config.settings import env_disagreements
     from m3_core.paths import resolve_backend_name
 

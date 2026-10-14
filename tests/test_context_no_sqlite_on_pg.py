@@ -26,7 +26,7 @@ def test_no_store_file_until_sqlite_is_used(monkeypatch, tmp_path):
     try:
         assert not db.exists()
         # Asking for the SQLite pool on another backend refuses (2026-10-10): the
-        # file is not the live store, and every caller is gated (m3 5c33bf8a).
+        # file is not the live store, and every caller is gated.
         import pytest
 
         with pytest.raises(RuntimeError, match=r"observed: db.backend='postgres'"):

@@ -14,8 +14,8 @@ from m3_memory._platform import console_has_person, is_windows  # noqa: F401  (c
 
 # Who launched this process: "upgrade" when `m3 upgrade` ran it with the top-level
 # `m3 --caller upgrade <command>`. The upgrade verifies and summarizes, so those
-# steps report only changes and problems. A flag, not env (user decision
-# 2026-10-11, m3 c8b803b5; it was M3_SETUP_CALLER): m3_upgrade passes it only when
+# steps report only changes and problems. A flag, not env (it
+# was M3_SETUP_CALLER): m3_upgrade passes it only when
 # the TARGET release lists it in `m3 --help`, so an older target, which would
 # reject an unknown flag, just runs with its fuller output. m3 children of an
 # upgraded step get it from _m3_cli (setup_wizard), not by inheriting env.

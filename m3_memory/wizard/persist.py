@@ -1,8 +1,7 @@
 """Shell-rc readers for the setup wizard.
 
 The wizard no longer persists env vars (HKCU via setx, shell rc files, MCP
-server env blocks): it records its choices in files every m3 process reads
-(wizard cut-over, user decision 2026-10-11, m3 ec79a21b). What is left reads
+server env blocks): it records its choices in files every m3 process reads. What is left reads
 the rc, to recognise a value the user already exports. setup_wizard.py
 re-imports ``_pick_unix_shell_rc`` so tests can reach it as a setup_wizard
 attribute.

@@ -58,12 +58,12 @@ def test_a_handoff_carries_only_the_names_it_sanctions():
 
 def test_the_sanctioned_handoffs_are_reviewed():
     """Adding a handoff, or a name to one, must change this list: env is not a
-    general channel for m3 settings (2E.1 part 2, m3 9ecda06b)."""
+    general channel for m3 settings."""
     from m3_memory._childenv import HANDOFFS
 
     assert {h.name: sorted(h.names) for h in HANDOFFS} == {
         "rust-embed-server": ["M3_EMBED_GGUF", "M3_EMBED_SERVER_PORT"],
-    }  # no secret is ever handed over env: m3 reads none from there (m3 9cbed0af)
+    }  # no secret is ever handed over env: m3 reads none from there
 
 
 def test_the_embed_server_gets_the_configured_port(m3_settings, tmp_path):

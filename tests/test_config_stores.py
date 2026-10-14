@@ -1,4 +1,4 @@
-"""Named stores (CONFIG_DESIGN §14; plan 2C.3a; user decisions D1-D3, m3 dfeb41b7).
+"""Named stores (CONFIG_DESIGN §14).
 
 A store is (backend, locator) in m3_config.toml. Selecting one moves every
 caller that resolves the backend or the SQLite path (D3: the store outranks the

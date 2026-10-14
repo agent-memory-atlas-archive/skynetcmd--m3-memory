@@ -1,5 +1,4 @@
-"""Roots resolve FILE first, then the env var read LIVE, then the derived default
-(user decision 2026-10-11, m3 d4ea1da9), for the engine, logs and models roots.
+"""Roots resolve FILE first, then the env var read LIVE, then the derived default, for the engine, logs and models roots.
 ``_roots`` reads ``[paths]`` itself with stdlib tomllib: it sits beside the OS seam
 and must not import the registry above it."""
 

@@ -4,8 +4,7 @@ Plain `asyncio.gather` (without return_exceptions) re-raises the first failure
 and leaves every other awaitable RUNNING in the background, unobserved: a
 failed bulk embed kept posting its other chunks, a failed write batch kept
 writing. TaskGroup would cancel them but raises ExceptionGroup even for one
-failure, which every caller up the stack catching a specific type would miss
-(user decision 2026-10-08, m3 74995ad5). gather_or_cancel cancels and awaits
+failure, which every caller up the stack catching a specific type would miss. gather_or_cancel cancels and awaits
 the siblings, then re-raises the ORIGINAL exception unchanged.
 """
 

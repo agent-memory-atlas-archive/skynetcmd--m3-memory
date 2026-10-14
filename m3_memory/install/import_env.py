@@ -5,7 +5,7 @@ Sources are the one sweep (``env_sources.scan``): this process's environment,
 MCP client env blocks (``~/.claude.json`` among them), the ``.env`` files, home rc
 files, the Windows persistent environment and ``.llm_config.json``.
 
-The conflict rule (user decision 2026-10-12, m3 7200dbed): a key is imported only
+The conflict rule: a key is imported only
 when every source that sets it agrees. On a disagreement a person at the console
 chooses; with no one there (``m3 upgrade``) nothing is written for that key, and
 every source and value is listed with the ``m3 config set`` that settles it.

@@ -104,10 +104,10 @@ def test_the_sandbox_points_the_sweep_away_from_the_real_home():
 )
 def test_m3s_own_mcp_entry_is_recognised_and_no_other(name, entry, ours):
     """import-env takes a secret only from m3's own entry; another tool's key in
-    its own entry is report-only (m3 c7082b20)."""
+    its own entry is report-only."""
     assert env_sources.is_m3_server(name, entry) is ours
 
 
 def test_an_m3_lookalike_file_name_is_not_m3():
-    """The exact entry-point rule, not a substring (m3 0ed9169d)."""
+    """The exact entry-point rule, not a substring."""
     assert not env_sources.is_m3_server("mine", {"command": "python", "args": ["/x/my_memory_bridge_wrapper.py"]})

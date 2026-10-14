@@ -3,7 +3,7 @@
 `notifications_poll` heartbeats the polled id, so an agent checking a PEER's
 inbox (did my handoff land?) stamped that peer alive: a faked liveness signal
 that a reclaim decision would trust. Peek is the same read through the same
-owner with every write left out (multi-agent setup proposal A4, m3 817739e8).
+owner with every write left out .
 """
 
 from __future__ import annotations

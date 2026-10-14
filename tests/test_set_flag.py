@@ -1,6 +1,6 @@
 """`--set={...}`: one quoted TOML inline table immediately after `m3` (or a script
 name); read once by the pre-parser, applied to the whole process, removed from
-the command line (user decisions, m3 a6cdfc48, 7612b947)."""
+the command line."""
 
 from __future__ import annotations
 

@@ -282,7 +282,7 @@ def set_from_cli(values: Mapping[str, ConfigValue | None]) -> None:
 SET_FLAG = "--set"
 _FORMAT = f'm3 "{SET_FLAG}={{key=value, ...}}" <command>'
 _EXAMPLE = f'"{SET_FLAG}={{db.backend=^postgres^, search.row_cap=50}}"'
-# The string quote inside --set (user decision, m3 7612b947 refined): survives
+# The string quote inside --set: survives
 # double quotes in bash, zsh, PowerShell and cmd.exe alike (measured
 # 2026-10-12), so one quoting rule works in every shell. ^^ is a literal ^.
 _CARET = "^"
@@ -352,7 +352,7 @@ def flag_overridable(key: Key) -> bool:
     """Whether ``--set`` may change ``key``: a CONFIG key that does not decide
     where m3 keeps its data (a LOCATOR: the roots, the secrets file; use
     ``--config``). Secrets are never flags: a command line is visible to other
-    users and kept in shell history (user decision, m3 a6cdfc48)."""
+    users and kept in shell history."""
     from .registry import Scope
 
     return key.klass is KeyClass.CONFIG and key.scope is not Scope.LOCATOR
@@ -401,7 +401,7 @@ def _locator(key: Key) -> str:
 
 def parse_set(text: str) -> dict[str, ConfigValue]:
     """The ``{...}`` of ``--set={...}``: a TOML inline table, the same key names
-    and syntax as m3_config.toml (user decision, m3 7612b947). Each value is
+    and syntax as m3_config.toml. Each value is
     checked by its key exactly as the file's would be. Raises OverrideError
     naming EVERY problem; nothing is applied unless all are valid."""
     import tomllib
@@ -571,7 +571,7 @@ class EnvDisagreement:
 def env_contradicting(key: Key, value: ConfigValue | None) -> list[tuple[str, ConfigValue | str]]:
     """Each of ``key``'s env names set in the LIVE environment to something other
     than ``value``, with what it reads as. A matching value is not listed: the
-    transition report must not cry wolf (user decision 2026-10-12, m3 64ea4eab)."""
+    transition report must not cry wolf."""
     environ = _env.environ()
     out: list[tuple[str, ConfigValue | str]] = []
     for name in key.env_names:
@@ -590,7 +590,7 @@ def env_contradicting(key: Key, value: ConfigValue | None) -> list[tuple[str, Co
 def env_disagreements() -> list[EnvDisagreement]:
     """Every env var that contradicts a value SET in m3_config.toml (the file
     wins). The transition report ``m3 doctor`` and setup print until the user
-    retires it (user decision 2026-10-12, m3 64ea4eab). A key with no value in
+    retires it. A key with no value in
     the file, or one a flag set for this run, has nothing to disagree with."""
     snap = current()
     out: list[EnvDisagreement] = []

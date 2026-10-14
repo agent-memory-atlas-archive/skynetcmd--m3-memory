@@ -1,8 +1,8 @@
 ---
 tool: bin/check_env_access.py
-sha1: 2e2338b24b1b
-mtime_utc: 2026-10-13T16:27:14.130937+00:00
-generated_utc: 2026-10-13T16:28:32.345118+00:00
+sha1: ec09e67373b9
+mtime_utc: 2026-10-14T03:47:29.831313+00:00
+generated_utc: 2026-10-14T03:47:37.919772+00:00
 private: false
 ---
 
@@ -26,7 +26,7 @@ config package, once it exists, and the ``child_env`` helper) or reads a non-m3
 OS name on the allow-list (HOME, PATH, ...). Writes, whole-environment copies
 and dynamic names are violations wherever an allowed module is not.
 
-OWNERS (user decision 2026-10-13, <dynamic> design Q1): a site whose JOB is reading
+OWNERS: a site whose JOB is reading
 the environment -- an approved locator (the roots), the legacy-name shim, the
 doctor / import-env scanners, the parity snapshot -- carries ``# env-owner: <why>``
 on its line or alone on the line above. Its verdict is ``owner``, not

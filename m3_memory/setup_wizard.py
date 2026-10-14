@@ -176,7 +176,7 @@ def _detect_agents() -> AgentTargets:
         or os.path.exists(Path.home() / ".npm-global" / "bin" / "openclaw")
         or os.path.isdir(Path.home() / ".openclaw")
         # Presence only, as a sign OpenClaw is installed: OpenClaw reads its own
-        # token from env. m3 does not take the value from here (m3 9cbed0af).
+        # token from env. m3 does not take the value from here.
         or os.environ.get("OPENCLAW_GATEWAY_TOKEN")
     )
     # Hermes Agent uses a file-based plugin (not MCP wiring): detection drives
@@ -1927,8 +1927,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
 
         # Recorded in <config root>/.llm_config.json, which every launcher reads
         # (the registry, below env and .env). No env write and no shell-rc / MCP-env
-        # persistence: setup writes files, not env (wizard cut-over, user decision
-        # 2026-10-11, m3 ec79a21b); the file folds into m3_config.toml with import-env.
+        # persistence: setup writes files, not env; the file folds into m3_config.toml with import-env.
         if already in ("1", "true", "yes") or shell_rc_has(var, val):
             _record_llm_switch(var, val)  # the shell has it; daemons never read the rc
             continue
@@ -1963,8 +1962,8 @@ def _llm_switch_enabled(var: str) -> bool:
 
 def _report_llm_env_disagreement(var: str, val: str) -> None:
     """Name an env var that contradicts the LLM setting setup just recorded: env
-    outranks .llm_config.json, so m3 runs on the env value. The transition report
-    (user decision 2026-10-12, m3 64ea4eab); silent when they agree."""
+    outranks .llm_config.json, so m3 runs on the env value. Part of the transition
+    report; silent when they agree."""
     try:
         from m3_core.config.keys import REGISTRY
         from m3_core.config.settings import env_contradicting
@@ -4115,7 +4114,7 @@ def _m3_cli(*args: str) -> list[str]:
     from .wizard.ui import caller_args
 
     # --set={...} first (its fixed place): the child starts with an empty
-    # snapshot, so this run's flag-set values are handed over here (m3 7612b947).
+    # snapshot, so this run's flag-set values are handed over here.
     return [sys.executable, "-P", "-m", "m3_memory.cli", *cli_args(), *config_args(), *caller_args(), *args]
 
 
@@ -4240,7 +4239,7 @@ def run_setup(args: argparse.Namespace) -> int:
     # Decoupled roots: the config file is pinned for this run (m3 children get
     # --config, script children too: _job_config_args) and the engine root is
     # written into it as [paths] engine_root, which every m3 process reads. No env
-    # write: setup writes files, not env (wizard cut-over, m3 ec79a21b).
+    # write: setup writes files, not env.
     if plan.decouple_roots:
         if plan.config_root is None or plan.engine_root is None:
             _warn(

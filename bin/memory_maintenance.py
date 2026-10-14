@@ -1690,7 +1690,7 @@ def gdpr_forget_impl(
 ) -> "dict | str":
     """Right to be forgotten (GDPR Article 17): the ONLY hard delete in m3.
 
-    Two steps, so an erasure is never one careless call (user decision 2026-10-13):
+    Two steps, so an erasure is never one careless call:
 
     1. **Plan** — ``gdpr_forget(user_id=...)`` for a data subject, or
        ``gdpr_forget(memory_ids=[...])`` for specific memories. Erases NOTHING;
@@ -1919,7 +1919,7 @@ def memory_set_retention_impl(agent_id: str, max_memories: int = 1000, ttl_days:
 
 def memory_export_impl(
     agent_filter="", type_filter="", since="", output_format="json"
-):  # output_format: reserved, JSON only today (m3 3e8f0b21; bin/check_unreferenced.py RESERVED)
+):  # output_format: reserved, JSON only today (bin/check_unreferenced.py RESERVED)
     """Export memories as portable JSON. Filter by agent, type, or date."""
     from memory.backends import dialect as _dialect
 

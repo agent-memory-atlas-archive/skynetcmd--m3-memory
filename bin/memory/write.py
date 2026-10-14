@@ -1075,7 +1075,7 @@ async def memory_supersede_impl(
     created: the old memory is retired in favour of an existing active memory,
     through the same ``_mark_superseded`` (edge new -> old, closed interval,
     history row). Cleaning up duplicates this way lowers the active-copy count;
-    writing a fresh replacement for each duplicate multiplied it (m3 e116b526).
+    writing a fresh replacement for each duplicate multiplied it.
 
     Returns ``"Superseded <old_id> -> Created: <new_id>"`` (or
     ``"Superseded <old_id> -> Existing: <replacement_id>"``) on success, or an

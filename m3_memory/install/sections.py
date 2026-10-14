@@ -831,7 +831,7 @@ def _backend_section(cfg: dict) -> None:
 def _config_env_disagreement_section() -> None:
     """Name each env var that contradicts a value set in m3_config.toml, both
     values, and which one m3 uses. The transition report: kept until the user
-    decides to stop it (user decision 2026-10-12, m3 64ea4eab). Says nothing when
+    decides to stop it. Says nothing when
     env and file agree, or when the file sets nothing (§3: no false alarm)."""
     try:
         _bin.ensure_on_path()
@@ -952,7 +952,7 @@ def _git_tree_of(path: str) -> str | None:
 def _secrets_file_exposure_section(brief: bool = False) -> None:
     """Warn when the secrets file sits where it can leave this machine: inside a
     git working tree (a commit publishes it) or a synced folder (the sync client
-    uploads it). The file is plaintext by decision (m3 c7082b20), protected only
+    uploads it). The file is plaintext by decision, protected only
     by its permissions, so where it lives is the protection (CONFIG_DESIGN §10).
     Silent when there is no secrets file or it is in neither."""
     try:
@@ -1033,11 +1033,11 @@ def _secrets_file_disk_encryption(path: str, *, brief: bool = False) -> None:
 
 def _secrets_in_env_section(brief: bool = False) -> None:
     """Name m3 secrets still set in the environment, rc files, `.env`, the
-    Windows registry or MCP env blocks, which m3 no longer reads (m3 9cbed0af).
+    Windows registry or MCP env blocks, which m3 no longer reads.
     [!] for one m3 cannot resolve from the secrets file or keyring: that feature
     is off until it is stored. [i] for a leftover plaintext copy of one it does
     resolve. Another tool's key in its own MCP entry is listed under --verbose
-    only, by name and file (m3 c7082b20). Names and places only, never values."""
+    only, by name and file. Names and places only, never values."""
     try:
         _bin.ensure_on_path()
         from m3_core.config import REGISTRY, KeyClass

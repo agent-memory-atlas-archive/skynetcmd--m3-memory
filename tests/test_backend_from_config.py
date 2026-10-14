@@ -1,5 +1,5 @@
 """The backend selector reads registry key ``db.backend`` (CONFIG_DESIGN §2 item 6),
-an ordinary key since 2026-10-12 (U9 reversed, m3 9cbed0af): a flag, then
+an ordinary key since 2026-10-12: a flag, then
 ``[db] backend`` in m3_config.toml, then ``M3_DB_BACKEND`` as a legacy name BELOW
 the file (warned once), then sqlite. Before the registry, the selector read env
 only, so a backend chosen in the file was silently ignored: a PostgreSQL install

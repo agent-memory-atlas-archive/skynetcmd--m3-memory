@@ -1,6 +1,6 @@
 """Deletion policy: m3 soft-deletes; GDPR erasure is the only hard delete.
 
-User rule 2026-10-13: "GDPR is the only allowance for hard deletes." Every delete
+GDPR erasure is the only hard delete. Every delete
 path (memories, tasks, curation plans, the dashboard, LangGraph checkpoints)
 marks rows deleted and keeps them recoverable. A caller that asks for a hard
 delete gets a soft delete and this notice, permanently: the argument is never

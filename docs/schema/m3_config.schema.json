@@ -368,7 +368,7 @@
         },
         "gguf": {
           "type": "string",
-          "description": "The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery (embed.autodetect). Not an env override (user decision, m3 a24fa878)."
+          "description": "The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery (embed.autodetect). Not an env override."
         },
         "gguf_model_tag": {
           "type": "string",

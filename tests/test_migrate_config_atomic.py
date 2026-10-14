@@ -2,8 +2,7 @@
 
 It wrote with open(path, "w"): the file is emptied first, so a crash or a
 failed json.dump left a zero-byte or partial config and the user's remembered
-backup_dir was lost. It now goes through m3_core.atomic_io.atomic_write
-(plan Step 2A.3, user decision 2026-10-08).
+backup_dir was lost. It now goes through m3_core.atomic_io.atomic_write.
 """
 
 from __future__ import annotations

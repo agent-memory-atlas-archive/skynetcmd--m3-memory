@@ -6,7 +6,7 @@
 --
 -- WHY THIS EXISTS. The drain used to replay main's 025 file against a chatlog
 -- store at runtime, outside this lane's migrations, so the change was recorded
--- nowhere. m3 schemas change only through migrations (user decision 2026-10-13).
+-- nowhere. m3 schemas change only through migrations.
 -- A store the drain already touched has these objects: every statement is
 -- IF NOT EXISTS, so this migration adopts it unchanged.
 

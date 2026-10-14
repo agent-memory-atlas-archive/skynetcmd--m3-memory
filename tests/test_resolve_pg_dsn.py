@@ -2,7 +2,7 @@
 
 The keyring and vault tiers are replaced by fakes keyed by name, so no real
 keyring or vault is touched; the secrets file is the sandbox's own. The
-environment is never a tier (m3 9cbed0af).
+environment is never a tier.
 """
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def test_roles_never_cross(tiers):
 
 
 def test_a_miss_explains_what_each_tier_hit(tiers):
-    """m3 2f4bad6c: a broken keyring must not read as 'not set'."""
+    """A broken keyring must not read as 'not set'."""
     tiers["keyring"]["M3_PRIMARY_PG_URL"] = RuntimeError("keyring backend crashed")
     tiers["vault"]["M3_PRIMARY_PG_URL"] = ValueError("salt missing")
     r = _explain("primary")

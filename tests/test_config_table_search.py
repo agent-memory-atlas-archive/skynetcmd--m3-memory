@@ -43,7 +43,7 @@ def test_defaults_are_what_todays_readers_produce():
 
 
 def test_decided_names_land_where_the_user_put_them():
-    """User decisions 2026-10-09: two retired, one dev plumbing, one registered."""
+    """Two retired, one dev plumbing, one registered."""
     from m3_core.config import REGISTRY
     from m3_core.config.keys import NOT_SETTINGS, RETIRED
 

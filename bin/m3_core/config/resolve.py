@@ -2,8 +2,8 @@
 
 Precedence for a CONFIG key, N..N+2 (the deprecation window, #D28):
 
-    m3_config.toml (no key's env value outranks it; U9's db.backend exception
-    was reversed 2026-10-12, m3 9cbed0af)
+    m3_config.toml (no key's env value outranks it, db.backend
+    included)
     > legacy env (any other key's old env name; honoured, and reported, until N+3)
     > .env (parsed, never injected; CONFIG_DESIGN §10)
     > <config_root>/.llm_config.json (the [llm] keys' old file; folds in at import-env)

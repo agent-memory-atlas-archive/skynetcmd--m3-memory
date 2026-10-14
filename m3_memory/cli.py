@@ -751,7 +751,7 @@ def _secret_set(args: argparse.Namespace) -> int:
     return 0
 
 
-# `m3 batch` (approved interface, m3 009d7cce): commands it refuses, by reason.
+# `m3 batch`: commands it refuses, by reason.
 _BATCH_REFUSED: dict[str, str] = {
     **dict.fromkeys(("setup",), "it asks questions, and a batch's stdin is the batch"),
     **dict.fromkeys(("serve", "dashboard"), "it runs until stopped"),
@@ -1154,7 +1154,7 @@ def _cmd_serve_generate_token(args: argparse.Namespace) -> int:
         "\nEnter the value EXACTLY as shown -- Claude sends it verbatim and adds no\n"
         '"Bearer " prefix of its own; a bare token is rejected with 401.'
     )
-    # No env check here: a secret is never read from the environment (m3 9cbed0af),
+    # No env check here: a secret is never read from the environment,
     # so an exported M3_SERVE_TOKEN cannot override the token above; `m3 doctor`
     # names a leftover one.
     return 0

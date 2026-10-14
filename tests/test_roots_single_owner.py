@@ -1,7 +1,6 @@
 """The root variables are read in ONE place: m3_memory/_roots.py.
 
-The config/engine/logs/models/memory/lib root rule was copied into ~20 files
-(user decision 2026-10-11, batch (a)): the copies drifted (one ignored
+The config/engine/logs/models/memory/lib root rule was copied into ~20 files: the copies drifted (one ignored
 M3_LOGS_ROOT, one never expanded `~`, two defaulted the memory root
 differently), so a reader outside the owner is the defect, not a style issue.
 Writes are not reads: the two env WRITES below set roots for a child process and

@@ -128,7 +128,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `entity_name_cache_max` | integer | `50000` | `M3_ENTITY_NAME_EMBED_CACHE_MAX`, `ENTITY_NAME_EMBED_CACHE_MAX` | restart to apply; Entity-name embeddings kept in memory. |
 | `fallback_model_tag` | string | (none) | `M3_EMBED_FALLBACK_MODEL_TAG` | restart to apply; Tag of vectors from the fallback endpoint. Default: embed.model. |
 | `fallback_url` | string | `http://127.0.0.1:8082` | `M3_EMBED_FALLBACK_URL` | restart to apply; The fallback embedding endpoint (the shared embed server). |
-| `gguf` | path | (none) | `M3_EMBED_GGUF` | restart to apply; The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery (embed.autodetect). Not an env override (user decision, m3 a24fa878). |
+| `gguf` | path | (none) | `M3_EMBED_GGUF` | restart to apply; The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery (embed.autodetect). Not an env override. |
 | `gguf_model_tag` | string | (none) | `M3_EMBED_GGUF_MODEL_TAG` | restart to apply; Tag of vectors from the in-process GGUF embedder. Default: embed.space_tag. |
 | `init_timeout_s` | number | `20.0` | `M3_EMBED_INIT_TIMEOUT_S` | restart to apply; Seconds to wait for the in-process embedder to load; 0 disables the limit. |
 | `inproc` | boolean | `false` | `M3_EMBED_INPROC` | restart to apply; Allow the in-process tier-1 embedder (opt-in, DESIGN_PHILOSOPHIES §8). |

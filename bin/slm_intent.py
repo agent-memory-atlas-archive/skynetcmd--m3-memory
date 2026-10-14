@@ -693,7 +693,7 @@ def profile_secret_names() -> tuple[set[str], list[str]]:
     """Secret names the installed profiles declare as ``api_key_service``, and
     the profiles that could not be read (named, so a broken profile is never
     taken for one that declares nothing). The secrets file accepts these names
-    beside the registry's (user decision 2026-10-09)."""
+    beside the registry's."""
     names: set[str] = set()
     unreadable: list[str] = []
     for name in list_profiles():

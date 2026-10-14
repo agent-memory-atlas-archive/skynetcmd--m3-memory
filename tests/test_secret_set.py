@@ -55,7 +55,7 @@ def test_the_value_is_asked_for_and_stored_in_the_file(person, capsys):
 
 
 def test_keyring_moves_it_out_of_the_file_and_leaves_a_pointer(person, keyring, capsys):
-    """The file keeps listing the secret (m3 0be66297): a pointer replaces the value."""
+    """The file keeps listing the secret: a pointer replaces the value."""
     from m3_core.secret_store import KeyringRef, explain_named_secret, get_secret, read_secret_entries, set_secret
 
     set_secret(NAME, "postgresql://old@h/db")

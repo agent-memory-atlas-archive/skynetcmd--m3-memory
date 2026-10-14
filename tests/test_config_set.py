@@ -102,7 +102,7 @@ def test_get_origin_names_the_file(cfg, capsys):
 
 
 def test_set_reports_an_env_var_that_contradicts_the_new_value(cfg, monkeypatch, capsys):
-    """The transition report (user decision 2026-10-12, m3 64ea4eab): set says
+    """The transition report: set says
     when an env var disagrees with what it just wrote."""
     monkeypatch.setenv("M3_SEARCH_ROW_CAP", "800")
     assert _run("set", "search.row_cap", "700", "--config", str(cfg)) == 0

@@ -1,5 +1,4 @@
-"""import-env slice 3: put every m3 secret in the secrets file (user decisions,
-m3 c7082b20, 0be66297, a8083888, 18720cb5).
+"""import-env: put every m3 secret in the secrets file.
 
 For each m3 secret:
 

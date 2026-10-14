@@ -943,8 +943,7 @@ _SYNCED_WAREHOUSE_TABLES = (
 
 def _warehouse_layout(pg_conn) -> str:
     """Which schema holds this warehouse's tables: ``m3_warehouse`` (the canonical
-    layout), ``public`` (an older warehouse, migrated in place: user decision
-    2026-10-13), or, for an empty warehouse, ``m3_warehouse``."""
+    layout), ``public`` (an older warehouse, migrated in place), or, for an empty warehouse, ``m3_warehouse``."""
     canonical, legacy = _warehouse_tables(pg_conn)
     pg_conn.rollback()
     return "public" if legacy and not canonical else WAREHOUSE_SCHEMA
@@ -975,7 +974,7 @@ def _warn_stranded_public_tables(pg_conn) -> None:
 
 def _prepare_warehouse(pg_conn) -> str:
     """Bring the warehouse to its current schema (its migration chain, applied
-    automatically: user decision 2026-10-13), then point the session at it.
+    automatically), then point the session at it.
     A failure stops the run: syncing against a schema of unknown shape is worse
     than not syncing."""
     import migrate_pg

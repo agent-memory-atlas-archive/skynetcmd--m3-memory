@@ -1,5 +1,4 @@
-"""get_api_key's chain: the user-only secrets file > keyring > vault; never env
-(plan 2B.1, m3 9cbed0af)."""
+"""get_api_key's chain: the user-only secrets file > keyring > vault; never env."""
 
 from __future__ import annotations
 

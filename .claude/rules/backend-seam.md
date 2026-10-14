@@ -12,8 +12,8 @@ paths:
 
 - **Registry key `db.backend` is the ONLY backend selector** (default `sqlite`):
   a flag (`set_from_cli` / `--set`), then `[db] backend` in m3_config.toml, then
-  `M3_DB_BACKEND` only as a legacy name BELOW the file (warned once; until N+3;
-  U9's env override was reversed, m3 9cbed0af). A test switches it with
+  `M3_DB_BACKEND` only as a legacy name BELOW the file (warned once; until N+3).
+  A test switches it with
   `select_backend(name)` (a flag) or `use_backend(name, dsn)` (the file), never
   `setenv`. `M3_PRIMARY_PG_URL` never selects the
   backend — it only says where PostgreSQL is. A lane that sets the DSN without the selector silently tests SQLite; that
@@ -22,7 +22,7 @@ paths:
   no env fallback, and **never** a warehouse DSN (that is production). A test
   selects PostgreSQL with `use_backend("postgres", pg_dsn())`, which writes the
   sandbox's config and secrets files the way a user's setup does.
-- **Secrets never come from the environment** (m3 9cbed0af): the chain is the
+- **Secrets never come from the environment**: the chain is the
   secrets file, then the keyring entry it points at (or `system/NAME`), then the
   vault. A test gives m3 a secret with `secret_store.set_secret`, not `setenv`.
 - **`requires_pg` gates on REACHABILITY**, not on the seam being PG. A DSN being
@@ -62,8 +62,8 @@ Two defences exist and both must stay:
 So: never replace or stub `sys.modules["memory.backends"]`, and never bind the
 submodule onto the package. Import the accessor as
 `from memory.backends import dialect` and module symbols as
-`from memory.backends.dialect import dialect_for, ...`. m3 memory `25df967b` has
-the history; `tests/test_backends_dialect_not_rebound.py` pins it.
+`from memory.backends.dialect import dialect_for, ...`.
+`tests/test_backends_dialect_not_rebound.py` pins it.
 
 # Registration lands in whichever registry instance is live
 

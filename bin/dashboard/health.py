@@ -380,7 +380,7 @@ def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: 
         if not key:
             key = get_api_key("LM_API_TOKEN") or ""
     except Exception as e:  # noqa: BLE001 -- a health probe reports, never crashes
-        # Never the environment: a secret is not read from it (m3 9cbed0af).
+        # Never the environment: a secret is not read from it.
         out["detail"] = f"could not resolve the API key ({api_key_service or 'unset'}): {type(e).__name__}: {e}"
         out["auth_missing"] = True
         return out

@@ -1,4 +1,4 @@
-"""<dynamic> env sites, design Q3 (user decision 2026-10-13): the odd ones read
+"""<dynamic> env sites, design Q3: the odd ones read
 the registry, or stop reading env at all."""
 
 from __future__ import annotations

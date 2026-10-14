@@ -40,7 +40,7 @@ across Ollama, LM Studio, llama.cpp --server, vLLM, and LocalAI.
 
 ### `fastmcp` (`fastmcp>=3.4.7,<4`)
 
-**Held below 4 (user decision, 2026-10-10).** fastmcp 4.x requires `mcp>=2,<3`
+**Held below 4.** fastmcp 4.x requires `mcp>=2,<3`
 (through `fastmcp-slim[client]`), and m3 ships `mcp>=1.30,<2`, so with 4.x in core
 a resolving installer cannot install m3 at all. That shipped unnoticed for one
 unpushed commit: uv resolved it only because `[tool.uv]` overrides mcp (for the
@@ -231,7 +231,7 @@ REMOVED 2026-09-17 (unused, verified):
 
 ### `tomlkit` (`tomlkit==0.15.1`)
 
-m3_config.toml writer; exact pin by user decision U11 (2026-10-09).
+m3_config.toml writer; pinned exactly, deliberately.
 
 ### `pillow` (`pillow>=12.3.0`)
 
@@ -336,7 +336,7 @@ cap was never a constraint on m3's runtime, only on torch's build tooling.
 This CVE was invisible until 2026-09-12: the DefectDojo pipeline's pip-audit
 ran `find | head -1` and audited examples/mac-agent/requirements.txt ONLY, so
 the root manifest was never scanned. Fixed in scan_repo.py (audits all three;
-261 packages, was ~8). See m3 memory 1c6429ef.
+261 packages, was ~8).
 
 ## Entity NER (optional extra)
 

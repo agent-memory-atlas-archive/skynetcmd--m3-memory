@@ -1,5 +1,5 @@
 """Where the payload's `bin/` (and docs/, _assets/, examples/) lives, and putting
-`bin/` on `sys.path`: the ONE owner (user decision 2026-10-11, batch (b)).
+`bin/` on `sys.path`: the ONE owner.
 
 The installed package reaches `bin/` modules (memory_core, m3_core.config, ...)
 only through `sys.path`. About twenty sites did the insert themselves, with three

@@ -8,7 +8,7 @@ siblings first, then re-raises the ORIGINAL exception unchanged, so callers'
 
 Why not ``asyncio.TaskGroup``: it raises ``ExceptionGroup`` even for a single
 failure, and callers up the stack catch specific exception types, so every
-chain would need ``except*`` (user decision 2026-10-08, m3 74995ad5).
+chain would need ``except*``.
 
 Use ``asyncio.gather(..., return_exceptions=True)`` instead when partial
 failure is an expected result rather than an error.

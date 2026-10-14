@@ -163,7 +163,7 @@ def pytest_addoption(parser):
         "--m3-pg-url",
         default=None,
         help="DSN of a THROWAWAY PostgreSQL cluster for the live tests (never a production one). "
-        "A pytest option, not an env var: m3's settings come from files (no-env plan, m3 9cbed0af).",
+        "A pytest option, not an env var: m3's settings come from files.",
     )
 
 
@@ -175,7 +175,7 @@ def pytest_configure(config):
 def pg_dsn() -> "str | None":
     """The Postgres DSN for live tests: ``pytest --m3-pg-url``, the ONE source.
 
-    Never an env var (no-env plan, m3 18720cb5): the lanes, CI and the
+    Never an env var: the lanes, CI and the
     pre-commit pass the option, and a DSN in the environment (a developer's own
     M3_PRIMARY_PG_URL, or PG_URL, which points at PROD) can never select the
     cluster tests write to. Centralized so the 12 former copies cannot drift.
@@ -197,7 +197,7 @@ def select_backend(name: str) -> None:
 def use_backend(name: str, dsn: "str | None" = None) -> None:
     """Select the backend for this test the way a user does: ``[db] backend`` in
     the sandbox's m3_config.toml, and the PostgreSQL DSN in the sandbox's
-    user-only secrets file. No env var (no-env plan step 1, m3 9cbed0af).
+    user-only secrets file. No env var.
     Clears the settings snapshot, the secret cache and the selector so the next
     read sees them."""
     from m3_core import secret_store
@@ -822,7 +822,7 @@ def _no_warehouse_secret(monkeypatch):
     import keyring
 
     # NO test reads the developer's real keyring or keychain, under ANY name:
-    # secrets no longer come from env (m3 9cbed0af), so a test that misses the
+    # secrets no longer come from env, so a test that misses the
     # secrets file falls through to the keyring, which on a dev box holds real
     # secrets. Three layers, because the real
     # store is reachable three ways: python keyring (an empty backend for the
@@ -1306,7 +1306,7 @@ def _memory_namespace_problem(package: str = "memory") -> "str | None":
     `memory` absent is fine -- that is the purge doing its job.
 
     ``package`` is a seam for the tests: churning the real ``memory.*`` modules
-    to exercise this is itself the hazard (m3 memory 25df967b -- it leaks across
+    to exercise this is itself the hazard (it leaks across
     tests and has crashed the Windows interpreter at exit), so they point this at
     a synthetic package instead.
     """

@@ -3,7 +3,7 @@
 -- The CHATLOG lane's sync bookkeeping, as main-lane 005 (sync_watermarks) and
 -- 044 (sync_locks) give the main store. pg_sync created both on chatlog stores at
 -- runtime, because no chatlog migration did; m3 schemas change only through
--- migrations (user decision 2026-10-13). Per-machine state: never replicated to
+-- migrations. Per-machine state: never replicated to
 -- the warehouse. IF NOT EXISTS adopts a store the runtime path already touched.
 
 CREATE TABLE IF NOT EXISTS sync_watermarks (

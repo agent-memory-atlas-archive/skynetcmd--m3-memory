@@ -1,4 +1,4 @@
-"""Named stores (CONFIG_DESIGN §14; plan 2C.3; user decisions D1-D3, m3 dfeb41b7).
+"""Named stores (CONFIG_DESIGN §14).
 
 A store is ``(backend, locator)`` in ``m3_config.toml``::
 

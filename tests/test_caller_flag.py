@@ -1,5 +1,5 @@
-"""`m3 --caller upgrade <command>`: the upgrade handshake as a flag (user decision
-2026-10-11, m3 c8b803b5; it was the env var M3_SETUP_CALLER)."""
+"""`m3 --caller upgrade <command>`: the upgrade handshake as a flag (it
+was the env var M3_SETUP_CALLER)."""
 
 from __future__ import annotations
 

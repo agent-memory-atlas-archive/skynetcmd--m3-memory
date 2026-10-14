@@ -1,4 +1,4 @@
-"""The dispatch store's chain has a runner (user decision 2026-10-13).
+"""The dispatch store's chain has a runner.
 
 The first-send bootstrap used to execute 001 itself and return whenever the table
 existed, so a later migration could never have reached an existing store. It now

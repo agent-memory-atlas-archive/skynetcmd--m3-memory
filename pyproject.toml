@@ -127,8 +127,8 @@ dependencies = [
     # numpy 2.5.3 reports zero errors across 281 files.
     "numpy>=2.5.3",
     "python-dotenv>=1.2.3,<2",
-    # The writer of m3_config.toml (comment-preserving). EXACT pin by user decision
-    # U11 (2026-10-09): pure Python, MIT, zero dependencies; tomllib stays the
+    # The writer of m3_config.toml (comment-preserving). EXACT pin:
+    # pure Python, MIT, zero dependencies; tomllib stays the
     # only parser. Upgrade deliberately, re-running the writer's round-trip tests.
     "tomlkit==0.15.1",
     "PyYAML>=6.0.3,<7",

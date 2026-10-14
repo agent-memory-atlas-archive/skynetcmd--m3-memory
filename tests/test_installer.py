@@ -121,7 +121,7 @@ def test_config_roundtrip(tmp_path, monkeypatch):
 
 
 def test_install_names_an_old_pg_url_without_refusing(tmp_path, monkeypatch, capsys):
-    """An env PG_URL no longer blocks install: m3 does not read it (m3 9cbed0af),
+    """An env PG_URL no longer blocks install: m3 does not read it,
     so it is named, with the command that stores it, and install proceeds."""
     from m3_memory import installer
 
@@ -786,7 +786,7 @@ class TestDbBackendSelection:
         assert not any("s3cretpw" in m for m in msgs), "a status line echoed the password"
 
     def test_a_disagreeing_env_backend_is_named_as_a_leftover(self, unix_home, monkeypatch):
-        """The file wins now (U9 reversed, m3 9cbed0af): a disagreeing env value is
+        """The file wins now: a disagreeing env value is
         a leftover to remove, reported [i], and m3 runs on what setup recorded."""
         from m3_core.paths import resolve_backend_name
 
@@ -909,7 +909,7 @@ class TestDbBackendSelection:
 
 class TestStorePgDsn:
     """m3_core.secret_store.store_pg_dsn: the user-only secrets file on every OS,
-    verified by read-back; never the keyring (m3 c7082b20)."""
+    verified by read-back; never the keyring."""
 
     DSN = "postgresql://u:p@db.example/m3"
 
@@ -935,7 +935,7 @@ class TestStorePgDsn:
 def test_a_pinned_llm_endpoint_is_recorded_in_the_file_not_env(monkeypatch, tmp_path):
     """`m3 install --llm-endpoint` records the pin in .llm_config.json, which
     every m3 process reads; it used to setdefault env, which reached only this
-    process's children (wizard cut-over, m3 ec79a21b)."""
+    process's children."""
     import json
 
     from m3_core import llm_config
@@ -964,7 +964,7 @@ def test_a_pinned_llm_endpoint_is_recorded_in_the_file_not_env(monkeypatch, tmp_
 
 
 def test_the_pg_schema_child_finds_the_dsn_in_the_secrets_file_not_env(monkeypatch, tmp_path):
-    """m3 reads no secret from env (m3 9cbed0af), so the DSN must be STORED before
+    """m3 reads no secret from env, so the DSN must be STORED before
     the schema child runs, and never handed to it in env. Install ran the child
     first and passed the DSN in env, so a fresh PostgreSQL install failed to
     build its schema."""

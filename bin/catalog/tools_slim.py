@@ -103,8 +103,7 @@ _SLIM: dict[str, tuple[tuple[str, ...], str]] = {
 # tokens, has no reason to exist.
 
 # Behaviour a slim variant fixes for its shared impl (spec.fixed_args). The search
-# handle `grade_with` costs a few dozen tokens per call; the slim search omits it
-# (memory credit loop part A, user decision 2026-10-12, Q4).
+# handle `grade_with` costs a few dozen tokens per call; the slim search omits it.
 _FIXED: dict[str, dict[str, object]] = {"memory_search": {"grade_with": False}}
 
 _SOURCES = {t.name: t for t in (*_MEMORY_TOOLS, *_CHATLOG_TOOLS)}

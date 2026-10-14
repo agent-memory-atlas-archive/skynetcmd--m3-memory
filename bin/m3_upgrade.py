@@ -615,8 +615,7 @@ def run_captured(cmd: list[str], *, timeout: int = 900) -> str:
 # Tells m3 stop and m3 setup they run on behalf of this upgrade: the top-level
 # `m3 --caller upgrade <command>` (owner: m3_memory.wizard.ui.CALLER_FLAG; this
 # script cannot import m3_memory, since the package is replaced under it, so a
-# test pins the two). It was the env var M3_SETUP_CALLER (user decision
-# 2026-10-11, m3 c8b803b5).
+# test pins the two). It was the env var M3_SETUP_CALLER.
 CALLER_FLAG = "--caller"
 
 

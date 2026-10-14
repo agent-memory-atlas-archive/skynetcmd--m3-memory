@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: aa7ac9b0fb48
-mtime_utc: 2026-10-13T02:59:55.935315+00:00
-generated_utc: 2026-10-13T03:00:06.241643+00:00
+sha1: 8f806fc2e7a5
+mtime_utc: 2026-10-14T03:47:29.838313+00:00
+generated_utc: 2026-10-14T03:47:38.436266+00:00
 private: false
 ---
 
@@ -12,8 +12,8 @@ private: false
 
 Bring the PostgreSQL data warehouse to its current schema, or report where it is.
 
-The warehouse schema comes from its migration chain (memory/warehouse_migrations/,
-user decision 2026-10-13), which pg_sync applies automatically before every run.
+The warehouse schema comes from its migration chain (memory/warehouse_migrations/),
+which pg_sync applies automatically before every run.
 This is the manual entry point for the same thing:
 
     python bin/pg_setup.py           # apply pending warehouse migrations

@@ -1,6 +1,6 @@
 """One re-window owner: re-embed and the repair store windows as a fresh write does.
 
-Two defects shared one cause, on every backend (plan Step 2D.V, m3 2a78842c):
+Two defects shared one cause, on every backend:
 memory_update(reembed=True) and re_embed_all ran a blanket
 ``UPDATE memory_embeddings SET embedding = ? WHERE memory_id = ?``, writing ONE
 vector over every window row; and memories windowed before 2026.9.8.0 carry

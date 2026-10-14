@@ -2,7 +2,7 @@
 
 The chain is the secrets file's value -> the keyring entry the file points at,
 or ``system/NAME`` when the file does not list the name -> the vault. The
-environment is never read for a secret (m3 9cbed0af). The vault policy comes
+environment is never read for a secret. The vault policy comes
 from the registry's ``bootstrap`` flag: such a secret is never read from the
 vault (CONFIG_DESIGN §10), except D1's primary DSN, which still works and warns
 until N+3.

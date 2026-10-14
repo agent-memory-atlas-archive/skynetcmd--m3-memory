@@ -1,8 +1,8 @@
 ---
 tool: bin/check_unreferenced.py
-sha1: 8192a4384f40
-mtime_utc: 2026-10-10T21:05:16.884017+00:00
-generated_utc: 2026-10-10T21:05:29.406217+00:00
+sha1: 85394247acfb
+mtime_utc: 2026-10-14T03:47:29.831313+00:00
+generated_utc: 2026-10-14T03:47:37.923781+00:00
 private: false
 ---
 
@@ -20,7 +20,7 @@ fixed, or declared below with its reason under one of two kinds:
 
   INTERFACE  the signature belongs to someone else (a framework, a C API)
   RESERVED   held for a planned feature that is not wired yet (never delete
-             one to quiet this tool; user rule, 2026-10-10)
+             one to quiet this tool)
 
 An undeclared finding fails, and a declaration that no longer matches a finding
 fails too, so the lists cannot rot.
