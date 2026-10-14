@@ -276,7 +276,7 @@ def _fix(a: dict, brief: bool = False) -> None:
 
     if not acted:
         print(
-            "✅ claude mcp: single direct server (mcp__m3_memory__)"
+            "✅ Claude Code: connected to m3 once (as m3_memory)"
             if brief
             else "  (nothing to converge — already single-server)"
         )
@@ -319,9 +319,9 @@ def run(brief: bool = False, fix: bool = False) -> int:
         elif a["legacy_present"]:
             print("⚠️  claude mcp: legacy `memory` server (wrong namespace / no root pins) — run `m3 setup`")
         elif a["direct_present"]:
-            print("✅ claude mcp: single direct server (mcp__m3_memory__)")
+            print("✅ Claude Code: connected to m3 once (as m3_memory)")
         elif a["plugin"]["active"]:
-            print("✅ claude mcp: single plugin server (mcp__plugin_m3_memory__)")
+            print("✅ Claude Code: connected to m3 once (through the plugin)")
         elif a["none"] and not shutil.which("claude"):
             print("claude mcp: `claude` CLI not on PATH — nothing to check")
         elif a["none"]:

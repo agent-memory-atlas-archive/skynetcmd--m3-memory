@@ -570,8 +570,8 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         # Windows shows "<HOME>\.m3/config" mixed-separator, not copy-paste-usable.
         plan.config_root = os.path.normpath(os.path.expanduser("~/.m3/config"))
         plan.engine_root = os.path.normpath(os.path.expanduser("~/.m3/engine"))
-        _say(f"    Config root: {plan.config_root}")
-        _say(f"    Engine root: {plan.engine_root}")
+        _say(f"    Settings folder: {plan.config_root}")
+        _say(f"    Data folder:     {plan.engine_root}")
 
     print()
     print("  FIPS 140-3 cryptography (most people: leave it off):")
@@ -662,11 +662,10 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     print("  Web dashboard (optional):")
     print("    A local control panel — browse memory, explore the knowledge graph,")
     print("    watch the pipeline, see system health. Runs on http://127.0.0.1:8088.")
-    print("    Starts automatically on boot as a WINDOWLESS background service (no")
-    print("    console window, no flashes) and keeps running after you close your")
-    print("    terminal. Control it with `m3 dashboard` / `--stop` / `--status`.")
-    print("    Loopback-only (localhost); it is NOT authenticated, so don't expose it.")
-    print("    Installs two small deps (fastapi + uvicorn).")
+    print("    Starts on boot in the background (no window) and keeps running after")
+    print("    you close your terminal. Control it with `m3 dashboard` / `--stop` /")
+    print("    `--status`. Only this computer can reach it, and it has no password,")
+    print("    so don't open it to the network. Installs two small Python packages.")
     plan.install_dashboard = _ask_yes_no(
         "  Install the web dashboard (auto-start on boot)?",
         default=True,
@@ -701,16 +700,15 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     # schtasks). Skipped when a flag already pinned the choice.
     if not (args.cognitive_loop or getattr(args, "no_cognitive_loop", False)):
         print()
-        print("  Cognitive-loop daemon (recommended):")
-        print("    The background engine that distills captured memories into")
-        print("    derived knowledge — entity extraction, belief consolidation,")
-        print("    reflection — off the write path. Without it, m3 stores raw")
-        print("    turns but never builds the entity graph (entity search stays")
-        print("    empty). Governor-paced (yields under load); only works a")
-        print("    backlog when a model is reachable, so idle cost is negligible.")
-        print("    Runs as a boot service. Heavier autonomy passes stay opt-in.")
+        print("  Background processing (recommended):")
+        print("    Reads what m3 has saved and works out the people, projects and")
+        print("    facts in it, so searching by name works and related memories are")
+        print("    linked. Without it, m3 still saves and finds everything, but")
+        print("    name search stays empty. It backs off when the computer is busy")
+        print("    and only does work when a language model is available, so it")
+        print("    costs almost nothing when idle. Starts on boot.")
         plan.cognitive_loop = _ask_yes_no(
-            "  Install the cognitive-loop daemon (auto-start on boot)?",
+            "  Install background processing (auto-start on boot)?",
             default=True,
         )
 
@@ -1656,8 +1654,8 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
 
     # ── Probe 0: decoupled paths and FIPS configuration ─────────────────
     if plan.decouple_roots:
-        _ok(f"  decoupled config root: {plan.config_root}")
-        _ok(f"  decoupled engine root: {plan.engine_root}")
+        _ok(f"  settings folder: {plan.config_root}")
+        _ok(f"  data folder:     {plan.engine_root}")
     if plan.fips_mode:
         _ok("  strict FIPS 140-3 execution mode: ENABLED")
 
@@ -2229,11 +2227,10 @@ def _step_cpu_sovereign_embedder() -> bool:
         # service nothing will ever start, and would contradict the diagnostic
         # `m3 embedder install` just printed. Surface it instead (§3).
         if getattr(e, "returncode", None) == EXIT_REGISTERED_NOT_RUNNING:
-            _warn("sovereign CPU embedder is REGISTERED but NOT running — see the diagnosis above.")
-            _say("  Tier-1 in-process embedding still works, so setup continues,")
-            _say("  but the shared :8082 server will stay down until it is fixed:")
-            _say("    m3 embedder status     # what the service manager thinks")
-            _say("    m3 embedder start      # after freeing the port")
+            _warn("this account's embedder service is set up but not running; the lines above say why.")
+            _say("  Setup continues. Once the cause is fixed:")
+            _say("    m3 embedder start")
+            _say("    m3 embedder status     # confirms it is serving")
             return False
         # NOT a failure — this OPTIONAL always-on CPU embedder was skipped (its
         # GGUF/binary or admin rights aren't present). m3 embeds fine WITHOUT it:
@@ -2241,12 +2238,10 @@ def _step_cpu_sovereign_embedder() -> bool:
         # it as "skipped, here's how to add it if you want it", not an error, so
         # the user doesn't think setup broke. (Any scary "Error:" line above came
         # from the sub-step and is superseded by this.)
-        _say("Optional CPU embedder (:8082) — SKIPPED (not installed). This is fine:")
-        _say("  m3 already embeds via the in-process Tier-1 / HTTP fallback tier;")
-        _say("  setup did NOT fail. Add the always-on shared server later only if")
-        _say(f"  you want it. (reason: {e})")
+        _say(f"The embedder service was not installed ({e}). Setup did not fail;")
+        _say("  you can add the service later:")
         print()
-        print("  To add the always-on CPU embedder later, follow the steps for your OS:")
+        print("  To add the embedder service later, follow the steps for your OS:")
         if is_windows():
             print("    Windows — the embedder registers as a Windows Service, which")
             print("    needs Administrator rights. Open an *Administrator* terminal and run:")
@@ -2370,13 +2365,13 @@ def _step_rust_core(plan: SetupPlan) -> bool:
     except Exception:  # noqa: BLE001 — fall through and (re)install
         pass
 
-    _say(f"  installing m3-core-rs {M3_CORE_RS_VERSION}")
+    _say(f"  installing the speed-up module ({M3_CORE_RS_VERSION})")
     cmd = _m3_cli("embedder", "install-gpu", "--from-setup")
     if not plan.allow_native_source_build:
         cmd.append("--no-source-fallback")
     try:
         _run(cmd, env=_m3_child_env())
-        _ok(f"native core installed (m3-core-rs {M3_CORE_RS_VERSION})")
+        _ok(f"speed-up module installed ({M3_CORE_RS_VERSION})")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         rc = getattr(e, "returncode", "n/a")
@@ -4180,7 +4175,7 @@ def _record_decoupled_roots(config_root: str, engine_root: str) -> bool:
             "steps would use the default roots. inspect: that file and its directory's permissions"
         )
         return False
-    _ok(f"  roots: config {config_root}, engine {engine_root} (recorded in {config_file})")
+    _ok(f"  settings folder {config_root}, data folder {engine_root} (saved in {config_file})")
     return True
 
 

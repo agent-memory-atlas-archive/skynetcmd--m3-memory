@@ -49,7 +49,7 @@ def test_probe_brief_summarizes(engine, capsys):
     m3_halt._log_lock_event("config_error", "mcp-proxy", engine, error="x")
     lock_probe.run(brief=True)
     out = capsys.readouterr().out
-    assert out.startswith("locks:") and "degraded" in out
+    assert out.startswith("file locks:") and "degraded" in out
 
 
 def test_probe_never_bumps_exit_code(engine):

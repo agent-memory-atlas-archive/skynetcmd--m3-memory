@@ -333,9 +333,10 @@ def test_port_busy_notice_does_not_promise_it_is_fine(capsys, monkeypatch):
     which is idempotent", which is what made the real bind conflict look
     benign. It must state the failure mode instead."""
     monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
+    monkeypatch.setattr(ea, "_port_held_by_someone_else", lambda *a, **k: False)
     ea._warn_if_port_busy("install")
     out = capsys.readouterr().out
-    assert "will not be able to bind" in out
+    assert "cannot start" in out
     assert "m3 embedder status" in out
 
 

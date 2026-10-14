@@ -732,13 +732,13 @@ def test_run_does_not_echo_the_command(monkeypatch, capsys):
 _HEALTHY_DOCTOR = """\
 [OK] m3 HEALTHY · 82000 memories · embedder: shared server (:8082) · chatlog: active (144467 rows)
 agent MCP configs: all healthy.
-[OK] memory bridge found
+[OK] m3 server found
 ==> Running m3-memory self-repair...
 Repair Summary: NOTHING_TO_DO (run_migrations skipped, rebuild_fts5 skipped, embed_backfill skipped, rebuild_cohesion skipped)
 ✅ shared-embedder: OK (config + server + keep-alive)
 [OK] Web Dashboard available at: http://127.0.0.1:8088  (pid 97002)
 ✅ agent paths: OK (1 wired host(s), no dead or stale paths)
-✅ claude mcp: single direct server (mcp__m3_memory__)
+✅ Claude Code: connected to m3 once (as m3_memory)
   [ok] plugin plugin: ✔ m3 is already at the latest version (2026.10.5.0).
 """
 

@@ -55,7 +55,7 @@ def run(brief: bool = False) -> int:
         import m3_halt
     except Exception as e:  # noqa: BLE001 — a probe must never crash the doctor
         if brief:
-            print("locks: unknown (m3_halt not loadable)")
+            print("file locks: unknown (m3_halt not loadable)")
         else:
             print(f"  status   : could not load m3_halt: {type(e).__name__}: {e}")
         return 0
@@ -83,7 +83,7 @@ def run(brief: bool = False) -> int:
             parts.append(f"{len(degraded)} degraded")
         if flapping:
             parts.append(f"{len(flapping)} flapping")
-        print("locks: " + ("; ".join(parts) if parts else "ok"))
+        print("file locks: " + ("; ".join(parts) if parts else "ok"))
         return 0
 
     print()

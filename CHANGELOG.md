@@ -442,8 +442,19 @@ the policy is forward-going only.
   installed, says how to connect an agent when none is found, and `m3 setup
   --help` hides internal options. The guides give `m3 config set` commands
   instead of environment variables, and the README leads with `pipx` (with how
-  to get it on each system).
+  to get it on each system). Doctor lines, the dashboard and background-processing
+  questions, and the folder and speed-up module messages follow suit; "no agents
+  wired" is printed once.
   **Affected:** everyone running setup or reading the guides · **Action:** none ·
+  **Data status:** none.
+
+- **On a shared machine, another account's embedder is reported as such.** Doctor
+  warns instead of saying OK when the embedder this account reaches belongs to
+  another user, the stale-server check ignores other users' servers, and the
+  "port already in use" note is dropped when the start check already names the
+  owner.
+  **Affected:** Linux and macOS machines with more than one m3 user ·
+  **Action:** give each account its own port (`m3 config set embed.server.port`) ·
   **Data status:** none.
 
 - **The macOS installer offers PostgreSQL 18.** When no server is found, `m3 setup`

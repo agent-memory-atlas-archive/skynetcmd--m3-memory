@@ -118,7 +118,7 @@ def run(brief: bool = False) -> int:
         # healthy line behind --verbose makes the check invisible to nearly
         # every user -- and an invisible check reads as coverage while
         # providing none. See tests/test_doctor_brief_visibility.py.
-        print("✅ agent guidance: OK (no stale m3 guidance found)")
+        print("✅ agent instructions: OK (no outdated m3 text)")
         return 0
 
     print("⚠️  agent guidance: stale m3 text found in your instruction file(s)")

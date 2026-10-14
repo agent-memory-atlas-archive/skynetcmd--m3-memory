@@ -63,8 +63,7 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
             print(line)
     elif plan.agents_kept:
         print("Agent wiring unchanged. Restart your agents so they load the new version.")
-    else:
-        print("No agents were wired. Run `m3 setup` again or wire one by hand.")
+    # No agents wired: the closing line below says so once.
     print()
     # Every choice setup made is in m3_config.toml. The one thing a file cannot
     # carry is where that file is: a config folder outside the default needs

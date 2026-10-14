@@ -710,9 +710,9 @@ def pypi_latest() -> str | None:
 
 
 _DOCTOR_HEALTHY = re.compile(
-    r"^(\[OK\] m3 HEALTHY|agent MCP configs: all healthy\.|\[OK\] memory bridge found"
+    r"^(\[OK\] m3 HEALTHY|agent MCP configs: all healthy\.|\[OK\] m3 server found"
     r"|==> Running m3-memory self-repair|Repair Summary: NOTHING_TO_DO"
-    r"|✅ |\[OK\] Web Dashboard available at|agent paths: no wired agent configs found"
+    r"|✅ |\[OK\] Web Dashboard available at|agent paths: no agent is set up to use m3 yet"
     r"|\s*\[ok\] plugin plugin: .*already at the latest version"
     r"|\s*\[ok\] plugin plugin: .*updated from \S+ to \S+"
     r"|\s*\[ok\] plugin restart: )"

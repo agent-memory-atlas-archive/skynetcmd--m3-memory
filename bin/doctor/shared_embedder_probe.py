@@ -574,6 +574,15 @@ def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, lis
     return None, []
 
 
+def _server_is_someone_elses() -> bool:
+    try:
+        from m3_memory.embedder_admin import _embed_server_port, _port_held_by_someone_else
+
+        return _port_held_by_someone_else(_embed_server_port())
+    except Exception:  # noqa: BLE001 — cannot tell: no false alarm
+        return False
+
+
 def run(brief: bool = False, fix: bool = False) -> int:
     """Check config + server + keep-alive task. Return non-zero if shared mode is
     not fully healthy. With fix=True, repair what's repairable first."""
@@ -671,8 +680,13 @@ def run(brief: bool = False, fix: bool = False) -> int:
     manual_only = (problems == ["inproc-env-leak"]) and _manual_env_leak_remains()
 
     if brief:
-        if healthy:
-            print("✅ shared-embedder: OK (config + server + keep-alive)")
+        if healthy and _server_is_someone_elses():
+            print(
+                "⚠️  shared-embedder: the embedder this account uses runs under another account; "
+                "this account's own is not running. fix: m3 config set embed.server.port <free port>"
+            )
+        elif healthy:
+            print("✅ shared-embedder: OK (settings, server and keep-alive)")
         elif manual_only:
             print(
                 "⚠️  shared-embedder: M3_EMBED_GGUF set in your environment — "

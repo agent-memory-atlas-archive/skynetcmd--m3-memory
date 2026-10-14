@@ -146,7 +146,7 @@ def test_interactive_prompts_default_yes(monkeypatch):
     orig = sw._ask_yes_no
 
     def _fake_ask(msg, default=False):
-        if "cognitive-loop daemon" in msg:
+        if "background processing" in msg:
             seen["asked"] = True
             return default  # accept the offered default
         return default if "dashboard" not in msg else False

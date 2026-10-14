@@ -309,7 +309,7 @@ def test_a_local_scope_m3_server_is_reported_and_removed(monkeypatch, tmp_path, 
     p.run(brief=True)
     out = capsys.readouterr().out
     assert f"`memory` is also registered for {home}" in out
-    assert "single direct server" not in out
+    assert "connected to m3 once" not in out
     p._fix(a)
     assert removed == [("memory", "local", str(home))]
 
@@ -336,4 +336,4 @@ def test_a_converged_fix_is_one_line_when_brief(monkeypatch, capsys, brief):
     p.run(brief=brief, fix=True)
     out = capsys.readouterr().out
     assert ("convergence (fix)" in out) is not brief
-    assert ("✅ claude mcp: single direct server" in out) is brief
+    assert ("✅ Claude Code: connected to m3 once" in out) is brief

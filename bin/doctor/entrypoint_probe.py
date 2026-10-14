@@ -276,7 +276,7 @@ def run(brief: bool = False) -> int:
         # `brief` means ONE LINE, not silence. Printing nothing in the default
         # mode hides the check from every user who does not pass --verbose —
         # which is nearly all of them.
-        print(f"✅ entrypoints: OK — `m3` on PATH runs this install ({expected})")
+        print(f"✅ m3 command: OK — runs this install ({expected})")
         return 0
 
     # A source checkout is the common benign cause, and the generic advice

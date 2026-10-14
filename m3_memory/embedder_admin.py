@@ -704,9 +704,15 @@ def stale_embed_servers() -> list[dict]:
         installed = max((os.path.getmtime(r) for r in records), default=os.path.getmtime(str(binary)))
     except Exception:  # noqa: BLE001 — a diagnostic must never raise
         return []
+    from m3_memory._platform import current_uid, owned_by_current_user
+
+    per_user = current_uid() is not None  # Windows: one LocalSystem service, any owner
     stale = []
     for proc in psutil.process_iter(["pid", "name"]):
         if not (proc.info.get("name") or "").lower().startswith("m3-embed-server"):
+            continue
+        # Another account's server is not ours to restart, nor to report.
+        if per_user and owned_by_current_user(proc) is False:
             continue
         try:
             started = proc.create_time()
@@ -930,12 +936,14 @@ def _warn_if_port_busy(action: str) -> None:
     post-start verification is what actually decides (§3).
     """
     port = _embed_server_port()
-    if _port_in_use(port):
+    # Another account's listener gets its own definite warning from the start
+    # check; a "maybe" here on top of it is noise.
+    if _port_in_use(port) and not _port_held_by_someone_else(port):
         print(
-            f"[i] port {port} is already in use. If that is an existing "
-            f"m3-embed-server, `{action}` is idempotent; if it is any other "
-            f"process, the service will not be able to bind. Confirmed after "
-            "start — check anytime with `m3 embedder status`."
+            f"[i] port {port} is already in use. If it is m3's embedder, "
+            f"`{action}` leaves it as is; if it is another program, the "
+            "embedder cannot start. The result is checked below; "
+            "`m3 embedder status` shows it anytime."
         )
 
 
@@ -1077,9 +1085,9 @@ def cmd_install(args: argparse.Namespace) -> int:
     registered = _service_reports_installed(binary, gguf) or _service_defined_on_disk()
     if registered and _service_reports_running(binary, gguf) and not _service_binary_is_stale(binary):
         if not quiet:
-            print(f"[=] using bundled GGUF: {gguf} ({size_mb} MB)")
+            print(f"[=] embedding model: {gguf} ({size_mb} MB)")
         return _verify_started_or_explain(binary, gguf, quiet_ok=quiet)
-    print(f"[=] using bundled GGUF: {gguf} ({size_mb} MB)")
+    print(f"[=] embedding model: {gguf} ({size_mb} MB)")
     # Re-registering a known service refreshes its definition (binary and model
     # paths) and is routine on every macOS/Linux upgrade; its output (unit path,
     # log location, the linger note) matters on the first install or a failure.

@@ -267,7 +267,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
 
     if brief:
         if not rows and not stale:
-            print("agent paths: no wired agent configs found")
+            print("agent paths: no agent is set up to use m3 yet")
         elif dead:
             hosts = ", ".join(sorted({lbl for lbl, _ in dead}))
             print(f"⚠️  agent paths: {len(dead)} dead-path config(s) [{hosts}] — run `m3 setup`")

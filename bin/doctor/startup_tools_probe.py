@@ -46,7 +46,7 @@ def run(brief: bool = False) -> int:
         return 1
 
     if names is None:
-        _b("[startup-tools] all tools (lazy loading disabled)")
+        _b("tools loaded at start: all")
         if not brief:
             print(f"[startup-tools] ALL tools registered at startup  (source: {source})")
             print("   Every schema loads eagerly. This is the pre-slim behavior and costs the full catalog in tokens.")
@@ -72,7 +72,7 @@ def run(brief: bool = False) -> int:
                 print(f"   {line}")
             return 1
 
-    _b(f"[startup-tools] {len(names)} tools (source: {source})")
+    _b(f"tools loaded at start: {len(names)} (from {source})")
     if brief:
         return 0
 

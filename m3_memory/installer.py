@@ -2556,7 +2556,7 @@ def _agent_config_section() -> None:
     print()
     print("agent MCP configs:")
     if not scanned:
-        print("  (no agent config declares an m3 'memory' server)")
+        print("  (no agent is set up to use m3 yet)")
         return
     any_bad = False
     for label, path, bad in scanned:
@@ -2681,7 +2681,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
         _memory_root_migration_section(fix)
         bridge = find_bridge()
         if bridge and os.path.isfile(bridge):
-            print("[OK] memory bridge found")  # its path: `m3 doctor --verbose`
+            print("[OK] m3 server found")  # its path: `m3 doctor --verbose`
             return 0
         print("[X] no bridge found. Run `mcp-memory install-m3` to fetch the system.")
         print("\nFor full detail, run:  m3 doctor --verbose")

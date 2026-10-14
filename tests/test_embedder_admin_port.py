@@ -68,11 +68,21 @@ def test_warn_if_port_busy_prints_when_busy(monkeypatch, capsys):
     (port + the bind failure mode) rather than a phrase.
     """
     monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
+    monkeypatch.setattr(ea, "_port_held_by_someone_else", lambda *a, **k: False)
     ea._warn_if_port_busy("start")
     out = capsys.readouterr().out
     assert "already in use" in out
     assert "8082" in out
-    assert "not be able to bind" in out
+    assert "cannot start" in out
+
+
+def test_warn_if_port_busy_silent_when_another_account_holds_it(monkeypatch, capsys):
+    """Another account's listener gets a definite warning from the start check;
+    the "if it is m3's embedder" maybe on top of it would contradict it."""
+    monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
+    monkeypatch.setattr(ea, "_port_held_by_someone_else", lambda *a, **k: True)
+    ea._warn_if_port_busy("start")
+    assert capsys.readouterr().out == ""
 
 
 def test_warn_if_port_busy_silent_when_free(monkeypatch, capsys):
@@ -87,6 +97,8 @@ def test_cmd_start_warns_then_delegates(monkeypatch, capsys, tmp_path):
     gguf.write_bytes(b"x")
     monkeypatch.setattr(ea, "_binary_and_gguf_or_fail", lambda: (tmp_path / "bin", gguf))
     monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
+    # This account's listener, whatever really holds the port on the test box.
+    monkeypatch.setattr(ea, "_port_held_by_someone_else", lambda *a, **k: False)
     # Inject the branch collaborator too: _service_reports_installed SHELLS OUT
     # to the binary, so with a fake path it raises OSError -> False -> cmd_start
     # takes the auto-install branch and re-resolves the REAL binary. That passes
