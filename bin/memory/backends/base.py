@@ -172,6 +172,27 @@ class VectorCopyStatus:
     missing: dict[str, int] = field(default_factory=dict)
 
 
+def fill_vector_copies(
+    backend: StorageBackend, conn: object, *, budget: int | None = None, batch: int = 1000
+) -> dict[str, int]:
+    """Fill missing vector copies in every embedding table, committing after each
+    batch so no long lock is held; stop at ``budget`` rows when given. Returns
+    rows filled per table ({} on a backend that keeps no copy). The one loop the
+    doctor's --fix and the cognitive loop share."""
+    status = backend.vector_copy_status(conn)
+    filled: dict[str, int] = {}
+    for table in status.missing if status else ():
+        filled[table] = 0
+        while budget is None or sum(filled.values()) < budget:
+            room = batch if budget is None else min(batch, budget - sum(filled.values()))
+            n = backend.fill_vector_copy(conn, table=table, limit=room)
+            conn.commit()  # type: ignore[attr-defined]
+            if not n:
+                break
+            filled[table] += n
+    return filled
+
+
 def embedding_row_groups(rows: Sequence[EmbeddingRow]) -> list[tuple[list[str], list[tuple]]]:
     """Group rows by the optional columns they set: ``[(columns, value_tuples)]``.
 
@@ -610,12 +631,14 @@ class StorageBackend(Protocol):
     ) -> int:
         """Write ``memory_embeddings`` rows: the ONE embedding write path. Backend-blind.
 
-        Every writer (memory write, re-embed, import, sweeper, sync) calls this
-        rather than spelling its own INSERT, because a backend may keep more than
-        the BYTEA blob: PostgreSQL with pgvector also writes the ``embedding_vec``
-        copy that its in-database search scores. A writer that bypassed this
-        would leave rows without that copy and quietly drop search to the slower
-        baseline path.
+        Every Python writer (memory write, re-embed, import, sweeper, sync) calls
+        this rather than spelling its own INSERT, because a backend may keep more
+        than the BYTEA blob: PostgreSQL with pgvector also writes the
+        ``embedding_vec`` copy that its in-database search scores. A row that
+        arrives without it (a server-side copy such as pg_fdw_sync's
+        ``INSERT ... SELECT`` from a store without the column, or an older client)
+        is still found: search uses the baseline until the fill
+        (``fill_vector_copy``) catches up.
 
         ``on_conflict`` on the ``id`` key: ``"error"`` (plain INSERT), ``"ignore"``
         (keep the existing row), ``"update"`` (overwrite every written column).

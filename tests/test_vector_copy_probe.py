@@ -111,7 +111,9 @@ def test_a_failing_backend_is_reported_not_raised(use_backend, capsys):
 
     use_backend(_Broken(None))
     assert _run(brief=True) == 0
-    assert "could not read its state (RuntimeError: connection refused)" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "could not read its state on the " in out and "(RuntimeError: connection refused)" in out
+    assert "may this role read memory_embeddings?" in out  # names what to check, not just that it failed
 
 
 def test_the_loop_fill_respects_its_budget(use_backend):

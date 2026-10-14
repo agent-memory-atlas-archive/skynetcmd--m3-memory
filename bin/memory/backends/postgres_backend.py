@@ -74,13 +74,19 @@ _UPSERT_PAGE_SIZE = _m3cfg.setting("db.postgres.upsert_page_size")
 
 # The migration that creates the vector copy; ensure_vector_copy re-applies it.
 _VECTOR_COPY_MIGRATION = 66
+# "This row lacks its copy". Must stay textually identical to the WHERE of
+# pg_066's partial index, or the planner cannot use the index and each check
+# that reads it becomes a full scan.
+_LACKS_COPY = "embedding_vec IS NULL"
 
 
 def _has_vec_column(cur: Any, table: str) -> bool:
     """Whether ``table`` as this session resolves it (its search_path) has pg_066's
-    ``embedding_vec`` column. Read on every write rather than cached: one catalog
-    lookup per batch, and never stale after the extension is added or the
-    migration is reversed, nor wrong for a second schema on the same DSN."""
+    ``embedding_vec`` column. Read on every write rather than cached, so it is
+    never stale after the extension is added or the migration is reversed, nor
+    wrong for a second schema on the same DSN. Cost: one round trip per write
+    call (measured 0.24 ms against 0.18 ms for ``SELECT 1`` on a local server);
+    batched writers pay it once per batch."""
     cur.execute(
         "SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass(%s) AND attname = 'embedding_vec' AND NOT attisdropped",
         (table,),
@@ -93,7 +99,7 @@ def _vector_copy_ready(cur: Any) -> bool:
     column and no row lacks a copy (pg_066's partial index makes this cheap)."""
     if not _has_vec_column(cur, "memory_embeddings"):
         return False
-    cur.execute("SELECT NOT EXISTS (SELECT 1 FROM memory_embeddings WHERE embedding_vec IS NULL)")
+    cur.execute(f"SELECT NOT EXISTS (SELECT 1 FROM memory_embeddings WHERE {_LACKS_COPY})")
     return bool(cur.fetchone()[0])
 
 
@@ -106,7 +112,7 @@ def _vector_copy_status(cur: Any) -> VectorCopyStatus:
     missing: dict[str, int] = {}
     for table in sorted(EMBEDDING_TABLES):
         if _has_vec_column(cur, table):
-            cur.execute(f"SELECT count(*) FROM {table} WHERE embedding_vec IS NULL")
+            cur.execute(f"SELECT count(*) FROM {table} WHERE {_LACKS_COPY}")
             missing[table] = int(cur.fetchone()[0])
     return VectorCopyStatus(bool(available), bool(installed), missing)
 
@@ -1319,7 +1325,7 @@ class PostgresBackend:
         cur = conn.cursor()  # type: ignore[attr-defined]
         if not _has_vec_column(cur, table):
             return 0
-        cur.execute(f"SELECT id, embedding FROM {table} WHERE embedding_vec IS NULL LIMIT %s", (limit,))
+        cur.execute(f"SELECT id, embedding FROM {table} WHERE {_LACKS_COPY} LIMIT %s", (limit,))
         rows = cur.fetchall()
         if not rows:
             return 0

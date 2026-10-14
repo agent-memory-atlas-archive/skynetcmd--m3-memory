@@ -760,25 +760,16 @@ the policy is forward-going only.
 
 ### Added
 
-- **On PostgreSQL with pgvector, vector search scores in the database.** Search
-  is still exact (the same rows and order as before), but PostgreSQL returns only
-  the top results instead of sending every stored vector to m3: at 50,000
-  memories, 3× faster on the database machine and about 50× faster across a
-  network.
-  - **Migration `pg_066`** installs the `vector` extension when the server offers
-    it and the role may create it, and adds an `embedding_vec` copy of each
-    embedding to `memory_embeddings` and `chat_log_embeddings`. Every embedding
-    write fills it. A trigger clears a copy that a write left stale by changing
-    only the blob.
-  - **Search uses the database only when every row has its copy;** otherwise it
-    uses the previous path, so no row is missed.
-  - **`m3 doctor`** reports pgvector's state. `m3 doctor --fix` fills missing
-    copies, and it re-applies `pg_066` after a superuser has run
-    `CREATE EXTENSION vector`. The cognitive loop's embed pass also fills them.
-  - **Without pgvector** (or when the role may not create it), nothing changes.
-  **Affected:** PostgreSQL stores on a server with pgvector · **Action:** none;
-  existing rows are filled by the cognitive loop or `m3 doctor --fix` ·
-  **Data status:** additive; the BYTEA embedding stays the source of truth.
+- **On PostgreSQL with pgvector, vector search runs in the database.** Results
+  are unchanged (search is still exact); only the top results leave the server,
+  so search is faster, most of all when the database is on another machine
+  ([PERFORMANCE.md](docs/PERFORMANCE.md#postgresql-with-pgvector)). m3 creates the
+  extension where the server offers it and the role may. `m3 doctor` reports the
+  state, and `m3 doctor --fix` prepares existing rows (the cognitive loop also
+  does this in the background). Without pgvector nothing changes.
+  **Affected:** PostgreSQL stores on a server with pgvector · **Action:** none ·
+  **Data status:** additive: a `vector` copy beside each embedding; the stored
+  embedding is unchanged.
 
 - **`m3 batch` runs several commands in one process.** Each line of stdin is a
   command as it would follow `m3` (the same quoting on every OS), or a JSON

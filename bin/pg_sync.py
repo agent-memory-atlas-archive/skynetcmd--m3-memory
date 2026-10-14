@@ -895,13 +895,14 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
                 # memory_items merge carries the last-write-wins decision; adding
                 # a second one here could strand a row's vector a version behind
                 # its content.
-                pull_count += _local_backend().bulk_upsert(
+                # Through the one embedding writer, so a local PostgreSQL store
+                # with pgvector gets each row's vector copy as it lands.
+                from memory.backends.base import EmbeddingRow
+
+                pull_count += _local_backend().insert_embeddings(
                     sl_conn,
-                    "memory_embeddings",
-                    ["id", "memory_id", "embedding", "embed_model", "dim"],
-                    [tuple(r) for r in batch],
-                    conflict_target="(id)",
-                    update_columns=["embedding", "embed_model", "dim"],
+                    [EmbeddingRow(r[0], r[1], r[2], r[3], r[4]) for r in batch],
+                    on_conflict="update",
                 )
                 sl_conn.commit()
         except Exception as exc:

@@ -1027,34 +1027,35 @@ _VECTOR_COPY_BATCH = 1000
 def _vector_copy_missing() -> int:
     """Rows lacking the backend's in-database vector copy, over every embedding
     table (PostgreSQL + pgvector). 0 on a backend that keeps no copy."""
-    try:
-        from memory.backends import active_backend
+    from memory.backends import active_backend
 
-        backend = active_backend()
+    backend = active_backend()
+    try:
         with backend.connection() as conn:
             status = backend.vector_copy_status(conn)
         return sum(status.missing.values()) if status else 0
     except Exception as e:  # noqa: BLE001 — a work-gate probe must not stop the loop
-        log_swallowed(logger, e, f"vector copy work-gate probe failed (non-fatal): {e}")
+        # Fails closed, but visibly, like the embed gate below: a store that will
+        # not answer must not look like one with nothing to fill.
+        logger.warning(
+            "observed: vector copy work-gate probe failed on the %s store (%s: %s). "
+            "possible: store offline or locked. inspect: `m3 doctor`. "
+            "Assuming NO vector copies to fill this cycle.",
+            backend.name,
+            type(e).__name__,
+            e,
+        )
         return 0
 
 
 def _fill_vector_copies(budget: int = _VECTOR_COPY_PER_PASS) -> int:
     """Fill up to ``budget`` missing vector copies, committing per batch."""
     from memory.backends import active_backend
+    from memory.backends.base import fill_vector_copies
 
     backend = active_backend()
-    filled = 0
     with backend.connection() as conn:
-        status = backend.vector_copy_status(conn)
-        for table in status.missing if status else ():
-            while filled < budget:
-                n = backend.fill_vector_copy(conn, table=table, limit=min(_VECTOR_COPY_BATCH, budget - filled))
-                conn.commit()
-                if not n:
-                    break
-                filled += n
-    return filled
+        return sum(fill_vector_copies(backend, conn, budget=budget, batch=_VECTOR_COPY_BATCH).values())
 
 
 def has_embed_work(core_db: str | None) -> bool:
@@ -1307,8 +1308,9 @@ async def run_embed_pass(args):
             logger.info(f"Embed pass: filled {filled} vector cop{'y' if filled == 1 else 'ies'}")
     except Exception as e:  # noqa: BLE001 — never let this abort the pass
         logger.error(
-            f"observed: vector copy fill failed ({type(e).__name__}: {e}). possible: the store "
-            f"is locked or the column was dropped. inspect: `m3 doctor`. Will retry next cycle."
+            f"observed: vector copy fill failed ({type(e).__name__}: {e}); batches committed "
+            f"before it are kept. possible: the store is locked or the copy column was dropped. "
+            f"inspect: `m3 doctor`. Will retry next cycle."
         )
 
 

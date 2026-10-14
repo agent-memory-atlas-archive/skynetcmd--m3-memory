@@ -28,21 +28,20 @@ logger = logging.getLogger("memory.doctor.vector_copy_probe")
 _FILL_BATCH = 1000
 
 
-def _fill_all(backend, conn, tables) -> dict[str, int]:
-    filled: dict[str, int] = {}
-    for table in tables:
-        total = 0
-        while n := backend.fill_vector_copy(conn, table=table, limit=_FILL_BATCH):
-            conn.commit()
-            total += n
-        filled[table] = total
-    return filled
+def _backend_name() -> str:
+    try:
+        from memory.backends import active_backend
+
+        return str(active_backend().name)
+    except Exception:  # noqa: BLE001 — naming the store must not mask the real error
+        return "unknown"
 
 
 def run(brief: bool = False, fix: bool = False) -> int:
     """Report (and with ``fix``, repair) the vector copy. Always 0."""
     try:
         from memory.backends import active_backend
+        from memory.backends.base import fill_vector_copies
 
         backend = active_backend()
         with backend.connection() as conn:
@@ -57,14 +56,17 @@ def run(brief: bool = False, fix: bool = False) -> int:
             if fix:
                 backend.ensure_vector_copy(conn)
                 conn.commit()
+                filled = fill_vector_copies(backend, conn, batch=_FILL_BATCH)
                 # A backend that kept a copy a moment ago still does; `or status`
                 # only narrows the type.
                 status = backend.vector_copy_status(conn) or status
-                filled = _fill_all(backend, conn, list(status.missing))
-                status = backend.vector_copy_status(conn) or status
     except Exception as e:  # noqa: BLE001 — a probe must never crash the doctor
         log_swallowed(logger, e, f"vector copy probe failed: {e}")
-        print(f"⚠️  pgvector: could not read its state ({type(e).__name__}: {e}) — inspect: `m3 doctor --verbose`")
+        print(
+            f"⚠️  vector copy: could not read its state on the {_backend_name()} store "
+            f"({type(e).__name__}: {e}){' while repairing' if fix else ''} — inspect: is the store "
+            "reachable (the `store:` line above), and may this role read memory_embeddings?"
+        )
         return 0
 
     lacking = sum(status.missing.values())
@@ -79,11 +81,11 @@ def run(brief: bool = False, fix: bool = False) -> int:
         line = "⚠️  pgvector: created, but the vector column is missing — fix: `m3 doctor --fix`"
     elif lacking:
         line = (
-            f"⚠️  pgvector: {lacking} embedding(s) lack their vector copy "
-            "— fix: `m3 doctor --fix` (the cognitive loop also fills them)"
+            f"⚠️  pgvector: {lacking} embedding(s) lack their vector copy, so vector search scores in m3 "
+            "instead of the database — fix: `m3 doctor --fix` (the cognitive loop also fills them)"
         )
     else:
-        line = "✅ pgvector: every embedding has its vector copy"
+        line = "✅ pgvector: every embedding has its vector copy; vector search scores in the database"
     print(line)
     if not brief:
         for table, n in sorted(status.missing.items()):

@@ -89,3 +89,19 @@ def test_sqlite_keeps_no_vector_copy(conn):
     assert b.vector_copy_status(conn) is None
     assert b.ensure_vector_copy(conn) is False
     assert b.fill_vector_copy(conn) == 0
+
+
+def test_the_lacks_copy_predicate_matches_the_partial_index():
+    """The planner uses pg_066's partial index only for a query whose WHERE is the
+    index's own predicate; a drifted copy would turn every readiness check into a
+    full scan with no error anywhere."""
+    from memory.backends.postgres_backend import _LACKS_COPY
+
+    up = (_BIN.parent / "memory" / "migrations" / "postgres" / "pg_066_pgvector_column.up.sql").read_text(
+        encoding="utf-8"
+    )
+    index_wheres = [
+        line.split("WHERE", 1)[1].strip().rstrip(";") for line in up.splitlines() if "WHERE embedding" in line
+    ]
+    assert len(index_wheres) == 2  # the core table and the chat log clone
+    assert all(w == _LACKS_COPY for w in index_wheres)

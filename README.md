@@ -423,7 +423,6 @@ m3 ships a Rust compute core (`m3_core_rs`) that speeds up MMR re-ranking by **9
 *   **You value privacy:** Zero external cloud requests or subscriptions required.
 
 ### m3 is NOT a fit if...
-*   **You need approximate vector search over hundreds of thousands of memories today:** exact search takes about 0.4 s (SQLite) to 0.8 s (PostgreSQL) at 50,000 memories and about 1 s at 160,000 on SQLite; PostgreSQL with pgvector takes about 0.2 s at 50,000. Approximate (HNSW) search is planned (see [Project status](#project-status)).
 *   You need a hosted SaaS dashboard with managed infrastructure (use [Letta](https://letta.ai)).
 *   **You don't want persistent memory:** you want each session to start fresh, with no ability to retrieve prior sessions' knowledge — m3 exists to do the opposite, so your agent's built-in defaults are the simpler fit.
 
