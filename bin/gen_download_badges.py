@@ -121,6 +121,13 @@ def _write_badge_svg(path: Path, label: str, message: str, color: str, logo: str
 # ── PyPI ─────────────────────────────────────────────────────────────────────
 
 
+def pypi_last_month(package: str) -> int:
+    """pypistats' last-month downloads, mirrors excluded (its "recent" figure;
+    measured 2026-10-13: 5,393 against a ~5,150 31-day without-mirrors sum and
+    ~16,900 with mirrors)."""
+    return int(_get_json(f"{PYPISTATS_API}/{package}/recent")["data"]["last_month"])
+
+
 def pypi_days_without_mirrors(package: str) -> list[tuple[str, int]]:
     """[(YYYY-MM-DD, downloads), ...] for category without_mirrors, over pypistats'
     ~180-day window. without_mirrors excludes PyPI mirror bots (bandersnatch etc.),
@@ -282,15 +289,34 @@ def main() -> int:
         pypi_total = _counted("pypi", "pypi-history.json", pypi_days_without_mirrors(args.package), 180, "PyPI")
         if _write_json(
             badges / "pypi-downloads.json",
-            _shields_endpoint("PyPI downloads", f"{_fmt(pypi_total)}", "blue"),
+            _shields_endpoint("PyPI downloads (all-time)", f"{_fmt(pypi_total)}", "blue"),
         ):
             changed = True
         # Self-hosted SVG (Camo-reliable) — the README points at this, not the JSON.
-        if _write_badge_svg(badges / "pypi-downloads.svg", "PyPI downloads", _fmt(pypi_total), "blue", logo="pypi"):
+        if _write_badge_svg(
+            badges / "pypi-downloads.svg", "PyPI downloads (all-time)", _fmt(pypi_total), "blue", logo="pypi"
+        ):
             changed = True
         print(f"[pypi] running total (without mirrors): {pypi_total:,} -> {_fmt(pypi_total)}")
     except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as e:
         print(f"[pypi] WARNING: could not fetch downloads ({type(e).__name__}: {e})", file=sys.stderr)
+
+    # PyPI, last month — the convention among projects that show downloads (a
+    # recent window, not all-time). Same source and basis as the total: pypistats,
+    # mirrors excluded. A stateless figure: no counter, no history.
+    try:
+        monthly = pypi_last_month(args.package)
+        if _write_json(
+            badges / "pypi-monthly.json", _shields_endpoint("PyPI downloads", f"{_fmt(monthly)}/month", "blue")
+        ):
+            changed = True
+        if _write_badge_svg(
+            badges / "pypi-monthly.svg", "PyPI downloads", f"{_fmt(monthly)}/month", "blue", logo="pypi"
+        ):
+            changed = True
+        print(f"[pypi] last month (without mirrors): {monthly:,} -> {_fmt(monthly)}/month")
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as e:
+        print(f"[pypi] WARNING: could not fetch last month's downloads ({type(e).__name__}: {e})", file=sys.stderr)
 
     # GitHub clones — requires a token that can read the private traffic API.
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("M3_STARGAZER") or ""

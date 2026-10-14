@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_download_badges.py
-sha1: 6ff1167431e8
-mtime_utc: 2026-10-14T02:17:21.515320+00:00
-generated_utc: 2026-10-14T02:18:32.973492+00:00
+sha1: faa544a80ed5
+mtime_utc: 2026-10-14T02:24:24.344631+00:00
+generated_utc: 2026-10-14T02:24:34.870498+00:00
 private: false
 ---
 
@@ -47,7 +47,7 @@ Standard library only.
 
 ## Entry points
 
-- `def main()` (line 248)
+- `def main()` (line 255)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -95,6 +95,7 @@ _(only stdlib)_
 - `github-clones.json`
 - `pypi-downloads.json`
 - `pypi-history.json`
+- `pypi-monthly.json`
 
 ---
 
