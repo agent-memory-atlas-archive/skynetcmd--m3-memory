@@ -134,12 +134,14 @@ from m3_core.errors import log_swallowed
 
 from .search_ranking import (  # noqa: F401 — re-exported for callers + memory_core shim
     _DATE_MONTHS,
+    _TRUST_COLS,
     _apply_recency_bonus,
     _apply_temporal_boost,
     _explain_reason,
     _hybrid_score_batch,
     _recency_bonus_ranks,
     _trim_by_elbow,
+    _trust_block,
 )
 from .search_routing import (  # noqa: F401 — re-exported for callers + memory_core shim
     _apply_auto_layer,
@@ -465,7 +467,9 @@ def _explain_unscored(hits, explain: bool, source: str) -> None:
         return
     for _score, item in hits:
         if isinstance(item, dict) and "_explanation" not in item:
-            item["_explanation"] = {"source": source, "reason": source}
+            trust = _trust_block(item)
+            reason = _explain_reason({"trust": trust}).replace("weak/hybrid match (no single dominant signal)", source)
+            item["_explanation"] = {"source": source, "reason": reason, "trust": trust}
 
 
 def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns, row_filter: dict | None = None):
@@ -555,11 +559,18 @@ _ALLOWED_EXTRA = frozenset(
         "corroboration_count",
         "contradiction_count",
         "importance_raw",
+        "helpful_count",
+        "unhelpful_count",
+        "pinned",
+        "change_agent",
+        "origin_device",
     }
 )
 
 
-def _resolve_extra_columns(extra_columns, *, apply_decay=True, recency_bias=False, confidence_ranking=False):
+def _resolve_extra_columns(
+    extra_columns, *, apply_decay=True, recency_bias=False, confidence_ranking=False, explain=False
+):
     """The projected extra columns for one search. SINGLE OWNER (§10a).
 
     ⚠ THIS WAS DUPLICATED AND THE COPIES DRIFTED. The FTS exact-match
@@ -586,6 +597,9 @@ def _resolve_extra_columns(extra_columns, *, apply_decay=True, recency_bias=Fals
     # Forensic decay-off: pull the undecayed baseline only when asked for.
     if not apply_decay and "importance_raw" not in cols:
         cols = [*cols, "importance_raw"]
+    # explain: the columns that say whether to trust a result.
+    if explain:
+        cols = [*cols, *(c for c in _TRUST_COLS if c not in cols)]
     return [c for c in cols if c in _ALLOWED_EXTRA and c not in _BASE_COLS]
 
 
@@ -866,6 +880,7 @@ async def memory_search_scored_impl(
                 apply_decay=apply_decay,
                 recency_bias=recency_bias,
                 confidence_ranking=_scfg.CONFIDENCE_RANKING,
+                explain=explain,
             )
 
             # TENANCY (SECURITY, 2026-07-14): the short-circuit MUST apply the
@@ -1017,6 +1032,7 @@ async def memory_search_scored_impl(
                 apply_decay=apply_decay,
                 recency_bias=recency_bias,
                 confidence_ranking=_scfg.CONFIDENCE_RANKING,
+                explain=explain,
             ),
             row_filter=_row_filter,
         )
@@ -1049,6 +1065,7 @@ async def memory_search_scored_impl(
         apply_decay=apply_decay,
         recency_bias=recency_bias,
         confidence_ranking=_scfg.CONFIDENCE_RANKING,
+        explain=explain,
     )
     # Rebound so the PG branch and the recursive calls below carry the resolved
     # set rather than the caller's raw argument.
@@ -1461,6 +1478,10 @@ async def memory_search_scored_impl(
                     "vector_weight": vector_weight,
                     "intent_hint": intent_hint,
                     "role_boost": role_boosts[i],
+                    # Semantic-only rows carry bm25 = 0, which normalises to full
+                    # keyword credit; this says whether a keyword matched at all.
+                    "keyword_match": search_mode != "semantic",
+                    "trust": _trust_block(row),
                 }
                 # Human-readable summary synthesized from the numeric components
                 # above (no new computation) so callers can answer "why did you
@@ -2760,6 +2781,8 @@ async def memory_search_impl(
                 lines.append(f"   Importance: {exp['importance']:.4f}")
             else:
                 lines.append(f"   Source: {exp.get('source', 'unknown')}")
+            if exp.get("trust"):
+                lines.append("   Trust: " + ", ".join(f"{k}={v}" for k, v in exp["trust"].items()))
 
         lines.append(f"Content:\n{content}\n")
     lines.append("-" * 40)

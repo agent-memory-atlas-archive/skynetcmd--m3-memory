@@ -14,7 +14,7 @@ memory_core lazy-registry shim resolving to the same function objects).
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import cast
 
 from m3_core.errors import log_swallowed
@@ -285,6 +285,58 @@ def _recency_bonus_ranks(valid_froms, bias: float) -> list[float]:
     return out
 
 
+# The record columns _trust_block reads; search projects them under explain.
+_TRUST_COLS = (
+    "confidence",
+    "corroboration_count",
+    "contradiction_count",
+    "helpful_count",
+    "unhelpful_count",
+    "pinned",
+    "valid_to",
+    "created_at",
+    "source",
+    "change_agent",
+    "origin_device",
+)
+
+
+def _trust_block(row) -> dict:
+    """What a result's own record says about trusting it, for explain=True.
+
+    Reads only the columns present (_TRUST_COLS, which search projects under
+    explain), so a row from a path that projected fewer reports fewer fields
+    rather than inventing zeros. Pure.
+    """
+    keys = set(row.keys())
+
+    def get(name):
+        return row[name] if name in keys else None
+
+    out: dict = {}
+    for name in ("confidence", "corroboration_count", "contradiction_count", "helpful_count", "unhelpful_count"):
+        v = get(name)
+        if v is not None:
+            out[name] = float(v) if name == "confidence" else int(v)
+    if get("pinned") is not None:
+        out["pinned"] = bool(get("pinned"))
+    if "valid_to" in keys:
+        out["superseded"] = get("valid_to") is not None
+    created = get("created_at")
+    if created is not None:
+        try:
+            when = created if isinstance(created, datetime) else datetime.fromisoformat(str(created))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=UTC)
+            out["age_days"] = round((datetime.now(UTC) - when).total_seconds() / 86400, 1)
+        except ValueError:
+            out["age_days"] = None  # an unparseable stamp is reported, not guessed
+    for name, label in (("source", "source"), ("change_agent", "written_by"), ("origin_device", "device")):
+        if get(name):
+            out[label] = str(get(name))
+    return out
+
+
 def _explain_reason(expl: dict) -> str:
     """Human-readable one-liner summarizing WHY a result matched, synthesized from
     the numeric _explanation components (pure — no new computation). Names the
@@ -297,7 +349,9 @@ def _explain_reason(expl: dict) -> str:
         parts.append("strong semantic match")
     elif vec >= 0.35:
         parts.append("moderate semantic match")
-    if bm25 >= 0.5:
+    # A semantic-only row has no keyword score, which normalises to full credit;
+    # it must not be described as a keyword match.
+    if bm25 >= 0.5 and expl.get("keyword_match", True):
         parts.append("keyword (BM25) match")
     if float(expl.get("title_overlap") or 0.0) > 0.0:
         parts.append("title overlaps the query")
@@ -310,4 +364,25 @@ def _explain_reason(expl: dict) -> str:
         parts.append(f"routed as {ih}")
     if not parts:
         parts.append("weak/hybrid match (no single dominant signal)")
+    trust = expl.get("trust") or {}
+    cautions = []
+    if trust.get("superseded"):
+        cautions.append("superseded")
+    if trust.get("contradiction_count"):
+        cautions.append(f"contradicted {trust['contradiction_count']}x")
+    if trust.get("unhelpful_count", 0) > trust.get("helpful_count", 0):
+        cautions.append("graded unhelpful more than helpful")
+    if trust.get("confidence") is not None and trust["confidence"] < 0.3:
+        cautions.append("low confidence")
+    support = []
+    if trust.get("pinned"):
+        support.append("pinned")
+    if trust.get("corroboration_count"):
+        support.append(f"corroborated {trust['corroboration_count']}x")
+    if trust.get("helpful_count", 0) > trust.get("unhelpful_count", 0):
+        support.append("graded helpful")
+    if support:
+        parts.append(", ".join(support))
+    if cautions:
+        parts.append("caution: " + ", ".join(cautions))
     return "; ".join(parts)

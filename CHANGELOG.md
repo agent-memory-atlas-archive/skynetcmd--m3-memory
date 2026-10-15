@@ -1086,6 +1086,13 @@ the policy is forward-going only.
 
 ### Added
 
+- **`explain` says whether to trust each result.** Every explained result now
+  carries a `trust` block from its record: confidence, corroborations and
+  contradictions, helpful/unhelpful grades, pinned, superseded, age, and who wrote
+  it on which device. The reason line names cautions ("superseded",
+  "contradicted 2x"), and a meaning-only match is no longer called a keyword
+  match. **Affected:** all · **Action:** none · **Data status:** none.
+
 - **[Coming from an older release](docs/HOW-TO-UPGRADE.md#coming-from-an-older-release)**
   in the Upgrade Guide: the one-time steps for a release without `m3 upgrade`.
   **Affected:** installs from before `m3 upgrade` · **Action:** follow it once ·
