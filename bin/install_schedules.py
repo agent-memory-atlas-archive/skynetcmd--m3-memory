@@ -589,6 +589,36 @@ class EmbedServerConflict(RuntimeError):
     skipping."""
 
 
+def registered_embed_port() -> "int | None":
+    """The port the registered embed service listens on, read from its definition
+    (systemd unit or launchd plist, either server): `--port N`, else
+    M3_EMBED_SERVER_PORT, else the server's default. None when there is no
+    definition here (Windows: one machine-wide service) or it cannot be read.
+
+    An existing registration is never rewritten by `install`, so a port chosen
+    later (m3_config.toml) never reached it and the service kept the old port."""
+    osn = _os_name()
+    if osn == "Darwin":
+        path = os.path.expanduser(f"~/Library/LaunchAgents/{_RUST_EMBED_LABEL}.plist")
+    elif osn == "Linux":
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+        path = os.path.join(base, "systemd", "user", _LINUX_EMBED_UNIT)
+    else:
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = "\n".join(ln for ln in f.read().splitlines() if not ln.lstrip().startswith("#"))
+    except OSError:
+        return None
+    for pattern in (r"--port(?:\s*=\s*|\s+|</string>\s*<string>)(\d{2,5})", r"M3_EMBED_SERVER_PORT\D{0,40}?(\d{2,5})"):
+        m = re.search(pattern, text)
+        if m:
+            return int(m.group(1))
+    from m3_core.config.keys import REGISTRY
+
+    return int(REGISTRY.get("embed.server.port").default)
+
+
 def _rust_embed_service_loaded() -> "bool | None":
     """Is the Rust m3-embed-server registered with the platform service manager?
 

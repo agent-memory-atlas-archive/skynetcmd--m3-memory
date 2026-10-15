@@ -19,7 +19,16 @@ from m3_core.seams import is_windows
 logger = logging.getLogger("memory.doctor.embed_server_probe")
 
 BINARY_NAME = "m3-embed-server.exe" if is_windows() else "m3-embed-server"
-_HEALTH_PORT = 8082  # the port shared_embedder_probe also checks
+
+
+def _health_port() -> int:
+    """The configured embedder port (embed.server.port), as shared_embedder_probe
+    reads it: a fixed 8082 probed another account's server after this one moved."""
+    from m3_memory.embedder_admin import _embed_server_port
+
+    return _embed_server_port()
+
+
 TIMEOUT_SECS = 30
 
 
@@ -60,7 +69,7 @@ def _port_answers(timeout: float = 2.0) -> bool:
 
     try:
         with urllib.request.urlopen(  # nosec B310 — fixed loopback URL
-            f"http://127.0.0.1:{_HEALTH_PORT}/health", timeout=timeout
+            f"http://127.0.0.1:{_health_port()}/health", timeout=timeout
         ) as r:
             return cast("bool", 200 <= r.status < 300)
     except Exception:  # noqa: BLE001
@@ -119,10 +128,10 @@ def run(brief: bool = False) -> int:
         # server as missing (#167).
         if _port_answers():
             if brief:
-                print("embed-server: serving on :8082 (binary not located)")
+                print(f"embed-server: serving on :{_health_port()} (binary not located)")
             else:
                 logger.debug(
-                    f"{BINARY_NAME} not located, but :{_HEALTH_PORT} answers — "
+                    f"{BINARY_NAME} not located, but :{_health_port()} answers — "
                     f"the service is running; skipping the Rust-side doctor"
                 )
         else:

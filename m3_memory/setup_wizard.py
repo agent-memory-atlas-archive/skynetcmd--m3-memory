@@ -2473,7 +2473,7 @@ def _step_shared_embedder(plan: SetupPlan, *, non_interactive: bool = False) -> 
 
         # seed_shared_config writes .embed_config.json idempotently — the single
         # source of truth shared with the installer/doctor, so all stay in lockstep.
-        _path, _wrote = seed_shared_config(port=8082)
+        _path, _wrote = seed_shared_config()
         if _wrote or not quiet:
             print(f"    [OK] embedder setting {'saved' if _wrote else 'already set'}: {_path}")
     except Exception as e:  # noqa: BLE001 — non-fatal; user can run `m3 embedder shared` later

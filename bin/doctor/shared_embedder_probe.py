@@ -34,8 +34,19 @@ from urllib.parse import urlparse
 
 from m3_core.seams import detached_spawn_kwargs, is_windows, user_env_get
 
-_PORT = 8082
-_DEFAULT_URL = f"http://127.0.0.1:{_PORT}"
+
+def _port() -> int:
+    """The configured embedder port (embed.server.port): a fixed 8082 here checked
+    another account's server once this account's moved, and called it healthy."""
+    from m3_memory.embedder_admin import _embed_server_port
+
+    return _embed_server_port()
+
+
+def _default_url() -> str:
+    return f"http://127.0.0.1:{_port()}"
+
+
 _TASK = "AgentOS_EmbedServer"
 
 
@@ -392,7 +403,7 @@ def _fix_write_config() -> bool:
 
         # cmd_shared reads only args.port; pass a real Namespace to satisfy its
         # argparse.Namespace signature (SimpleNamespace is not a subtype).
-        embedder_admin.cmd_shared(argparse.Namespace(port=_PORT))
+        embedder_admin.cmd_shared(argparse.Namespace(port=_port()))
         return True
     except Exception as e:  # noqa: BLE001
         print(f"  [fix] could not write .embed_config.json: {e}")
@@ -455,12 +466,12 @@ def _fix_start_server() -> bool:
                 exe = pyw
         kwargs.update(detached_spawn_kwargs())
         subprocess.Popen(  # noqa: S603 — fixed argv, our own script
-            [exe, script, "--port", str(_PORT)],
+            [exe, script, "--port", str(_port())],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             **kwargs,
         )
-        print(f"  [fix] launched embed server on {_DEFAULT_URL} (loading may take a few seconds).")
+        print(f"  [fix] launched embed server on {_default_url()} (loading may take a few seconds).")
         return True
     except Exception as e:  # noqa: BLE001
         print(f"  [fix] could not start the embed server: {e}")
@@ -585,7 +596,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
     not fully healthy. With fix=True, repair what's repairable first."""
     cfg = _read_config()
     shared_on = bool(cfg and cfg.get("disable_inproc_embedder"))
-    url = ((cfg or {}).get("fallback_url") or _DEFAULT_URL).rstrip("/")
+    url = ((cfg or {}).get("fallback_url") or _default_url()).rstrip("/")
 
     problems: list[str] = []
 
@@ -714,7 +725,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
     if "server-down" in problems:
         print(f"  server   : [FAIL] {url}/health not answering — embeds will slow-cascade")
         print("             or fail fleet-wide until it serves.")
-        print(f"             fix: start it (`python bin/embed_server_inproc.py --port {_PORT}`)")
+        print(f"             fix: start it (`python bin/embed_server_inproc.py --port {_port()}`)")
         print("                  or register the keep-alive task below.")
     else:
         print(f"  server   : OK (model={body.get('model')}, dim={body.get('dim')}, status={health})")

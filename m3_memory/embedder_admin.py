@@ -1133,6 +1133,14 @@ def cmd_install(args: argparse.Namespace) -> int:
     # Registered, running and on the current binary: nothing to install or
     # start, and a port-in-use notice would be about this same service.
     registered = _service_reports_installed(binary, gguf) or _service_defined_on_disk()
+    on_port = _registered_port() if registered else None
+    if on_port is not None and on_port != _embed_server_port():
+        # `install` leaves an existing registration as it is, so a port chosen
+        # since (a second account on a shared machine) never reached the service.
+        print(f"[~] the embedder service is registered on port {on_port}; moving it to port {_embed_server_port()}")
+        _service_cmd_quiet(binary, gguf, "stop")
+        _service_cmd_quiet(binary, gguf, "uninstall")
+        registered = False
     if registered and _service_reports_running(binary, gguf) and not _service_binary_is_stale(binary):
         if not quiet:
             print(f"[=] embedding model: {gguf} ({size_mb} MB)")
@@ -1339,6 +1347,22 @@ def _service_defined_on_disk() -> bool:
         return False
 
 
+def _registered_port() -> int | None:
+    """The port the registered embed service uses (install_schedules owns where
+    its definition lives), or None when that cannot be told."""
+    import importlib
+
+    from m3_memory import _bin
+
+    bin_dir = _bin.ensure_on_path()
+    if bin_dir is None or not os.path.isfile(bin_dir / "install_schedules.py"):
+        return None
+    try:
+        return importlib.import_module("install_schedules").registered_embed_port()
+    except Exception:  # noqa: BLE001 — unknown: leave the registration alone
+        return None
+
+
 def _import_model_fetch(name: str):
     """Pull `name` out of bin/memory/model_fetch.py, or None.
 
@@ -1396,7 +1420,7 @@ def seed_shared_config(
     config_root: str | None = None,
     *,
     gguf_path: str | None = None,
-    port: int = 8082,
+    port: int | None = None,
     overwrite: bool = False,
 ) -> tuple[str, bool]:
     """Idempotently seed <config_root>/.embed_config.json for SHARED mode.
@@ -1424,7 +1448,9 @@ def seed_shared_config(
         path = _embed_config_path()
     else:
         path = os.path.join(config_root, ".embed_config.json")
-    url = f"http://127.0.0.1:{port or 8082}"
+    # The configured port (embed.server.port) is the one owner: a hardcoded 8082
+    # here kept every client on another account's server after the port moved.
+    url = f"http://127.0.0.1:{port or _embed_server_port()}"
 
     existing: dict = {}
     if os.path.exists(path) and not overwrite:
@@ -1437,6 +1463,13 @@ def seed_shared_config(
     desired = dict(existing)
     desired["disable_inproc_embedder"] = True
     desired.setdefault("fallback_url", url)
+    # An address the user set is never clobbered. Only the default m3 itself
+    # seeded follows a moved port: kept at 8082, it sent every client to another
+    # account's server.
+    from m3_core.config.keys import REGISTRY
+
+    if desired["fallback_url"] == f"http://127.0.0.1:{REGISTRY.get('embed.server.port').default}":
+        desired["fallback_url"] = url
     # Record the model the shared server serves so `m3 doctor` can catch an
     # embedder-model mismatch (a foreign model silently writes an incompatible
     # vector space). NOTE: we deliberately do NOT pin a primary `embed_url` here —
