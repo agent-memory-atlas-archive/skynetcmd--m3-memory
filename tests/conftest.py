@@ -1,6 +1,7 @@
 """pytest configuration and fixtures for chatlog + main-DB tests."""
 
 import importlib
+import json
 
 # Add bin/ directory to Python path so tests can import bin modules
 import os as _os
@@ -760,6 +761,56 @@ def _service_files_state() -> dict:
     return state
 
 
+# The developer's REAL Claude Code config: only the parts m3 writes. A test that
+# reached the keep-mode repair rewrote the live hooks and status line to the
+# test's checkout and registered m3_memory with a pytest temp root (2026-10-15);
+# the MCP server then failed to start for every later session. The whole files
+# are not compared -- the live Claude Code process writes ~/.claude.json itself
+# during a run -- and they are parsed only when their mtime moves.
+_CLAUDE_FILES = {
+    _REAL_HOME / ".claude" / "settings.json": lambda d: {k: d.get(k) for k in ("hooks", "statusLine")},
+    _REAL_HOME / ".claude.json": lambda d: (d.get("mcpServers") or {}).get("m3_memory"),
+}
+_claude_seen: dict[Path, tuple[int, object]] = {}
+
+
+def _claude_m3_state() -> dict:
+    """{path: the m3-owned value} of the real Claude config, re-read on mtime change."""
+    out = {}
+    for path, pick in _CLAUDE_FILES.items():
+        try:
+            mtime = path.stat().st_mtime_ns
+        except OSError:
+            out[path] = None
+            continue
+        seen = _claude_seen.get(path)
+        if seen is None or seen[0] != mtime:
+            try:
+                value = pick(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                value = seen[1] if seen else None  # mid-write by the live client: keep the last read
+            _claude_seen[path] = (mtime, value)
+        out[path] = _claude_seen[path][1]
+    return out
+
+
+@pytest.fixture(autouse=True)
+def _real_claude_config_untouched():
+    """Fail the test that changes m3's entries in the REAL Claude Code config."""
+    before = _claude_m3_state()
+    yield
+    after = _claude_m3_state()
+    changed = [str(p) for p in before if before[p] != after[p]]
+    if changed:
+        pytest.fail(
+            "this test changed m3's entries in the REAL Claude Code config: " + ", ".join(changed) + ". "
+            "Stub the writer (setup_wizard._register_claude_server, environment_probe.repair, "
+            "generate_configs) or redirect the home folder to tmp_path. Restore the file from its "
+            ".backup_history or a .bak.",
+            pytrace=False,
+        )
+
+
 @pytest.fixture(autouse=True)
 def _sys_path_restored():
     """Undo whatever a test added to ``sys.path``. Code under test legitimately
@@ -1176,13 +1227,27 @@ def _write_service_shims(shim_dir: Path, log: Path) -> None:
 
 
 _SCHTASKS_MUTATING = {"/create", "/change", "/run", "/end", "/delete"}
+# `claude mcp add/remove` writes the developer's REAL ~/.claude.json from its own
+# process, whatever home a test redirects: a test registered m3_memory there with
+# a pytest temp root (2026-10-15). Recorded and not run, like a service change.
+_CLAUDE_MCP_MUTATING = {"add", "add-json", "remove", "add-from-claude-desktop"}
+
+
+def _mutates_claude_mcp(first: str, parts: list) -> bool:
+    words = [str(p).lower() for p in parts]
+    return (
+        first in ("claude", "claude.exe", "claude.cmd")
+        and "mcp" in words
+        and any(w in _CLAUDE_MCP_MUTATING for w in words)
+    )
 
 
 def _install_schtasks_guard(log: Path) -> "object":
     """Windows counterpart of the launchctl/systemctl shim. schtasks resolves
     from System32 before PATH, so it cannot be shadowed there; instead every
     process launch is screened, and a task-changing schtasks call is recorded
-    and replaced by a no-op. Queries pass through. Returns the original Popen."""
+    and replaced by a no-op. Queries pass through. Installed on every OS for
+    `claude mcp add/remove` (_mutates_claude_mcp). Returns the original Popen."""
     real_popen = subprocess.Popen
 
     class _GuardedPopen(real_popen):  # type: ignore[misc, valid-type]
@@ -1190,7 +1255,9 @@ def _install_schtasks_guard(log: Path) -> "object":
             parts = [args] if isinstance(args, (str, bytes)) else list(args or [])
             text = " ".join(str(p) for p in parts)
             first = Path(str(parts[0]).split()[0]).name.lower() if parts else ""
-            if first in ("schtasks", "schtasks.exe") and any(f in text.lower().split() for f in _SCHTASKS_MUTATING):
+            if (
+                first in ("schtasks", "schtasks.exe") and any(f in text.lower().split() for f in _SCHTASKS_MUTATING)
+            ) or _mutates_claude_mcp(first, parts):
                 with open(log, "a", encoding="utf-8") as fh:
                     fh.write(f"{_os.environ.get('PYTEST_CURRENT_TEST', '?')} | {text}\n")
                 args = ["cmd", "/c", "exit", "0"]
@@ -1218,9 +1285,11 @@ def _service_manager_shim(tmp_path_factory):
     saved = (_os.environ.get("PATH", ""), _os.environ.get(_SVC_LOG_ENV))
     _os.environ["PATH"] = f"{shim_dir}{_os.pathsep}{saved[0]}"
     _os.environ[_SVC_LOG_ENV] = str(log)
+    real_popen = _install_schtasks_guard(log)  # here for `claude mcp add/remove`
     try:
         yield log
     finally:
+        subprocess.Popen = real_popen  # type: ignore[misc]
         _os.environ["PATH"] = saved[0]
         if saved[1] is None:
             _os.environ.pop(_SVC_LOG_ENV, None)
@@ -1258,9 +1327,9 @@ def _no_real_service_manager_calls(_service_manager_shim):
         ]
     if real:
         pytest.fail(
-            "this test tried to change REAL m3 services (refused by the "
-            "test shim): " + "; ".join(real) + ". Stub the service "
-            "manager call (e.g. setup_wizard._stop_supervised_services).",
+            "this test tried to change a REAL m3 service or Claude's m3 registration "
+            "(refused by the test shim): " + "; ".join(real) + ". Stub the call "
+            "(e.g. setup_wizard._stop_supervised_services, setup_wizard._register_claude_server).",
             pytrace=False,
         )
 
