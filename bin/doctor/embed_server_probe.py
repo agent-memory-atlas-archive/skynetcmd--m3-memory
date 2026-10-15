@@ -9,6 +9,7 @@ prevents this phase from hanging.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 from typing import cast
@@ -72,6 +73,21 @@ def _held_by_someone_else() -> bool | str:
     return embed_port_owner_check()
 
 
+def _note_older_copy_on_path(exe: str | None) -> None:
+    """Name an m3-embed-server on PATH that is not this install's. Older install
+    guides copied one into ~/.local/bin; m3 no longer runs it, but typing the
+    command (or an old crontab line) runs that copy. Informational: nothing breaks."""
+    on_path = shutil.which(BINARY_NAME)
+    if not on_path or not exe:
+        return
+    try:
+        if os.path.samefile(on_path, exe):
+            return
+    except OSError:
+        return
+    print(f"embed-server: an older copy at {on_path} is on PATH (m3 uses {exe}); safe to remove: rm {on_path}")
+
+
 def run(brief: bool = False) -> int:
     """Invoke `m3-embed-server doctor` and inherit its exit code.
 
@@ -80,6 +96,7 @@ def run(brief: bool = False) -> int:
     captures the subprocess output and prints only a one-line verdict.
     """
     exe = _resolve_binary()
+    _note_older_copy_on_path(exe)
 
     # ⚠ CHECK THE EXEC BIT BEFORE ANYTHING ELSE. The macos-metal wheel has
     # shipped m3-embed-server mode 0644, and that single EACCES surfaces

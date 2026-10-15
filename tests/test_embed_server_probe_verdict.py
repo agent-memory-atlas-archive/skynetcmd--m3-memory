@@ -148,3 +148,19 @@ def test_this_installs_binary_is_asked_not_an_older_one_on_path(monkeypatch):
     monkeypatch.setattr(p.shutil, "which", lambda name: "/home/u/.local/bin/m3-embed-server")
     monkeypatch.setattr(embedder_admin, "_server_binary", lambda: Path("/venv/m3_core_rs/m3-embed-server"))
     assert Path(p._resolve_binary()) == Path("/venv/m3_core_rs/m3-embed-server")
+
+
+def test_an_older_copy_on_path_is_named_with_its_removal(monkeypatch, tmp_path, capsys):
+    from doctor import embed_server_probe as p
+
+    mine = tmp_path / "venv" / "m3-embed-server"
+    old = tmp_path / "local" / "m3-embed-server"
+    for f in (mine, old):
+        f.parent.mkdir(parents=True)
+        f.write_text("", encoding="utf-8")
+    monkeypatch.setattr(p.shutil, "which", lambda name: str(old))
+    p._note_older_copy_on_path(str(mine))
+    assert f"rm {old}" in capsys.readouterr().out
+    monkeypatch.setattr(p.shutil, "which", lambda name: str(mine))
+    p._note_older_copy_on_path(str(mine))
+    assert capsys.readouterr().out == "", "this install's own binary on PATH is fine"
