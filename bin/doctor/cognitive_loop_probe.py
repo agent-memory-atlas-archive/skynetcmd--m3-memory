@@ -214,7 +214,7 @@ def run(brief: bool = False) -> int:
 
     if brief:
         if not installed and running is not True:
-            print("⚠️  cognitive loop: not installed — derived knowledge won't build; `m3 setup`")
+            print("⚠️  cognitive loop: not installed — derived knowledge won't build; fix: m3 setup --cognitive-loop")
         elif definitely_down:
             print("⚠️  cognitive loop: installed but not running; `m3 setup`")
         elif memories and entities == 0:
