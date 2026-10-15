@@ -22,6 +22,21 @@ def _answers(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bool:
         return False
 
 
+def first_free_port(start: int, span: int = 20, host: str = "127.0.0.1") -> int | None:
+    """The first port in [start, start + span) that nothing answers on and that
+    this process can bind, or None."""
+    for port in range(start, min(start + span, 65536)):
+        if _answers(port, host):
+            continue
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind((host, port))
+            return port
+        except OSError:
+            continue
+    return None
+
+
 def held_by_another_owner(port: int, host: str = "127.0.0.1") -> bool:
     """True when something answers on ``port`` but it is not one of this user's
     processes. False when nothing answers, when ours does, or when this cannot

@@ -3647,6 +3647,46 @@ def _step_import_env() -> None:
         _warn(f"moving legacy settings skipped: {type(e).__name__}: {e}. inspect: m3 config import-env")
 
 
+def _claim_free_ports(plan: SetupPlan) -> None:
+    """On a shared machine another account's m3 holds the default ports: this
+    account then had no embedder or dashboard of its own, verification failed,
+    and the fix was to choose a port by hand. Choose the next free one, record
+    it in m3_config.toml (the embedder service, the dashboard and every client
+    read it there) and say so. Linux/macOS only: there the embedder is per user
+    (on Windows one machine-wide service is shared by design). A port the user
+    chose is never changed. Never raises."""
+    try:
+        from m3_core.config.keys import REGISTRY
+
+        from m3_memory._platform import current_uid
+        from m3_memory._ports import first_free_port, held_by_another_owner
+
+        if current_uid() is None:
+            return
+        current = {"embed.server.port": _config.setting("embed.server.port"), "dashboard.port": plan.dashboard_port}
+        chosen = {}
+        for key, port in current.items():
+            if port == REGISTRY.get(key).default and held_by_another_owner(port):
+                free = first_free_port(port + 1)
+                if free:
+                    chosen[key] = free
+        # The writer parses values as typed text (an int raised AttributeError).
+        if not chosen or not _record_settings(
+            {k: str(v) for k, v in chosen.items()}, what="the ports this account uses"
+        ):
+            return
+        from m3_core.config.settings import set_from_cli
+
+        set_from_cli(chosen)
+        if "dashboard.port" in chosen:
+            plan.dashboard_port = chosen["dashboard.port"]
+        names = {"embed.server.port": "embedder", "dashboard.port": "dashboard"}
+        for key, port in chosen.items():
+            _ok(f"  port {current[key]} belongs to another account here; this account's {names[key]} uses {port}")
+    except Exception as e:  # noqa: BLE001 -- setup goes on and reports the held port
+        _warn(f"  choosing free ports skipped: {type(e).__name__}: {e}")
+
+
 def _retire_replaced_embedder() -> None:
     """Before the embedder step: a crontab line from an older install started its
     own embed server at boot, which held the port so the service could not start
@@ -4430,6 +4470,7 @@ def run_setup(args: argparse.Namespace) -> int:
         # Before the embedder: a model named only in an agent's env block (M3_EMBED_GGUF)
         # was unknown to it, and setup downloaded a second copy.
         _step_import_env()
+        _claim_free_ports(plan)
         _retire_replaced_embedder()
         _step_cpu_sovereign_embedder()
         _restart_stale_embed_server()
