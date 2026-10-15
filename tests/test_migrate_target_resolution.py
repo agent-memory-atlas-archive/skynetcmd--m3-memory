@@ -69,6 +69,17 @@ def test_classify_empty_db(tmp_path):
     assert migrate_memory._classify_db(str(p)) == "empty"
 
 
+def test_a_store_holding_only_an_unwritten_version_table_is_empty(tmp_path):
+    """Seen on an install from 2026.6: refusing it told the user to delete it."""
+    p = tmp_path / "chat.db"
+    with sqlite3.connect(p) as c:
+        c.execute("CREATE TABLE schema_versions (version INTEGER PRIMARY KEY, filename TEXT)")
+    assert migrate_memory._classify_db(str(p)) == "empty"
+    with sqlite3.connect(p) as c:
+        c.execute("INSERT INTO schema_versions VALUES (1, 'x.sql')")
+    assert migrate_memory._classify_db(str(p)) == "unknown", "a recorded version is not nothing"
+
+
 def test_classify_unknown_db(tmp_path):
     """A DB with arbitrary user tables but no main / chatlog signatures."""
     p = tmp_path / "weird.db"

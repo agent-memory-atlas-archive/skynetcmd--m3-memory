@@ -154,11 +154,15 @@ def _classify_db(db_path: str) -> str:
         return "unknown"
     try:
         rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
+        tables = {r[0] for r in rows}
+        # Only the version table, never written: a store created and left empty
+        # (seen on an install from 2026.6). Refusing it told the user to delete it.
+        if tables == {"schema_versions"} and not conn.execute("SELECT 1 FROM schema_versions LIMIT 1").fetchone():
+            return "empty"
     except sqlite3.Error:
         return "unknown"
     finally:
         conn.close()
-    tables = {r[0] for r in rows}
     if not tables:
         return "empty"
     has_main = bool(tables & _MAIN_SIGNATURE_TABLES)
