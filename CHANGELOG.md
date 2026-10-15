@@ -21,6 +21,10 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **The macOS notification waiter's job file is valid XML.** A comment in it contained
+  `--`, which launchd tolerates but other tools reject, so they could not read the job.
+  **Affected:** macOS · **Action:** none; `m3 setup` rewrites it · **Data status:** none.
+
 - **LangChain chat history keeps turns in order when messages arrive quickly.** A second
   `add_messages` call could reuse the first call's turn numbers while those turns were still
   being written, and the conversation read back out of order.
@@ -980,6 +984,14 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Added
+
+- **`m3 doctor` lists every m3 background job with a verdict**, on macOS, Linux and
+  Windows: `current`, `outdated` (runs an older m3 install, with its version), `newer`,
+  `retired`, `dangling` (its program is gone) or `unknown`. `m3 setup` (so `m3 upgrade`)
+  and `m3 doctor --fix` remove outdated, retired and dangling jobs, saving each definition
+  under `<config root>/removed-jobs/` first; `newer` and `unknown` are never removed.
+  **Affected:** everyone · **Action:** none; check `m3 doctor` if you see m3 entries you do
+  not recognise · **Data status:** none.
 
 - **`m3 touchid status|enable|offer` (macOS).** Lets `sudo` accept Touch ID instead of
   your password, at any time. The install script now asks on the terminal (under

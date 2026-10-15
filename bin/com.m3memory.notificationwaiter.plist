@@ -14,24 +14,24 @@
   detected nothing. §0.4 — a green run on one OS proves nothing about the
   others.
 
-  WHY --supervise. Without it the waiter exits 0 the moment mail arrives, which
+  WHY the supervise flag. Without it the waiter exits 0 the moment mail arrives, which
   is its wake signal for a single-shot caller. Under a KeepAlive supervisor that
   would mean a restart per message. With it, one process serves every inbox for
-  an hour and the only routine exit is the --timeout below.
+  an hour and the only routine exit is the timeout below.
 
-  WHY --interval 5, not 1. Five seconds is 17% of the 30s budget at a fifth of
+  WHY an interval of 5, not 1. Five seconds is 17% of the 30s budget at a fifth of
   the stat() calls (720/hr vs 3,600/hr). Detection was never the scarce
   resource; agent turns are.
 
-  WHY NO --agent-id HERE. The Windows task bakes the list in at install time and
+  WHY NO AGENT ID HERE. The Windows task bakes the list in at install time and
   its PT10M re-fire refreshes it. A launchd agent is ONE long-lived process, so
   a baked-in list would go stale and STAY stale — a newly registered agent would
   never be watched. The waiter re-reads the registry each supervise iteration
-  instead (see refresh_agent_ids); the single --agent-id below is only a
+  instead (see refresh_agent_ids); the single agent id below is only a
   bootstrap seed for the first pass, because the flag is required.
 
   KeepAlive is unconditional, matching com.m3memory.cognitiveloop: the waiter
-  exits CLEANLY every hour by design (--timeout 3600, so a forgotten waiter
+  exits CLEANLY every hour by design (a timeout of 3600, so a forgotten waiter
   cannot leak), and that exit must be restarted or the receipt SLA dies until
   the next login. ThrottleInterval bounds a crash-on-startup loop.
 

@@ -3551,6 +3551,19 @@ def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool
     return True
 
 
+def _step_job_cleanup() -> None:
+    """Remove m3 background jobs that run an older install, that this version
+    retired, or whose program is gone, backing each definition up first
+    (doctor/job_inventory). Never raises."""
+    try:
+        _m3bin.ensure_on_path()
+        from doctor import job_inventory
+
+        job_inventory.repair_and_report()
+    except Exception as e:  # noqa: BLE001 -- clean-up must not fail setup
+        _warn(f"m3 job clean-up skipped: {type(e).__name__}: {e}")
+
+
 def _step_governor_migration(plan: SetupPlan, *, non_interactive: bool = False, gui: bool = False) -> dict:
     """Replace governor-eligible scheduled tasks with the governor.
 
@@ -4315,6 +4328,7 @@ def run_setup(args: argparse.Namespace) -> int:
             plan, non_interactive=args.non_interactive, gui=getattr(args, "gui_child", False)
         )
         _trace("after governor_migration")
+        _step_job_cleanup()
         # The exclusive steps are done. Lower the halt BEFORE verifying: a
         # writer paused by it drops out of the PID registry, so verification
         # under the halt reports a healthy daemon as NOT running.

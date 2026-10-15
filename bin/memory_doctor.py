@@ -244,6 +244,11 @@ def main() -> int:
                 print(f"         Detail: {act['detail']}")
             print("-" * 50)
 
+        if not args.skip_schedule:
+            from doctor import job_inventory
+
+            job_inventory.repair_and_report(dry_run=args.dry_run)
+
         # Shared-embedder repair lives in its own probe (it writes config, starts
         # the server, and registers the keep-alive task — actions outside the DB-
         # focused memory_doctor_fix_impl). Run it with fix=True so `m3 doctor --fix`
@@ -482,6 +487,11 @@ def main() -> int:
         # state (re-register via `m3 setup`), so this never bumps the exit code —
         # it nags and prints the fix when a registered AgentOS_* task is dangling.
         schedule_probe.run(brief=brief)
+        from doctor import job_inventory
+
+        # Report-only: every m3 job with a verdict (current / outdated / retired /
+        # dangling / unknown); `m3 doctor --fix` removes the removable ones.
+        job_inventory.run(brief=brief)
 
     if not args.skip_shared_embedder:
         from doctor import shared_embedder_probe
