@@ -4132,7 +4132,9 @@ def _step_doctor(plan=None) -> bool:
         # under 10, i.e. the failure mode there is a BLOCK, not a crash.
         cp = _run(argv, env=_m3_child_env(), timeout=_DOCTOR_TIMEOUT_S)
         _trace(f"doctor: _run returned rc={getattr(cp, 'returncode', '?')}")
-        _ok("verification passed — m3 is installed and working")
+        # The services are checked next: "installed and working" here was
+        # followed by VERIFICATION FAILED when one of them was down.
+        _ok("doctor checks passed; checking the background services next")
         return True
     except subprocess.TimeoutExpired:
         _trace("doctor: TIMED OUT")
