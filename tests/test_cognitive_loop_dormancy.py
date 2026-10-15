@@ -22,6 +22,8 @@ import argparse
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 
@@ -186,3 +188,30 @@ def test_another_users_loop_is_not_this_users(monkeypatch):
     assert p._process_running() is not True
     procs.append(_Proc(True))
     assert p._process_running() is True
+
+
+@pytest.mark.parametrize(
+    "argv, installed, asked",
+    [
+        ([], False, True),
+        (["--non-interactive"], False, False),
+        ([], True, False),
+        (["--no-cognitive-loop"], False, False),
+    ],
+)
+def test_keeping_the_settings_offers_a_loop_the_install_never_had(monkeypatch, argv, installed, asked):
+    """An install from before the loop existed answered "keep the settings",
+    never saw the question, and its doctor nagged about a missing loop."""
+    import m3_memory.setup_wizard as sw
+
+    prompts = []
+    monkeypatch.setattr(sw, "_existing_install", lambda: "/home/u/.m3/engine/agent_memory.db")
+    monkeypatch.setattr(sw, "_cognitive_loop_installed", lambda: installed)
+    monkeypatch.setattr(sw, "_ask_yes_no", lambda msg, default=False: prompts.append(msg) or default)
+    parser = argparse.ArgumentParser()
+    sw.add_arguments(parser)
+    plan = sw._gather_plan(sw.AgentTargets(), parser.parse_args(argv))
+    assert plan.agents_kept or "--non-interactive" in argv
+    assert any("background processing" in p for p in prompts) is asked
+    if asked:
+        assert plan.cognitive_loop is True

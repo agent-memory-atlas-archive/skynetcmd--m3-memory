@@ -414,6 +414,10 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
             keep.non_interactive = True
             keep.agents = ""  # leave agent wiring exactly as it is
             keep.cognitive_loop = plan.cognitive_loop or bool(_cognitive_loop_installed())
+            # An install from before the loop existed was never asked; its doctor
+            # then nagged with a fix that keeping the settings did not apply.
+            if not (keep.cognitive_loop or getattr(args, "no_cognitive_loop", False) or args.non_interactive):
+                keep.cognitive_loop = _ask_cognitive_loop()
             kept = _gather_plan(AgentTargets(), keep)
             kept.agents_kept = True
             _say("  Keeping current settings. Run `m3 setup` and answer 'n' to change them.")
@@ -700,20 +704,23 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     # opt-in env flags. Registered as a boot service, cross-OS (launchd/systemd/
     # schtasks). Skipped when a flag already pinned the choice.
     if not (args.cognitive_loop or getattr(args, "no_cognitive_loop", False)):
-        print()
-        print("  Background processing (recommended):")
-        print("    Reads what m3 has saved and works out the people, projects and")
-        print("    facts in it, so searching by name works and related memories are")
-        print("    linked. Without it, m3 still saves and finds everything, but")
-        print("    name search stays empty. It backs off when the computer is busy")
-        print("    and only does work when a language model is available, so it")
-        print("    costs almost nothing when idle. Starts on boot.")
-        plan.cognitive_loop = _ask_yes_no(
-            "  Install background processing (auto-start on boot)?",
-            default=True,
-        )
+        plan.cognitive_loop = _ask_cognitive_loop()
 
     return plan
+
+
+def _ask_cognitive_loop() -> bool:
+    """The background-processing question (default yes), for a new install and
+    for an existing one that never had it."""
+    print()
+    print("  Background processing (recommended):")
+    print("    Reads what m3 has saved and works out the people, projects and")
+    print("    facts in it, so searching by name works and related memories are")
+    print("    linked. Without it, m3 still saves and finds everything, but")
+    print("    name search stays empty. It backs off when the computer is busy")
+    print("    and only does work when a language model is available, so it")
+    print("    costs almost nothing when idle. Starts on boot.")
+    return _ask_yes_no("  Install background processing (auto-start on boot)?", default=True)
 
 
 def _detect_governor_eligible_tasks() -> list[str]:
