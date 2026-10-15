@@ -35,8 +35,19 @@ import atexit as _atexit  # noqa: E402
 import shutil as _shutil  # noqa: E402
 import tempfile as _tempfile  # noqa: E402
 
-_os.environ["M3_CONFIG_ROOT"] = _tempfile.mkdtemp(prefix="m3-test-config-")
-_atexit.register(_shutil.rmtree, _os.environ["M3_CONFIG_ROOT"], True)
+# The engine and logs roots too, for the same reason at the OTHER end: code that
+# runs after the last test (atexit flushes, session teardown) is outside every
+# per-test sandbox. migrate_memory runs printed AFTER pytest's summary auto-migrated
+# test stores and wrote pre-up backups into the real ~/.m3/engine/backups (~6 per
+# PostgreSQL run). Registered first, so these removals run after every later
+# atexit hook.
+for _var, _prefix in (
+    ("M3_CONFIG_ROOT", "m3-test-config-"),
+    ("M3_ENGINE_ROOT", "m3-test-engine-"),
+    ("M3_LOGS_ROOT", "m3-test-logs-"),
+):
+    _os.environ[_var] = _tempfile.mkdtemp(prefix=_prefix)
+    _atexit.register(_shutil.rmtree, _os.environ[_var], True)
 # The trusted wolfSSL directory derives from the config root's parent; keep it
 # on the real installed library so FIPS-mode collection does not fail closed
 # (same remedy as the per-test sandbox below).
@@ -1811,10 +1822,15 @@ def m3_sandbox(monkeypatch, tmp_path):
        ``_SANDBOX_CLEAR_ENV`` so a developer running the suite with a real
        warehouse exported can't have that host bleed into assertions.
     """
-    # 1. Roots → tmp (highest-precedence env vars).
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "engine"))
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
+    # 1. Roots → tmp (highest-precedence env vars). Logs too: the session-level
+    # pin at the top of this file would otherwise outrank M3_MEMORY_ROOT/logs.
+    for var, path in (
+        ("M3_ENGINE_ROOT", tmp_path / "engine"),
+        ("M3_CONFIG_ROOT", tmp_path / "config"),
+        ("M3_LOGS_ROOT", tmp_path / "logs"),
+        ("M3_MEMORY_ROOT", tmp_path),
+    ):
+        monkeypatch.setenv(var, str(path))
     # The config snapshot is cached per PROCESS (m3_core.config.settings), so
     # the roots above would not move a snapshot an earlier test built: it would
     # keep that test's config root, and the secrets file derived from it.
