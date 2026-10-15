@@ -27,6 +27,8 @@ overrides):
 - **`agent_chatlog.db`** — raw chat archive (Claude Code, Codex logs)
   awaiting promotion. Synced if the file exists. If the chat log resolves to
   the main store (a unified install), the two sync as one and the log says so.
+  With two stores, each takes only its own rows from the warehouse: chat turns
+  go to the chat log, everything else to `agent_memory.db`.
 
 That's it. The repo does not ship sync support for bench result DBs or other
 custom databases. If you self-host a more complex layout (e.g., separate
@@ -129,6 +131,17 @@ The scheduler tolerates outages — if the warehouse is unreachable, sync logs
 a warning and exits cleanly. Next run picks up where it left off.
 
 ---
+
+## What each sync reads
+
+Each sync sends what changed locally, then reads the rows that **reached the
+warehouse** since its previous sync. The warehouse stamps that arrival time
+itself, so a memory written on one machine before another machine's sync, and
+sent after it, still arrives there. A relationship or embedding whose memory
+has not reached this machine yet waits for it and arrives on a later sync.
+
+The first sync after upgrading to a version that reads by arrival time reads
+the whole warehouse once. It also brings any rows earlier versions missed.
 
 ## How conflict resolution works
 

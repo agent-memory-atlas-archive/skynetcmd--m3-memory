@@ -295,3 +295,18 @@ def test_a_store_without_warehouse_tables_is_not_a_sync_target(as_backend, monke
         lambda _sel="all": [_T("main", "/m/main.db"), _T("chatlog", "/m/chat.db"), _T("dispatch", "/m/d.db")],
     )
     assert [t.name for t in pg_sync.resolve_sync_targets()] == ["main", "chatlog"]
+
+
+def test_a_split_install_pulls_each_kind_into_its_own_store(as_backend, monkeypatch):
+    as_backend("sqlite")
+
+    class _T:
+        def __init__(self, name, path):
+            self.name, self.db_path = name, path
+
+    import migrate_memory
+
+    monkeypatch.setattr(migrate_memory, "targets", lambda _sel="all": [_T("main", "/m/m.db"), _T("chatlog", "/m/c.db")])
+    assert {t.name: t.kind for t in pg_sync.resolve_sync_targets()} == {"main": "memory", "chatlog": "chat"}
+    monkeypatch.setattr(migrate_memory, "targets", lambda _sel="all": [_T("main", "/m/m.db")])
+    assert [t.kind for t in pg_sync.resolve_sync_targets()] == [None], "one store takes both kinds"

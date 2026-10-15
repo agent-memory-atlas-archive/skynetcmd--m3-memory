@@ -87,7 +87,7 @@ def test_a_fresh_warehouse_is_created_in_m3_warehouse(wh):
 
     import migrate_pg
 
-    assert migrate_pg.get_applied_versions(wh, "m3_warehouse") == [1]
+    assert migrate_pg.get_applied_versions(wh, "m3_warehouse") == [1, 2]
     assert migrate_pg.run_warehouse_migrations(wh, "m3_warehouse") == []  # idempotent
 
 
@@ -105,7 +105,7 @@ def test_an_older_public_warehouse_is_migrated_in_place_and_keeps_its_rows(wh):
     cur.execute("SELECT content FROM public.memory_items WHERE id = 'm1'")
     assert cur.fetchone()[0] == "kept"
     wh.rollback()
-    assert migrate_pg.get_applied_versions(wh, "public") == [1]
+    assert migrate_pg.get_applied_versions(wh, "public") == [1, 2]
 
 
 def test_unqualified_names_resolve_after_prepare_even_after_a_rollback(wh):
@@ -171,8 +171,8 @@ def test_a_role_that_does_not_own_the_tables_upgrades_an_up_to_date_warehouse(wh
     _hand_warehouse_to(wh, role)
     conn = psycopg2.connect(dsn)
     try:
-        assert migrate_pg.run_warehouse_migrations(conn, "m3_warehouse") == [1]
-        assert migrate_pg.get_applied_versions(conn, "m3_warehouse") == [1]
+        assert migrate_pg.run_warehouse_migrations(conn, "m3_warehouse") == [1, 2]
+        assert migrate_pg.get_applied_versions(conn, "m3_warehouse") == [1, 2]
     finally:
         conn.close()
 
@@ -251,3 +251,106 @@ def test_pg_sync_issues_no_warehouse_ddl():
     src = (ROOT / "bin" / "pg_sync.py").read_text(encoding="utf-8")
     code = "\n".join(line for line in src.splitlines() if not line.lstrip().startswith("#"))
     assert not re.search(r"\b(CREATE\s+(TABLE|INDEX)|ALTER\s+TABLE)\b", code), "pg_sync must not issue DDL"
+
+
+# ── Pulls by arrival time (pg_002) ────────────────────────────────────────────
+
+
+@pytest.fixture
+def store(tmp_path):
+    """A local SQLite store with the full main schema, foreign keys enforced as
+    the sync's connection enforces them."""
+    import sqlite3
+
+    from conftest import create_full_main_schema
+
+    db = tmp_path / "local.db"
+    create_full_main_schema(db)
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    yield conn
+    conn.close()
+
+
+def _wh_item(wh, mid, kind="note", created="2026-01-01T00:00:00+00:00"):
+    cur = wh.cursor()
+    cur.execute(
+        "INSERT INTO memory_items (id, type, content, created_at, updated_at) VALUES (%s, %s, 'x', %s, NULL)",
+        (mid, kind, created),
+    )
+    wh.commit()
+
+
+def _local_ids(store):
+    return {r[0] for r in store.execute("SELECT id FROM memory_items")}
+
+
+def test_the_warehouse_stamps_when_a_row_arrived(wh):
+    import pg_sync
+
+    pg_sync._prepare_warehouse(wh)
+    _wh_item(wh, "m1")
+    cur = wh.cursor()
+    cur.execute("SELECT wh_arrived_at FROM memory_items WHERE id = 'm1'")
+    first = cur.fetchone()[0]
+    assert first is not None
+    cur.execute("UPDATE memory_items SET content = 'y' WHERE id = 'm1'")
+    cur.execute("SELECT wh_arrived_at FROM memory_items WHERE id = 'm1'")
+    assert cur.fetchone()[0] > first, "an update is a new arrival"
+    wh.rollback()
+
+
+def test_a_row_pushed_after_another_machines_pull_still_reaches_it(wh, store):
+    """Found on the real warehouse: a memory written on one machine before another
+    machine's pull, and pushed after it, was older than that machine's next
+    watermark and was never pulled there (2,011 rows missing on a Mac)."""
+    import pg_sync
+
+    pg_sync._prepare_warehouse(wh)
+    _wh_item(wh, "m1", created="2026-01-01T00:00:00+00:00")
+    pg_sync.sync_memory_items(store.cursor(), wh.cursor(), store, "main")
+    assert "m1" in _local_ids(store)
+    # Written on the other machine an hour BEFORE that pull, pushed only now.
+    _wh_item(wh, "late", created="2026-01-01T00:00:00+00:00")
+    pg_sync.sync_memory_items(store.cursor(), wh.cursor(), store, "main")
+    assert "late" in _local_ids(store)
+
+
+def test_each_store_takes_only_its_own_kind(wh, store):
+    """Pulling everything into both stores put every chat turn in the memory store
+    and every memory in the chat store, on every split install."""
+    import pg_sync
+
+    pg_sync._prepare_warehouse(wh)
+    _wh_item(wh, "mem", kind="note")
+    _wh_item(wh, "turn", kind="chat_log")
+    pg_sync.sync_memory_items(store.cursor(), wh.cursor(), store, "main", "memory")
+    assert _local_ids(store) == {"mem"}
+
+
+def test_an_edge_waits_for_a_memory_this_store_does_not_hold(wh, store):
+    """An edge to a memory not here yet failed the whole batch on the foreign key,
+    every run (49 edges on the Mac); it now waits, and lands once the memory does."""
+    import pg_sync
+
+    pg_sync._prepare_warehouse(wh)
+    _wh_item(wh, "a")
+    _wh_item(wh, "b")
+    cur = wh.cursor()
+    cur.execute(
+        "INSERT INTO memory_relationships (id, from_id, to_id, relationship_type) VALUES ('e1', 'a', 'b', 'related')"
+    )
+    wh.commit()
+    store.execute("INSERT INTO memory_items (id, type, content) VALUES ('a', 'note', 'x')")
+    store.commit()
+    pg_sync._FAILED_DIRECTIONS.clear()
+
+    pg_sync.sync_memory_relationships(store.cursor(), wh.cursor(), store, "main")
+    assert pg_sync._FAILED_DIRECTIONS == [], "a waiting edge is not a failure"
+    assert store.execute("SELECT count(*) FROM memory_relationships").fetchone()[0] == 0
+
+    store.execute("INSERT INTO memory_items (id, type, content) VALUES ('b', 'note', 'x')")
+    store.commit()
+    pg_sync.sync_memory_relationships(store.cursor(), wh.cursor(), store, "main")
+    assert store.execute("SELECT id FROM memory_relationships").fetchall()[0][0] == "e1"

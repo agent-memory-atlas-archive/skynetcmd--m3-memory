@@ -296,6 +296,19 @@ def tables_owned_elsewhere(conn, schema: str) -> dict[str, str]:
 
 
 _WAREHOUSE_LOCK_KEY = "m3_warehouse_migrations"  # pg_advisory_lock(hashtext(...))
+_SESSION_HELPERS = os.path.join(_WAREHOUSE_MIGRATIONS_DIR, "_session_helpers.sql")
+
+
+def _load_session_helpers(conn) -> None:
+    """Create the pg_temp helpers every warehouse migration may call. They live for
+    the session, so a warehouse already at v1 that runs only pg_002 has them too."""
+    with open(_SESSION_HELPERS, encoding="utf-8") as f:
+        sql = f.read()
+    _validate_migration_sql(_SESSION_HELPERS, sql)
+    conn.cursor().execute(sql)
+    conn.commit()
+
+
 _warned_behind: set[str] = set()
 
 
@@ -318,6 +331,7 @@ def run_warehouse_migrations(conn, schema: str) -> list[int]:
                 f"warehouse schema {schema!r} is at v{max(applied)}; this m3 knows up to v{known}. "
                 "Warehouse changes are additive, so syncing continues; upgrade m3 to use the newer columns."
             )
+        _load_session_helpers(conn)
         return run_pending_pg_migrations(conn, _WAREHOUSE_MIGRATIONS_DIR, schema=schema)
     finally:
         try:

@@ -33,7 +33,8 @@ warehouse. Two machines syncing at the same time cannot both apply a change.
 
 ### What it needs: the m3 account owns the tables
 
-PostgreSQL lets only a table's owner add a column or an index to it. If someone
+PostgreSQL lets only a table's owner add a column, an index or a trigger to it,
+and only the schema's owner may add a function to it. If someone
 created the warehouse tables as a different account (an administrator, or
 `postgres`), the first sync that needs a change stops with:
 

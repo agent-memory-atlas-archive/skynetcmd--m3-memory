@@ -101,7 +101,7 @@ def test_a_failed_push_keeps_the_push_watermark_and_fails_the_run(local, monkeyp
     pg_sync.sync_memory_items(local.cursor(), FakeWarehouse(), local, "main")
 
     assert _wm(local, "pg_push") is None, "observed: the push watermark advanced past a failed batch"
-    assert _wm(local, "pg_pull") is not None, "a clean pull still advances its own watermark"
+    assert _wm(local, "pg_pull_arrival") is not None, "a clean pull still advances its own watermark"
     assert pg_sync._FAILED_DIRECTIONS == ["main/pg_push"]
     assert pg_sync._failed_run_exit_code() == 1
 
@@ -118,7 +118,7 @@ def test_a_failed_pull_keeps_the_pull_watermark(local, monkeypatch):
     monkeypatch.setattr(pg_sync, "_local_backend", lambda: Broken())
     pg_sync.sync_memory_items(local.cursor(), FakeWarehouse([_remote_row()]), local, "main")
 
-    assert _wm(local, "pg_pull") is None, "observed: the pull watermark advanced past a failed batch"
+    assert _wm(local, "pg_pull_arrival") is None, "observed: the pull watermark advanced past a failed batch"
     assert _wm(local, "pg_push") is not None
     assert pg_sync._FAILED_DIRECTIONS == ["main/pg_pull"]
 
@@ -129,6 +129,6 @@ def test_a_clean_run_advances_both_and_exits_clean(local, monkeypatch):
     monkeypatch.setattr(psycopg2.extras, "execute_values", lambda *a, **k: None)
     pg_sync.sync_memory_items(local.cursor(), FakeWarehouse(), local, "main")
 
-    assert _wm(local, "pg_push") is not None and _wm(local, "pg_pull") is not None
+    assert _wm(local, "pg_push") is not None and _wm(local, "pg_pull_arrival") is not None
     assert pg_sync._FAILED_DIRECTIONS == []
     assert pg_sync._failed_run_exit_code() is None

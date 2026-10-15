@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_pg.py
-sha1: 5b8dc4a3cb01
-mtime_utc: 2026-10-15T03:05:25.745909+00:00
-generated_utc: 2026-10-15T03:07:51.588575+00:00
+sha1: d3ca04fb9b1e
+mtime_utc: 2026-10-15T04:42:22.927154+00:00
+generated_utc: 2026-10-15T04:48:39.413755+00:00
 private: false
 ---
 
@@ -44,7 +44,7 @@ or call :func:`run_pending_pg_migrations` programmatically (what the backend doe
 
 ## Entry points
 
-- `def main()` (line 444)
+- `def main()` (line 458)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -90,7 +90,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## File dependencies (repo paths referenced)
 
-_(none detected)_
+- `_session_helpers.sql`
 
 ---
 

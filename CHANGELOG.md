@@ -21,6 +21,27 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Sync no longer misses rows that reach the warehouse late.** Each sync read the rows
+  created or updated after its previous sync, by the writing machine's clock, so a row
+  written before another machine's sync and sent after it never reached that machine.
+  The warehouse now stamps when each row arrives (warehouse migration 2), and syncs read
+  by that. The first sync after upgrading reads the whole warehouse once, which also
+  brings every row earlier versions missed (2,011 on one test machine).
+  **Affected:** everyone syncing two or more machines · **Action:** none; the warehouse
+  updates itself on the first sync and needs the ownership in
+  [Upgrading your warehouse](docs/WAREHOUSE_UPGRADE.md) · **Data status:** missed rows are
+  in the warehouse and arrive on the first sync.
+
+- **With separate memory and chat stores, each store gets only its own rows.** Sync
+  pulled the whole warehouse into both, so the memory store filled with chat turns and
+  the chat store with memories. New syncs no longer add them; rows already copied stay.
+  **Affected:** installs with separate memory and chat stores · **Action:** none ·
+  **Data status:** existing copies are left in place.
+
+- **A relationship or embedding whose memory has not arrived yet no longer fails the
+  sync.** One such row failed its whole batch on every run; it now waits for its memory.
+  **Affected:** syncing installs · **Action:** none · **Data status:** none.
+
 - **Sync no longer fails on the notification store.** Since the notification store
   joined the migration set, every SQLite sync also tried to sync it and logged
   `no such table: memory_items`. Sync now covers only the memory and chat stores.

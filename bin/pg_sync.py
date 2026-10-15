@@ -73,7 +73,7 @@ import logging
 import pathlib
 import sqlite3
 from contextlib import contextmanager as _contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast, override
 
 import yaml
@@ -240,7 +240,61 @@ def _build_conflict_clause(pk_columns: list[str]) -> str:
 # These are preserved verbatim so test_pg_sync_fk_safety.py continues to pass.
 
 
-def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
+# The warehouse keeps chat turns and memories in one table, told apart by type.
+# A split install pulls each kind into its own store; a unified one pulls both.
+_CHAT_TYPE = "chat_log"
+
+
+def _kind_filter(kind: str | None, type_col: str = "type") -> tuple[str, tuple]:
+    """(" AND ..." clause, params) restricting a warehouse read to one store's rows."""
+    if kind == "chat":
+        return f" AND {type_col} = %s", (_CHAT_TYPE,)
+    if kind == "memory":
+        return f" AND {type_col} <> %s", (_CHAT_TYPE,)
+    return "", ()
+
+
+def _arrival_watermark(pg_cur) -> str | None:
+    """Where the next pull starts: the warehouse clock, held back to the start of
+    the oldest transaction still open. A push that commits after this pull's read
+    stamped its rows (wh_arrived_at, pg_002) after its own transaction began, so
+    they are at or after this bound and the next pull reads them."""
+    try:
+        pg_cur.execute(
+            "SELECT LEAST(NOW(), COALESCE((SELECT min(xact_start) FROM pg_stat_activity "
+            "WHERE xact_start IS NOT NULL AND pid <> pg_backend_pid()), NOW()))"
+        )
+        row = pg_cur.fetchone()
+        return row[0].isoformat() if row and row[0] else None
+    except Exception:  # noqa: BLE001 -- no bound: the next pull reads everything again
+        return None
+
+
+def _present_locally(sl_cur, ids) -> set:
+    """The memory ids among ``ids`` that this store holds."""
+    found: set = set()
+    ids = list(ids)
+    p = _param_of(sl_cur)
+    for i in range(0, len(ids), 500):  # under SQLite's variable limit
+        chunk = ids[i : i + 500]
+        sl_cur.execute(f"SELECT id FROM memory_items WHERE id IN ({', '.join([p] * len(chunk))})", tuple(chunk))
+        found.update(r[0] for r in sl_cur.fetchall())
+    return found
+
+
+def _resume_point(deferred_arrivals, bound: str | None) -> str | None:
+    """The watermark after a pull that left rows waiting for their memory: just
+    before the earliest waiting row, so the next pull reads it again; None (read
+    everything again) when a waiting row predates arrival stamps."""
+    if any(a is None for a in deferred_arrivals):
+        return None
+    resume: datetime = min(deferred_arrivals) - timedelta(microseconds=1)
+    if bound:
+        resume = min(resume, datetime.fromisoformat(bound))
+    return resume.isoformat()
+
+
+def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | None = None):
     logger.info(f"[{target_name}] Synchronizing memory_items (UUID-based, delta sync)...")
     now = datetime.now(UTC).isoformat()
 
@@ -356,41 +410,27 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
     sl_conn.commit()
     logger.info(f"[{target_name}] Pushed {push_count} local memory items ({push_errors} errors).")
 
-    # 2. PULL: Remote to Local (delta — only changed rows since last pull)
-    watermark = _get_watermark(sl_cur, "pg_pull", target_name)
-    # Watermark from the PG server clock (captured before the pull), not local
-    # `now`: the delta compares against PG-side updated_at from other peers'
-    # clocks, so a skewed local clock can silently skip rows.
-    try:
-        pg_cur.execute("SELECT NOW()")
-        _pn = pg_cur.fetchone()
-        pull_watermark = _pn[0].isoformat() if _pn else now
-    except Exception:
-        pull_watermark = now
+    # 2. PULL: Remote to Local — rows that ARRIVED in the warehouse since the last
+    # pull (wh_arrived_at, stamped by the warehouse). Not created/updated_at: those
+    # come from the writing machine's clock and precede its push, so a row pushed
+    # after another machine's pull was older than that machine's next watermark.
+    watermark = _get_watermark(sl_cur, "pg_pull_arrival", target_name)
+    pull_watermark = _arrival_watermark(pg_cur)
+    kind_sql, kind_params = _kind_filter(kind)
+    select = """
+            SELECT id, type, title, content, metadata_json, agent_id, model_id,
+                   change_agent, importance, source, origin_device, is_deleted,
+                   expires_at, decay_rate, created_at, updated_at,
+                   COALESCE(user_id, '') as user_id, COALESCE(scope, 'agent') as scope,
+                   valid_from, valid_to, COALESCE(content_hash, '') as content_hash
+            FROM memory_items
+    """
     if watermark:
-        pg_cur.execute(
-            """
-            SELECT id, type, title, content, metadata_json, agent_id, model_id,
-                   change_agent, importance, source, origin_device, is_deleted,
-                   expires_at, decay_rate, created_at, updated_at,
-                   COALESCE(user_id, '') as user_id, COALESCE(scope, 'agent') as scope,
-                   valid_from, valid_to, COALESCE(content_hash, '') as content_hash
-            FROM memory_items
-            WHERE updated_at > %s OR (updated_at IS NULL AND created_at > %s)
-        """,
-            (watermark, watermark),
-        )
-        logger.info(f"[{target_name}] Delta pull: rows changed since {watermark}")
+        pg_cur.execute(select + " WHERE wh_arrived_at > %s" + kind_sql, (watermark, *kind_params))
+        logger.info(f"[{target_name}] Delta pull: rows that reached the warehouse since {watermark}")
     else:
-        pg_cur.execute("""
-            SELECT id, type, title, content, metadata_json, agent_id, model_id,
-                   change_agent, importance, source, origin_device, is_deleted,
-                   expires_at, decay_rate, created_at, updated_at,
-                   COALESCE(user_id, '') as user_id, COALESCE(scope, 'agent') as scope,
-                   valid_from, valid_to, COALESCE(content_hash, '') as content_hash
-            FROM memory_items
-        """)
-        logger.info(f"[{target_name}] Full pull: no watermark found (first sync)")
+        pg_cur.execute(select + " WHERE TRUE" + kind_sql, kind_params)
+        logger.info(f"[{target_name}] Full pull: first pull that reads by arrival time")
 
     remote_rows = pg_cur.fetchall()
     pull_count = 0
@@ -468,12 +508,12 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
             pull_errors = max(1, len(remote_rows) - pull_count)
             _direction_failed(target_name, "pg_pull", exc, pull_count, len(remote_rows))
 
-    if not pull_errors:
-        _set_watermark(sl_cur, "pg_pull", pull_watermark, target_name)
+    if not pull_errors and pull_watermark:
+        _set_watermark(sl_cur, "pg_pull_arrival", pull_watermark, target_name)
     logger.info(f"[{target_name}] Pulled {pull_count} remote memory items ({pull_errors} errors).")
 
 
-def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
+def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | None = None):
     """Synchronizes the memory_relationships table bi-directionally with watermark logic."""
     logger.info(f"[{target_name}] Synchronizing memory_relationships...")
     from psycopg2.extras import execute_values
@@ -511,24 +551,28 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
     sl_conn.commit()
     logger.info(f"[{target_name}] Pushed {push_count} relationships to warehouse.")
 
-    # 2. PULL: Remote to Local
-    watermark = _get_watermark(sl_cur, "rel_pull", target_name)
-    # PG-server-clock watermark (see sync_memory_items) — avoids clock-skew drops.
-    try:
-        pg_cur.execute("SELECT NOW()")
-        _pn = pg_cur.fetchone()
-        pull_watermark = _pn[0].isoformat() if _pn else now
-    except Exception:
-        pull_watermark = now
+    # 2. PULL: Remote to Local, by arrival time (see sync_memory_items). An edge
+    # whose memories this store does not hold yet waits for them instead of failing
+    # the batch on the foreign key; the watermark stops just before it.
+    watermark = _get_watermark(sl_cur, "rel_pull_arrival", target_name)
+    pull_watermark = _arrival_watermark(pg_cur)
+    kind_sql, kind_params = _kind_filter(kind, "mi.type")
+    select = (
+        "SELECT r.id, r.from_id, r.to_id, r.relationship_type, r.created_at, r.wh_arrived_at "
+        "FROM memory_relationships r JOIN memory_items mi ON mi.id = r.from_id"
+    )
     if watermark:
-        pg_cur.execute(
-            "SELECT id, from_id, to_id, relationship_type, created_at FROM memory_relationships WHERE created_at > %s",
-            (watermark,),
-        )
+        pg_cur.execute(select + " WHERE r.wh_arrived_at > %s" + kind_sql, (watermark, *kind_params))
     else:
-        pg_cur.execute("SELECT id, from_id, to_id, relationship_type, created_at FROM memory_relationships")
+        pg_cur.execute(select + " WHERE TRUE" + kind_sql, kind_params)
 
-    remote_rows = pg_cur.fetchall()
+    fetched = pg_cur.fetchall()
+    present = _present_locally(sl_cur, {e for r in fetched for e in (r[1], r[2])}) if fetched else set()
+    remote_rows = [r[:5] for r in fetched if r[1] in present and r[2] in present]
+    waiting = [r[5] for r in fetched if not (r[1] in present and r[2] in present)]
+    if waiting:
+        pull_watermark = _resume_point(waiting, pull_watermark)
+        logger.info(f"[{target_name}] {len(waiting)} relationships wait for memories this store does not hold yet")
     pull_count = 0
     pull_failed = False
     if remote_rows:
@@ -550,8 +594,8 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
             pull_failed = True
             _direction_failed(target_name, "rel_pull", exc, pull_count, len(remote_rows))
 
-    if not pull_failed:
-        _set_watermark(sl_cur, "rel_pull", pull_watermark, target_name)
+    if not pull_failed and pull_watermark:
+        _set_watermark(sl_cur, "rel_pull_arrival", pull_watermark, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pulled {pull_count} relationships from warehouse.")
 
@@ -782,7 +826,7 @@ def _warn_on_embed_family_mismatch(sl_cur, pg_cur, target_name: str) -> None:
         )
 
 
-def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
+def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | None = None):
     """Synchronizes the memory_embeddings table bi-directionally with watermark logic."""
     logger.info(f"[{target_name}] Synchronizing memory_embeddings...")
 
@@ -856,24 +900,29 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
         f"({push_errors} errors, {skipped_fk} deferred for missing parent)."
     )
 
-    # 2. PULL: Remote to Local (delta)
-    watermark = _get_watermark(sl_cur, "emb_pull", target_name)
+    # 2. PULL: Remote to Local, by arrival time (see sync_memory_items). An
+    # embedding whose memory this store does not hold yet waits for it.
+    watermark = _get_watermark(sl_cur, "emb_pull_arrival", target_name)
+    pull_watermark = _arrival_watermark(pg_cur)
+    kind_sql, kind_params = _kind_filter(kind, "mi.type")
+    select = (
+        "SELECT me.id, me.memory_id, me.embedding, me.embed_model, me.dim, me.wh_arrived_at "
+        "FROM memory_embeddings me JOIN memory_items mi ON me.memory_id = mi.id"
+    )
     if watermark:
-        pg_cur.execute(
-            """
-            SELECT me.id, me.memory_id, me.embedding, me.embed_model, me.dim
-            FROM memory_embeddings me
-            JOIN memory_items mi ON me.memory_id = mi.id
-            WHERE mi.updated_at > %s OR (mi.updated_at IS NULL AND mi.created_at > %s)
-        """,
-            (watermark, watermark),
-        )
-        logger.info(f"[{target_name}] Delta embedding pull: rows changed since {watermark}")
+        pg_cur.execute(select + " WHERE me.wh_arrived_at > %s" + kind_sql, (watermark, *kind_params))
+        logger.info(f"[{target_name}] Delta embedding pull: rows that reached the warehouse since {watermark}")
     else:
-        pg_cur.execute("SELECT id, memory_id, embedding, embed_model, dim FROM memory_embeddings")
-        logger.info(f"[{target_name}] Full embedding pull: no watermark found (first sync)")
+        pg_cur.execute(select + " WHERE TRUE" + kind_sql, kind_params)
+        logger.info(f"[{target_name}] Full embedding pull: first pull that reads by arrival time")
 
-    remote_rows = pg_cur.fetchall()
+    fetched = pg_cur.fetchall()
+    present = _present_locally(sl_cur, {r[1] for r in fetched}) if fetched else set()
+    remote_rows = [r[:5] for r in fetched if r[1] in present]
+    waiting = [r[5] for r in fetched if r[1] not in present]
+    if waiting:
+        pull_watermark = _resume_point(waiting, pull_watermark)
+        logger.info(f"[{target_name}] {len(waiting)} embeddings wait for memories this store does not hold yet")
     pull_count = 0
     pull_errors = 0
 
@@ -908,8 +957,8 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
             pull_errors = max(1, len(remote_rows) - pull_count)
             _direction_failed(target_name, "emb_pull", exc, pull_count, len(remote_rows))
 
-    if not pull_errors:
-        _set_watermark(sl_cur, "emb_pull", now, target_name)
+    if not pull_errors and pull_watermark:
+        _set_watermark(sl_cur, "emb_pull_arrival", pull_watermark, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pulled {pull_count} embeddings from warehouse ({pull_errors} errors).")
 
@@ -1464,7 +1513,9 @@ def _sync_table_generic(
 # ── Per-DB sync dispatcher ───────────────────────────────────────────────────
 
 
-def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bool = False) -> None:
+def _sync_agent_memory_db(
+    sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bool = False, kind: str | None = None
+) -> None:
     """Sync agent_memory.db using the legacy per-table functions.
 
     This path is kept verbatim to preserve existing test coverage and
@@ -1481,7 +1532,7 @@ def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bo
     # Step 1: Memory Items
     try:
         pg_cur.execute("SAVEPOINT items")
-        sync_memory_items(sl_cur, pg_cur, sl_conn, target_name)
+        sync_memory_items(sl_cur, pg_cur, sl_conn, target_name, kind)
         pg_cur.execute("RELEASE SAVEPOINT items")
     except Exception as e:
         pg_cur.execute("ROLLBACK TO SAVEPOINT items")
@@ -1493,7 +1544,7 @@ def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bo
     if _table_exists(sl_cur, "memory_relationships"):
         try:
             pg_cur.execute("SAVEPOINT rels")
-            sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name)
+            sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name, kind)
             pg_cur.execute("RELEASE SAVEPOINT rels")
         except Exception as e:
             pg_cur.execute("ROLLBACK TO SAVEPOINT rels")
@@ -1503,7 +1554,7 @@ def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bo
     if _table_exists(sl_cur, "memory_embeddings"):
         try:
             pg_cur.execute("SAVEPOINT embs")
-            sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name)
+            sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name, kind)
             pg_cur.execute("RELEASE SAVEPOINT embs")
         except Exception as e:
             pg_cur.execute("ROLLBACK TO SAVEPOINT embs")
@@ -1582,11 +1633,13 @@ def _sync_generic_db(
 class SyncTarget:
     """One (store, table-set) pair. `uri` is a path on SQLite, a DSN on PG."""
 
-    __slots__ = ("name", "table_map", "uri")
+    __slots__ = ("kind", "name", "table_map", "uri")
 
-    def __init__(self, name: str, uri: str | None, table_map: dict[str, str]):
+    def __init__(self, name: str, uri: str | None, table_map: dict[str, str], kind: str | None = None):
         self.name = name
         self.uri = uri
+        # which warehouse rows this store takes: "memory", "chat", or None for both
+        self.kind = kind
         # role -> physical table name in THIS store, e.g. {"items": "chat_log_items"}
         self.table_map = table_map
 
@@ -1632,8 +1685,8 @@ def resolve_sync_targets(main_uri: str | None = None) -> list[SyncTarget]:
         # under chat_log_* names, so a single connection covers both.
         chat_map = {r: chatlog_table_for(r, backend.name) for r in _CORE_ROLES}
         return [
-            SyncTarget("main", main_uri, core_map),
-            SyncTarget("chatlog", main_uri, chat_map),
+            SyncTarget("main", main_uri, core_map, kind="memory"),
+            SyncTarget("chatlog", main_uri, chat_map, kind="chat"),
         ]
 
     # SQLite: separate FILES, each using the core table names.
@@ -1665,6 +1718,12 @@ def resolve_sync_targets(main_uri: str | None = None) -> list[SyncTarget]:
             f"the main store is {main}, so both sync as one. If they should "
             f"be separate, pin db_path in .chatlog_config.json."
         )
+    if {st.name for st in out} >= {"main", "chatlog"}:
+        # Two stores: each takes its own kind from the shared warehouse table.
+        # Pulling everything into both put every chat turn in the memory store and
+        # every memory in the chat store.
+        for st in out:
+            st.kind = "memory" if st.name == "main" else "chat"
     return out
 
 
@@ -1839,7 +1898,9 @@ def main():
                                 sl_conn.commit()
 
                             with pg_conn.cursor() as pg_cur:
-                                _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target.name, dry_run=False)
+                                _sync_agent_memory_db(
+                                    sl_cur, pg_cur, sl_conn, target.name, dry_run=False, kind=target.kind
+                                )
 
                             pg_conn.commit()
                             sl_conn.commit()
