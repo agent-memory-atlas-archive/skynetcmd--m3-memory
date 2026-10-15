@@ -4324,7 +4324,6 @@ def run_setup(args: argparse.Namespace) -> int:
     try:
         _begin_elevation_batch(gui=getattr(args, "gui_child", False))
         _step_migrate_memory_root()
-        _step_import_env()
         if not _step_install_m3(plan):
             _err("setup aborted")
             return 2
@@ -4342,6 +4341,9 @@ def run_setup(args: argparse.Namespace) -> int:
             _step_shared_embedder(plan, non_interactive=args.non_interactive)
         _step_wire_agents(plan, non_interactive=args.non_interactive)
         _trace("after wire_agents")
+        # After the agent configs are repaired: an entry still naming a moved root
+        # read as a disagreement and blocked importing that setting.
+        _step_import_env()
         _step_install_dashboard(plan)
         _trace("after install_dashboard")
         governor_result = _step_governor_migration(
