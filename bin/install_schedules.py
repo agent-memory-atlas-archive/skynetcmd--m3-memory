@@ -591,9 +591,11 @@ class EmbedServerConflict(RuntimeError):
 
 def pin_embed_port(port: int) -> bool:
     """Write ``port`` into the Rust embed service's definition. Its own installer
-    (m3-core-rs up to at least 3.10.7) writes only M3_EMBED_GGUF and drops the
-    port it was given, so a service on any port but 8082 could not be
-    registered. True when the definition now carries ``port``."""
+    (m3-core-rs 3.10.7) writes only M3_EMBED_GGUF and drops the port it was
+    given, so a service on any port but 8082 could not be registered. A bridge:
+    the core records the port in its config.toml itself from the release after
+    3.10.14 (m3-core-rs `config::merge_env_into_file`); remove this once
+    M3_CORE_RS_VERSION is that release. True when the definition carries ``port``."""
     import plistlib
 
     osn = _os_name()

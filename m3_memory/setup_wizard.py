@@ -3696,7 +3696,10 @@ def _claim_free_ports(plan: SetupPlan) -> None:
         for key, port in chosen.items():
             _ok(f"  port {current[key]} belongs to another account here; this account's {names[key]} uses {port}")
     except Exception as e:  # noqa: BLE001 -- setup goes on and reports the held port
-        _warn(f"  choosing free ports skipped: {type(e).__name__}: {e}")
+        _warn(
+            f"  choosing free ports skipped ({type(e).__name__}: {e}); the embedder and dashboard keep their "
+            "configured ports. inspect: m3 doctor; fix: m3 config set embed.server.port <free port>"
+        )
 
 
 def _retire_replaced_embedder() -> None:

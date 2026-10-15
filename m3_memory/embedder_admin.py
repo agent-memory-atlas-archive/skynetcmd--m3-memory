@@ -1404,7 +1404,11 @@ def _pin_registered_port() -> None:
             return
     except Exception:  # noqa: BLE001 — said below
         pass
-    print(f"[!] could not set port {port} in the embedder service's definition; it may start on {on_port}")
+    print(
+        f"[!] could not set port {port} in the embedder service's definition, so it may start on {on_port}. "
+        f"inspect: m3 embedder status; fix: m3 config set embed.server.port {port}, then "
+        "m3 embedder uninstall && m3 embedder install"
+    )
 
 
 def _registered_port() -> int | None:
