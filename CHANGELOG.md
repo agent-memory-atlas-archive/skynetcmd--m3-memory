@@ -1086,6 +1086,12 @@ the policy is forward-going only.
 
 ### Added
 
+- **Semantic search on SQLite keeps vectors in memory.** With a Rust core that
+  has the vector index, m3 holds each store's vectors in memory at a quarter of
+  their size and reads only the nearest rows from the database, instead of every
+  vector on every search. Results are scored exactly as before. **Affected:**
+  SQLite stores without sqlite-vec · **Action:** none · **Data status:** none.
+
 - **Long memories are embedded in fewer pieces.** When the embedder can count
   tokens exactly, m3 cuts a long memory at real token boundaries instead of a
   conservative estimate: on one store's 110 longest memories, 112 embeddings

@@ -603,6 +603,17 @@ def _resolve_extra_columns(
     return [c for c in cols if c in _ALLOWED_EXTRA and c not in _BASE_COLS]
 
 
+def _best_by_score(ids, scores, n: int) -> list[int]:
+    """Indexes of the ``n`` highest scores, best first; ties broken by id.
+
+    Not by the order rows arrived in: duplicate memories share a vector, and the
+    full scan and the vector index deliver rows in different orders, so an
+    order-dependent tie-break made the two return different copies (measured
+    2026-10-15: 4 of 5 result lists).
+    """
+    return sorted(range(len(scores)), key=lambda i: (-scores[i], str(ids[i])))[:n]
+
+
 def _stamp_retrieved(hits) -> None:
     """Record that these ranked hits were retrieved. SINGLE OWNER (§10a).
 
@@ -1230,12 +1241,34 @@ async def memory_search_scored_impl(
             with _db() as db:
                 _has_vec = _detect_sqlite_vec(db)
                 if search_mode == "semantic":
+                    # Without sqlite-vec, the resident index (Rust core) picks the
+                    # nearest in-scope rows so only those blobs are read; None
+                    # (no index in this core) keeps the full scan.
+                    _keys = None
+                    from memory import vector_index
+
+                    if not _has_vec and vector_index.available():
+                        _keys = vector_index.nearest(
+                            db,
+                            dim=EMBED_DIM,
+                            where_sql=where_sql,
+                            params=params,
+                            q_vec=q_vec,
+                            # Over-fetch: the exact pass below keeps the best
+                            # sql_row_limit by exact cosine, so the cutoff is
+                            # the full scan's, not the quantised one's. At
+                            # exactly sql_row_limit, ~0.5% of the boundary rows
+                            # differed, and importance can lift one of those
+                            # into the top k (measured 2026-10-15: 4 of 5 lists).
+                            k=sql_row_limit + sql_row_limit // 4,
+                        )
                     sql = build_candidate_sql(
                         search_mode="semantic",
                         has_vec=_has_vec,
                         where_sql=where_sql,
                         extra_sql=extra_sql,
                         row_limit=sql_row_limit,
+                        key_filter=_keys is not None,
                     )
                     _m3env.debug(f"SQL (semantic {'sqlite-vec' if _has_vec else 'standard'}):\n{sql}")
                     if _has_vec:
@@ -1243,6 +1276,8 @@ async def memory_search_scored_impl(
 
                         q_blob = struct.pack(f"{len(q_vec)}f", *q_vec)
                         _rows = db.execute(sql, (q_blob, *params)).fetchall()
+                    elif _keys is not None:
+                        _rows = db.execute(sql, (json.dumps(_keys), *params)).fetchall()
                     else:
                         _rows = db.execute(sql, params).fetchall()
                     _m3env.debug(f"SQL HITS (semantic): {len(_rows)}")
@@ -1319,7 +1354,7 @@ async def memory_search_scored_impl(
     else:
         page_scores = _cosine_batch_packed(q_vec, page_blobs, EMBED_DIM)
     if _rank_after_scoring and len(rows) > sql_row_limit:
-        _best = sorted(range(len(rows)), key=page_scores.__getitem__, reverse=True)[:sql_row_limit]
+        _best = _best_by_score([r["id"] for r in rows], page_scores, sql_row_limit)
         rows = [rows[i] for i in _best]
         page_scores = [page_scores[i] for i in _best]
         page_blobs = [page_blobs[i] for i in _best]

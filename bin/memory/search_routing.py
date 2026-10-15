@@ -338,6 +338,7 @@ def build_candidate_sql(
     where_sql: str,
     extra_sql: str = "",
     row_limit: int | None = None,
+    key_filter: bool = False,
 ) -> str:
     """Build the SQLite fused candidate-fetch query. Pure; returns SQL text.
 
@@ -353,8 +354,14 @@ def build_candidate_sql(
     to ~3e-09. So the two variants differ in WHERE the arithmetic happens and
     how rows are ordered/limited in SQL, not in what similarity means.
 
+    ``key_filter`` (semantic, no sqlite-vec): only the embedding rows whose
+    rowids arrive as a JSON array -- the nearest ones from the resident index
+    (memory.vector_index). The scope predicates still apply, so the index can
+    narrow what a query sees but never widen it.
+
     Parameter ORDER is part of this contract, since callers bind positionally:
       semantic + has_vec : (q_blob, *where_params)
+      semantic + keys    : (json_rowids, *where_params)
       semantic           : (*where_params,)
       hybrid   + has_vec : (q_blob, *where_params, fts_query)
       hybrid             : (*where_params, fts_query)
@@ -375,6 +382,14 @@ def build_candidate_sql(
                             WHERE {where_sql}
                             ORDER BY vec_score DESC
                             LIMIT {row_limit}
+                        """
+        if key_filter:
+            return f"""
+                            SELECT {_BASE_COLS}, 0.0 as bm25_score{extra_sql}
+                            FROM memory_items mi
+                            JOIN memory_embeddings me ON mi.id = me.memory_id
+                            WHERE me.rowid IN (SELECT value FROM json_each(?))
+                              AND {where_sql}
                         """
         # No sqlite-vec: SQL cannot rank by similarity, so every in-scope row is
         # returned and the caller scores them all with the Rust cosine, then
