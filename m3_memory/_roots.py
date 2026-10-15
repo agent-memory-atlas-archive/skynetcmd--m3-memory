@@ -169,10 +169,22 @@ def located_config_args() -> list[str]:
     scheduled task, a service): the config file this process located, unless that
     is the default one, which the job finds by itself. Covers a ``--config`` pin
     AND ``M3_CONFIG_ROOT`` / the legacy tier: a job registered from a shell that
-    exports M3_CONFIG_ROOT would otherwise run against the default store."""
-    if config_root_with_tier()[1] == CONFIG_ROOT_DEFAULT:
+    exports M3_CONFIG_ROOT would otherwise run against the default store. A
+    variable naming the default root is the default: pinning it changed every job
+    definition, and re-registering a boot task needs an administrator."""
+    root, tier = config_root_with_tier()
+    if tier == CONFIG_ROOT_DEFAULT or _same_dir(root, _home(".m3", "config")):
         return []
     return ["--config", config_file()]
+
+
+def _same_dir(a: str, b: str) -> bool:
+    """Whether two paths name one directory (case and separators as the file
+    system sees them); compared as text when either does not exist."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
 
 
 def config_args() -> list[str]:

@@ -119,3 +119,20 @@ def test_the_default_root_adds_nothing(monkeypatch):
     monkeypatch.setattr(_roots, "config_root_with_tier", lambda: ("/home/u/.m3/config", _roots.CONFIG_ROOT_DEFAULT))
     specs = install_schedules.get_schedule_specs(str(_REPO))
     assert not [s["name"] for s in specs if "--config" in s["args"]]
+
+
+def test_a_variable_naming_the_default_root_pins_nothing(tmp_path, monkeypatch):
+    """M3_CONFIG_ROOT set to the default folder is the default: pinning it changed
+    every job definition, and re-registering a Windows boot task then needed an
+    administrator (measured on an upgrade, 2026-10-15)."""
+    from m3_memory import _roots
+
+    default = tmp_path / ".m3" / "config"
+    default.mkdir(parents=True)
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    monkeypatch.setattr(_roots, "_home", lambda *parts: str(tmp_path.joinpath(*parts)))
+    for spelling, pinned in ((str(default), False), (default.as_posix() + "/", False), (str(other), True)):
+        tier = (spelling, _roots.CONFIG_ROOT_ENV)
+        monkeypatch.setattr(_roots, "config_root_with_tier", lambda tier=tier: tier)
+        assert bool(_roots.located_config_args()) is pinned, spelling
