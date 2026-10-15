@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: cefdded9f999
-mtime_utc: 2026-10-14T11:59:09.703829+00:00
-generated_utc: 2026-10-14T12:02:32.522103+00:00
+sha1: 8fd2cda72d2b
+mtime_utc: 2026-10-15T03:24:29.174763+00:00
+generated_utc: 2026-10-15T03:24:45.139218+00:00
 private: false
 ---
 
@@ -59,8 +59,8 @@ is stopped or replaced.
 
 ## Entry points
 
-- `def run()` (line 545)
-- `def main()` (line 775)
+- `def run()` (line 580)
+- `def main()` (line 810)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -97,14 +97,14 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 498)
-- `subprocess.Popen()  → `cmd`` (line 554)
-- `subprocess.run()  → `[exe, '--version']`` (line 109)
-- `subprocess.run()  → `[sys.executable, '-c', code]`` (line 188)
-- `subprocess.run()  → `cmd`` (line 571)
-- `subprocess.run()  → `cmd`` (line 591)
-- `subprocess.run()` (line 134)
-- `subprocess.run()` (line 656)
+- `subprocess.Popen()  → `cmd`` (line 533)
+- `subprocess.Popen()  → `cmd`` (line 589)
+- `subprocess.run()  → `[exe, '--version']`` (line 111)
+- `subprocess.run()  → `[sys.executable, '-c', code]`` (line 190)
+- `subprocess.run()  → `cmd`` (line 606)
+- `subprocess.run()  → `cmd`` (line 626)
+- `subprocess.run()` (line 136)
+- `subprocess.run()` (line 691)
 
 
 ---
@@ -123,6 +123,7 @@ _(none detected)_
 
 ## File dependencies (repo paths referenced)
 
+- `direct_url.json`
 - `m3_memory-*.dist-info/entry_points.txt`
 - `pipx_metadata.json`
 

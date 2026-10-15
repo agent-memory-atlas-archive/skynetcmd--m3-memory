@@ -21,6 +21,13 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **`m3 upgrade` no longer upgrades a source checkout or a git-URL install from PyPI.**
+  An m3 installed with `pip install -e` or from a git URL was taken for a PyPI install, and
+  the upgrade could target the system Python. It now names how m3 was installed and prints
+  the steps for that method instead of running anything.
+  **Affected:** source checkouts and git-URL installs · **Action:** follow the printed steps
+  ([Upgrade Guide](docs/HOW-TO-UPGRADE.md)) · **Data status:** none.
+
 - **Sync to a warehouse in the `m3_warehouse` schema works after the schema update.**
   The step that sets the schema was undone by a later check, so every warehouse table
   read as missing (`relation "memory_items" does not exist`) and nothing synced.

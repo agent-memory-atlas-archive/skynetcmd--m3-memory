@@ -67,6 +67,49 @@ def test_pipx_detected_on_posix_layout(tmp_path):
     assert m3u.detect_install_method(pkg)[0] == m3u.PIPX
 
 
+def _venv_with_record(tmp_path, record):
+    """A POSIX venv with bin/m3 and an m3_memory dist-info carrying ``record``."""
+    import json
+
+    venv = _mk(tmp_path, "venv")
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")
+    m3 = _mk(venv, "bin") / "m3"
+    m3.write_text("", encoding="utf-8")
+    dist = _mk(venv, "lib/python3.12/site-packages/m3_memory-2026.10.15.0.dist-info")
+    if record is not None:
+        (dist / "direct_url.json").write_text(json.dumps(record), encoding="utf-8")
+    return venv, str(m3)
+
+
+def test_an_editable_checkout_is_detected_and_not_upgraded_from_pypi(tmp_path):
+    """Found on a dev box: `pip install -e` was read as a plain pip install, and the
+    plan upgraded it from PyPI (replacing the checkout) with the SYSTEM python."""
+    checkout = _mk(tmp_path, "src/m3-memory/m3_memory")
+    _venv, m3 = _venv_with_record(tmp_path, {"url": "file:///src/m3-memory", "dir_info": {"editable": True}})
+    record = m3u.install_record(m3)
+    method, evidence = m3u.detect_install_method(checkout, record)
+    assert method == m3u.EDITABLE and "file:///src/m3-memory" in evidence
+    assert m3u.upgrade_command(method) is None
+
+
+def test_a_git_url_install_is_detected(tmp_path):
+    pkg = _mk(tmp_path, "venv/lib/python3.12/site-packages/m3_memory")
+    record = {
+        "url": "https://github.com/skynetcmd/m3-memory.git",
+        "vcs_info": {"vcs": "git", "requested_revision": "v2026.10.7.1", "commit_id": "abc"},
+    }
+    method, evidence = m3u.detect_install_method(pkg, record)
+    assert method == m3u.VCS and "v2026.10.7.1" in evidence
+    assert m3u.upgrade_command(method) is None
+
+
+def test_an_index_install_has_no_record_and_stays_pip(tmp_path):
+    _venv, m3 = _venv_with_record(tmp_path, None)
+    assert m3u.install_record(m3) == {}
+    pkg = _mk(tmp_path, "venv/lib/python3.12/site-packages/m3_memory")
+    assert m3u.detect_install_method(pkg, {})[0] == m3u.PIP
+
+
 def test_plain_pip_site_packages(tmp_path):
     """No pipx marker, not user-site, not a plugin cache -> a plain pip install."""
     pkg = _mk(tmp_path, "usr/lib/python3.12/site-packages/m3_memory")
@@ -325,6 +368,7 @@ def test_upgrade_stops_before_touching_services_when_the_source_is_gone(tmp_path
 def _pip_install(tmp_path, version="2026.10.4.2"):
     """A pip-layout venv: Scripts/python.exe + m3 launchers + dist-info."""
     venv = _mk(tmp_path, "venv")
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")  # every real venv has one
     scripts = _mk(venv, "Scripts")
     for name in ("python.exe", "m3.exe", "mcp-memory.exe"):
         (scripts / name).write_bytes(b"MZ")

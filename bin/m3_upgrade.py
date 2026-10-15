@@ -66,6 +66,8 @@ PIPX = "pipx"
 PIP = "pip"
 PIP_USER = "pip-user"
 PLUGIN = "plugin"
+EDITABLE = "editable"  # pip install -e <checkout>: upgrade the checkout, not from PyPI
+VCS = "git-url"  # pip install git+<url>: reinstall from the ref you want
 UNKNOWN = "unknown"
 
 
@@ -200,7 +202,31 @@ def cognitive_loop_installed(exe: str) -> bool | None:
     return None
 
 
-def detect_install_method(pkg_dir: pathlib.Path | None) -> tuple[str, str]:
+def install_record(exe: str | None) -> dict:
+    """pip's record of where m3-memory came from (PEP 610 ``direct_url.json``), read
+    from the environment the ``m3`` executable lives in; {} when there is none (an
+    index install). It is what tells a source checkout installed with ``pip install
+    -e`` (``dir_info.editable``) or a git URL (``vcs_info``) from a PyPI install: the
+    package path alone does not, because an editable install keeps its code in the
+    checkout, outside site-packages."""
+    if not exe:
+        return {}
+    venv = pathlib.Path(exe).resolve().parent.parent
+    for dist in (
+        *venv.glob("Lib/site-packages/m3_memory-*.dist-info"),
+        *venv.glob("lib/python*/site-packages/m3_memory-*.dist-info"),
+    ):
+        record = dist / "direct_url.json"
+        if os.path.isfile(record):
+            try:
+                data = json.loads(record.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return {}
+            return data if isinstance(data, dict) else {}
+    return {}
+
+
+def detect_install_method(pkg_dir: pathlib.Path | None, record: dict | None = None) -> tuple[str, str]:
     """Return ``(method, evidence)``.
 
     The evidence string is printed: a detection the user cannot audit is one
@@ -223,6 +249,15 @@ def detect_install_method(pkg_dir: pathlib.Path | None) -> tuple[str, str]:
     for marker in ("/.claude/plugins/", "/.antigravity/plugins/", "/plugins/cache/"):
         if marker in normalized:
             return PLUGIN, f"package lives in a host plugin cache: {pkg_dir}"
+
+    # A source checkout (pip install -e) or a git URL. Upgrading either from PyPI
+    # would replace the user's checkout or chosen ref with the release.
+    record = record or {}
+    if (record.get("dir_info") or {}).get("editable"):
+        return EDITABLE, f"installed editable from {record.get('url', 'a local directory')} (pip install -e)"
+    if record.get("vcs_info"):
+        ref = (record["vcs_info"] or {}).get("requested_revision") or "its default branch"
+        return VCS, f"installed from {record.get('url')} at {ref} (a git URL)"
 
     # pipx venvs carry a metadata file at the venv root; site-packages sits a few
     # levels below it (Lib/site-packages on Windows, lib/pythonX.Y/... on POSIX).
@@ -816,12 +851,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     pkg = find_m3_package(m3)
-    method, evidence = detect_install_method(pkg)
+    method, evidence = detect_install_method(pkg, install_record(m3))
     spec = pipx_source(pkg) if method == PIPX else None
     source = f", source {spec or 'unknown (no pipx metadata)'}" if method == PIPX else ""
     print(f"[detect] {method} install{source}")
     # The evidence explains a refusal (plugin / unknown) or a dry run's plan.
-    if args.dry_run or method in (PLUGIN, UNKNOWN):
+    if args.dry_run or method in (PLUGIN, UNKNOWN, EDITABLE, VCS):
         print(f"         evidence      : {evidence}")
     if method == PIPX:
         if args.from_pypi:
@@ -851,6 +886,28 @@ def main(argv: list[str] | None = None) -> int:
             "(for example `/plugin` in Claude Code), then run `m3 doctor`."
         )
         return 2
+    venv_python = pathlib.Path(m3).resolve().parent / ("python.exe" if is_windows() else "python")
+    if method == EDITABLE:
+        checkout = str(pkg.parent) if pkg is not None else "<your checkout>"
+        print(
+            "\nThis m3 runs from a source checkout, installed with `pip install -e`. Upgrading it\n"
+            "from PyPI would replace your checkout with the release. Upgrade the checkout:\n"
+            f"  git -C {checkout} pull\n"
+            f"  {venv_python} -m pip install -e {checkout}    # picks up new dependencies\n"
+            "  m3 setup\n"
+            "  m3 doctor"
+        )
+        return 2
+    if method == VCS:
+        print(
+            "\nThis m3 was installed from a git URL. Reinstall from the tag or branch you want,\n"
+            "then finish with setup and doctor:\n"
+            f'  {venv_python} -m pip install --upgrade "git+https://github.com/skynetcmd/m3-memory.git@<tag>"\n'
+            "  m3 setup\n"
+            "  m3 doctor\n"
+            f"Or move to the PyPI release: {venv_python} -m pip install --upgrade --force-reinstall m3-memory"
+        )
+        return 2
     if method == UNKNOWN:
         print(
             "\nCould not determine how m3 was installed, so there is no safe upgrade\n"
@@ -865,6 +922,11 @@ def main(argv: list[str] | None = None) -> int:
     owner_python = sys.executable
     if pkg is not None:
         for parent in list(pkg.parents)[:5]:
+            # Only an environment root (a venv's pyvenv.cfg, or this interpreter's own
+            # prefix): walking up from a package outside an environment once reached
+            # /bin/python3 and planned a pip install into the SYSTEM Python.
+            if not (os.path.exists(parent / "pyvenv.cfg") or os.path.samefile(parent, sys.prefix)):
+                continue
             for cand in ("Scripts/python.exe", "bin/python3", "bin/python"):
                 candidate = parent / cand
                 if os.path.exists(candidate):
