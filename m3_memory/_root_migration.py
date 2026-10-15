@@ -17,6 +17,14 @@ from m3_memory import _roots as roots
 
 logger = logging.getLogger("m3.root_migration")
 
+MOVED_NOTE = "MOVED.txt"  # left in the old root after its state was copied out
+
+
+def moved_away(root: object) -> bool:
+    """Whether ``root`` is a memory root whose state this migration copied
+    elsewhere: it still exists (repo/ stays), so only its note tells."""
+    return isinstance(root, str) and bool(root) and os.path.isfile(Path(root).expanduser() / MOVED_NOTE)
+
 
 def pending() -> bool:
     """True when there is legacy state to migrate: the legacy root exists, the
@@ -88,7 +96,7 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
         cfg.mkdir(parents=True, exist_ok=True)
         _copy(".agent_os_salt", dst_dir=cfg)
         if not report["failed"]:
-            (old / "MOVED.txt").write_text(
+            (old / MOVED_NOTE).write_text(
                 f"m3's memory root moved to {new} (root-1). This directory was copied, not "
                 f"deleted: remove it once m3 runs from the new root. repo/ is still used here.\n",
                 encoding="utf-8",

@@ -327,3 +327,27 @@ def test_wiring_opencode_prunes_the_unused_mcpservers_entry(tmp_path, monkeypatc
     data = json.loads(cfg.read_text(encoding="utf-8"))
     assert data["mcpServers"] == {"other": {"command": "x"}}  # only m3's entry goes
     assert data["mcp"]["memory"]["command"] == ["m3"]
+
+
+@pytest.mark.parametrize("moved", [True, False])
+def test_an_entry_naming_a_moved_memory_root_is_repointed(canonical, tmp_path, moved):
+    """The old root survives its migration (repo/ stays), so an agent still naming
+    it passed the existence check and kept writing state there (Gemini, measured
+    2026-10-15). Only the migration's note marks it moved: a root a user chose is
+    left alone."""
+    old = tmp_path / ".m3-memory"
+    old.mkdir()
+    if moved:
+        (old / "MOVED.txt").write_text("moved\n", encoding="utf-8")
+    entry = I._canonical_memory_server()
+    entry["env"] = {**entry["env"], "M3_MEMORY_ROOT": str(old).replace("\\", "/")}
+    cfg = tmp_path / "host" / "settings.json"
+    _write(cfg, {"mcpServers": {"memory": entry}})
+
+    msg = I._heal_agent_settings(cfg)
+    after = json.loads(cfg.read_text())["mcpServers"]["memory"]["env"]["M3_MEMORY_ROOT"]
+    if moved:
+        assert msg and "repointed" in msg
+        assert after == str(canonical["state"]).replace("\\", "/")
+    else:
+        assert msg is None and after == str(old).replace("\\", "/")

@@ -350,7 +350,12 @@ def _memory_entry_needs_repoint(entry: object) -> bool:
         # Only path-bearing env vars matter here; M3_BRIDGE_PATH / roots / gguf.
         if k.startswith("M3_") and _path_is_stale(v):
             return True
-    return False
+    from m3_memory import _roots
+    from m3_memory._root_migration import moved_away
+
+    # The old memory root survives its migration (repo/ stays), so an entry still
+    # naming it passed the existence check while its state went to the old place.
+    return moved_away(env.get(_roots.MEMORY_ROOT_ENV))
 
 
 def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_absent: bool = False) -> str | None:
