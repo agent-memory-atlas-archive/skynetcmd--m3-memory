@@ -155,3 +155,29 @@ def test_only_this_accounts_inproc_server_on_that_port_is_stopped(monkeypatch):
     monkeypatch.setattr(plat, "owned_by_current_user", lambda p: p.mine)
     assert embedder_admin._stop_own_stray_server(8083) == [1]
     assert [p.stopped for p in procs] == [True, False, False, False]
+
+
+def test_a_port_moved_back_is_followed_but_a_hand_edit_is_kept(tmp_path, m3_settings):
+    """A move back to 8082 left the clients on 8092: m3's own earlier value no
+    longer looked like m3's. The value m3 last wrote is recorded and followed."""
+    import json
+
+    from m3_memory import embedder_admin
+
+    cfg = tmp_path / ".embed_config.json"
+
+    def url():
+        return json.loads(cfg.read_text(encoding="utf-8"))["fallback_url"]
+
+    m3_settings({"embed.server.port": 8092})
+    embedder_admin.seed_shared_config(str(tmp_path))
+    assert url() == "http://127.0.0.1:8092"
+    m3_settings({"embed.server.port": 8082})
+    embedder_admin.seed_shared_config(str(tmp_path))
+    assert url() == "http://127.0.0.1:8082", "moved back"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["fallback_url"] = "http://127.0.0.1:9999"  # a hand edit
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    m3_settings({"embed.server.port": 8093})
+    embedder_admin.seed_shared_config(str(tmp_path))
+    assert url() == "http://127.0.0.1:9999"

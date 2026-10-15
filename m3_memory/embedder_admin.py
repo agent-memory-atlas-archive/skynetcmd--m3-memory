@@ -1527,13 +1527,17 @@ def seed_shared_config(
     desired = dict(existing)
     desired["disable_inproc_embedder"] = True
     desired.setdefault("fallback_url", url)
-    # An address the user set is never clobbered. Only the default m3 itself
-    # seeded follows a moved port: kept at 8082, it sent every client to another
-    # account's server.
+    # An address the user set is never clobbered. One m3 wrote follows a moved
+    # port (kept at 8082, it sent every client to another account's server):
+    # m3's are the default and the value it last recorded in _m3_fallback_url,
+    # so a move back is followed too. A hand edit no longer matches the record.
     from m3_core.config.keys import REGISTRY
 
-    if desired["fallback_url"] == f"http://127.0.0.1:{REGISTRY.get('embed.server.port').default}":
+    ours = {f"http://127.0.0.1:{REGISTRY.get('embed.server.port').default}", existing.get("_m3_fallback_url")}
+    if desired["fallback_url"] in ours:
         desired["fallback_url"] = url
+    if desired["fallback_url"] == url:
+        desired["_m3_fallback_url"] = url
     # Record the model the shared server serves so `m3 doctor` can catch an
     # embedder-model mismatch (a foreign model silently writes an incompatible
     # vector space). NOTE: we deliberately do NOT pin a primary `embed_url` here —
