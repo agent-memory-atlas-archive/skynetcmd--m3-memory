@@ -267,7 +267,14 @@ def run(brief: bool = False, fix: bool = False) -> int:
 
     if brief:
         if not rows and not stale:
-            print("agent paths: no agent is set up to use m3 yet")
+            from m3_memory.installer import claude_wired_to_m3
+
+            # Claude Code keeps its servers in ~/.claude.json, which these scans do
+            # not read: a Claude-only user was told no agent used m3.
+            if claude_wired_to_m3():
+                print("✅ agent paths: OK (Claude Code is wired; no other agent configs)")
+            else:
+                print("agent paths: no agent is set up to use m3 yet")
         elif dead:
             hosts = ", ".join(sorted({lbl for lbl, _ in dead}))
             print(f"⚠️  agent paths: {len(dead)} dead-path config(s) [{hosts}] — run `m3 setup`")

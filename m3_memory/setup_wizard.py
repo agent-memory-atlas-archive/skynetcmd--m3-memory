@@ -3593,20 +3593,6 @@ def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool
     return True
 
 
-def _claude_wired_to_m3(claude_json: Path | None = None) -> bool:
-    """Whether ~/.claude.json registers an m3 server in any scope."""
-    from m3_memory.install.env_sources import is_m3_server
-
-    try:
-        with open(claude_json or Path(os.path.expanduser("~")) / ".claude.json", encoding="utf-8") as fh:
-            data = json.load(fh) or {}
-    except (OSError, ValueError):
-        return False
-    blocks = [data.get("mcpServers") or {}]
-    blocks += [(p or {}).get("mcpServers") or {} for p in (data.get("projects") or {}).values() if isinstance(p, dict)]
-    return any(isinstance(e, dict) and is_m3_server(n, e) for b in blocks if isinstance(b, dict) for n, e in b.items())
-
-
 def _repair_kept_wiring() -> None:
     """Keeping the settings keeps the user's choices, not paths into an older
     install: an upgrade from a release without `m3 upgrade` reaches this setup
@@ -3615,7 +3601,9 @@ def _repair_kept_wiring() -> None:
     runs (each backs up the file it edits), for agents already wired to m3; no
     agent is added and no choice changed. Never raises."""
     try:
-        if _claude_wired_to_m3():
+        from m3_memory.installer import claude_wired_to_m3
+
+        if claude_wired_to_m3():
             _register_claude_server()
         from m3_memory.installer import _heal_all_agents
 

@@ -26,7 +26,7 @@ def _record_repairs(monkeypatch, sw, wired: bool) -> list[str]:
     from m3_memory import installer
 
     calls: list[str] = []
-    monkeypatch.setattr(sw, "_claude_wired_to_m3", lambda: wired)
+    monkeypatch.setattr(installer, "claude_wired_to_m3", lambda: wired)
     monkeypatch.setattr(sw, "_register_claude_server", lambda: calls.append("register") or True)
     monkeypatch.setattr(installer, "_heal_all_agents", lambda: calls.append("heal") or 0)
     monkeypatch.setattr(ep, "repair", lambda dry_run=False: calls.append("hooks") or {"actions": []})
@@ -63,15 +63,15 @@ def test_no_agents_selected_touches_nothing(monkeypatch):
 
 def test_a_local_scope_registration_counts_as_wired(tmp_path):
     """The N5 install registered `memory` for one project directory only."""
-    from m3_memory import setup_wizard as sw
+    from m3_memory import installer
 
     f = tmp_path / ".claude.json"
     entry = {"command": "mcp-memory", "args": [], "env": {}}
     f.write_text(json.dumps({"projects": {"/home/u": {"mcpServers": {"memory": entry}}}}), encoding="utf-8")
-    assert sw._claude_wired_to_m3(f)
+    assert installer.claude_wired_to_m3(f)
     f.write_text(json.dumps({"mcpServers": {"other": {"command": "npx", "args": ["x"]}}}), encoding="utf-8")
-    assert not sw._claude_wired_to_m3(f)
-    assert not sw._claude_wired_to_m3(tmp_path / "absent.json")
+    assert not installer.claude_wired_to_m3(f)
+    assert not installer.claude_wired_to_m3(tmp_path / "absent.json")
 
 
 def test_a_failing_repair_does_not_fail_setup(monkeypatch, capsys):
@@ -82,3 +82,20 @@ def test_a_failing_repair_does_not_fail_setup(monkeypatch, capsys):
     assert sw._step_wire_agents(_plan(sw, kept=True))
     captured = capsys.readouterr()
     assert "m3 doctor --fix --fix-hooks" in captured.out + captured.err
+
+
+def test_a_claude_only_user_is_not_told_no_agent_uses_m3(monkeypatch, capsys):
+    """The agent scans read settings files; Claude Code keeps its servers in
+    ~/.claude.json, so a Claude-only install read 'no agent is set up'."""
+    import doctor.agent_paths_probe as ap
+
+    from m3_memory import installer
+
+    monkeypatch.setattr(ap, "_scan_mcpservers_hosts", list)
+    monkeypatch.setattr(ap, "_scan_opencode", list)
+    monkeypatch.setattr(ap, "_scan_hermes", list)
+    monkeypatch.setattr(ap, "_scan_stale_payload", list)
+    for wired, expected in ((True, "Claude Code is wired"), (False, "no agent is set up to use m3 yet")):
+        monkeypatch.setattr(installer, "claude_wired_to_m3", lambda wired=wired: wired)
+        ap.run(brief=True, fix=False)
+        assert expected in capsys.readouterr().out

@@ -1978,6 +1978,21 @@ def _known_agent_settings() -> list[tuple[str, Path]]:
     ]
 
 
+def claude_wired_to_m3(claude_json: Path | None = None) -> bool:
+    """Whether ~/.claude.json registers an m3 server in any scope (Claude Code
+    keeps its MCP servers there, not in a settings file the agent scans read)."""
+    from m3_memory.install.env_sources import is_m3_server
+
+    try:
+        with open(claude_json or Path(os.path.expanduser("~")) / ".claude.json", encoding="utf-8") as fh:
+            data = json.load(fh) or {}
+    except (OSError, ValueError):
+        return False
+    blocks = [data.get("mcpServers") or {}]
+    blocks += [(p or {}).get("mcpServers") or {} for p in (data.get("projects") or {}).values() if isinstance(p, dict)]
+    return any(isinstance(e, dict) and is_m3_server(n, e) for b in blocks if isinstance(b, dict) for n, e in b.items())
+
+
 def _scan_agent_configs() -> list[tuple[str, Path, bool]]:
     """Return (label, path, needs_repoint) for every existing agent config that
     declares a ``memory`` MCP entry. ``needs_repoint`` is True when its paths are
@@ -2567,7 +2582,11 @@ def _agent_config_section() -> None:
     print()
     print("agent MCP configs:")
     if not scanned:
-        print("  (no agent is set up to use m3 yet)")
+        print(
+            "  (none besides Claude Code, checked below)"
+            if claude_wired_to_m3()
+            else "  (no agent is set up to use m3 yet)"
+        )
         return
     any_bad = False
     for label, path, bad in scanned:
@@ -2686,6 +2705,8 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
                 print(f"agent MCP configs: {n} repointed.")
             elif _scan_agent_configs():
                 print("agent MCP configs: all healthy.")
+            elif claude_wired_to_m3():
+                print("agent MCP configs: none besides Claude Code (checked below).")
             else:
                 print("agent MCP configs: no agent is set up to use m3 yet")
         else:
