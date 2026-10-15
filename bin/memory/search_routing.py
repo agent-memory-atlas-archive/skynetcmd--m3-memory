@@ -31,7 +31,9 @@ from .fts import _EVENT_PROPER_NOUN, _TEMPORAL_QUERY_RE, _TEMPORAL_ROUTER_RE
 logger = logging.getLogger("memory.search_routing")
 
 
-def _pull_predecessor_turns(scored: list, user_id: str = "", scope: str = "") -> None:
+def _pull_predecessor_turns(
+    scored: list, user_id: str = "", scope: str = "", requesting_agent: str = "", as_of: str = ""
+) -> None:
     """Append turn N-1 to ``scored`` when turn N is already present.
 
     Used under M3_INTENT_ROUTING with intent_hint="user-fact" — bridges
@@ -83,24 +85,19 @@ def _pull_predecessor_turns(scored: list, user_id: str = "", scope: str = "") ->
         with _db() as db:
             placeholders = _d.placeholder(len(cids))
             # TENANCY (§7): conversation_id is per-conversation isolation, NOT
-            # per-tenant. Re-apply the caller's user_id/scope so a shared/forged
-            # conversation_id can't hydrate another tenant's turn N-1 — mirroring
-            # _session_neighbor_ids, which was hardened for exactly this. Empty
-            # user_id/scope pass through unchanged (legacy shared-agent path).
-            _tenancy_sql = ""
-            _tenancy_params: list = []
-            if user_id:
-                _tenancy_sql += f" AND user_id = {_p}"
-                _tenancy_params.append(user_id)
-            if scope:
-                _tenancy_sql += f" AND scope = {_p}"
-                _tenancy_params.append(scope)
+            # per-tenant or per-agent. Re-apply the caller's visibility and
+            # isolation (Dialect.row_visibility) so a shared/forged conversation_id
+            # can't hydrate another tenant's or agent's private turn N-1. Empty
+            # values pass through unchanged (legacy shared-agent path).
+            _tenancy_sql, _tenancy_params = _d.row_visibility(
+                "mi", user_id=user_id, scope=scope, requesting_agent=requesting_agent, as_of=as_of
+            )
             rows = db.execute(
                 f"SELECT id, content, title, type, importance, metadata_json, "
                 f"  conversation_id, "
                 f"  {_d.json_extract_int('metadata_json', 'turn_index')} AS turn_index "
-                f"FROM memory_items "
-                f"WHERE conversation_id IN ({placeholders}) AND is_deleted = 0{_tenancy_sql}",
+                f"FROM memory_items mi "
+                f"WHERE conversation_id IN ({placeholders}){_tenancy_sql}",
                 tuple(cids) + tuple(_tenancy_params),
             ).fetchall()
         for row in rows:

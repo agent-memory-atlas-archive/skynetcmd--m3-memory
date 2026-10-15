@@ -722,9 +722,7 @@ async def memory_search_scored_impl(
     # rows to that agent's own; shared scopes (org/user/session) stay visible.
     # M3_ENFORCE_AGENT_ISOLATION makes it the DEFAULT when an agent_filter names
     # the agent. It only ADDS a boundary, never widens. Off by default.
-    _req_agent = requesting_agent or (
-        agent_filter.strip("\"'") if (_scfg.ENFORCE_AGENT_ISOLATION and agent_filter) else ""
-    )
+    _req_agent = _effective_requesting_agent(requesting_agent, agent_filter)
     _row_filter = {
         "user_id": user_id,
         "scope": scope,
@@ -1467,7 +1465,7 @@ async def memory_search_scored_impl(
         if recency_bias > 0 and scored:
             scored = _apply_recency_bonus(scored, recency_bias, explain=explain)
         if INTENT_ROUTING and intent_hint == "user-fact" and _depth == 0 and scored:
-            _pull_predecessor_turns(scored, user_id=user_id, scope=scope)
+            _pull_predecessor_turns(scored, user_id=user_id, scope=scope, requesting_agent=_req_agent, as_of=as_of)
 
         pre_ranked_all = sorted(scored, key=lambda x: x[0], reverse=True)
 
@@ -1579,14 +1577,23 @@ async def memory_search_scored_impl(
 
     if ranked and (smart_time_boost > 0.0 or smart_neighbor_sessions > 0):
         ranked = await _resolve_graph_helper("_apply_smart_expansions")(
-            ranked, query, smart_time_boost, smart_neighbor_sessions
+            ranked,
+            query,
+            smart_time_boost,
+            smart_neighbor_sessions,
+            user_id=user_id,
+            scope=scope,
+            requesting_agent=_req_agent,
+            as_of=as_of,
         )
 
     if ranked and _prefer_observations_gate():
         ranked = _apply_observation_preference(ranked, k)
 
     if ranked and _two_stage_observations_gate():
-        ranked = await _apply_two_stage_expansion(ranked, k, user_id=user_id, scope=scope)
+        ranked = await _apply_two_stage_expansion(
+            ranked, k, user_id=user_id, scope=scope, requesting_agent=_req_agent, as_of=as_of
+        )
 
     if _sc_exact:
         # Exact-substring hits lead: nothing semantic should outrank a literal
@@ -1652,7 +1659,16 @@ def _apply_observation_preference(ranked, k):
     return ranked
 
 
-async def _apply_two_stage_expansion(ranked, k, user_id: str = "", scope: str = ""):
+def _effective_requesting_agent(requesting_agent: str, agent_filter: str) -> str:
+    """The agent whose private rows a search may see: the caller's own, or, under
+    M3_ENFORCE_AGENT_ISOLATION, the agent an agent_filter names. One owner, so
+    the candidate fetch and every expansion step apply the same boundary."""
+    return requesting_agent or (agent_filter.strip("\"'") if (_scfg.ENFORCE_AGENT_ISOLATION and agent_filter) else "")
+
+
+async def _apply_two_stage_expansion(
+    ranked, k, user_id: str = "", scope: str = "", requesting_agent: str = "", as_of: str = ""
+):
     """Phase B3 two-stage retrieval: expand top-k observations to include their
     source turns. When M3_TWO_STAGE_OBSERVATIONS=1, look up the source_turn_ids
     the Observer stored in each observation's metadata and append those turns at
@@ -1705,21 +1721,15 @@ async def _apply_two_stage_expansion(ranked, k, user_id: str = "", scope: str = 
             from .backends import dialect as _dialect_t
 
             _d_t = _dialect_t()
-            _p_t = _d_t.param()
-            _tenancy_sql = ""
-            _tenancy_params: list = []
-            if user_id:
-                _tenancy_sql += f" AND user_id = {_p_t}"
-                _tenancy_params.append(user_id)
-            if scope:
-                _tenancy_sql += f" AND scope = {_p_t}"
-                _tenancy_params.append(scope)
+            _tenancy_sql, _tenancy_params = _d_t.row_visibility(
+                "mi", user_id=user_id, scope=scope, requesting_agent=requesting_agent, as_of=as_of
+            )
             with _db() as db:
                 placeholders = _d_t.placeholder(len(source_turn_ids))
                 turn_rows = db.execute(
                     f"SELECT id, content, title, type, importance "
-                    f"FROM memory_items "
-                    f"WHERE id IN ({placeholders}) AND COALESCE(is_deleted,0)=0{_tenancy_sql}",
+                    f"FROM memory_items mi "
+                    f"WHERE id IN ({placeholders}){_tenancy_sql}",
                     source_turn_ids + _tenancy_params,
                 ).fetchall()
             base_score = min((s for s, _ in topk), default=0.5)
@@ -2106,6 +2116,8 @@ async def memory_search_routed_impl(
             entity_stoplist=entity_stoplist,
             user_id=user_id,
             scope=scope,  # tenancy for neighbor hydration (SECURITY)
+            requesting_agent=_effective_requesting_agent(requesting_agent, agent_filter),
+            as_of=as_of,
             _capture_dict=_capture_dict,
         )
     else:
@@ -2157,6 +2169,8 @@ async def memory_search_routed_impl(
                 entity_stoplist=entity_stoplist,
                 user_id=user_id,
                 scope=scope,  # tenancy for neighbor hydration (SECURITY)
+                requesting_agent=_effective_requesting_agent(requesting_agent, agent_filter),
+                as_of=as_of,
                 _capture_dict=_capture_dict,
             )
         else:
@@ -2212,6 +2226,8 @@ async def memory_search_routed_impl(
                 entity_stoplist=entity_stoplist,
                 user_id=user_id,
                 scope=scope,  # tenancy for neighbor hydration (SECURITY)
+                requesting_agent=_effective_requesting_agent(requesting_agent, agent_filter),
+                as_of=as_of,
                 _capture_dict=_capture_dict,
             )
 
@@ -2346,9 +2362,19 @@ async def memory_search_routed_impl(
                     surf_ids = surf_ids[:bypass_surface_cap]
                 if surf_ids:
                     placeholders = _d_b.placeholder(len(surf_ids))
+                    # The surface is keyed by scope/user only: re-apply visibility
+                    # and the private-agent boundary on the rows it names.
+                    _vis_sql, _vis_params = _d_b.row_visibility(
+                        "mi",
+                        user_id=user_id,
+                        scope=scope,
+                        requesting_agent=_effective_requesting_agent(requesting_agent, agent_filter),
+                        as_of=as_of,
+                    )
                     item_rows = db.execute(
-                        f"SELECT id, title, type, conversation_id FROM memory_items WHERE id IN ({placeholders})",
-                        surf_ids,
+                        f"SELECT id, title, type, conversation_id FROM memory_items mi "
+                        f"WHERE id IN ({placeholders}){_vis_sql}",
+                        [*surf_ids, *_vis_params],
                     ).fetchall()
                     for r in item_rows:
                         final_hits.append(
@@ -2387,6 +2413,8 @@ async def _maybe_expand_routed(
     user_id: str = "",
     scope: str = "",
     _capture_dict: dict = None,
+    requesting_agent: str = "",
+    as_of: str = "",
 ) -> list:
     """Apply optional graph, session, and entity-graph expansion to a routed retrieval result.
 
@@ -2409,15 +2437,11 @@ async def _maybe_expand_routed(
     # were missed.
     from .backends import dialect as _dialect_e
 
-    _p_e = _dialect_e().param()
-    _tenancy_sql = ""
-    _tenancy_params: list = []
-    if user_id:
-        _tenancy_sql += f" AND user_id = {_p_e}"
-        _tenancy_params.append(user_id)
-    if scope:
-        _tenancy_sql += f" AND scope = {_p_e}"
-        _tenancy_params.append(scope)
+    # requesting_agent too: an edge can join another agent's private row to a
+    # shared one, and expansion handed it over (Dialect.row_visibility).
+    _tenancy_sql, _tenancy_params = _dialect_e().row_visibility(
+        "mi", user_id=user_id, scope=scope, requesting_agent=requesting_agent, as_of=as_of
+    )
     _resolve_mc_callbacks()  # bind memory_core callbacks on first call
 
     # Test-shim resolution: tests patch `memory_core._db` to feed a fake
@@ -2448,9 +2472,9 @@ async def _maybe_expand_routed(
                 placeholders = _dialect_e().placeholder(len(neighbor_ids))
                 rows = db.execute(
                     f"SELECT id, type, title, content, metadata_json, conversation_id, "
-                    f"valid_from, user_id FROM memory_items "
-                    f"WHERE id IN ({placeholders}) AND COALESCE(is_deleted, 0) = 0"
-                    f"{_tenancy_sql}",  # tenancy re-applied (edges may cross users)
+                    f"valid_from, user_id FROM memory_items mi "
+                    f"WHERE id IN ({placeholders})"
+                    f"{_tenancy_sql}",  # visibility + isolation re-applied (edges cross users and agents)
                     list(neighbor_ids) + _tenancy_params,
                 ).fetchall()
                 for r in rows:
@@ -2459,7 +2483,12 @@ async def _maybe_expand_routed(
 
     if expand_sessions and seed_ids:
         session_rows = _resolve_graph_helper("_session_neighbor_ids")(
-            seed_ids, session_cap=int(session_cap), user_id=user_id, scope=scope
+            seed_ids,
+            session_cap=int(session_cap),
+            user_id=user_id,
+            scope=scope,
+            requesting_agent=requesting_agent,
+            as_of=as_of,
         )
         for rid, item in session_rows.items():
             if rid not in extra_rows:
@@ -2485,9 +2514,9 @@ async def _maybe_expand_routed(
                     placeholders = _dialect_e().placeholder(len(new_ids))
                     eg_rows = db.execute(
                         f"SELECT id, type, title, content, metadata_json, conversation_id, "
-                        f"valid_from, user_id FROM memory_items "
-                        f"WHERE id IN ({placeholders}) AND COALESCE(is_deleted, 0) = 0"
-                        f"{_tenancy_sql}",  # tenancy re-applied (entity edges cross users)
+                        f"valid_from, user_id FROM memory_items mi "
+                        f"WHERE id IN ({placeholders})"
+                        f"{_tenancy_sql}",  # visibility + isolation re-applied (entity edges cross users)
                         list(new_ids) + _tenancy_params,
                     ).fetchall()
                     for r in eg_rows:

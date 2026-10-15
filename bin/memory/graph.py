@@ -159,7 +159,14 @@ def _graph_neighbor_ids(seed_ids: list, depth: int) -> set:
     return seen
 
 
-def _session_neighbor_ids(seed_ids: list, session_cap: int = 12, user_id: str = "", scope: str = "") -> dict:
+def _session_neighbor_ids(
+    seed_ids: list,
+    session_cap: int = 12,
+    user_id: str = "",
+    scope: str = "",
+    requesting_agent: str = "",
+    as_of: str = "",
+) -> dict:
     """For each conversation_id present in `seed_ids`' rows, return up to
     session_cap turns from that conversation (excluding seeds themselves).
 
@@ -176,14 +183,9 @@ def _session_neighbor_ids(seed_ids: list, session_cap: int = 12, user_id: str = 
         return {}
     _d = dialect()
     p = _d.param()
-    _tenancy_sql = ""
-    _tenancy_params: list = []
-    if user_id:
-        _tenancy_sql += f" AND user_id = {p}"
-        _tenancy_params.append(user_id)
-    if scope:
-        _tenancy_sql += f" AND scope = {p}"
-        _tenancy_params.append(scope)
+    _vis_sql, _vis_params = _d.row_visibility(
+        "mi", user_id=user_id, scope=scope, requesting_agent=requesting_agent, as_of=as_of
+    )
     out: dict = {}
     with _db() as db:
         placeholders = _d.placeholder(len(seed_ids))
@@ -201,11 +203,10 @@ def _session_neighbor_ids(seed_ids: list, session_cap: int = 12, user_id: str = 
             cap = max(1, int(session_cap))
             rows = db.execute(
                 "SELECT id, type, title, content, metadata_json, conversation_id, "
-                "valid_from, user_id FROM memory_items "
-                f"WHERE conversation_id = {p} AND COALESCE(is_deleted, 0) = 0"
-                f"{_tenancy_sql} "
+                "valid_from, user_id FROM memory_items mi "
+                f"WHERE conversation_id = {p}{_vis_sql} "
                 f"ORDER BY valid_from LIMIT {p}",
-                (cid, *_tenancy_params, cap),
+                (cid, *_vis_params, cap),
             ).fetchall()
             for r in rows:
                 if r["id"] in seed_set or r["id"] in out:
@@ -539,7 +540,16 @@ def memory_graph_impl(memory_id: str, depth: int = 1, as_records: bool = False) 
     )
 
 
-def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12) -> dict:
+def _neighbor_session_ids(
+    seed_ids: list,
+    window: int,
+    cap_per_session: int = 12,
+    *,
+    user_id: str = "",
+    scope: str = "",
+    requesting_agent: str = "",
+    as_of: str = "",
+) -> dict:
     """For each seed hit, pull turns from sessions within ±`window` of the
     hit's own session (same conversation_id), excluding the seeds themselves.
 
@@ -549,6 +559,9 @@ def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12
 
     `cap_per_session` bounds turns pulled from each neighbor session so a long
     session can't drown the result. window<=0 returns {} (no-op).
+
+    Pulled rows pass the caller's visibility and isolation (Dialect.row_visibility):
+    neighbouring sessions may hold another user's or agent's private turns.
     """
     if not seed_ids or window <= 0:
         return {}
@@ -559,6 +572,9 @@ def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12
         p = _d.param()
         _sidx_expr = _d.json_extract_int("metadata_json", "session_idx")
         _turn_expr = _d.json_extract_int("metadata_json", "turn_idx")
+        _vis_sql, _vis_params = _d.row_visibility(
+            "mi", user_id=user_id, scope=scope, requesting_agent=requesting_agent, as_of=as_of
+        )
         placeholders = _d.placeholder(len(seed_ids))
         seed_rows = db.execute(
             f"SELECT id, conversation_id,   {_sidx_expr} AS sidx FROM memory_items WHERE id IN ({placeholders})",
@@ -580,13 +596,12 @@ def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12
         for cid, sidx in wanted_windows:
             rows = db.execute(
                 "SELECT id, type, title, content, metadata_json, conversation_id, "
-                "valid_from, user_id FROM memory_items "
+                "valid_from, user_id FROM memory_items mi "
                 f"WHERE conversation_id = {p} "
-                f"  AND {_sidx_expr} = {p} "
-                "  AND COALESCE(is_deleted, 0) = 0 "
+                f"  AND {_sidx_expr} = {p}{_vis_sql} "
                 f"ORDER BY {_turn_expr} "
                 f"LIMIT {p}",
-                (cid, sidx, cap),
+                (cid, sidx, *_vis_params, cap),
             ).fetchall()
             for r in rows:
                 if r["id"] in seed_set or r["id"] in out:
@@ -596,7 +611,15 @@ def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12
 
 
 async def _apply_smart_expansions(
-    ranked: list, query: str, smart_time_boost: float = 0.0, smart_neighbor_sessions: int = 0
+    ranked: list,
+    query: str,
+    smart_time_boost: float = 0.0,
+    smart_neighbor_sessions: int = 0,
+    *,
+    user_id: str = "",
+    scope: str = "",
+    requesting_agent: str = "",
+    as_of: str = "",
 ) -> list:
     """Post-retrieval expansion for the scored path: pull turns from sessions
     adjacent to each hit and (optionally) nudge hits toward recency, then re-fuse.
@@ -620,7 +643,14 @@ async def _apply_smart_expansions(
     try:
         if smart_neighbor_sessions and smart_neighbor_sessions > 0:
             seed_ids = [item.get("id") for _, item in ranked if isinstance(item, dict) and item.get("id")]
-            neighbor_rows = _neighbor_session_ids(seed_ids, int(smart_neighbor_sessions))
+            neighbor_rows = _neighbor_session_ids(
+                seed_ids,
+                int(smart_neighbor_sessions),
+                user_id=user_id,
+                scope=scope,
+                requesting_agent=requesting_agent,
+                as_of=as_of,
+            )
             existing_ids = {item.get("id") for _, item in ranked if isinstance(item, dict) and item.get("id")}
             for rid in list(neighbor_rows.keys()):
                 if rid in existing_ids:

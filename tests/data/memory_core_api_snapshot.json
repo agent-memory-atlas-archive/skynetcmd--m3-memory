@@ -995,7 +995,7 @@
     },
     "_maybe_expand_routed": {
       "kind": "async_function",
-      "signature": "(query: 'str', primary: 'list', k: 'int', graph_depth: 'int' = 0, expand_sessions: 'bool' = False, session_cap: 'int' = 12, entity_graph: 'bool' = False, entity_graph_depth: 'int' = 1, entity_graph_max_neighbors: 'int' = 20, entity_graph_valid_types: 'list' = None, entity_graph_valid_predicates: 'list' = None, entity_stoplist: 'list' = None, user_id: 'str' = '', scope: 'str' = '', _capture_dict: 'dict' = None) -> 'list'",
+      "signature": "(query: 'str', primary: 'list', k: 'int', graph_depth: 'int' = 0, expand_sessions: 'bool' = False, session_cap: 'int' = 12, entity_graph: 'bool' = False, entity_graph_depth: 'int' = 1, entity_graph_max_neighbors: 'int' = 20, entity_graph_valid_types: 'list' = None, entity_graph_valid_predicates: 'list' = None, entity_stoplist: 'list' = None, user_id: 'str' = '', scope: 'str' = '', _capture_dict: 'dict' = None, requesting_agent: 'str' = '', as_of: 'str' = '') -> 'list'",
       "value_repr": null
     },
     "_maybe_route_query": {
@@ -1040,7 +1040,7 @@
     },
     "_pull_predecessor_turns": {
       "kind": "function",
-      "signature": "(scored: 'list', user_id: 'str' = '', scope: 'str' = '') -> 'None'",
+      "signature": "(scored: 'list', user_id: 'str' = '', scope: 'str' = '', requesting_agent: 'str' = '', as_of: 'str' = '') -> 'None'",
       "value_repr": null
     },
     "_query_title_overlap": {
@@ -1120,7 +1120,7 @@
     },
     "_session_neighbor_ids": {
       "kind": "function",
-      "signature": "(seed_ids: 'list', session_cap: 'int' = 12, user_id: 'str' = '', scope: 'str' = '') -> 'dict'",
+      "signature": "(seed_ids: 'list', session_cap: 'int' = 12, user_id: 'str' = '', scope: 'str' = '', requesting_agent: 'str' = '', as_of: 'str' = '') -> 'dict'",
       "value_repr": null
     },
     "_set_pinned": {

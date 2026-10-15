@@ -1146,6 +1146,36 @@ class Dialect:
             return live
         return f"({live} OR {self._temporal_set_expr(f'{a}valid_to')})"
 
+    def row_visibility(
+        self,
+        table_alias: str = "mi",
+        *,
+        user_id: str = "",
+        scope: str = "",
+        requesting_agent: str = "",
+        as_of: str = "",
+        null_is_live: bool = True,
+    ) -> tuple[str, list]:
+        """Visibility + isolation for rows an expansion pulls in beside the
+        ranked hits: ``(" AND ...", params)``.
+
+        The same live rule (:meth:`live_predicate`) and the same user / scope /
+        private-agent boundary and point-in-time window (:meth:`scope_predicates`)
+        the search applied to its own candidates, but not its type or
+        conversation narrowing, which expansions deliberately cross. Graph
+        edges, sessions and entity links can join one agent's private row to
+        another's shared one; without this, expansion handed it over.
+        """
+        live = self.live_predicate(table_alias, as_of, null_is_live=null_is_live)
+        sql, params = self.scope_predicates(
+            table_alias=table_alias,
+            user_id=user_id,
+            scope=scope,
+            requesting_agent=requesting_agent,
+            as_of=as_of,
+        )
+        return f" AND {live}{sql}", params
+
     def _temporal_set_expr(self, column: str) -> str:
         """Backend fragment: the validity bound ``column`` is set (not open)."""
         raise NotImplementedError("subclass must implement _temporal_set_expr()")

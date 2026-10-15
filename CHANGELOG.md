@@ -408,6 +408,17 @@ the policy is forward-going only.
 
 ### Security
 
+- **Search expansion no longer returns another agent's private memories.** With
+  `requesting_agent` set (or `M3_ENFORCE_AGENT_ISOLATION`), a search kept other
+  agents' private (`scope = agent`) memories out of its own results, but graph
+  expansion (`graph_depth`), session and neighbouring-session expansion, two-stage
+  observations and the bypass surface could add them back. Every expansion step
+  now applies the same agent, user, scope and point-in-time filters as the search.
+  **Affected:** stores shared by several agents that use agent isolation together
+  with any expansion option · **Action:** upgrade · **Data status:** no data was
+  changed; earlier search results may have included another agent's private
+  memories.
+
 - **The dashboard's audit view escapes what it shows.** A memory's title,
   content, type and user id, and a memory id from the URL, are rendered as text,
   so a memory written with markup in it can no longer run script in the browser
