@@ -169,7 +169,7 @@ jobs:
   # pyproject classifies 3.12/3.13/3.14/3.15 as supported, but the matrix ran
   # 3.12/3.13/3.15: **3.14, the current stable and the version most users are
   # actually on, was claimed and never gated.** Meanwhile the 3.15 cell failed
-  # at setup (rc-only, see allow-prereleases below) on every push, so the job
+  # at setup (3.15 had no stable build yet) on every push, so the job
   # was permanently red and three real CI failures went unnoticed until someone
   # read the Actions tab by hand.
   #
@@ -197,11 +197,11 @@ jobs:
   # the embed server or the reranker on 3.15, torch is still the blocker and
   # `pip install "m3-memory[embed-server]"` will still fail there.
   #
-  # ⚠ 3.15.0rc2 IS A RELEASE CANDIDATE (3.15.0 final: 2026-10-09, PEP 790). The
-  # classifier is claimed on the strength of a green matrix, not of a final
-  # release. If the final differs from the rc in a way that breaks a lane, the
-  # honest move is to fix it or drop the classifier — not to keep the promise
-  # while the lane is red.
+  # 3.15.0 final shipped 2026-10-09 (PEP 790) and the runners publish it as
+  # stable, so the 3.15 cell runs the final release and gates like the others.
+  # No cell may resolve to a pre-release: setup-python takes stable builds only.
+  # If a 3.15 point release breaks a lane, fix it or drop the classifier; never
+  # keep the promise while the lane is red.
   #
   # A red-forever lane is worse than no lane: it trains everyone to ignore the
   # one that matters (DESIGN_PHILOSOPHIES §3 — a false alarm is a violation, not
@@ -225,17 +225,9 @@ jobs:
     name: Test on ${{ matrix.os }} (py${{ matrix.python-version }})
     needs: [lint, typecheck, matrix-setup]
     runs-on: ${{ matrix.os }}
-    # The 3.15 cell is non-blocking while 3.15 is pre-release. It was made so on
-    # 2026-09-19, when it failed at setup because torch (no cp315 wheel) was a
-    # core requirement. That cause is GONE: torch moved to the `embed-server`
-    # extra on 2026-09-22, the cell has been green on all three OSes since, and
-    # pyproject claims 3.15 on the strength of it (see the matrix-setup block).
-    #
-    # It stays non-blocking until it is green on 3.15.0 final (PEP 790: due
-    # 2026-10-09; the lanes so far ran release candidates). Then drop this line
-    # so 3.15 gates like 3.12/3.13/3.14. If the final breaks the lane, fix it or
-    # drop the classifier: never keep the promise while the cell is red.
-    continue-on-error: ${{ matrix.python-version == '3.15' }}
+    # Every cell gates, 3.15 included: it was non-blocking only while 3.15 was
+    # pre-release (until 3.15.0 final, 2026-10-09). Do not restore
+    # continue-on-error for a version pyproject classifies as supported.
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix-setup.outputs.matrix) }}
@@ -249,20 +241,9 @@ jobs:
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
         python-version: ${{ matrix.python-version }}
-        # 3.15 is in its release-candidate window (3.15.0 final: 2026-10-09,
-        # PEP 790). The runners publish 14 builds of it, but EVERY ONE is
-        # stable=false, and a bare "3.15" matches stable builds only — so
-        # setup-python failed with "The version '3.15' ... was not found"
-        # before a single test ran, on every push, on all three OSes.
-        #
-        # allow-prereleases resolves it to the newest rc today and switches to
-        # the stable build automatically once it ships, with no follow-up edit.
-        # Pinning "3.15.0-rc.2" instead would go stale the moment it lands.
-        #
-        # It is deliberately NOT scoped to 3.15: the flag only has an effect
-        # when no stable build matches, so 3.12/3.13/3.14 keep resolving to
-        # their stable releases exactly as before.
-        allow-prereleases: true
+        # Stable builds only (no allow-prereleases): a supported version is
+        # tested on its final release, never a release candidate. The flag was
+        # here only while 3.15 had no stable build (until 2026-10-09).
         cache: 'pip'
 
     - name: Install Dependencies
@@ -412,7 +393,14 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # postgres:16 plus the pgvector extension, so the in-database vector
+        # search path (pg_066, the *_pg_live pgvector tests) runs here too; the
+        # plain image left it untested in CI. Same environment variables.
+        #
+        # 16 on purpose: it is the oldest PostgreSQL m3 supports, and no local
+        # lane runs it. The local lanes cover the rest (17 on the Windows box,
+        # 18 on the macOS and Linux boxes), so CI does not repeat them.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: m3dev
           POSTGRES_PASSWORD: m3devpass
@@ -587,13 +575,7 @@ jobs:
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
         python-version: ${{ matrix.python-version }}
-        # Same reason as the test job above: this job consumes the SAME matrix,
-        # so it gets the 3.15 cell too and a bare "3.15" resolves to nothing
-        # while 3.15 is rc-only. Both setup-python steps that take a matrix
-        # version need this flag — fixing only one left these three E2E lanes
-        # failing at "Set up Python 3.15" while the test lanes had moved on to
-        # the real (torch) blocker.
-        allow-prereleases: true
+        # Stable builds only, as in the test job.
         cache: 'pip'
 
     - name: Install m3-memory from source (as a user would)

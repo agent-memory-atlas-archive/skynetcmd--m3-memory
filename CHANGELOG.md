@@ -462,6 +462,10 @@ the policy is forward-going only.
 
 ### Changed
 
+- **Python 3.15 is tested on the 3.15.0 release and must pass like 3.12–3.14.**
+  Release candidates are no longer used.
+  **Affected:** Python 3.15 users · **Action:** none · **Data status:** none.
+
 - **The web dashboard, the cognitive loop and the Observer & Reflector stages are
   stable.** They leave hardening and follow the deprecation policy.
   **Affected:** everyone · **Action:** none · **Data status:** none.
