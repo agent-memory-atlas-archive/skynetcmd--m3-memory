@@ -27,6 +27,12 @@ the policy is forward-going only.
   ranks every memory in scope. **Affected:** SQLite stores · **Action:** none ·
   **Data status:** none.
 
+- **Searches no longer stall on keyword-index rewrites.** Recording that a memory
+  was read rewrote its keyword-index entry, and the index upkeep that followed
+  could pause a search for a quarter of a second. The index is now rewritten only
+  when a memory's text changes. **Affected:** SQLite stores · **Action:** none
+  (applied by the schema upgrade) · **Data status:** none.
+
 - **Upgrading from an older release leaves m3 fully working.** After `pipx upgrade`
   and `m3 setup`, answering *Keep the current settings* left Claude Code's hooks and
   the agents' entries on the old install, and verification failed. Setup now
