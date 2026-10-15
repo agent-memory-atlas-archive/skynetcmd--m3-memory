@@ -32,7 +32,7 @@ _Write, retrieve, version, and reconcile long-term agent memory._
 | `memory_dedup` | Find (and optionally soft-delete) near-duplicate memory items by cosine similarity over embeddings. | default-allowed |
 | `memory_delete` | Soft-deletes a MemoryItem (kept and recoverable; memory_restore). | ⚠️ opt-in required |
 | `memory_delete_bulk` | Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable). | ⚠️ opt-in required |
-| `memory_export` | Export memories as portable JSON. | ⚠️ opt-in required |
+| `memory_export` | Export memories as portable JSON. | default-allowed |
 | `memory_feedback` | Provide feedback on a memory item to improve quality. | default-allowed |
 | `memory_feedback_stats` | How often graded feedback is landing versus being rejected as stale. | default-allowed |
 | `memory_get` | Retrieves a full MemoryItem; accepts full UUID or 8-char prefix; ambiguous prefixes return an error. | default-allowed |
@@ -51,8 +51,8 @@ _Write, retrieve, version, and reconcile long-term agent memory._
 | `memory_refresh_queue` | List memories whose refresh_on timestamp has arrived and need review. | default-allowed |
 | `memory_restore` | Restore memories that an AUTONOMOUS maintenance pass soft-deleted. | ⚠️ opt-in required |
 | `memory_search` | Search across memory items using semantic similarity or keyword matching. | default-allowed |
-| `memory_search_multi_db` | Search across multiple SQLite databases (e.g. | ⚠️ opt-in required |
-| `memory_search_routed` | Temporal-aware routed retrieval. | ⚠️ opt-in required |
+| `memory_search_multi_db` | Search across multiple SQLite databases (e.g. | default-allowed |
+| `memory_search_routed` | Temporal-aware routed retrieval. | default-allowed |
 | `memory_search_scored` | Structured hybrid FTS5+vector+MMR search. | default-allowed |
 | `memory_search_slim` | Search memory (semantic + keyword). | default-allowed |
 | `memory_set_retention` | Set or update per-agent memory retention policy. | ⚠️ opt-in required |
@@ -186,7 +186,7 @@ _Maintenance, cross-store sync, import/export, and lifecycle ops._
 | `enrich_pending` | Enrich pending memory items with SLM-distilled facts. | ⚠️ opt-in required |
 | `extract_entities` | Accepts raw text, extracts entities and relationship predicates based on the configured pluggable e… | default-allowed |
 | `extract_pending` | Extract pending entities from the queue. | ⚠️ opt-in required |
-| `gdpr_export` | Export all memories for a data subject (GDPR data portability). | ⚠️ opt-in required |
+| `gdpr_export` | Export all memories for a data subject (GDPR data portability). | default-allowed |
 | `gdpr_forget` | Right to be forgotten (GDPR Art. | ⚠️ opt-in required |
 | `m3_call` | Invoke ANY m3 catalog tool by name without loading its domain — the low-token path to the full tool… | default-allowed |
 | `m3_help_capabilities` | Discover m3-memory tool capabilities, parameters, and availability. | default-allowed |

@@ -89,7 +89,7 @@
           "type": "number"
         }
       ],
-      "destructive": true,
+      "destructive": false,
       "domain": "admin",
       "name": "gdpr_export",
       "summary": "Export all memories for a data subject (GDPR data portability)."
@@ -2211,7 +2211,7 @@
           "type": "number"
         }
       ],
-      "destructive": true,
+      "destructive": false,
       "domain": "memory",
       "name": "memory_export",
       "summary": "Export memories as portable JSON."
@@ -2838,7 +2838,7 @@
           "type": "number"
         }
       ],
-      "destructive": true,
+      "destructive": false,
       "domain": "memory",
       "name": "memory_search_multi_db",
       "summary": "Search across multiple SQLite databases (e.g."
@@ -3071,7 +3071,7 @@
           "type": "number"
         }
       ],
-      "destructive": true,
+      "destructive": false,
       "domain": "memory",
       "name": "memory_search_routed",
       "summary": "Temporal-aware routed retrieval."

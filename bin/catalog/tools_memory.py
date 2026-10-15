@@ -649,6 +649,7 @@ TOOLS: list[ToolSpec] = [
         impl=memory_core.memory_search_routed_impl,
         is_async=True,
         default_allowed=False,
+        destructive=False,  # opt-in on MCP, but only reads
         inject_agent_id=False,
     ),
     ToolSpec(
@@ -702,6 +703,7 @@ TOOLS: list[ToolSpec] = [
         impl=memory_core.memory_search_multi_db_impl,
         is_async=True,
         default_allowed=False,
+        destructive=False,  # opt-in on MCP, but only reads
         inject_agent_id=False,
     ),
     ToolSpec(
@@ -1344,6 +1346,7 @@ TOOLS: list[ToolSpec] = [
         is_async=False,
         validators=(),
         default_allowed=False,
+        destructive=False,  # opt-in on MCP, but only reads
         inject_agent_id=False,
     ),
     ToolSpec(

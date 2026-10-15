@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_tool_manifest.py
-sha1: 1475bfcbfb02
-mtime_utc: 2026-10-14T03:55:58.739036+00:00
-generated_utc: 2026-10-14T03:57:13.159668+00:00
+sha1: 88648be1b47c
+mtime_utc: 2026-10-15T01:37:47.817285+00:00
+generated_utc: 2026-10-15T01:38:01.730646+00:00
 private: false
 ---
 
@@ -18,7 +18,7 @@ tool the bridge can register) and emits one compact record per tool:
   - name        — the catalog tool name
   - domain      — lazy-loading domain bucket (via tool_domains.domain_of_tool)
   - summary     — first sentence of the description, truncated to <=100 chars
-  - destructive — True when the tool mutates/deletes (i.e. not default_allowed)
+  - destructive — True when the tool mutates/deletes (ToolSpec.is_destructive)
   - args        — [{name, type, required}] from parameters.properties, with the
                   universal routing args (`database`, `store`) dropped (they are
                   injected everywhere and carry no per-tool signal)

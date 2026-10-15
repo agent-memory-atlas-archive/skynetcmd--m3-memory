@@ -171,6 +171,7 @@ TOOLS: list[ToolSpec] = [
         is_async=False,
         validators=(_gdpr_user_id_validator,),
         default_allowed=False,
+        destructive=False,  # opt-in on MCP, but only reads
         inject_agent_id=False,
     ),
     ToolSpec(

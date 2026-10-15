@@ -21,6 +21,11 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Read-only opt-in tools run from the CLI without `--yes`.** `m3 memory
+  memory_search_routed`, `memory_search_multi_db`, `memory_export` and `gdpr_export`
+  asked for `--yes` and said they "mutate/delete data". They are still opt-in over MCP.
+  **Affected:** CLI users of those four tools · **Action:** none · **Data status:** none.
+
 - **A point-in-time search finds a memory that was later superseded.** Searching
   with `as_of` returned nothing for a memory replaced after that time, so the
   history was stored but could not be searched. A memory deleted outright stays

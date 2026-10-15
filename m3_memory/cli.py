@@ -1919,7 +1919,7 @@ def _add_tool_domain_subcommands(subparsers, command: str | None = None) -> None
                 func=_cmd_tool_dispatch,
                 _tool_name=spec.name,
                 _tool_complex=complex_,
-                _tool_destructive=not spec.default_allowed,
+                _tool_destructive=spec.is_destructive,
             )
 
 

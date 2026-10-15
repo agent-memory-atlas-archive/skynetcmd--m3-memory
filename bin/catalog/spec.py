@@ -165,3 +165,13 @@ class ToolSpec:
     # without a second code path. Merged by dispatch.validate_args, the one choke
     # point every call path (MCP, m3_call, CLI) goes through.
     fixed_args: Mapping[str, Any] = field(default_factory=dict)
+    # Whether calling the tool changes or deletes data. None: the old reading,
+    # "not default_allowed" (most opt-in tools do write). Set False for an opt-in
+    # tool that only reads (a heavier search, an export): the CLI otherwise asked
+    # for --yes and said the search "mutates/deletes data". default_allowed keeps
+    # its own meaning, opt-in on MCP.
+    destructive: bool | None = None
+
+    @property
+    def is_destructive(self) -> bool:
+        return (not self.default_allowed) if self.destructive is None else self.destructive

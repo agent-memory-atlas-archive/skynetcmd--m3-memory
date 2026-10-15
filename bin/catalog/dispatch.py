@@ -426,7 +426,7 @@ def m3_index_impl(domain: str = "") -> str:
                 "name": t.name,
                 "domain": d,
                 "summary": summary,
-                "destructive": not t.default_allowed,
+                "destructive": t.is_destructive,
                 "args": _tool_arg_rows(t),
             }
         )
