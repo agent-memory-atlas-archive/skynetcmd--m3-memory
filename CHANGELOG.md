@@ -487,6 +487,11 @@ the policy is forward-going only.
 
 ### Changed
 
+- **PostgreSQL 16 or newer is the supported range, as the store and as the sync
+  warehouse.** It is tested on 16, 17 and 18, each on its own test machine.
+  **Affected:** PostgreSQL users · **Action:** if your server is older than 16, plan
+  an upgrade · **Data status:** none.
+
 - **Python 3.15 is tested on the 3.15.0 release and must pass like 3.12–3.14.**
   Release candidates are no longer used.
   **Affected:** Python 3.15 users · **Action:** none · **Data status:** none.

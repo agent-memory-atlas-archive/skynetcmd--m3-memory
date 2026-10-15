@@ -40,7 +40,7 @@ is no shipped warehouse migration for non-default DBs.
 
 You need:
 
-1. A reachable PostgreSQL server (your warehouse).
+1. A reachable PostgreSQL server, version 16 or newer (your warehouse).
 2. Its connection string (DSN), where the scheduled sync can read it.
 
 **Store the DSN as the secret `M3_CDW_PG_URL`.** The scheduled sync runs under

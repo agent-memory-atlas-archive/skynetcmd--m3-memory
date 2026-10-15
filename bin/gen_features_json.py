@@ -102,7 +102,7 @@ def main() -> int:
             # Pluggable SQL storage seam — the primary backend is selectable.
             "primary_backends": [
                 "sqlite (default, FTS5 + vector indexes; zero-infra)",
-                "postgresql (first-class primary, [db] backend = postgres; with pgvector, vector search runs in the database)",
+                "postgresql 16+ (first-class primary, [db] backend = postgres; tested on 16, 17, 18; with pgvector, vector search runs in the database)",
             ],
             "core_store": "single SQLite file (FTS5 + vector indexes) by default",
             "optional_sync_backends": ["PostgreSQL"],

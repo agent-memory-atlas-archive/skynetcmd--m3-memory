@@ -6,7 +6,7 @@
 
 ## 👁️ System Overview
 
-m3 Memory is a local-first persistent memory system for MCP agents. An agent calls MCP tools to write, search, link, and manage memories. The primary store is pluggable — a local SQLite file by default, or PostgreSQL as a first-class primary backend (`[db] backend = "postgres"`; see Storage Hierarchy). A separate optional PostgreSQL sync layer enables cross-device search.
+m3 Memory is a local-first persistent memory system for MCP agents. An agent calls MCP tools to write, search, link, and manage memories. The primary store is pluggable — a local SQLite file by default, or PostgreSQL 16 or newer as a first-class primary backend (`[db] backend = "postgres"`; see Storage Hierarchy). PostgreSQL 16, 17 and 18 are tested. A separate optional PostgreSQL sync layer enables cross-device search.
 
 ```
 Agent (Claude Code / Gemini CLI / Aider)
