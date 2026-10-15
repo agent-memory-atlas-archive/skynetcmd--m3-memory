@@ -918,6 +918,10 @@ class PostgresDialect(Dialect):
         return f"({column} IS NULL OR {column} {op} {p})"
 
     @override
+    def _temporal_set_expr(self, column: str) -> str:
+        return f"{column} IS NOT NULL"
+
+    @override
     def coalesce_open_timestamp(self, column: str, fill_placeholder: str) -> str:
         return f"COALESCE({column}, {fill_placeholder})"
 
@@ -1584,6 +1588,7 @@ class PostgresBackend:
         limit: int,
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
         table: str = "memory_items",
     ) -> list[KeywordHit]:
         """tsvector keyword search — the Postgres analogue of SQLite FTS5+bm25.
@@ -1617,7 +1622,7 @@ class PostgresBackend:
                    -ts_rank(mi.search_vector, to_tsquery('english', %s)) AS score
             FROM {table} mi
             WHERE mi.search_vector @@ to_tsquery('english', %s)
-              AND mi.is_deleted = 0{tenancy_sql}
+              AND {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
             ORDER BY score ASC
             LIMIT %s
             """,
@@ -1633,6 +1638,7 @@ class PostgresBackend:
         limit: int,
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
         table: str = "memory_items",
         extra_columns: tuple = (),
         search_mode: str = "fts5",
@@ -1669,7 +1675,7 @@ class PostgresBackend:
                    -ts_rank(mi.search_vector, to_tsquery('english', %s)) AS _rank
             FROM {table} mi
             WHERE mi.search_vector @@ to_tsquery('english', %s)
-              AND mi.is_deleted = 0{tenancy_sql}
+              AND {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
             ORDER BY _rank ASC
             LIMIT %s
             """,
@@ -1698,6 +1704,7 @@ class PostgresBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
     ) -> list[VectorHit]:
         """Vector search, dispatched by capability to the best available path.
 
@@ -1718,6 +1725,7 @@ class PostgresBackend:
                 embed_models=embed_models,
                 tenancy_sql=tenancy_sql,
                 tenancy_params=tenancy_params,
+                as_of=as_of,
             )
         return self._vector_search_baseline(
             conn,
@@ -1727,6 +1735,7 @@ class PostgresBackend:
             embed_models=embed_models,
             tenancy_sql=tenancy_sql,
             tenancy_params=tenancy_params,
+            as_of=as_of,
         )
 
     def _vector_search_pgvector(
@@ -1739,6 +1748,7 @@ class PostgresBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
     ) -> list[VectorHit]:
         """The pgvector arm: the same filters and the same scores as the baseline,
         computed by ``<=>`` (cosine distance) in the database.
@@ -1758,7 +1768,7 @@ class PostgresBackend:
             SELECT mi.id AS id, 1 - {dist} AS score
             FROM memory_items mi
             JOIN memory_embeddings me ON mi.id = me.memory_id
-            WHERE mi.is_deleted = 0 AND me.dim = {d.param()}{model_sql}{tenancy_sql}
+            WHERE {self.dialect().live_predicate("mi", as_of)} AND me.dim = {d.param()}{model_sql}{tenancy_sql}
             ORDER BY score DESC, me.id
             LIMIT {d.param()}
             """,
@@ -1776,6 +1786,7 @@ class PostgresBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
     ) -> list[VectorHit]:
         """The extension-free arm: BYTEA embeddings + Rust cosine (no pgvector).
 
@@ -1799,7 +1810,7 @@ class PostgresBackend:
             SELECT mi.id AS id, me.embedding AS embedding
             FROM memory_items mi
             JOIN memory_embeddings me ON mi.id = me.memory_id
-            WHERE mi.is_deleted = 0 AND me.dim = {d.param()}{model_sql}{tenancy_sql}
+            WHERE {self.dialect().live_predicate("mi", as_of)} AND me.dim = {d.param()}{model_sql}{tenancy_sql}
             """,
             (dim, *params),
         )

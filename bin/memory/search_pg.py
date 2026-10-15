@@ -46,6 +46,7 @@ def fetch_candidates_pg(
     tenancy_sql: str,
     tenancy_params: tuple[Any, ...],
     row_limit: int,
+    as_of: str = "",
     extra_columns: list[str] | None = None,
 ) -> tuple[list[dict], bool]:
     """Fetch scored-search candidates on PostgreSQL via the seam.
@@ -69,6 +70,7 @@ def fetch_candidates_pg(
             limit=row_limit,
             tenancy_sql=tenancy_sql,
             tenancy_params=tenancy_params,
+            as_of=as_of,
         ):
             kw_by_id[hit.memory_id] = hit.score
 
@@ -82,6 +84,7 @@ def fetch_candidates_pg(
             embed_models=embed_models,
             tenancy_sql=tenancy_sql,
             tenancy_params=tenancy_params,
+            as_of=as_of,
         ):
             vec_ids.append(hit.memory_id)
 
@@ -101,7 +104,7 @@ def fetch_candidates_pg(
                me.embedding, mi.metadata_json{extra_select}
         FROM memory_items mi
         JOIN memory_embeddings me ON mi.id = me.memory_id
-        WHERE mi.id IN ({placeholders}) AND mi.is_deleted = 0 AND me.dim = %s
+        WHERE mi.id IN ({placeholders}) AND {backend.dialect().live_predicate("mi", as_of)} AND me.dim = %s
         """,
         (*candidate_ids, dim),
     )

@@ -518,9 +518,8 @@ def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns, row_
         # Predicates from the seam (Dialect.scope_predicates) so they are
         # rendered in THIS backend's placeholder style; the query itself from
         # keyword_search_with_row_data so the SQL is the backend's own.
-        tenancy_sql, tenancy_params = _backend_fb.dialect().scope_predicates(
-            **(row_filter or {"user_id": user_id, "scope": scope}),
-        )
+        _filter = row_filter or {"user_id": user_id, "scope": scope}
+        tenancy_sql, tenancy_params = _backend_fb.dialect().scope_predicates(**_filter)
         with _db() as conn:
             rows = _backend_fb.keyword_search_with_row_data(
                 conn,
@@ -528,6 +527,7 @@ def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns, row_
                 limit=k,
                 tenancy_sql=tenancy_sql,
                 tenancy_params=tuple(tenancy_params),
+                as_of=_filter.get("as_of", ""),
                 extra_columns=tuple(safe_extra),
             )
         # Score 1.0 for every hit: these are keyword matches with no vector
@@ -898,6 +898,7 @@ async def memory_search_scored_impl(
                     limit=max(k * 4, 20),
                     tenancy_sql=_tenancy_sql,
                     tenancy_params=tuple(_tenancy_params),
+                    as_of=as_of,
                     extra_columns=tuple(safe_extra),
                     # Phrase compile, NOT the seam's default OR form. This
                     # branch RETURNS EARLY on an exact-substring gate with no
@@ -1056,7 +1057,10 @@ async def memory_search_scored_impl(
     extra_columns = list(safe_extra)
     extra_sql = (", " + ", ".join(f"mi.{c}" for c in safe_extra)) if safe_extra else ""
 
-    where_clauses = ["mi.is_deleted = 0"]
+    from memory.backends import dialect as _dialect_scope
+
+    # Visibility from the seam too: with as_of, a superseded row valid then counts.
+    where_clauses = [_dialect_scope().live_predicate("mi", as_of)]
     params = []
 
     # All four narrowing predicates come from the seam (Dialect.scope_predicates)
@@ -1064,7 +1068,6 @@ async def memory_search_scored_impl(
     # which is exactly how type_filter/agent_filter went missing from those two.
     # scope_predicates returns a leading-" AND " fragment; where_clauses holds
     # bare conditions, so strip the first joiner and split back out.
-    from memory.backends import dialect as _dialect_scope
 
     _scope_sql, _scope_params = _dialect_scope().scope_predicates(**_row_filter)
     if _scope_sql:
@@ -1191,6 +1194,7 @@ async def memory_search_scored_impl(
                         embed_models=tuple(_compat),
                         tenancy_sql=_pg_tenancy_sql,
                         tenancy_params=tuple(_pg_tenancy_params),
+                        as_of=as_of,
                         row_limit=sql_row_limit,
                         extra_columns=list(extra_columns),
                     )

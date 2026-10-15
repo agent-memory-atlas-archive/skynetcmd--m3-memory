@@ -343,6 +343,10 @@ class SqliteDialect(Dialect):
         return f"({column} IS NULL OR {column} = '' OR {column} {op} {p})"
 
     @override
+    def _temporal_set_expr(self, column: str) -> str:
+        return f"({column} IS NOT NULL AND {column} <> '')"
+
+    @override
     def coalesce_open_timestamp(self, column: str, fill_placeholder: str) -> str:
         return f"COALESCE(NULLIF({column}, ''), {fill_placeholder})"
 
@@ -833,6 +837,7 @@ class SqliteBackend:
         limit: int,
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
         table: str = "memory_items",
     ) -> list[KeywordHit]:
         """FTS5 keyword search — a faithful extraction of the existing query.
@@ -868,7 +873,7 @@ class SqliteBackend:
             SELECT mi.id AS id, ranked._b AS _bm25
             FROM ranked
             JOIN memory_items mi ON mi.rowid = ranked._rid
-            WHERE mi.is_deleted = 0{tenancy_sql}
+            WHERE {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
             ORDER BY _bm25 ASC
             LIMIT ?
             """,
@@ -892,6 +897,7 @@ class SqliteBackend:
         limit: int,
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
         table: str = "memory_items",
         extra_columns: tuple = (),
         search_mode: str = "fts5",
@@ -929,7 +935,7 @@ class SqliteBackend:
                    ranked._b AS _bm25
             FROM ranked
             JOIN memory_items mi ON mi.rowid = ranked._rid
-            WHERE mi.is_deleted = 0{tenancy_sql}
+            WHERE {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
             ORDER BY _bm25 ASC
             LIMIT ?
             """,
@@ -959,6 +965,7 @@ class SqliteBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
     ) -> list[VectorHit]:
         """Vector search, dispatched by capability to the best available path.
 
@@ -986,6 +993,7 @@ class SqliteBackend:
             embed_models=embed_models,
             tenancy_sql=tenancy_sql,
             tenancy_params=tenancy_params,
+            as_of=as_of,
         )
 
     def _vector_search_baseline(
@@ -998,6 +1006,7 @@ class SqliteBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
+        as_of: str = "",
     ) -> list[VectorHit]:
         """The extension-free arm: fetch BLOB embeddings, score via Rust cosine.
 
@@ -1021,7 +1030,7 @@ class SqliteBackend:
             SELECT mi.id AS id, me.embedding AS embedding
             FROM memory_items mi
             JOIN memory_embeddings me ON mi.id = me.memory_id
-            WHERE mi.is_deleted = 0 AND me.dim = {d.param()}{model_sql}{tenancy_sql}
+            WHERE {self.dialect().live_predicate("mi", as_of)} AND me.dim = {d.param()}{model_sql}{tenancy_sql}
             """,
             (dim, *params),
         ).fetchall()

@@ -21,6 +21,13 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **A point-in-time search finds a memory that was later superseded.** Searching
+  with `as_of` returned nothing for a memory replaced after that time, so the
+  history was stored but could not be searched. A memory deleted outright stays
+  hidden.
+  **Affected:** `memory_search` with `as_of`, on SQLite and PostgreSQL ·
+  **Action:** none · **Data status:** none; superseded memories were always kept.
+
 - **Moving settings out of shell startup files reads only real settings.** A value
   the shell works out when it starts, such as `$(security find-generic-password ...)`,
   was stored as the secret itself; lines inside functions and heredocs, and

@@ -1127,6 +1127,29 @@ class Dialect:
         """Backend fragment for :meth:`temporal_open_clause` (post-validation)."""
         raise NotImplementedError("subclass must implement _temporal_open_clause_expr()")
 
+    def live_predicate(self, table_alias: str = "mi", as_of: str = "", *, null_is_live: bool = False) -> str:
+        """The "row is visible" WHERE fragment for a memory search (no params).
+
+        Without ``as_of``: not deleted. With ``as_of``: also a row whose validity
+        was CLOSED by a supersede (``is_deleted = 1`` with ``valid_to`` set), so a
+        point-in-time search finds what was true then; ``scope_predicates(as_of=)``
+        supplies the window itself. A row deleted outright keeps ``valid_to``
+        unset and stays hidden. A bare ``is_deleted = 0`` under ``as_of`` hides
+        every superseded memory, even at a time it was valid.
+
+        ``null_is_live`` treats a NULL ``is_deleted`` as live (legacy SQLite
+        rows), for the id-hydration queries that already did.
+        """
+        a = f"{table_alias}." if table_alias else ""
+        live = f"COALESCE({a}is_deleted, 0) = 0" if null_is_live else f"{a}is_deleted = 0"
+        if not as_of:
+            return live
+        return f"({live} OR {self._temporal_set_expr(f'{a}valid_to')})"
+
+    def _temporal_set_expr(self, column: str) -> str:
+        """Backend fragment: the validity bound ``column`` is set (not open)."""
+        raise NotImplementedError("subclass must implement _temporal_set_expr()")
+
     @staticmethod
     def normalize_date_bound(value: str, side: str) -> str:
         """Expand a bare ``YYYY-MM-DD`` filter bound into a half-open instant.

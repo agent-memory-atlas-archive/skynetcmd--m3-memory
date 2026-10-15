@@ -390,6 +390,7 @@ class StorageBackend(Protocol):
         limit: int,
         tenancy_sql: str = "",
         tenancy_params: tuple[object, ...] = (),
+        as_of: str = "",  # point-in-time: Dialect.live_predicate admits rows valid then
         table: str = "memory_items",
     ) -> list[KeywordHit]:
         """Native keyword search returning a backend-identical ranked list.
@@ -416,6 +417,7 @@ class StorageBackend(Protocol):
         limit: int,
         tenancy_sql: str = "",
         tenancy_params: tuple[object, ...] = (),
+        as_of: str = "",  # point-in-time: Dialect.live_predicate admits rows valid then
         table: str = "memory_items",
         extra_columns: tuple[str, ...] = (),
         search_mode: str = "fts5",
@@ -507,6 +509,7 @@ class StorageBackend(Protocol):
         embed_models: tuple[str, ...] = (),
         tenancy_sql: str = "",
         tenancy_params: tuple[object, ...] = (),
+        as_of: str = "",  # point-in-time: Dialect.live_predicate admits rows valid then
     ) -> list[VectorHit]:
         """Backend-agnostic vector search: BYTEA/BLOB embeddings + Rust cosine.
 
