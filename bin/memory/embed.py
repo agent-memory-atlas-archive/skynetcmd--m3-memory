@@ -1049,7 +1049,7 @@ async def _recover_oversized_single(post_batch, text: str) -> list[float] | None
         return None
     if len(text) <= MAX_CHARS_PER_CHUNK and count_tokens([text])[0] <= TOKEN_CEILING:
         return None
-    subs = _chunk_for_sliding_window(text)
+    subs = _chunk_for_sliding_window(text, await _exact_windows(text))
     sub_texts = [s for s, _ in subs]
     if len(sub_texts) <= 1:
         return None
@@ -1181,6 +1181,59 @@ _EMBED_FALLBACK_URL: str = (
     or _EMBED_CFG.get("fallback_url")  # config-file (headless-safe)
     or "http://127.0.0.1:8082"  # default (the tier-2 port)
 ).rstrip("/")
+
+
+# Set once the shared server answers /tokenize/windows with 404/405 (a core
+# before token windows, or a server that is not m3's): not asked again.
+_TOKENIZE_ROUTE_ABSENT = False
+
+
+async def _exact_windows(text: str) -> list[tuple[int, int]] | None:
+    """Token-exact windows over ``text`` from the embedder that will embed it, as
+    ``(start, end)`` character offsets; None when no embedder can count exactly,
+    and the caller then cuts windows with the conservative estimator.
+
+    Asks an in-process embedder only if one is ALREADY loaded (never loads a
+    model for this), else the shared server's ``/tokenize/windows``. Windows that
+    do not cover the text are rejected with a warning, not used.
+    """
+    global _TOKENIZE_ROUTE_ABSENT
+    from .chunking import covers
+    from .tokens import TOKEN_BUDGET, TOKEN_OVERLAP
+
+    got = None
+    emb = _embedded_embedder
+    if emb is not None and hasattr(emb, "token_windows"):
+        try:
+            got = await asyncio.to_thread(emb.token_windows, text, TOKEN_BUDGET, TOKEN_OVERLAP)
+        except Exception as e:  # noqa: BLE001 — the estimator still cuts correct windows
+            log_swallowed(logger, e, "in-process token windows failed (%s); using the estimate", e)
+    elif not _TOKENIZE_ROUTE_ABSENT:
+        url = f"{_EMBED_FALLBACK_URL}/tokenize/windows"
+        try:
+            r = await _get_embed_client().post(
+                url, json={"input": text, "budget": TOKEN_BUDGET, "overlap": TOKEN_OVERLAP}, timeout=15.0
+            )
+            if r.status_code in (404, 405):
+                _TOKENIZE_ROUTE_ABSENT = True
+                logger.info("%s is not served (an embed server before token windows); using the estimate", url)
+            elif r.status_code == 200:
+                got = r.json().get("windows")
+            else:
+                logger.warning("observed: %s answered %s; using the estimated windows", url, r.status_code)
+        except (_httpx.HTTPError, ValueError) as e:
+            log_swallowed(logger, e, "token windows unavailable from %s (%s); using the estimate", url, e)
+    if got is None:
+        return None
+    if not covers(got, len(text)):
+        logger.warning(
+            "observed: token windows that do not cover a %d-character text (%s...); using the estimated "
+            "windows. inspect: the embed server version",
+            len(text),
+            str(got)[:80],
+        )
+        return None
+    return [(int(s), int(e)) for s, e in got]
 
 
 # Trailing OpenAI-style version segment, e.g. ".../v1" or ".../v2".

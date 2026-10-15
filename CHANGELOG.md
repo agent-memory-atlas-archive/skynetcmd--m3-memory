@@ -1086,6 +1086,12 @@ the policy is forward-going only.
 
 ### Added
 
+- **Long memories are embedded in fewer pieces.** When the embedder can count
+  tokens exactly, m3 cuts a long memory at real token boundaries instead of a
+  conservative estimate: on one store's 110 longest memories, 112 embeddings
+  instead of 192. **Affected:** installs whose embed server or in-process
+  embedder offers token windows · **Action:** none · **Data status:** none.
+
 - **`explain` says whether to trust each result.** Every explained result now
   carries a `trust` block from its record: confidence, corroborations and
   contradictions, helpful/unhelpful grades, pinned, superseded, age, and who wrote

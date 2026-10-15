@@ -84,6 +84,7 @@ from .embed import (
     _content_hash,
     _embed,
     _embedded_label,
+    _exact_windows,
     _get_embedded_embedder,
     _record_embed_backend,
     _subdivide_dense_chunk,
@@ -92,6 +93,7 @@ from .emitters import _maybe_emit_event_rows, _maybe_emit_gist_row, _maybe_emit_
 from .enrich import _auto_classify, _ingest_llm_enabled, _maybe_auto_entities, _maybe_auto_title, _try_enrich_or_enqueue
 from .entity import _try_extract_or_enqueue
 from .fts import _augment_title_with_role
+from .tokens import TOKEN_BUDGET, estimate_tokens
 from .util import _batch_cosine, _check_content_safety
 from .util import sha256_hex as _sha256_hex
 
@@ -624,7 +626,10 @@ async def _embed_windows(item_id: str, embed_text: str) -> list[tuple[str, str, 
     in insertion order and writes nothing, so memory_write_impl and
     rewindow_memory store exactly the same rows (one owner).
     """
-    chunks = _chunk_for_sliding_window(embed_text)
+    # Exact windows are asked for only when the estimate says the text needs more
+    # than one: a short memory costs no extra request.
+    cuts = await _exact_windows(embed_text) if estimate_tokens(embed_text) > TOKEN_BUDGET else None
+    chunks = _chunk_for_sliding_window(embed_text, cuts)
 
     # Dense-content recovery uses the in-process Rust embedder directly
     # to keep error context (the "input too long: NNNN tokens" message

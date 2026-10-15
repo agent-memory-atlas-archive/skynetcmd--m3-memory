@@ -38,7 +38,7 @@ def embedder(monkeypatch):
     async def fake_embed(text, *a, **k):
         return _vec_for(text), "test-model"
 
-    def two_windows(text):
+    def two_windows(text, windows=None):
         mid = len(text) // 2
         return [(text[:mid], 0), (text[mid:], 1)]
 

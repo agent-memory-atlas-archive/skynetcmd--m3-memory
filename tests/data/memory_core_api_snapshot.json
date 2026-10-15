@@ -800,7 +800,7 @@
     },
     "_chunk_for_sliding_window": {
       "kind": "function",
-      "signature": "(text: 'str') -> 'list[tuple[str, int]]'",
+      "signature": "(text: 'str', windows: 'list[tuple[int, int]] | None' = None) -> 'list[tuple[str, int]]'",
       "value_repr": null
     },
     "_compile_fts_query": {
