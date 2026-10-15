@@ -462,6 +462,10 @@ the policy is forward-going only.
 
 ### Changed
 
+- **The web dashboard, the cognitive loop and the Observer & Reflector stages are
+  stable.** They leave hardening and follow the deprecation policy.
+  **Affected:** everyone · **Action:** none · **Data status:** none.
+
 - **Setup, `m3 doctor` and the install guides speak plainly.** Internal names
   (project code names, tier numbers, task names, step labels) are replaced by
   what each part does; setup no longer asks about Claude Code when it is not

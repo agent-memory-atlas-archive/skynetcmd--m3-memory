@@ -15,7 +15,7 @@ and it stays with you whatever agent or whatever model you use.
 m3 is local-first and cloud-friendly. It runs on your own machine, with no account and no
 API key, and by default nothing leaves it. When you want the cloud, it's there: cloud models
 for enrichment, a shared PostgreSQL server, or cloud AI apps such as claude.ai through a
-remote MCP endpoint. <!-- RELEASE-TODO: test ChatGPT and the Gemini app against `m3 serve` (static bearer token; m3 has no OAuth) and name each one that works. -->
+remote MCP endpoint.
 
 <p align="center">
   <a href="https://pypi.org/project/m3-memory/"><img alt="PyPI" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/pypi-version.svg"></a>
@@ -53,14 +53,14 @@ walks you through your first saved memory.
 - **Search:** hybrid search (meaning plus keywords) over nine ranking signals, and every result can explain its score. **99.2% session hit rate at k=8** on LongMemEval-S, retrieval alone. ([Ranking signals](docs/TECHNICAL_DETAILS.md#ranking-signals) · [Benchmarks](#-benchmarks))
 - **Keeps history:** text is stored verbatim and corrections never overwrite it. Storage is bitemporal, so you can ask what was believed at any point in time, and contradictions are caught on write. ([Technical details](docs/TECHNICAL_DETAILS.md#contradiction-detection))
 - **Improves in the background:** an optional cognitive loop embeds, extracts entities and relationships, finds duplicates, decays stale memories and distils reusable procedures. ([Enrichment](docs/M3_ENRICH_GUIDE.md) · [How memory maintains itself](docs/MEMORY_MODEL.md#how-the-memory-maintains-itself))
-- **Files and chats:** a 25-tool files domain ingests and chunks directories; a 10-tool chatlog domain captures conversation turns before compaction. ([Files memory](docs/FILES_MEMORY.md) · [Chat log](docs/CHATLOG.md))
+- **Files and chats:** a 25-tool files domain ingests and chunks directories; a 9-tool chatlog domain captures conversation turns before compaction. ([Files memory](docs/FILES_MEMORY.md) · [Chat log](docs/CHATLOG.md))
 - **Storage:** SQLite by default, with nothing to run. PostgreSQL is a first-class alternative for one store shared across machines. ([Architecture](docs/ARCHITECTURE.md) · [Sync](docs/SYNC.md))
 - **Speed:** a write takes ~31 ms with its embedding, or ~2 ms with the embedding deferred and is keyword-searchable at once; hybrid search takes ~45 ms (p50). ([Performance](docs/PERFORMANCE.md))
 - **Privacy and compliance:** works fully offline and installs air-gapped. FIPS 140-3-ready crypto, GDPR export and erasure, and an audit log of who read which memory. ([Sovereign deployment](docs/SOVEREIGN_DEPLOYMENT.md) · [Compliance](docs/COMPLIANCE.md))
 - **Multi-agent:** per-agent, per-user and per-org scopes, handoffs and shared tasks; concurrent readers and writers are safe. ([Multi-agent](docs/MULTI_AGENT.md))
 - **Tools:** 100+ tools, of which 10 load at startup, about 2% of a 200K context window; the rest load on demand. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
 - **Configuration:** one file, `m3_config.toml`. `m3 config show` prints every setting and where it came from. ([Config reference](docs/CONFIG_REFERENCE.md))
-- **Tested:** 5,000+ tests on Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
+- **Tested:** 5,000+ tests on Windows, macOS and Linux × Python 3.12–3.14 (3.15 runs too but cannot fail the build yet), plus a PostgreSQL lane on Linux, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
 - **Status:** stable: the core, the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
 - **For AI agents:** [llm-context.md](docs/llm-context.md) lists the real tool names and usage rules, and [features.json](docs/features.json) is the machine-readable summary.
 
@@ -77,7 +77,7 @@ walks you through your first saved memory.
 
 *   **Search time by store size** (default hybrid search, exact on both backends): SQLite answers in 0.45 s at 50,000 memories, 0.97 s at 100,000 and 1.55 s at 150,000. PostgreSQL: 0.88 s, 1.70 s and 2.54 s; with the pgvector extension, 0.27 s, 0.35 s and 0.46 s. Real stores hold about two vectors per memory: a real 83,000-memory SQLite store answers in 2.7 s, and a real 90,000-memory PostgreSQL store in 1.6 s, or 0.54 s with pgvector ([measured](docs/PERFORMANCE.md#search-time-by-store-size)).
 *   **Many writers on SQLite:** SQLite takes one write at a time; writes take milliseconds, so concurrent writers wait briefly instead of failing. 16 agents writing at once lost nothing and waited at most half a second ([measured](docs/PERFORMANCE.md#sqlite-many-agents-writing-at-once)). Agents on several machines, or a busier fleet, should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
-*   **Reads are audited:** every read from the memory store (get or search hit) is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)). Chat-log reads are not audited yet.
+*   **Reads are audited:** every `memory_get` and every search hit is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)). Chat-log reads are not audited yet.
 *   **Configuration lives in `m3_config.toml`:** `m3 config show` prints every setting and where it came from, and `m3 config set` changes one ([Config reference](docs/CONFIG_REFERENCE.md)). Older environment-variable names keep working with a warning for two releases, and `m3 doctor` and `m3 config import-env` name any still in use ([Environment variables](docs/ENVIRONMENT_VARIABLES.md)).
 *   **Versioning:** calendar versions (`YYYY.M.D.N`). A renamed or removed setting, argument or tool keeps working, with a warning, for at least two releases after its replacement ships ([Changelog](CHANGELOG.md)).
 
@@ -152,9 +152,9 @@ echo '{"query":"auth","k":3}' | m3 memory memory_search --json-file - | jq '.ite
 Results compose, so one tool's output drives the next:
 
 ```bash
-# Pin everything matching a query — search, transform, bulk-update.
+# Raise the importance of everything matching a query: search, transform, bulk-update.
 m3 memory memory_search --query "deployment runbook" --k 20 \
-  | jq '{updates: [.items[] | {memory_id: .id, pinned: 1}]}' \
+  | jq '{updates: [.items[] | {id: .id, importance: 0.9}]}' \
   | m3 memory memory_update_bulk --json-file -
 ```
 
@@ -363,13 +363,13 @@ To expose m3 to any Model Context Protocol host, add it to your configuration fi
 
 Most MCP servers make you pay for every tool in every prompt; m3 registers a small set at startup and loads the rest on demand. Tools are grouped into **9 domains** (`memory`, `chatlog`, `files`, `entity`, `agent`, `tasks`, `conversations`, `diagnostics`, `admin`) and loaded lazily.
 
-Only 10 schemas register at startup (~3,875 tokens). That set is chosen by measurement rather than judgement: across real-world multi-agent development sessions it absorbed **95% of all observed tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it calls `tools_load_domain(domain="...")` to fetch a domain on demand — or invokes any single tool by name through `m3_call`, with no domain load at all.
+Only 10 schemas register at startup (~3,885 tokens). That set is chosen by measurement rather than judgement: across real-world multi-agent development sessions it absorbed **95% of all observed tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it calls `tools_load_domain(domain="...")` to fetch a domain on demand — or invokes any single tool by name through `m3_call`, with no domain load at all.
 
 | Gating Mode | Registered Tools | Tokens in Schema | % of 200K Window |
 | :--- | :---: | :---: | :---: |
-| **Lazy (Default)** | **10** | **~3,875** | **1.9%** |
+| **Lazy (Default)** | **10** | **~3,885** | **1.9%** |
 | Typical Active Session (+`memory` +`admin`) | 61 | ~18,156 | 9.1% |
-| Eager Mode (`tools.lazy = false`) | 120 | ~29,405 | 14.7% |
+| Eager Mode (`tools.lazy = false`) | 119 | ~29,485 | 14.7% |
 
 > 🛠️ *Note: If your client does not support dynamic tool registration, run `m3 config set tools.lazy false` (or set `lazy = false` under `[tools]` in `m3_config.toml`) to register every tool at startup.*
 
@@ -399,9 +399,9 @@ m3 ships a Rust compute core (`m3_core_rs`) that speeds up MMR re-ranking by **9
     | `[paths] engine_root` | `~/.m3/engine` | Databases + runtime state (`agent_memory.db`, `agent_chatlog.db`, `files_database.db`) |
     | `M3_CONFIG_ROOT` (or `m3 --config FILE`) | `~/.m3/config` | Configuration: `m3_config.toml`, chatlog config, salt |
     | `[paths] logs_root` | `~/.m3/logs` | Scheduled-task and service logs |
-    | `[paths] memory_root` | `~/.m3` (`~/.m3-memory` until `m3 setup` or `m3 doctor --fix` moves it) | Payload root, and the base the others derive from (not a repo clone) |
+    | `[paths] memory_root` | unset | Legacy, removed at release N+3: when set, the others derive from it. Set `engine_root` and `logs_root` instead |
 
-    **All are relocatable.** Set a root under `[paths]` in `m3_config.toml`; the config file itself is found through `M3_CONFIG_ROOT` or `m3 --config`. A specific root wins over `memory_root`, from which the others otherwise derive as `<root>/engine` and `<root>/logs`. (See [Architecture](docs/ARCHITECTURE.md).) <!-- RELEASE-TODO: confirm the root env names' legacy window (N+3) and that `m3 config import-env` moves them. -->
+    **All are relocatable.** Set a root under `[paths]` in `m3_config.toml`; the config file itself is found through `M3_CONFIG_ROOT` or `m3 --config`. A specific root wins over `memory_root`, from which the others otherwise derive as `<root>/engine` and `<root>/logs`. (See [Architecture](docs/ARCHITECTURE.md).)
 
 ---
 
@@ -593,7 +593,7 @@ See [NOTICE](NOTICE) for the full third-party attribution list.
   <a href="https://github.com/skynetcmd/m3-memory"><img alt="GitHub clones" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/github-clones.svg"></a>
 </p>
 <p align="center"><sub>PyPI downloads, all-time and last 30 days, count every download, mirror and CI-bot traffic included, as most projects' download badges do; the figures without mirrors, closer to real installs, are in <a href="https://github.com/skynetcmd/m3-memory/blob/main/docs/badges/counters.json">counters.json</a>. GitHub clones are unique clones. Badges are regenerated on a schedule by <a href="https://github.com/skynetcmd/m3-memory/blob/main/.github/workflows/star-history.yml">star-history.yml</a>.</sub></p>
-<p align="center"><sub><b>Python:</b> m3 core runs on Python 3.12, 3.13, 3.14 and 3.15. The optional framework extras follow their own caps — <b>PydanticAI</b> is 3.14-native (plain <code>pip install</code>); <b>CrewAI</b> requires 3.12–3.13 with m3 (a 3.14 escape hatch is <a href="https://github.com/skynetcmd/m3-memory/blob/main/m3_memory/integrations/crewai/README.md">documented</a>).</sub></p>
+<p align="center"><sub><b>Python:</b> m3 core runs on Python 3.12, 3.13 and 3.14; 3.15 is tested but not yet required to pass. The optional framework extras follow their own caps — <b>PydanticAI</b> is 3.14-native (plain <code>pip install</code>); <b>CrewAI</b> requires 3.12–3.13 with m3 (a 3.14 escape hatch is <a href="https://github.com/skynetcmd/m3-memory/blob/main/m3_memory/integrations/crewai/README.md">documented</a>).</sub></p>
 </br><p></p>
 ---
 

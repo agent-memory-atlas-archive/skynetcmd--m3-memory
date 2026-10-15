@@ -119,7 +119,9 @@ _SUBCOUNT_EXCEPTIONS = (
     # what makes them safe to whitelist rather than rephrase.
     "26-tool",  # README — files-memory domain, hyphenated form
     "25-tool",  # README/ROADMAP — files-memory domain (25 in the catalog)
-    "10-tool",  # README — a per-layer subcount
+    # README — the chatlog domain over MCP (chatlog_set_redaction is CLI-only).
+    # The whole phrase: a bare "9-tool" would also erase the tail of "119-tool".
+    "a 9-tool chatlog domain",
     "18 essential tools",  # MYTHS_AND_FACTS — the lazy-mode essentials set
     "MCP (54 tools)",  # COMPARISON — agentmemory (rohitg00)'s catalog, a competitor's count, not m3's
 )

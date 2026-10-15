@@ -1,8 +1,8 @@
 ---
 tool: bin/measure_tool_tokens.py
-sha1: 73c8501b2a06
-mtime_utc: 2026-10-11T22:21:02.809115+00:00
-generated_utc: 2026-10-11T22:21:13.984591+00:00
+sha1: 76a1b432641b
+mtime_utc: 2026-10-15T00:34:38.492839+00:00
+generated_utc: 2026-10-15T00:34:42.330603+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ in CLAUDE.md / GEMINI.md / README.md / docs/* stay honest.
 
 ## Entry points
 
-- `def main()` (line 117)
+- `def main()` (line 119)
 - `if __name__ == "__main__"` guard
 
 ---

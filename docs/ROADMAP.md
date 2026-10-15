@@ -14,11 +14,16 @@ Built and under test; not yet released. Details in the
 - [ ] **A user-only secrets file** — `m3_secrets.toml`, for machines without an OS keyring; the installer stores the primary PostgreSQL DSN in the keyring or this file, not in plaintext environment variables. m3 no longer reads its secrets from the environment: `m3 secret set NAME` stores one, and `m3 config import-env` (also run by `m3 upgrade`) moves existing ones.
 - [ ] **More of m3 runs on PostgreSQL** — including the LangGraph checkpointer (`M3Saver`), GLiNER entity extraction, and the enrichment tools.
 - [ ] **`search_profile` tool** — per-stage timing of one real search.
+- [ ] **pgvector** — on a PostgreSQL server with pgvector, exact vector search runs in the database.
+- [ ] **`m3 config get` / `set` / `unset` / `import-env`, `m3 --config FILE` and `--set`** — read and change one setting, move legacy settings into the file, point any command at another config file, or override a setting for one run.
+- [ ] **`m3 batch`** — several commands in one process, one per line of stdin.
+- [ ] **Read-access audit log** — every `memory_get` and search hit is recorded (agent, data subject, time), kept 90 days (`audit.read_log_retention_days`), included in `gdpr_export` and erased by `gdpr_forget`; chat-log reads are not audited yet.
+- [ ] **m3's state moves from `~/.m3-memory` to `~/.m3`.**
 - [ ] **Python 3.12 codebase** — the code is brought up to the supported floor and held there by lint and type checks.
 
 ## ✅ Shipped — 2026-Q4 so far
 
-- [x] **Web dashboard / observability portal — stable** (moved from hardening, 2026-10-13) (`bin/dashboard_server.py`) — local FastAPI + HTMX UI: multi-DB overview, graph explorer, KB browser, conflict & audit log, background maintenance launcher. Run `m3 dashboard` (listens on `127.0.0.1:8088`; override via `M3_DASHBOARD_HOST`/`M3_DASHBOARD_PORT`).
+- [x] **Web dashboard / observability portal — stable** (moved from hardening, 2026-10-13) (`bin/dashboard_server.py`) — local FastAPI + HTMX UI: multi-DB overview, graph explorer, KB browser, conflict & audit log, background maintenance launcher. Run `m3 dashboard` (listens on `127.0.0.1:8088`; change with `m3 config set dashboard.host` / `dashboard.port`).
 - [x] **Autonomous cognitive loop — stable** (moved from hardening, 2026-10-13) (`bin/m3_cognitive_loop.py`) — background daemon running eleven independently skippable passes — including entity extraction, observation extraction with reflection (contradiction resolution), classification, embedding backfill, belief consolidation, procedural distillation, sync, and maintenance (see [ARCHITECTURE.md](ARCHITECTURE.md#the-passes)).
 - [x] **Observer & Reflector SLM stages — stable** (moved from hardening, 2026-10-13) (`bin/run_observer.py`, `bin/run_reflector.py`) — LLM-based semantic contradiction detection beyond embeddings.
 - [x] **Verified backups** — backups taken by maintenance tools are complete and verified, and tools refuse a store they were not meant for (v2026.10.4.0).
@@ -32,7 +37,7 @@ Built and under test; not yet released. Details in the
 - [x] **PostgreSQL as a first-class primary backend** (`[db] backend = "postgres"`) via a pluggable SQL storage seam (`bin/memory/backends/`) — SQLite and PostgreSQL ship, with identical semantics across backends.
 - [x] **CrewAI (v1.x) integration** — a native `StorageBackend` (`m3-memory[crewai]`); a CrewAI memory stays searchable by every other m3 agent.
 - [x] **PydanticAI integration** — deps-injected tools + a recall history-processor, plus a formal `M3MemoryToolset` (`m3-memory[pydantic-ai]`); Python 3.14-native.
-- [x] **Procedural memory** — a first-class `procedure` type (skill/runbook/how-to/checklist) distilled from successful task runs (writing is opt-in: `M3_DISTILL_AUTO=1`, else dry-run), with `distills_from` provenance and a procedural retrieval boost.
+- [x] **Procedural memory** — a first-class `procedure` type (skill/runbook/how-to/checklist) distilled from successful task runs (writing is opt-in: `autonomy.distill_auto = true`, else dry-run), with `distills_from` provenance and a procedural retrieval boost.
 - [x] **Test suite hardening** — 5,000+ test functions (6,700+ collected cases, 7,100+ with the native core) across 590+ files, run with `filterwarnings=error` (a new warning fails the build).
 
 ### Later in Q3 (v2026.7.18 → v2026.9.21)
@@ -78,7 +83,7 @@ Roughly two months of releases (≈25 between `v2026.4.12b` and `v2026.6.8.1`); 
 
 ### Files-memory subsystem (v2026.5.18.0 → v2026.5.29.5)
 
-- [x] 26-tool files-memory layer — directory ingestion, hierarchical chunking, ascension to core memory, watch-mode staleness review
+- [x] 25-tool files-memory layer — directory ingestion, hierarchical chunking, ascension to core memory, watch-mode staleness review
 - [x] Files entity-linking + fact-extraction with bug fixes (v2026.5.29.4 / .5)
 - [x] Modular `memory_core` refactor — submodule extraction with shim-preserved identity (no public surface drift; 322+ symbols snapshot-fingerprinted)
 
@@ -112,12 +117,12 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 - [x] **Trust-weighted / consensus provenance** — `agents.trust_score`, append-only corroboration ledger, `agent_set_trust` tool, corroboration-on-write (closes the orphan-duplicate gap)
 - [x] **Reinforcement** — confidence decays toward NEUTRAL (uncertainty), re-aggregates from the ledger, access as weak capped evidence
 - [x] **Autonomous episodic→semantic consolidation** — `belief` type, weekly `consolidate_beliefs.py`, reversible (soft-delete + edges)
-- [x] **Confidence in ranking** behind `M3_CONFIDENCE_RANKING` (zero-regression flag-off contract, tested)
+- [x] **Confidence in ranking** behind `search.confidence_ranking` (zero-regression flag-off contract, tested)
 
 ### Compliance + privacy
 
-- [x] FIPS 140-3 deployment-ready: tiered crypto (`M3_FIPS_MODE` = hardened
-  wolfCrypt, `M3_FIPS_STRICT` = CMVP-validated module), power-up KATs, secure
+- [x] FIPS 140-3 deployment-ready: tiered crypto (`crypto.fips_mode` = hardened
+  wolfCrypt, `crypto.fips_strict` = CMVP-validated module), power-up KATs, secure
   DLL-hijack-resistant loading, `m3 fips install-wolfssl` helper, algorithm
   whitelist enforcement (see `FIPS_MODULE_BOUNDARY.md`)
 - [x] GDPR Article 17 (`gdpr_forget`) + Article 20 (`gdpr_export`) as MCP tools
@@ -167,7 +172,7 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 - [x] Core memory system — write, search, update, delete, link
 - [x] Hybrid retrieval — FTS5 + vector similarity + MMR re-ranking
 - [x] Contradiction detection and bitemporal versioning
-- [x] Knowledge graph (memory-link relationship types — 11 today, plus internal `distills_from`; entity-graph layer with a user-configurable 34-predicate vocabulary via `M3_ENTITY_VOCAB_YAML`)
+- [x] Knowledge graph (memory-link relationship types — 11 today, plus internal `distills_from`; entity-graph layer with a user-configurable 34-predicate vocabulary via `entity.vocab_yaml`)
 - [x] Cross-device sync — SQLite ↔ PostgreSQL
 - [x] LLM auto-classification, conversation summarization, memory consolidation
 
@@ -184,7 +189,7 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 > **Order after the next release:** health and Prometheus metrics endpoint, HNSW approximate search, official Docker image (on demand), server / multi-user deployment guide, stable public SDK, search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
 
 - [ ] **HNSW approximate search on the PostgreSQL primary backend** — exact search already scores in the database when the server has pgvector (migration `pg_066` keeps a `vector` copy of each embedding; older rows are filled in the background after the upgrade). An HNSW index would trade exactness for speed on stores far larger than 50,000 memories.
-- [ ] **Docker image** — built on community demand: today's users run m3 directly (`pip install` and `m3 setup`) and have not asked for one. Shape if built: `docker run -v ~/.m3-memory:/data ghcr.io/skynetcmd/m3-memory:latest`
+- [ ] **Docker image** — built on community demand: today's users run m3 directly (`pip install` and `m3 setup`) and have not asked for one. Shape if built: `docker run -v ~/.m3:/data ghcr.io/skynetcmd/m3-memory:latest`
 - [ ] **TestPyPI as a release gate** — TestPyPI is published alongside PyPI today; make it pass before PyPI publishes
 - [ ] **Homebrew formula** — `brew install m3-memory` (macOS / Linuxbrew)
 - [ ] **Server / multi-user deployment guide** — PostgreSQL-primary deployment, backups, upgrades, monitoring, and the measured point at which to move from SQLite
@@ -207,7 +212,6 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 - [ ] **Shared memory namespaces** — optional scoped memory pools across multiple local agents
 - [ ] **Agent identity model** — per-agent memory isolation with explicit cross-agent read grants (today: per-`agent_id` scoping at the SQL layer; the cross-agent grant primitive is still implicit)
 - [ ] **Remote P2P sync** — encrypted memory replication over WireGuard / Tailscale without a central server
-- [x] **Memory read-access audit log** — who *read* what and when (GDPR Article 30 record). Mutations are already recorded (`memory_history` and the hash-chained audit trail in `bin/audit_trail.py`); reads today only update `access_count` / `last_accessed_at`. <!-- RELEASE-TODO: built in the GDPR pass (plan G2); confirm it shipped before this item reads as done publicly. -->
 
 ---
 

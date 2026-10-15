@@ -2300,7 +2300,8 @@ Examples:
         default=None,
         choices=("sqlite", "postgres"),
         help="Primary database backend (default: sqlite). 'postgres' reads the "
-        "DSN from M3_PRIMARY_PG_URL/M3_PG_URL and skips the backend prompt.",
+        "database address stored with `m3 secret set M3_PRIMARY_PG_URL` and skips "
+        "the backend prompt.",
     )
     p_install.set_defaults(func=_cmd_install_m3)
 

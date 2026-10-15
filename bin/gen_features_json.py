@@ -51,10 +51,13 @@ def main() -> int:
         ],
         "works_with": [
             "Claude Code",
+            "Cursor",
+            "Cline",
             "Gemini CLI",
             "Aider",
             "Google Antigravity",
             "OpenCode",
+            "OpenClaw",
             "Hermes Agent",
             "LangChain / LangGraph (drop-in Mem0 replacement, backs LangMem)",
             "CrewAI (native StorageBackend, v1.x)",
@@ -99,7 +102,7 @@ def main() -> int:
             # Pluggable SQL storage seam — the primary backend is selectable.
             "primary_backends": [
                 "sqlite (default, FTS5 + vector indexes; zero-infra)",
-                "postgresql (first-class primary, [db] backend = postgres)",
+                "postgresql (first-class primary, [db] backend = postgres; with pgvector, vector search runs in the database)",
             ],
             "core_store": "single SQLite file (FTS5 + vector indexes) by default",
             "optional_sync_backends": ["PostgreSQL"],

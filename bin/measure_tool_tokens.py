@@ -98,7 +98,9 @@ def measure() -> dict:
         meta = sorted(getattr(memory_bridge, "_META_TOOLS", None) or meta)
     except Exception:  # noqa: BLE001 — measurement must not need a live bridge
         pass
-    all_names = [t.name for t in cat.TOOLS]
+    # MCP_TOOLS, the list memory_bridge registers: TOOLS also holds CLI-only
+    # specs (chatlog_set_redaction), which counted one tool too many.
+    all_names = [t.name for t in cat.MCP_TOOLS]
     startup = sorted((set(td.ESSENTIAL_TOOL_NAMES) | set(meta)) & set(all_names) | set(meta))
     typical = set(startup)
     for domain in TYPICAL_DOMAINS:
