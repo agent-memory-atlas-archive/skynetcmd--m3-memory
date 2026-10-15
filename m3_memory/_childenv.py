@@ -36,6 +36,7 @@ class ChildEnv(TypedDict, total=False):
     PIP_NO_CACHE_DIR: str  # pip without its cache (upgrade path)
     UV_NO_CACHE: str  # uv without its cache (upgrade path)
     PYTEST_DISABLE_PLUGIN_AUTOLOAD: str  # isolated pytest runs (drift gate)
+    XDG_RUNTIME_DIR: str  # the user's systemd session, which a `su` shell drops (cli._join_user_session)
 
 
 @dataclass(frozen=True, slots=True)

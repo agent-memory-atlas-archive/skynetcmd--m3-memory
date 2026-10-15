@@ -380,20 +380,23 @@ def current_uid() -> int | None:
     return getuid() if getuid is not None else None
 
 
-def user_service_bus() -> str | None:
-    """The systemd user manager's bus socket for this user, or None when it has
-    none: a `su` shell from root has no login session, and without linger the
-    user manager is not running, so `systemctl --user` cannot reach anything.
+def user_service_runtime_dir() -> str | None:
+    """The runtime directory through which `systemctl --user` reaches this user's
+    systemd manager, or None when no manager runs: a `su` shell from root has no
+    login session, and without linger the user manager is not started.
 
-    Linux only (None elsewhere). The bus is found under XDG_RUNTIME_DIR, or under
-    /run/user/<uid> when a `su` shell dropped that variable while the manager runs.
+    Linux only (None elsewhere). Found under XDG_RUNTIME_DIR, or /run/user/<uid>
+    when a `su` shell dropped that variable. The manager answers on the D-Bus
+    `bus` socket or, where the user D-Bus is not installed, on `systemd/private`
+    (measured on a Proxmox host: no `bus`, systemctl --user worked).
     """
     if not is_linux():
         return None
     uid = current_uid()
     runtime = os.environ.get("XDG_RUNTIME_DIR") or (f"/run/user/{uid}" if uid is not None else "")
-    bus = os.path.join(runtime, "bus") if runtime else ""
-    return bus if bus and os.path.exists(bus) else None
+    if runtime and any(os.path.exists(os.path.join(runtime, *s)) for s in (("bus",), ("systemd", "private"))):
+        return runtime
+    return None
 
 
 def port_listener_is_mine(port: int, procs: Any) -> bool | None:
@@ -522,7 +525,7 @@ def detached_spawn_kwargs() -> dict:
     return {"start_new_session": True}
 
 
-def reexec(argv: list[str]) -> NoReturn:
+def reexec(argv: list[str], env: dict[str, str] | None = None) -> NoReturn:
     """Run ``argv`` in place of this process; its exit code becomes ours.
 
     POSIX: ``os.execv``, a true exec (same pid). Windows has no exec: ``os.exec*``
@@ -532,12 +535,15 @@ def reexec(argv: list[str]) -> NoReturn:
     child of a windowless parent (a scheduled task) gets its own visible window.
     So on Windows the child runs to completion, hidden, with ``argv`` passed as a
     list, and we exit with its code. Output handles are inherited either way.
+    ``env`` (built by m3_memory._childenv) replaces the environment; None keeps it.
     """
     if is_windows():
         import subprocess
 
-        raise SystemExit(subprocess.call(argv, **hidden_window_kwargs()))  # nosec B603
-    os.execv(argv[0], argv)  # nosec B606
+        raise SystemExit(subprocess.call(argv, env=env, **hidden_window_kwargs()))  # nosec B603
+    if env is None:
+        os.execv(argv[0], argv)  # nosec B606
+    os.execve(argv[0], argv, env)  # nosec B606
 
 
 def python_exe(windowless: bool = False) -> str:

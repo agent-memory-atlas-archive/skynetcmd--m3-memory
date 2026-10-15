@@ -191,9 +191,12 @@ def _service_manager_reachable() -> bool:
 
     if not is_linux():
         return False
-    from m3_memory._platform import user_service_bus
+    from m3_core.seams import user_service_runtime_dir
 
-    return user_service_bus() is not None
+    # And reachable from THIS process: retiring the old server where systemctl
+    # --user cannot start the new one would leave no embedder at all.
+    runtime = user_service_runtime_dir()
+    return runtime is not None and os.environ.get("XDG_RUNTIME_DIR") == runtime
 
 
 def _task_names() -> set[str]:

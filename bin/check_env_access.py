@@ -82,7 +82,7 @@ OS_NAMES: frozenset[str] = frozenset(
         "TERM_PROGRAM",
         "XDG_CONFIG_HOME",
         "XDG_DATA_HOME",
-        "XDG_RUNTIME_DIR",  # the login session's runtime dir (_platform.user_service_bus)
+        "XDG_RUNTIME_DIR",  # the login session's runtime dir (_platform.user_service_runtime_dir)
         # Set by Windows' OneDrive client: where it syncs (_platform.synced_folder_roots)
         "OneDrive",
         "OneDriveConsumer",

@@ -2200,7 +2200,24 @@ def _warn_if_not_applied(result, tool: str) -> None:
     print("\n".join(lines), file=sys.stderr)
 
 
+def _join_user_session() -> None:
+    """A `su` shell drops XDG_RUNTIME_DIR, so `systemctl --user` could not reach
+    the user's running systemd manager and every service step failed. Run this
+    same command again with it set: Linux only, only when the manager runs and
+    the variable is missing (so it happens at most once)."""
+    from m3_memory._platform import is_linux, reexec, user_service_runtime_dir
+
+    if not is_linux() or os.environ.get("XDG_RUNTIME_DIR"):
+        return
+    runtime = user_service_runtime_dir()
+    if runtime:
+        from m3_memory._childenv import child_env
+
+        reexec([sys.executable, *sys.orig_argv[1:]], env=child_env(XDG_RUNTIME_DIR=runtime))
+
+
 def main() -> None:
+    _join_user_session()
     # --set={...} is read once, applied, and removed here, before any parser or
     # module reads a setting; the command parses the rest untouched.
     _bin.ensure_on_path()

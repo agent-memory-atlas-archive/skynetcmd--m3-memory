@@ -46,6 +46,7 @@ from m3_memory._platform import (  # noqa: E402
     reexec,
     user_env_get,
     user_env_snapshot,
+    user_service_runtime_dir,
     vscode_user_dir,
     wait_for_any_key,
 )
@@ -74,6 +75,7 @@ __all__ = [
     "roots",
     "user_env_get",
     "user_env_snapshot",
+    "user_service_runtime_dir",
     "vscode_user_dir",
     "wait_for_any_key",
     "wheel_python_tag",

@@ -1626,12 +1626,12 @@ def _check_user_services() -> None:
     systemctl error at every service and failed verification with no fix named.
     When the user manager does run but the shell dropped XDG_RUNTIME_DIR, the fix
     is one export (this process's environment is not changed: m3_memory._childenv)."""
-    from m3_memory._platform import is_linux, user_service_bus
+    from m3_memory._platform import is_linux, user_service_runtime_dir
 
     if not is_linux():
         return
-    bus = user_service_bus()
-    if bus is None:
+    runtime = user_service_runtime_dir()
+    if runtime is None:
         import getpass
 
         user = getpass.getuser()
@@ -1647,7 +1647,7 @@ def _check_user_services() -> None:
             "this shell lost the address of the systemd user session (a `su` shell), so "
             "m3's background services cannot be started from it."
         )
-        _warn(f"  fix: export XDG_RUNTIME_DIR={os.path.dirname(bus)}   then run `m3 setup` again")
+        _warn(f"  fix: export XDG_RUNTIME_DIR={runtime}   then run `m3 setup` again")
 
 
 def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
