@@ -30,10 +30,11 @@ def _resolve_binary() -> str | None:
     NOT on PATH, so a bare which() returns None while the service is installed
     and serving. Measured 2026-09-12 on two hosts: which() -> None,
     embedder_admin._server_binary() -> the real path, :8082/health -> 200.
+
+    That resolver is the one owner (this install's wheel before PATH): asking
+    PATH first ran an older install's binary left in ~/.local/bin, which failed
+    `status` and reported a working embedder as FAILED (measured 2026-10-15).
     """
-    exe = shutil.which(BINARY_NAME)
-    if exe:
-        return exe
     try:
         from m3_memory import embedder_admin
 
@@ -42,7 +43,7 @@ def _resolve_binary() -> str | None:
         # str. Normalising at the boundary keeps the rest of this module typed.
         return str(found) if found else None
     except Exception:  # noqa: BLE001 — a probe must never raise
-        return None
+        return shutil.which(BINARY_NAME)
 
 
 def _port_answers(timeout: float = 2.0) -> bool:

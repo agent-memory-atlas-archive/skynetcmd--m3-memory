@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 _HERE = os.path.dirname(__file__)
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
@@ -135,3 +136,15 @@ def test_resolution_never_raises_when_the_package_is_absent(monkeypatch):
     )
     assert "RAISED:" not in out.stdout, f"_resolve_binary raised instead of degrading: {out.stdout.strip()}"
     assert "RESULT: None" in out.stdout, f"expected None when nothing is resolvable, got: {out.stdout.strip()}"
+
+
+def test_this_installs_binary_is_asked_not_an_older_one_on_path(monkeypatch):
+    """An older install's m3-embed-server in ~/.local/bin answered `status` with
+    an error, and a working embedder was reported FAILED (measured 2026-10-15)."""
+    from doctor import embed_server_probe as p
+
+    from m3_memory import embedder_admin
+
+    monkeypatch.setattr(p.shutil, "which", lambda name: "/home/u/.local/bin/m3-embed-server")
+    monkeypatch.setattr(embedder_admin, "_server_binary", lambda: Path("/venv/m3_core_rs/m3-embed-server"))
+    assert Path(p._resolve_binary()) == Path("/venv/m3_core_rs/m3-embed-server")
