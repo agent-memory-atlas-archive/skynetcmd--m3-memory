@@ -3518,7 +3518,9 @@ def _register_dashboard_task(port: int = 8088) -> None:
         out = proc.stdout or ""
         if proc.returncode != 0 or any(m in out for m in ("[WARN]", "[FAIL]", "[!]")):
             print(out, end="")
-        if proc.returncode == 0:
+        # The scheduler exits 0 when the unit was written but could not be
+        # enabled (no systemd user session): "[OK] starts on boot" was false.
+        if proc.returncode == 0 and "[FAIL]" not in out:
             if not _called_by_upgrade():  # routine re-registration under the upgrade
                 print(f"    [OK] dashboard starts on boot → http://127.0.0.1:{port} (stop: `m3 dashboard --stop`)")
         else:
