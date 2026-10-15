@@ -1708,7 +1708,15 @@ async def run_sync_pass(args):
         # Stamp only on a completed attempt (reachable + ran) so the interval
         # gate paces real syncs, not skipped ones.
         _record_pass_run("sync")
-        logger.info("Warehouse-sync pass complete (ok=%s).", ok)
+        if ok:
+            logger.info("Warehouse-sync pass complete.")
+        else:
+            logger.warning(
+                "Warehouse-sync pass failed (warehouse %s:%s); the pg_sync lines above say why. "
+                "inspect: m3 doctor, and the stored warehouse address (M3_CDW_PG_URL).",
+                host,
+                port,
+            )
     except Exception as e:
         logger.error(f"Sync pass error: {type(e).__name__}: {e}")
 
