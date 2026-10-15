@@ -245,12 +245,13 @@ def _build_conflict_clause(pk_columns: list[str]) -> str:
 _CHAT_TYPE = "chat_log"
 
 
-def _kind_filter(kind: str | None, type_col: str = "type") -> tuple[str, tuple]:
-    """(" AND ..." clause, params) restricting a warehouse read to one store's rows."""
+def _kind_filter(kind: str | None, p: str, type_col: str = "type") -> tuple[str, tuple]:
+    """(" AND ..." clause, params) restricting a read to one store's rows; ``p`` is
+    the bind marker of the connection it runs on."""
     if kind == "chat":
-        return f" AND {type_col} = %s", (_CHAT_TYPE,)
+        return f" AND {type_col} = {p}", (_CHAT_TYPE,)
     if kind == "memory":
-        return f" AND {type_col} <> %s", (_CHAT_TYPE,)
+        return f" AND {type_col} <> {p}", (_CHAT_TYPE,)
     return "", ()
 
 
@@ -416,7 +417,7 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
     # after another machine's pull was older than that machine's next watermark.
     watermark = _get_watermark(sl_cur, "pg_pull_arrival", target_name)
     pull_watermark = _arrival_watermark(pg_cur)
-    kind_sql, kind_params = _kind_filter(kind)
+    kind_sql, kind_params = _kind_filter(kind, _param_of(pg_cur))
     select = """
             SELECT id, type, title, content, metadata_json, agent_id, model_id,
                    change_agent, importance, source, origin_device, is_deleted,
@@ -556,7 +557,7 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str, kind: s
     # the batch on the foreign key; the watermark stops just before it.
     watermark = _get_watermark(sl_cur, "rel_pull_arrival", target_name)
     pull_watermark = _arrival_watermark(pg_cur)
-    kind_sql, kind_params = _kind_filter(kind, "mi.type")
+    kind_sql, kind_params = _kind_filter(kind, _param_of(pg_cur), "mi.type")
     select = (
         "SELECT r.id, r.from_id, r.to_id, r.relationship_type, r.created_at, r.wh_arrived_at "
         "FROM memory_relationships r JOIN memory_items mi ON mi.id = r.from_id"
@@ -904,7 +905,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str, kind: str 
     # embedding whose memory this store does not hold yet waits for it.
     watermark = _get_watermark(sl_cur, "emb_pull_arrival", target_name)
     pull_watermark = _arrival_watermark(pg_cur)
-    kind_sql, kind_params = _kind_filter(kind, "mi.type")
+    kind_sql, kind_params = _kind_filter(kind, _param_of(pg_cur), "mi.type")
     select = (
         "SELECT me.id, me.memory_id, me.embedding, me.embed_model, me.dim, me.wh_arrived_at "
         "FROM memory_embeddings me JOIN memory_items mi ON me.memory_id = mi.id"

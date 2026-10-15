@@ -249,6 +249,10 @@ def main() -> int:
 
             job_inventory.repair_and_report(dry_run=args.dry_run)
 
+        from doctor import misplaced_rows
+
+        misplaced_rows.repair_and_report(dry_run=args.dry_run)
+
         # Shared-embedder repair lives in its own probe (it writes config, starts
         # the server, and registers the keep-alive task — actions outside the DB-
         # focused memory_doctor_fix_impl). Run it with fix=True so `m3 doctor --fix`
@@ -492,6 +496,12 @@ def main() -> int:
         # Report-only: every m3 job with a verdict (current / outdated / retired /
         # dangling / unknown); `m3 doctor --fix` removes the removable ones.
         job_inventory.run(brief=brief)
+
+    from doctor import misplaced_rows
+
+    # Report-only: copies an older sync put in the wrong store of a split install;
+    # `m3 doctor --fix` removes the ones whose home store holds the same row.
+    misplaced_rows.run(brief=brief)
 
     if not args.skip_shared_embedder:
         from doctor import shared_embedder_probe

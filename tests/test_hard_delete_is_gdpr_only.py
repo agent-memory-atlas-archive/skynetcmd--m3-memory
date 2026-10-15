@@ -28,6 +28,7 @@ ALLOWED = {
     ("bin/files_memory/corpora.py", "corpus_delete"): "files corpus index (derived from files on disk), not memories",
     ("bin/m3_enrich_stage.py", "ack"): "queue bookkeeping: an acknowledged queue row",
     ("bin/reembed_space.py", "_delete_doomed"): "derived embeddings being replaced",
+    ("bin/doctor/misplaced_rows.py", "_remove"): "a copy in the wrong store whose home store holds the same row",
 }
 
 
