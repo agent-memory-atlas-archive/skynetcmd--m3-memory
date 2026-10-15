@@ -5,7 +5,8 @@ which pg_sync applies automatically before every run.
 This is the manual entry point for the same thing:
 
     python bin/pg_setup.py           # apply pending warehouse migrations
-    python bin/pg_setup.py --check   # report the layout and versions; change nothing
+    python bin/pg_setup.py --check   # report the layout, versions and table ownership; change nothing
+                                     # (exit 3: tables owned by another role)
 
 The warehouse DSN is the M3_CDW_PG_URL secret (m3 secret set M3_CDW_PG_URL).
 """
@@ -60,7 +61,22 @@ def main() -> int:
             print(f"warehouse schema: {layout}")
             print(f"applied: {applied or 'none'}")
             print(f"pending: {pending or 'none'}")
-            return 0
+            others = migrate_pg.tables_owned_elsewhere(conn, layout)
+            if not others:
+                print("ownership: this role owns every warehouse table")
+                return 0
+            cur = conn.cursor()
+            cur.execute("SELECT current_user")
+            me = cur.fetchone()[0]
+            conn.rollback()
+            owners = ", ".join(sorted(set(others.values())))
+            print(
+                f"[!] ownership: {len(others)} warehouse table(s) are owned by {owners}, not by {me}, "
+                "the role m3 connects as. A warehouse migration that changes one of them fails "
+                f"'must be owner'. fix (as their owner or a superuser): ALTER TABLE {layout}.<table> "
+                f"OWNER TO {me}; for each of: {', '.join(others)}"
+            )
+            return 3
         done = migrate_pg.run_warehouse_migrations(conn, layout)
         logger.info(f"warehouse ({layout}): applied {done or 'nothing, already current'}")
         return 0

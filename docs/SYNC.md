@@ -40,7 +40,9 @@ is no shipped warehouse migration for non-default DBs.
 
 You need:
 
-1. A reachable PostgreSQL server, version 16 or newer (your warehouse).
+1. A reachable PostgreSQL server, version 16 or newer (your warehouse). The database
+   account in its address must own the warehouse tables: m3 updates them itself on
+   upgrades ([Upgrading your warehouse](WAREHOUSE_UPGRADE.md)).
 2. Its connection string (DSN), where the scheduled sync can read it.
 
 **Store the DSN as the secret `M3_CDW_PG_URL`.** The scheduled sync runs under

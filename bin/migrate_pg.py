@@ -279,6 +279,22 @@ def run_pending_pg_migrations(conn, migrations_dir: str = _PG_MIGRATIONS_DIR, sc
                 logger.warning("could not restore search_path to %r after the %s migrations", prev_path, schema)
 
 
+def tables_owned_elsewhere(conn, schema: str) -> dict[str, str]:
+    """Tables in ``schema`` that the connected role does not own: {table: owner}.
+
+    Warehouse migrations run as the role m3 connects with, and PostgreSQL lets only
+    a table's owner alter it, so a migration that adds a column to one of these
+    fails. Reported by ``pg_setup --check`` before a sync hits it."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT tablename, tableowner FROM pg_tables WHERE schemaname = %s AND tableowner <> current_user ORDER BY 1",
+        (schema,),
+    )
+    rows = dict(cur.fetchall())
+    conn.rollback()
+    return rows
+
+
 _WAREHOUSE_LOCK_KEY = "m3_warehouse_migrations"  # pg_advisory_lock(hashtext(...))
 _warned_behind: set[str] = set()
 

@@ -1019,6 +1019,10 @@ def _set_warehouse_search_path(pg_conn) -> str:
         if canonical:
             with pg_conn.cursor() as cur:
                 cur.execute(f"SET search_path TO {WAREHOUSE_SCHEMA}, public")
+            # Commit, or a later rollback (the stranded-table check ends with one)
+            # undoes the SET and every unqualified name resolves to public:
+            # "relation memory_items does not exist" on every warehouse table.
+            pg_conn.commit()
             logger.info(f"PG search_path set to {WAREHOUSE_SCHEMA} (warehouse layout detected).")
             return WAREHOUSE_SCHEMA
     except Exception as e:

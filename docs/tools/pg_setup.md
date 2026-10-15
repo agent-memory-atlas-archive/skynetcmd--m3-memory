@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: 801fca59e1f5
-mtime_utc: 2026-10-14T15:50:54.674497+00:00
-generated_utc: 2026-10-14T15:51:13.514098+00:00
+sha1: 3b4771ca89aa
+mtime_utc: 2026-10-15T03:05:31.956594+00:00
+generated_utc: 2026-10-15T03:07:51.601684+00:00
 private: false
 ---
 
@@ -17,7 +17,8 @@ which pg_sync applies automatically before every run.
 This is the manual entry point for the same thing:
 
     python bin/pg_setup.py           # apply pending warehouse migrations
-    python bin/pg_setup.py --check   # report the layout and versions; change nothing
+    python bin/pg_setup.py --check   # report the layout, versions and table ownership; change nothing
+                                     # (exit 3: tables owned by another role)
 
 The warehouse DSN is the M3_CDW_PG_URL secret (m3 secret set M3_CDW_PG_URL).
 
@@ -25,7 +26,7 @@ The warehouse DSN is the M3_CDW_PG_URL secret (m3 secret set M3_CDW_PG_URL).
 
 ## Entry points
 
-- `def main()` (line 37)
+- `def main()` (line 38)
 - `if __name__ == "__main__"` guard
 
 ---

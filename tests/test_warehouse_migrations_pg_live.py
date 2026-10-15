@@ -108,6 +108,114 @@ def test_an_older_public_warehouse_is_migrated_in_place_and_keeps_its_rows(wh):
     assert migrate_pg.get_applied_versions(wh, "public") == [1]
 
 
+def test_unqualified_names_resolve_after_prepare_even_after_a_rollback(wh):
+    """The sync's table names are unqualified. The search_path SET was undone by
+    the stranded-table check's rollback, so every warehouse table read as missing
+    ("relation memory_items does not exist") on a canonical warehouse."""
+    import pg_sync
+
+    assert pg_sync._prepare_warehouse(wh) == "m3_warehouse"
+    wh.rollback()
+    cur = wh.cursor()
+    cur.execute("SELECT count(*) FROM memory_items")
+    assert cur.fetchone()[0] == 0
+    cur.execute("SELECT current_schema()")
+    assert cur.fetchone()[0] == "m3_warehouse"
+
+
+@pytest.fixture
+def other_role(wh):
+    """A login role that does NOT own the warehouse tables but may use and create
+    in the schema, as on a warehouse an admin set up; dropped afterwards."""
+
+    name = f"m3_wh_role_{uuid.uuid4().hex[:8]}"
+    cur = wh.cursor()
+    cur.execute(f"CREATE ROLE {name} LOGIN PASSWORD 'test-only'")
+    cur.execute(f"GRANT CONNECT, CREATE, TEMP ON DATABASE {wh.info.dbname} TO {name}")
+    wh.commit()
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(_with_db(pg_dsn(), wh.info.dbname))
+    host = parts.hostname or "127.0.0.1"  # a socket DSN has no host; the role needs TCP + password
+    netloc = f"{name}:test-only@{host}" + (f":{parts.port}" if parts.port else "")
+    dsn = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    try:
+        yield name, dsn
+    finally:
+        wh.rollback()
+        cur = wh.cursor()
+        cur.execute(f"DROP OWNED BY {name}")
+        cur.execute(f"DROP ROLE {name}")
+        wh.commit()
+
+
+def _hand_warehouse_to(wh, role):
+    """The tables stay owned by the creator; ``role`` gets the grants sync needs."""
+    cur = wh.cursor()
+    cur.execute(f"GRANT USAGE, CREATE ON SCHEMA m3_warehouse TO {role}")
+    cur.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA m3_warehouse TO {role}")
+    cur.execute("DELETE FROM m3_warehouse.schema_versions")  # as on a warehouse no m3 migrated yet
+    wh.commit()
+
+
+def test_a_role_that_does_not_own_the_tables_upgrades_an_up_to_date_warehouse(wh, other_role):
+    """Found on a real warehouse: tables created by postgres, m3 connecting as
+    another role. The baseline's ADD COLUMN IF NOT EXISTS failed "must be owner of
+    table memory_items" even though nothing was missing."""
+    import migrate_pg
+    import pg_sync
+    import psycopg2
+
+    pg_sync._prepare_warehouse(wh)  # creates every table, owned by the admin role
+    role, dsn = other_role
+    _hand_warehouse_to(wh, role)
+    conn = psycopg2.connect(dsn)
+    try:
+        assert migrate_pg.run_warehouse_migrations(conn, "m3_warehouse") == [1]
+        assert migrate_pg.get_applied_versions(conn, "m3_warehouse") == [1]
+    finally:
+        conn.close()
+
+
+def test_a_needed_change_on_a_table_this_role_does_not_own_names_the_fix(wh, other_role):
+    import migrate_pg
+    import pg_sync
+    import psycopg2
+
+    pg_sync._prepare_warehouse(wh)
+    cur = wh.cursor()
+    cur.execute("ALTER TABLE m3_warehouse.memory_items DROP COLUMN variant")  # an older shape
+    wh.commit()
+    role, dsn = other_role
+    _hand_warehouse_to(wh, role)
+    conn = psycopg2.connect(dsn)
+    try:
+        with pytest.raises(psycopg2.errors.InsufficientPrivilege) as e:
+            migrate_pg.run_warehouse_migrations(conn, "m3_warehouse")
+    finally:
+        conn.close()
+    msg = str(e.value)
+    assert "memory_items" in msg and "variant" in msg and f"OWNER TO {role}" in msg, msg
+
+
+def test_tables_owned_by_another_role_are_reported(wh, other_role):
+    """What pg_setup --check reports, before a migration fails on it."""
+    import migrate_pg
+    import pg_sync
+    import psycopg2
+
+    pg_sync._prepare_warehouse(wh)
+    assert migrate_pg.tables_owned_elsewhere(wh, "m3_warehouse") == {}, "the creator owns everything"
+    role, dsn = other_role
+    _hand_warehouse_to(wh, role)
+    conn = psycopg2.connect(dsn)
+    try:
+        others = migrate_pg.tables_owned_elsewhere(conn, "m3_warehouse")
+    finally:
+        conn.close()
+    assert "memory_items" in others and set(others.values()) == {wh.info.user}, others
+
+
 def test_rows_stranded_in_public_are_reported(wh, caplog):
     import pg_sync
 

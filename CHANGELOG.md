@@ -21,6 +21,19 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Sync to a warehouse in the `m3_warehouse` schema works after the schema update.**
+  The step that sets the schema was undone by a later check, so every warehouse table
+  read as missing (`relation "memory_items" does not exist`) and nothing synced.
+  **Affected:** PostgreSQL warehouse sync · **Action:** none · **Data status:** none; the
+  failed runs changed nothing and the next run sends what they missed.
+
+- **The warehouse schema update works when another account created the tables.** It
+  stopped with `must be owner of table memory_items` even when nothing was missing. It now
+  changes only what is missing, and a change that needs ownership names the table, its
+  owner and the fix. `pg_setup --check` reports tables owned by another account (exit 3).
+  **Affected:** warehouses whose tables an administrator created · **Action:** see
+  [Upgrading your warehouse](docs/WAREHOUSE_UPGRADE.md) · **Data status:** none.
+
 - **Read-only opt-in tools run from the CLI without `--yes`.** `m3 memory
   memory_search_routed`, `memory_search_multi_db`, `memory_export` and `gdpr_export`
   asked for `--yes` and said they "mutate/delete data". They are still opt-in over MCP.
@@ -919,6 +932,12 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Added
+
+- **[Upgrading your warehouse](docs/WAREHOUSE_UPGRADE.md).** What m3 changes in the
+  warehouse on upgrade, the ownership it needs, and how to move the warehouse server to a
+  new PostgreSQL version.
+  **Affected:** PostgreSQL warehouse users · **Action:** read it before upgrading ·
+  **Data status:** none.
 
 - **On PostgreSQL with pgvector, vector search runs in the database.** Results
   are unchanged (search is still exact); only the top results leave the server,

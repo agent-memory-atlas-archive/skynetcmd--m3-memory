@@ -256,6 +256,9 @@ If you use Postgres sync, also run:
 python3 bin/pg_setup.py --check
 ```
 
+Upgrading the warehouse server to a new PostgreSQL version, or checking that m3 can
+update the warehouse tables: [Upgrading your warehouse](WAREHOUSE_UPGRADE.md).
+
 ---
 
 ## 6. Keep the host OS and system tools current
