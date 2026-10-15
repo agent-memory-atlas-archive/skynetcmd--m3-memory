@@ -209,3 +209,102 @@ def test_an_unreadable_m3_plist_is_listed_not_skipped(mac):
     (agents / "com.m3memory.broken.plist").write_text("<plist><dict><key>Label", encoding="utf-8")
     job = {j.ident: j for j in ji.inventory(str(ROOT))}["com.m3memory.broken"]
     assert job.verdict == "unknown" and job.detail.startswith("unreadable")
+
+
+_REBOOT = (
+    "@reboot M3_EMBED_GGUF=/home/u/bge-m3.gguf M3_EMBED_SERVER_PORT=8082 nohup "
+    "/home/u/.local/bin/m3-embed-server > /home/u/embed.log 2>&1 &"
+)
+
+
+def test_cron_lines_name_their_program_after_any_schedule_form():
+    """An @reboot schedule is one field; five were skipped, so the embedder line
+    read as some other program (measured on a 2026.6 install)."""
+    from doctor import job_inventory as ji
+
+    assert ji._cron_command(_REBOOT) == ("/home/u/.local/bin/m3-embed-server", None)
+    assert ji._cron_command("*/5 * * * * /v/bin/python /p/bin/sync_all.py --x") == (
+        "/v/bin/python",
+        "/p/bin/sync_all.py",
+    )
+    assert ji._cron_command("@daily env A=1 nice /x/m3-embed-server")[0] == "/x/m3-embed-server"
+
+
+@pytest.fixture
+def crontab(tmp_path, monkeypatch):
+    """A fake crontab behind ji._run; returns (ji, state, calls)."""
+    from doctor import job_inventory as ji
+
+    state = {"text": f"{_REBOOT}\n0 3 * * * /usr/bin/backup.sh\n"}
+    calls = []
+
+    class _R:
+        def __init__(self, out=""):
+            self.returncode, self.stdout, self.stderr = 0, out, ""
+
+    def run(argv, **k):
+        calls.append(argv)
+        if argv == ["crontab", "-l"]:
+            return _R(state["text"])
+        if argv == ["crontab", "-"]:
+            state["text"] = k["input"]
+            return _R()
+        return _R()
+
+    monkeypatch.setattr(ji, "_run", run)
+    monkeypatch.setattr(ji, "is_windows", lambda: False)
+    monkeypatch.setattr(ji, "is_macos", lambda: False)
+    monkeypatch.setattr(ji, "_SYSTEMD_USER", str(tmp_path / "no-units"))
+    monkeypatch.setattr(ji, "_backup_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(ji, "_this_version", lambda: "2026.10.15.0")
+    monkeypatch.setattr(ji, "_taken_over_by_loop", set)
+    return ji, state, calls
+
+
+def test_a_cron_embedder_is_replaced_only_where_m3_can_run_the_service(crontab, monkeypatch):
+    ji, _state, _calls = crontab
+    for managed in (True, False):
+        monkeypatch.setattr(ji, "_service_manager_reachable", lambda managed=managed: managed)
+        (job,) = [j for j in ji.inventory(str(ROOT)) if j.kind == "cron"]
+        assert (job.verdict == "replaced") is managed, job.verdict
+    assert ji.repair(str(ROOT)) == [], "an unreplaced cron line is the user's: never removed"
+
+
+def test_retiring_removes_that_line_only_and_stops_what_it_started(crontab, monkeypatch, tmp_path):
+    ji, state, _calls = crontab
+    monkeypatch.setattr(ji, "_service_manager_reachable", lambda: True)
+    stopped = []
+    monkeypatch.setattr(ji, "_stop_processes_of", lambda program: stopped.append(program) or [2157])
+    (result,) = ji.retire_replaced_embedder(str(ROOT))
+    assert result[1] and "stopped pid 2157" in result[2]
+    assert state["text"] == "0 3 * * * /usr/bin/backup.sh\n", "the user's own line stays"
+    assert stopped == ["/home/u/.local/bin/m3-embed-server"]
+    assert _REBOOT in (tmp_path / "crontab.txt").read_text(encoding="utf-8")
+    assert ji.retire_replaced_embedder(str(ROOT)) == [], "a second run finds nothing"
+
+
+def test_only_this_users_processes_of_that_program_are_stopped(monkeypatch, tmp_path):
+    import m3_core.seams as seams
+    import psutil
+    from doctor import job_inventory as ji
+
+    prog = tmp_path / "m3-embed-server"
+    prog.write_text("", encoding="utf-8")
+    other = tmp_path / "other-server"
+    other.write_text("", encoding="utf-8")
+
+    class _P:
+        def __init__(self, pid, exe, mine):
+            self.info, self.mine, self.terminated = {"pid": pid, "exe": str(exe)}, mine, False
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    procs = [_P(1, prog, True), _P(2, prog, False), _P(3, other, True)]
+    monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: iter(procs))
+    monkeypatch.setattr(seams, "owned_by_current_user", lambda p: p.mine)
+    assert ji._stop_processes_of(str(prog)) == [1]
+    assert [p.terminated for p in procs] == [True, False, False]

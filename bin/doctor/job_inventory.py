@@ -36,7 +36,8 @@ from m3_core.seams import is_macos, is_windows
 _LAUNCH_AGENTS = "~/Library/LaunchAgents"
 _SYSTEMD_USER = "~/.config/systemd/user"
 _M3_LABEL_PREFIXES = ("com.m3memory.", "com.skynetcmd.m3")
-_REMOVABLE = ("outdated", "retired", "dangling")
+_REMOVABLE = ("outdated", "retired", "dangling", "replaced")
+_EMBED_SERVER = "m3-embed-server"
 
 
 def _run(argv: list[str], **kw):
@@ -158,12 +159,41 @@ def _cron_jobs() -> list[Job]:
     for line in (r.stdout or "").splitlines() if r.returncode == 0 else []:
         if not line.strip() or line.lstrip().startswith("#"):
             continue
-        toks = line.split()[5:]  # after the five schedule fields
-        program = toks[0] if toks else None
-        script = next((t for t in toks[1:] if t.endswith(".py")), None)
+        program, script = _cron_command(line)
         if _is_m3(program, script):
             jobs.append(Job("cron", line.strip(), program, script, None))
     return jobs
+
+
+_CRON_WRAPPERS = {"nohup", "env", "nice", "ionice", "setsid", "exec"}
+
+
+def _cron_command(line: str) -> tuple[str | None, str | None]:
+    """(program, script) of a crontab line. An @reboot-style schedule is one field,
+    not five; leading VAR=value assignments and wrappers (nohup, env) are not the
+    program. Reading five fields made an @reboot embedder line unrecognisable."""
+    toks = line.split()
+    toks = toks[1:] if toks and toks[0].startswith("@") else toks[5:]
+    while toks and (toks[0] in _CRON_WRAPPERS or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[0])):
+        toks = toks[1:]
+    if not toks:
+        return None, None
+    return toks[0], next((t for t in toks[1:] if t.endswith(".py")), None)
+
+
+def _service_manager_reachable() -> bool:
+    """Whether m3 can run its embedder as a service here: launchd on macOS, a
+    systemd user session on Linux. Without one, a cron line is the only autostart
+    (setup itself suggests it), so it is not replaced."""
+    if is_macos():
+        return True
+    from m3_core.seams import is_linux
+
+    if not is_linux():
+        return False
+    from m3_memory._platform import user_service_bus
+
+    return user_service_bus() is not None
 
 
 def _task_names() -> set[str]:
@@ -298,10 +328,17 @@ def judge(jobs: list[Job], m3_memory_root: str) -> list[Job]:
     this_env = _env_root(sched._venv_python(m3_memory_root))
     this_bin = os.path.realpath(os.path.join(m3_memory_root, "bin"))
     mine = _this_version()
+    managed = None  # asked once, only when a cron embedder line is found
     for j in jobs:
         if j.unreadable:
             j.verdict, j.detail = "unknown", j.unreadable
             continue
+        if j.kind == "cron" and j.program and os.path.basename(j.program) == _EMBED_SERVER:
+            managed = _service_manager_reachable() if managed is None else managed
+            if managed:
+                j.verdict = "replaced"
+                j.detail = "m3 runs its embedder as a service now; this line starts an older one at boot"
+                continue
         env = _env_root(j.program)
         # The program's environment decides; the script's place only when the
         # program is not in an environment (a checkout run by the system python).
@@ -371,7 +408,70 @@ def _remove(j: Job, backup: str) -> tuple[bool, str]:
             False,
             f'could not delete task {j.ident} ({(r.stderr or r.stdout).strip()}); as administrator: schtasks /Delete /TN "{j.ident}" /F',
         )
+    if j.kind == "cron":
+        return _remove_cron_line(j, backup)
     return False, "reported only: remove it by hand"
+
+
+def _remove_cron_line(j: Job, backup: str) -> tuple[bool, str]:
+    """Drop this exact line from the user's crontab (the whole crontab is saved
+    first), then stop the process it started: this user's, running that program."""
+    cur = _run(["crontab", "-l"], capture_output=True, text=True, timeout=20)
+    if cur.returncode != 0:
+        return False, f"could not read the crontab ({(cur.stderr or '').strip()})"
+    with open(os.path.join(backup, "crontab.txt"), "w", encoding="utf-8") as f:
+        f.write(cur.stdout)
+    kept = [ln for ln in cur.stdout.splitlines() if ln.strip() != j.ident]
+    w = _run(
+        ["crontab", "-"], input="\n".join(kept) + ("\n" if kept else ""), capture_output=True, text=True, timeout=20
+    )
+    if w.returncode != 0:
+        return False, f"could not rewrite the crontab ({(w.stderr or '').strip()})"
+    stopped = _stop_processes_of(j.program)
+    return True, "removed the crontab line" + (f" and stopped pid {', '.join(map(str, stopped))}" if stopped else "")
+
+
+def _stop_processes_of(program: str | None) -> list[int]:
+    """Stop this user's processes whose executable is ``program``; their pids."""
+    if not program:
+        return []
+    try:
+        import psutil
+        from m3_core.seams import owned_by_current_user
+    except ImportError:
+        return []
+    target = os.path.realpath(program)
+    stopped = []
+    for p in psutil.process_iter(["pid", "exe"]):
+        try:
+            if p.info.get("exe") and os.path.realpath(p.info["exe"]) == target and owned_by_current_user(p) is True:
+                p.terminate()
+                try:
+                    p.wait(timeout=10)
+                except psutil.TimeoutExpired:
+                    p.kill()
+                stopped.append(p.info["pid"])
+        except (psutil.Error, OSError):
+            continue
+    return stopped
+
+
+def retire_replaced_embedder(m3_memory_root: str | None = None) -> list[tuple[Job, bool, str]]:
+    """Remove cron lines that start an older embedder, and stop what they started,
+    BEFORE setup installs the embedder service: the old server held its port and
+    the new service could not start. Never raises."""
+    try:
+        root = m3_memory_root or payload_root()
+        out = []
+        backup: str | None = None
+        for j in inventory(root):
+            if j.verdict == "replaced":
+                backup = backup or _backup_dir()
+                ok, msg = _remove(j, backup)
+                out.append((j, ok, msg + (f" (backup in {backup})" if ok else "")))
+        return out
+    except Exception as e:  # noqa: BLE001 -- setup goes on with the old server running
+        return [(Job("cron", "?", None, None, None), False, f"{type(e).__name__}: {e}")]
 
 
 def repair(m3_memory_root: str, dry_run: bool = False) -> list[tuple[Job, bool, str]]:
@@ -380,8 +480,10 @@ def repair(m3_memory_root: str, dry_run: bool = False) -> list[tuple[Job, bool, 
     results: list[tuple[Job, bool, str]] = []
     backup: str | None = None
     for j in inventory(m3_memory_root):
-        if j.verdict not in _REMOVABLE or "cognitive loop runs this now" in j.detail or j.kind == "cron":
+        if j.verdict not in _REMOVABLE or "cognitive loop runs this now" in j.detail:
             continue
+        if j.kind == "cron" and j.verdict != "replaced":
+            continue  # a user's own crontab line is removed only when m3 replaced it
         if dry_run:
             results.append((j, True, "would remove"))
             continue

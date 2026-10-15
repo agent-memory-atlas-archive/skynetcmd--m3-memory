@@ -3640,6 +3640,21 @@ def _step_import_env() -> None:
         _warn(f"moving legacy settings skipped: {type(e).__name__}: {e}. inspect: m3 config import-env")
 
 
+def _retire_replaced_embedder() -> None:
+    """Before the embedder step: a crontab line from an older install started its
+    own embed server at boot, which held the port so the service could not start
+    (doctor/job_inventory.retire_replaced_embedder; kept where m3 has no service
+    manager to replace it with). Never raises."""
+    try:
+        _m3bin.ensure_on_path()
+        from doctor import job_inventory
+
+        for _job, ok, msg in job_inventory.retire_replaced_embedder():
+            (_ok if ok else _warn)(f"  older embedder started from cron: {msg}")
+    except Exception as e:  # noqa: BLE001
+        _warn(f"  checking for an older embedder skipped: {type(e).__name__}: {e}")
+
+
 def _step_job_cleanup() -> None:
     """Remove m3 background jobs that run an older install, that this version
     retired, or whose program is gone, backing each definition up first
@@ -4406,6 +4421,7 @@ def run_setup(args: argparse.Namespace) -> int:
         # Before the embedder: a model named only in an agent's env block (M3_EMBED_GGUF)
         # was unknown to it, and setup downloaded a second copy.
         _step_import_env()
+        _retire_replaced_embedder()
         _step_cpu_sovereign_embedder()
         _restart_stale_embed_server()
         if plan.install_gpu_embedder:
