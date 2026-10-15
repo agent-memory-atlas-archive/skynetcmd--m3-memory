@@ -4382,6 +4382,9 @@ def run_setup(args: argparse.Namespace) -> int:
         # on a default install. Also re-runs on upgrade to pull a stale wheel
         # forward to the pinned version.
         _step_rust_core(plan)
+        # Before the embedder: a model named only in an agent's env block (M3_EMBED_GGUF)
+        # was unknown to it, and setup downloaded a second copy.
+        _step_import_env()
         _step_cpu_sovereign_embedder()
         _restart_stale_embed_server()
         if plan.install_gpu_embedder:
@@ -4390,9 +4393,6 @@ def run_setup(args: argparse.Namespace) -> int:
             _step_shared_embedder(plan, non_interactive=args.non_interactive)
         _step_wire_agents(plan, non_interactive=args.non_interactive)
         _trace("after wire_agents")
-        # After the agent configs are repaired: an entry still naming a moved root
-        # read as a disagreement and blocked importing that setting.
-        _step_import_env()
         _step_install_dashboard(plan)
         _trace("after install_dashboard")
         governor_result = _step_governor_migration(
