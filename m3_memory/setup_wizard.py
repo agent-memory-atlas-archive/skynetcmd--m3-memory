@@ -4295,7 +4295,7 @@ def _record_settings(values: dict, *, what: str) -> bool:
     except (OSError, ValueError, ConfigFileError) as e:
         _warn(f"could not record {what} in m3_config.toml ({e}). inspect: that file and its directory's permissions")
         return False
-    _ok(f"  {what} recorded in {path}")
+    _ok(f"  {what} recorded in {getattr(path, 'file', path)}")  # locate() returns a Location
     return True
 
 
