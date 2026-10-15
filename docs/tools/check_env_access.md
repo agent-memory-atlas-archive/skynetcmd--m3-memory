@@ -1,8 +1,8 @@
 ---
 tool: bin/check_env_access.py
-sha1: b232c152bc23
-mtime_utc: 2026-10-14T05:25:28.205118+00:00
-generated_utc: 2026-10-14T05:25:28.773145+00:00
+sha1: ee2f8a32aaa8
+mtime_utc: 2026-10-15T16:38:09.170099+00:00
+generated_utc: 2026-10-15T16:38:26.599091+00:00
 private: false
 ---
 
@@ -55,7 +55,7 @@ Exit: 0 = report written (or selftest passed); 1 = selftest failed;
 
 ## Entry points
 
-- `def main()` (line 702)
+- `def main()` (line 703)
 - `if __name__ == "__main__"` guard
 
 ---

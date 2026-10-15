@@ -1620,6 +1620,36 @@ def _pycache_scope(args: argparse.Namespace) -> tuple[Path, bool, list]:
     return root, editable, dirs
 
 
+def _check_user_services() -> None:
+    """Say once, up front, when m3's background services cannot start from this
+    shell. A `su` shell has no systemd user session: setup then printed the raw
+    systemctl error at every service and failed verification with no fix named.
+    When the user manager does run but the shell dropped XDG_RUNTIME_DIR, the fix
+    is one export (this process's environment is not changed: m3_memory._childenv)."""
+    from m3_memory._platform import is_linux, user_service_bus
+
+    if not is_linux():
+        return
+    bus = user_service_bus()
+    if bus is None:
+        import getpass
+
+        user = getpass.getuser()
+        _warn(
+            "this shell has no systemd user session (a `su` shell, or the account is not "
+            "logged in), so m3's background services (embedder, dashboard, cognitive loop) "
+            "are set up but cannot start, now or after a reboot."
+        )
+        _warn(f"  fix once, as root: loginctl enable-linger {user}   then run `m3 setup` again")
+        return
+    if not os.environ.get("XDG_RUNTIME_DIR"):
+        _warn(
+            "this shell lost the address of the systemd user session (a `su` shell), so "
+            "m3's background services cannot be started from it."
+        )
+        _warn(f"  fix: export XDG_RUNTIME_DIR={os.path.dirname(bus)}   then run `m3 setup` again")
+
+
 def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     """B15: pre-install probes that catch the failure modes seen during the
     2026-05-27 wizard-hardening session.
@@ -1630,6 +1660,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     """
     _step(0, "checking this computer")
     ok = True
+    _check_user_services()
 
     # ── Probe 0: decoupled paths and FIPS configuration ─────────────────
     if plan.fips_mode:

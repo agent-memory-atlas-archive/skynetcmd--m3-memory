@@ -380,6 +380,22 @@ def current_uid() -> int | None:
     return getuid() if getuid is not None else None
 
 
+def user_service_bus() -> str | None:
+    """The systemd user manager's bus socket for this user, or None when it has
+    none: a `su` shell from root has no login session, and without linger the
+    user manager is not running, so `systemctl --user` cannot reach anything.
+
+    Linux only (None elsewhere). The bus is found under XDG_RUNTIME_DIR, or under
+    /run/user/<uid> when a `su` shell dropped that variable while the manager runs.
+    """
+    if not is_linux():
+        return None
+    uid = current_uid()
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or (f"/run/user/{uid}" if uid is not None else "")
+    bus = os.path.join(runtime, "bus") if runtime else ""
+    return bus if bus and os.path.exists(bus) else None
+
+
 def port_listener_is_mine(port: int, procs: Any) -> bool | None:
     """Whether one of this user's processes listens on TCP ``port``.
 
