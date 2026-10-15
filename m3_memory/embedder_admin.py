@@ -1202,6 +1202,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         )
         return rc
 
+    _pin_registered_port()
     print("[~] starting the embedder service")
     start_rc = run_svc(binary, gguf, "start")
     # Do not trust the exit code in EITHER direction; ask `status`.
@@ -1345,6 +1346,23 @@ def _service_defined_on_disk() -> bool:
         return importlib.import_module("install_schedules")._rust_embed_service_loaded() is True
     except Exception:  # noqa: BLE001 — unknown is "not shown as registered"
         return False
+
+
+def _pin_registered_port() -> None:
+    """After `install`: carry a port other than the server's default into the
+    service definition, which the server's own installer leaves out."""
+    port = _embed_server_port()
+    on_port = _registered_port()
+    if on_port is None or on_port == port:
+        return
+    import importlib
+
+    try:
+        if importlib.import_module("install_schedules").pin_embed_port(port):
+            return
+    except Exception:  # noqa: BLE001 — said below
+        pass
+    print(f"[!] could not set port {port} in the embedder service's definition; it may start on {on_port}")
 
 
 def _registered_port() -> int | None:

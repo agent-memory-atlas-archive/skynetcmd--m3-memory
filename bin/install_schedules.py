@@ -589,6 +589,42 @@ class EmbedServerConflict(RuntimeError):
     skipping."""
 
 
+def pin_embed_port(port: int) -> bool:
+    """Write ``port`` into the Rust embed service's definition. Its own installer
+    (m3-core-rs up to at least 3.10.7) writes only M3_EMBED_GGUF and drops the
+    port it was given, so a service on any port but 8082 could not be
+    registered. True when the definition now carries ``port``."""
+    import plistlib
+
+    osn = _os_name()
+    if osn == "Linux":
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+        unit = os.path.join(base, "systemd", "user", _LINUX_EMBED_UNIT)
+        try:
+            with open(unit, encoding="utf-8") as f:
+                lines = [ln for ln in f.read().splitlines() if "M3_EMBED_SERVER_PORT" not in ln]
+            at = next(i for i, ln in enumerate(lines) if ln.strip() == "[Service]") + 1
+        except (OSError, StopIteration):
+            return False
+        lines.insert(at, f'Environment="M3_EMBED_SERVER_PORT={port}"')
+        with open(unit, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+        _run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=60)
+        return registered_embed_port() == port
+    if osn == "Darwin":
+        path = os.path.expanduser(f"~/Library/LaunchAgents/{_RUST_EMBED_LABEL}.plist")
+        try:
+            with open(path, "rb") as f:
+                data = plistlib.load(f)
+        except (OSError, plistlib.InvalidFileException):
+            return False
+        data.setdefault("EnvironmentVariables", {})["M3_EMBED_SERVER_PORT"] = str(port)
+        with open(path, "wb") as f:
+            plistlib.dump(data, f)
+        return registered_embed_port() == port
+    return False
+
+
 def registered_embed_port() -> "int | None":
     """The port the registered embed service listens on, read from its definition
     (systemd unit or launchd plist, either server): `--port N`, else

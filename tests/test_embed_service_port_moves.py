@@ -87,3 +87,34 @@ def test_the_doctor_checks_the_configured_port(m3_settings):
     assert embed_server_probe._health_port() == 8083
     assert shared_embedder_probe._port() == 8083
     assert shared_embedder_probe._default_url() == "http://127.0.0.1:8083"
+
+
+def test_the_port_is_written_into_a_rust_unit_that_left_it_out(monkeypatch, tmp_path):
+    import install_schedules as sched
+
+    simulate_os(monkeypatch, "Linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr(sched, "_run", lambda *a, **k: None)
+    unit = tmp_path / "systemd" / "user" / "m3-embed-server.service"
+    unit.parent.mkdir(parents=True)
+    unit.write_text(_RUST_UNIT.format(env=""), encoding="utf-8")
+    assert sched.registered_embed_port() == 8082
+    assert sched.pin_embed_port(8083) is True
+    assert sched.registered_embed_port() == 8083
+    assert sched.pin_embed_port(8085) and sched.registered_embed_port() == 8085, "a second move replaces it"
+    assert unit.read_text(encoding="utf-8").count("M3_EMBED_SERVER_PORT") == 1
+
+
+def test_the_port_is_written_into_a_plist(monkeypatch, tmp_path):
+    import plistlib
+
+    import install_schedules as sched
+
+    simulate_os(monkeypatch, "Darwin")
+    monkeypatch.setattr(sched.os.path, "expanduser", lambda p: str(tmp_path / p.replace("~/", "")))
+    plist = tmp_path / "Library" / "LaunchAgents" / "com.skynetcmd.m3-embed-server.plist"
+    plist.parent.mkdir(parents=True)
+    plist.write_bytes(
+        plistlib.dumps({"Label": "com.skynetcmd.m3-embed-server", "ProgramArguments": ["/b/m3-embed-server"]})
+    )
+    assert sched.pin_embed_port(8083) and sched.registered_embed_port() == 8083
