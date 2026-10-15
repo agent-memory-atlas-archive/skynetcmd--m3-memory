@@ -2200,6 +2200,27 @@ def _warn_if_not_applied(result, tool: str) -> None:
     print("\n".join(lines), file=sys.stderr)
 
 
+_FINISHES_SETUP = frozenset({"setup", "upgrade", "install-m3", "reinstall", "update", "uninstall"})
+
+
+def _note_setup_pending() -> None:
+    """One stderr line while the package is newer than the last `m3 setup`: after
+    `pipx upgrade` nothing said setup was still to run, and agents stayed wired
+    to the old install. Never raises."""
+    try:
+        from m3_memory.installer import setup_pending
+
+        pending = setup_pending()
+    except Exception:  # noqa: BLE001
+        return
+    if pending:
+        print(
+            f"m3: updated from {pending[0]} to {pending[1]}; finish with `m3 setup` "
+            "(keeps your settings, repairs agent wiring, restarts services).",
+            file=sys.stderr,
+        )
+
+
 def _join_user_session() -> None:
     """A `su` shell drops XDG_RUNTIME_DIR, so `systemctl --user` could not reach
     the user's running systemd manager and every service step failed. Run this
@@ -2889,6 +2910,8 @@ Examples:
         _run_bridge()
         return
 
+    if args.command not in _FINISHES_SETUP:
+        _note_setup_pending()
     try:
         code = args.func(args)
     except Exception as e:

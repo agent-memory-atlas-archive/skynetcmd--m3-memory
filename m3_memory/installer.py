@@ -115,6 +115,37 @@ def save_config(cfg: dict) -> None:
     config_file().write_text(json.dumps(cfg, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def record_setup_done() -> None:
+    """Record that `m3 setup` ran on this version (and where its files are). A
+    pip/pipx upgrade replaces the package without touching config.json, and
+    setup did not rewrite it either: after a clean upgrade it still named the
+    old version and payload clone. Never raises."""
+    from m3_memory import __version__
+
+    try:
+        cfg = load_config()
+        cfg["version"] = __version__
+        cfg["tag"] = f"v{__version__}"
+        cfg["setup_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        bd = bin_dir()
+        if bd:
+            cfg["repo_path"] = str(Path(bd).parent)
+        save_config(cfg)
+    except Exception:  # noqa: BLE001 -- the record is a convenience
+        pass
+
+
+def setup_pending() -> tuple[str, str] | None:
+    """(recorded, installed) when the package was upgraded but `m3 setup` has not
+    run on it yet; None otherwise (also when nothing was ever recorded)."""
+    from m3_memory import __version__
+
+    recorded = load_config().get("version")
+    if recorded and recorded != __version__:
+        return str(recorded), __version__
+    return None
+
+
 def _developer_bridge() -> Path | None:
     """Walk up from this file looking for a sibling ``bin/memory_bridge.py``.
 

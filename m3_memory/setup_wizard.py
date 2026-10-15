@@ -4473,6 +4473,9 @@ def run_setup(args: argparse.Namespace) -> int:
         verified = verified and daemons_up
         _summary(plan, governor_result, verified=verified, brief=from_upgrade)
         _trace("after summary")
+        from m3_memory.installer import record_setup_done
+
+        record_setup_done()  # ends the "finish with `m3 setup`" note
         # Exit 3 = "installed but not verified healthy". Distinct from 0
         # (clean) and from 2 (aborted, nothing installed) so a scripted
         # installer can tell "did not finish" from "finished but the result is
