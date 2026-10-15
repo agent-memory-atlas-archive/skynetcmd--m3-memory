@@ -37,6 +37,12 @@ the policy is forward-going only.
   install that never had it. **Affected:** installs upgraded from a release without
   `m3 upgrade` · **Action:** run `m3 setup` · **Data status:** none.
 
+- **Deleting a memory no longer fails after nightly maintenance.** When the
+  maintenance pass compacted a store, the next delete through an already-running
+  m3 could fail with "no such table: memory_items". m3 now refreshes each
+  connection's view of the database before using it. **Affected:** SQLite stores
+  under 500 MB · **Action:** none · **Data status:** none.
+
 - **A second m3 user on a shared computer gets an embedder and dashboard of its
   own.** Another account's m3 held the usual ports, so this account had neither,
   and the fix was to choose ports by hand. Setup now picks free ports (Linux,

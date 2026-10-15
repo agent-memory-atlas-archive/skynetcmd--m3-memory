@@ -142,6 +142,19 @@ def _set_wal(conn: sqlite3.Connection, stmt: str) -> None:
             delay = min(delay * 2, 0.25)
 
 
+def refresh_schema(conn: sqlite3.Connection) -> None:
+    """Reload a schema another connection changed while *conn* sat in a pool.
+
+    Call on every borrow from a connection pool. After a VACUUM elsewhere moves
+    table pages, SQLite (3.46-3.53, measured 2026-10-15) fails the first DELETE
+    on a stale connection with "no such table" when an FTS5 external-content
+    trigger and foreign keys are involved, instead of reloading. A read of
+    sqlite_master reloads it; ``SELECT 1`` and ``PRAGMA schema_version`` do not.
+    The nightly maintenance VACUUMs stores under 500 MB while pools sit idle.
+    """
+    conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchall()
+
+
 def apply_pragmas(
     conn: sqlite3.Connection,
     profile: str = "production",

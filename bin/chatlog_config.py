@@ -48,7 +48,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from typing import Literal
 
-from sqlite_pragmas import apply_pragmas
+from sqlite_pragmas import apply_pragmas, refresh_schema
 
 logger = logging.getLogger("chatlog_config")
 
@@ -524,6 +524,7 @@ def chatlog_sqlite_conn():
     timeout = _m3cfg.setting("chatlog.db.pool_timeout_s")
     conn = pool.get(timeout=timeout)
     try:
+        refresh_schema(conn)
         yield conn
     finally:
         pool.put(conn)

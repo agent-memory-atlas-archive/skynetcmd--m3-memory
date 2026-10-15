@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
-from sqlite_pragmas import apply_pragmas, profile_for_db
+from sqlite_pragmas import apply_pragmas, profile_for_db, refresh_schema
 
 from m3_core.gpu import probe_gpu_util
 from m3_core.paths import (
@@ -460,6 +460,7 @@ class M3Context:
             )
         conn = pool.get(timeout=10)
         try:
+            refresh_schema(conn)
             yield conn
         finally:
             pool.put(conn)
