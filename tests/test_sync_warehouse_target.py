@@ -22,13 +22,22 @@ def live(monkeypatch):
     return importlib.import_module("m3_sdk"), importlib.import_module("sync_all")
 
 
-def test_the_host_setting_wins(monkeypatch, live, m3_settings):
+def test_the_dsn_host_wins_over_a_host_setting(monkeypatch, live, m3_settings):
+    """The probe tests the address sync connects to: a stale host setting (a LAN
+    address kept after the warehouse moved) skipped or ran sync on the wrong path."""
     # Through m3_settings, not setenv: sync.warehouse_host is read from the
     # settings snapshot, and an env var set after the snapshot was built is unseen
     # (the test passed or failed depending on what ran before it).
     m3_sdk, sync_all = live
     m3_settings({"sync.warehouse_host": "192.0.2.10"})
     monkeypatch.setattr(m3_sdk, "resolve_warehouse_dsn", lambda: "postgresql://u@db.example.invalid:6543/w")
+    assert sync_all.warehouse_target() == ("db.example.invalid", 6543, "warehouse DSN")
+
+
+def test_a_host_setting_answers_without_a_dsn(monkeypatch, live, m3_settings):
+    m3_sdk, sync_all = live
+    m3_settings({"sync.warehouse_host": "192.0.2.10"})
+    monkeypatch.setattr(m3_sdk, "resolve_warehouse_dsn", lambda: None)
     assert sync_all.warehouse_target() == ("192.0.2.10", 5432, "M3_POSTGRES_SERVER")
 
 

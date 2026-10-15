@@ -87,12 +87,10 @@ def _warehouse_host_from_env() -> str:
 
 def warehouse_target() -> "tuple[str, int, str] | None":
     """(host, port, source) of the warehouse to sync with, or None if none is
-    configured. The host env vars win; otherwise the host comes from the
-    warehouse DSN, which a scheduled job can read from the stored secret even
-    when it never sees the shell's environment."""
+    configured. The host comes from the warehouse DSN, the address sync connects
+    to; the host settings answer only without one. A host setting naming another
+    address made the reachability probe test a path sync does not use."""
     host = _warehouse_host_from_env()
-    if host:
-        return host, 5432, "M3_POSTGRES_SERVER"
     try:
         from m3_sdk import resolve_warehouse_dsn
 
@@ -101,7 +99,7 @@ def warehouse_target() -> "tuple[str, int, str] | None":
         log.warning(f"could not read the warehouse DSN ({type(e).__name__}: {e}); sync is skipped. inspect: m3 doctor")
         return None
     if not dsn:
-        return None
+        return (host, 5432, "M3_POSTGRES_SERVER") if host else None
     from m3_core.dsn import parse_pg_dsn
 
     # libpq's parser (m3_core.dsn): urlsplit found no host in a keyword DSN
