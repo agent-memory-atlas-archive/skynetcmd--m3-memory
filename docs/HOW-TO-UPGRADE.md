@@ -13,6 +13,12 @@ How to move an existing m3 install to a newer release. For a fresh install see [
 | `pip install git+https://github.com/skynetcmd/m3-memory.git@<tag>` | the same command with the new tag, then `m3 setup` and `m3 doctor`. Or move to the PyPI release: `pip install --upgrade --force-reinstall m3-memory` |
 | a host plugin (Claude Code, Antigravity) | the host's plugin update ([below](#host-plugin-installs)) |
 
+**`m3: error: … invalid choice: 'upgrade'`?** Your m3 predates the command
+(releases before October 2026). Upgrade the package once by hand, then let the new
+version finish: `pipx upgrade m3-memory` (or `pip install --upgrade m3-memory`),
+then `m3 setup`. Answer *Keep the current settings* and setup repairs agent wiring
+that still points at the old install. From then on, `m3 upgrade` works.
+
 Not sure? `m3 upgrade --dry-run` names the method it detects and changes nothing.
 For a checkout or a git-URL install it prints the steps for that method instead of
 upgrading from PyPI, which would replace your checkout or chosen tag with the
