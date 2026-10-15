@@ -110,6 +110,11 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         self._host_agent = host_agent
         self._window = window
         self._client = M3Client(agent_id=agent_id, call_timeout=call_timeout)
+        # The next turn_index this object hands out. chatlog_write is queued, so
+        # the stored rows can lag a previous add_messages; counting them alone gave
+        # a second batch the first batch's indices and the turns read back out of
+        # order under load.
+        self._next_turn = 0
         self._ensure_chatlog_schema()
 
     def _ensure_chatlog_schema(self) -> None:
@@ -184,7 +189,8 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         stays a monotonic per-conversation counter ACROSS separate
         ``add_messages`` calls — the stable sort key ``messages`` reads back.
         """
-        base = self._next_turn_index()
+        base = max(self._next_turn_index(), self._next_turn)
+        self._next_turn = base + len(messages)
         for i, msg in enumerate(messages):
             self._client._tool(
                 "chatlog_write",

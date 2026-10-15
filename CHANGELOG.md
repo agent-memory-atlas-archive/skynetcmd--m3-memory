@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **LangChain chat history keeps turns in order when messages arrive quickly.** A second
+  `add_messages` call could reuse the first call's turn numbers while those turns were still
+  being written, and the conversation read back out of order.
+  **Affected:** `[langchain]` users of `M3ChatMessageHistory` · **Action:** none ·
+  **Data status:** conversations written out of order keep their stored order.
+
 - **Sync no longer misses rows that reach the warehouse late.** Each sync read the rows
   created or updated after its previous sync, by the writing machine's clock, so a row
   written before another machine's sync and sent after it never reached that machine.

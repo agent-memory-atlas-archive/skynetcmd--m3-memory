@@ -62,10 +62,17 @@ from m3_memory.langchain import (  # noqa: E402
 #      langchain release that drops pydantic-v1. Not fixable in our code.
 
 
-def _flush():
+def _settled(read, done, timeout=15.0):
+    """Poll ``read()`` until ``done(value)``: chat-log writes go through an async
+    queue, and a fixed sleep (0.4 s) lost to a loaded machine."""
     import time
 
-    time.sleep(0.4)
+    deadline = time.monotonic() + timeout
+    while True:
+        value = read()
+        if done(value) or time.monotonic() > deadline:
+            return value
+        time.sleep(0.1)
 
 
 def test_history_roundtrip_order_and_roles():
@@ -73,8 +80,7 @@ def test_history_roundtrip_order_and_roles():
     h.add_messages(
         [HumanMessage(content="I love hiking"), AIMessage(content="Where?"), HumanMessage(content="The Alps")]
     )
-    _flush()
-    msgs = h.messages
+    msgs = _settled(lambda: h.messages, lambda m: len(m) == 3)
     assert [m.content for m in msgs] == ["I love hiking", "Where?", "The Alps"]
     assert [m.type for m in msgs] == ["human", "ai", "human"]
 
@@ -83,20 +89,17 @@ def test_history_multi_add_preserves_order():
     """turn_index continues across separate add_messages calls (monotonic)."""
     h = M3ChatMessageHistory(f"conv-2-{uuid.uuid4()}", user_id="alex")
     h.add_messages([HumanMessage(content="one"), AIMessage(content="two")])
-    _flush()
-    h.add_messages([HumanMessage(content="three"), AIMessage(content="four")])
-    _flush()
-    assert [m.content for m in h.messages] == ["one", "two", "three", "four"]
+    h.add_messages([HumanMessage(content="three"), AIMessage(content="four")])  # before the first lands
+    msgs = _settled(lambda: h.messages, lambda m: len(m) == 4)
+    assert [m.content for m in msgs] == ["one", "two", "three", "four"]
 
 
 def test_history_clear():
     h = M3ChatMessageHistory(f"conv-3-{uuid.uuid4()}", user_id="alex")
     h.add_messages([HumanMessage(content="ephemeral")])
-    _flush()
-    assert len(h.messages) == 1
+    assert len(_settled(lambda: h.messages, lambda m: len(m) == 1)) == 1
     h.clear()
-    _flush()
-    assert h.messages == []
+    assert _settled(lambda: h.messages, lambda m: m == []) == []
 
 
 def test_history_requires_conversation_id():
@@ -109,20 +112,17 @@ def test_history_conversations_are_isolated():
     b = M3ChatMessageHistory(f"conv-B-{uuid.uuid4()}", user_id="alex")
     try:
         a.add_messages([HumanMessage(content="alpha only")])
-        _flush()
-        assert [m.content for m in a.messages] == ["alpha only"]
+        assert [m.content for m in _settled(lambda: a.messages, lambda m: len(m) == 1)] == ["alpha only"]
         assert b.messages == []
     finally:
         a.clear()
         b.clear()
-        _flush()
 
 
 def test_system_message_roundtrips():
     h = M3ChatMessageHistory(f"conv-sys-{uuid.uuid4()}", user_id="alex")
     h.add_messages([SystemMessage(content="you are helpful"), HumanMessage(content="hi")])
-    _flush()
-    msgs = h.messages
+    msgs = _settled(lambda: h.messages, lambda m: len(m) == 2)
     assert msgs[0].type == "system"
     assert msgs[1].type == "human"
 
@@ -180,9 +180,8 @@ def test_retriever_returns_documents_with_temporal_metadata():
     from m3_memory.langchain import Memory
 
     Memory(user_id="alex").add("Zanzibar is an island archipelago", user_id="alex")
-    _flush()
     r = M3Retriever(user_id="alex", k=5)
-    docs = r.invoke("Zanzibar")
+    docs = _settled(lambda: r.invoke("Zanzibar"), lambda d: len(d) >= 1)
     assert len(docs) >= 1
     md = docs[0].metadata
     assert "id" in md and "score" in md
@@ -199,3 +198,21 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+def test_a_second_batch_continues_the_turn_index_before_the_first_is_stored():
+    """chatlog_write is queued: the second add_messages counted stored rows that
+    did not yet include the first batch, reused its indices, and the turns read
+    back out of order (seen under load on Windows: one, three, two, four)."""
+    h = M3ChatMessageHistory(f"conv-q-{uuid.uuid4()}", user_id="alex")
+    sent = []
+
+    class _QueuedClient:
+        def _tool(self, name, **kw):
+            sent.append(kw["turn_index"])
+
+    h._client = _QueuedClient()
+    h._fetch_rows = list  # the store has not caught up: no rows yet
+    h.add_messages([HumanMessage(content="one"), AIMessage(content="two")])
+    h.add_messages([HumanMessage(content="three"), AIMessage(content="four")])
+    assert sent == [0, 1, 2, 3]
