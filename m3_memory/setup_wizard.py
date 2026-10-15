@@ -2682,13 +2682,18 @@ def _wire_claude(capture_mode: str) -> bool:
     Returns True when at least the registration or hook wiring succeeded.
     """
     hooks_ok = _wire_claude_hooks(capture_mode)
+    return _register_claude_server() or hooks_ok
 
+
+def _register_claude_server() -> bool:
+    """Register the direct m3 memory server in Claude Code (user scope, roots
+    pinned), migrating off a legacy `memory` entry. True when registered."""
     if not shutil.which("claude"):
         _warn(
             "Claude CLI not on PATH; skipping `claude mcp add` — install the "
             "Claude Code CLI and re-run, or add the m3 plugin."
         )
-        return hooks_ok
+        return False
 
     from m3_memory.installer import _canonical_memory_env
 
@@ -2747,7 +2752,7 @@ def _wire_claude(capture_mode: str) -> bool:
         print("     server; it is kept DISABLED so you never run two. To switch to the")
         print('     plugin instead, remove "plugin:m3:memory" from disabledMcpServers')
         print("     in ~/.claude/settings.json.")
-    return reg_ok or hooks_ok
+    return reg_ok
 
 
 def _claude_registration_current(env: dict[str, str]) -> bool:
@@ -3529,7 +3534,11 @@ def _register_dashboard_task(port: int = 8088) -> None:
 def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool:
     """Wire MCP entries for every selected agent."""
     if not plan.targets.any():
-        _step(4, "agent wiring kept as it is" if plan.agents_kept else "no agents selected — skipping wiring")
+        if plan.agents_kept:
+            _step(4, "agent wiring kept; repairing paths that point at an older install")
+            _repair_kept_wiring()
+        else:
+            _step(4, "no agents selected — skipping wiring")
         return True
     _step(4, "wiring selected agents")
     if plan.targets.claude:
@@ -3549,6 +3558,46 @@ def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool
     if plan.targets.hermes:
         _wire_hermes(non_interactive=non_interactive)
     return True
+
+
+def _claude_wired_to_m3(claude_json: Path | None = None) -> bool:
+    """Whether ~/.claude.json registers an m3 server in any scope."""
+    from m3_memory.install.env_sources import is_m3_server
+
+    try:
+        with open(claude_json or Path(os.path.expanduser("~")) / ".claude.json", encoding="utf-8") as fh:
+            data = json.load(fh) or {}
+    except (OSError, ValueError):
+        return False
+    blocks = [data.get("mcpServers") or {}]
+    blocks += [(p or {}).get("mcpServers") or {} for p in (data.get("projects") or {}).values() if isinstance(p, dict)]
+    return any(isinstance(e, dict) and is_m3_server(n, e) for b in blocks if isinstance(b, dict) for n, e in b.items())
+
+
+def _repair_kept_wiring() -> None:
+    """Keeping the settings keeps the user's choices, not paths into an older
+    install: an upgrade from a release without `m3 upgrade` reaches this setup
+    with hooks and agent entries still pointing at its payload clone, and
+    verification then failed on them. The repairs `m3 doctor --fix --fix-hooks`
+    runs (each backs up the file it edits), for agents already wired to m3; no
+    agent is added and no choice changed. Never raises."""
+    try:
+        if _claude_wired_to_m3():
+            _register_claude_server()
+        from m3_memory.installer import _heal_all_agents
+
+        _heal_all_agents()
+        _m3bin.ensure_on_path()
+        from doctor import agent_paths_probe, claude_mcp_probe, environment_probe
+
+        res = environment_probe.repair(dry_run=False)
+        for act in res["actions"]:
+            if act["status"] != "skipped":
+                print(f"  [{act['status']}] {act['action']}: {act['detail']}")
+        agent_paths_probe.run(brief=True, fix=True)
+        claude_mcp_probe.run(brief=True, fix=True)
+    except Exception as e:  # noqa: BLE001 -- repair must not fail setup
+        _warn(f"repairing agent wiring skipped: {type(e).__name__}: {e}. fix: m3 doctor --fix --fix-hooks")
 
 
 def _step_import_env() -> None:
