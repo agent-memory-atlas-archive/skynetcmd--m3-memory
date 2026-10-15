@@ -3551,6 +3551,25 @@ def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool
     return True
 
 
+def _step_import_env() -> None:
+    """Move settings and secrets still kept in env, rc files, .env and MCP env
+    blocks into m3_config.toml and the secrets file. m3 no longer reads secrets
+    from the environment, so a warehouse DSN left there stops sync after an
+    upgrade; an older release's `m3 upgrade` runs THIS setup and has no import
+    step of its own. Non-interactive (m3 7200dbed): a disagreement is listed
+    with its fix, never decided here. Never raises."""
+    try:
+        from m3_memory.install import import_env
+
+        rc = import_env.run(None, dry_run=False, non_interactive=True)
+        if rc != 0:
+            _warn(
+                f"moving legacy settings exited {rc}; they keep working where they are. inspect: m3 config import-env"
+            )
+    except Exception as e:  # noqa: BLE001 -- the import must not fail setup
+        _warn(f"moving legacy settings skipped: {type(e).__name__}: {e}. inspect: m3 config import-env")
+
+
 def _step_job_cleanup() -> None:
     """Remove m3 background jobs that run an older install, that this version
     retired, or whose program is gone, backing each definition up first
@@ -4305,6 +4324,7 @@ def run_setup(args: argparse.Namespace) -> int:
     try:
         _begin_elevation_batch(gui=getattr(args, "gui_child", False))
         _step_migrate_memory_root()
+        _step_import_env()
         if not _step_install_m3(plan):
             _err("setup aborted")
             return 2

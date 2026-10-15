@@ -1009,6 +1009,20 @@ def _isolated_env_sweep_home(monkeypatch, tmp_path):
         return {client: [_rebase(p) for p in paths] for client, paths in out.items()}
 
     monkeypatch.setattr(installer, "_client_config_sources", _rebased)
+
+    # The persistent Windows environment is the developer's real one: a sweep
+    # (m3 setup imports it) would copy their real secrets into a test's files.
+    # A test that installs a fake registry module still reads that fake.
+    from m3_memory import _platform
+
+    real_read = _platform.persistent_env_read
+
+    def _sandboxed_read(names, unchecked=None):
+        if _platform._winreg is _real_winreg() and _platform._winreg is not None:
+            return []
+        return real_read(names, unchecked)
+
+    monkeypatch.setattr(_platform, "persistent_env_read", _sandboxed_read)
     yield
 
 

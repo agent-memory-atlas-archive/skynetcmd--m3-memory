@@ -342,3 +342,18 @@ def test_a_chatlog_store_name_is_named_with_the_fix_and_never_moved(world, capsy
         "CHATLOG_DB_PATH is set in" in out and "--chatlog-db PATH" in out and "db_path in .chatlog_config.json" in out
     )
     assert "CHATLOG_DB_PATH" not in (world["cfg"].read_text(encoding="utf-8") if world["cfg"].exists() else "")
+
+
+def test_setup_moves_an_env_only_warehouse_dsn_where_m3_reads_it(world, capsys):
+    """An older release's `m3 upgrade` has no import step and runs the new setup:
+    a warehouse DSN kept only in the environment stopped sync after an upgrade
+    (measured on Windows, 2026-10-15). Setup moves it."""
+    from m3_core.secret_store import PgRole, explain_pg_dsn
+
+    from m3_memory import setup_wizard
+
+    _rc(world, 'export M3_CDW_PG_URL="postgresql://u:s3cret@wh.example.invalid/w"\n')
+    assert not explain_pg_dsn(PgRole.WAREHOUSE).dsn
+    setup_wizard._step_import_env()
+    assert explain_pg_dsn(PgRole.WAREHOUSE).dsn == "postgresql://u:s3cret@wh.example.invalid/w"
+    assert "s3cret" not in capsys.readouterr().out
