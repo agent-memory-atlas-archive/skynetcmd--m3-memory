@@ -135,8 +135,8 @@ Full guide: [docs/integrations/LANGCHAIN.md](https://github.com/skynetcmd/m3-mem
 | `M3Retriever` | `langchain_core.retrievers.BaseRetriever` | RAG retrieval |
 | `MemoryWrite` / `MemoryRetrieve` | `langchain_core.runnables.Runnable` | LCEL memory read/write |
 
-Compatibility: `langchain-core>=0.3.0,<1`, `langgraph>=0.2.0,<1` (verified against
-langgraph 0.6.x / langgraph-checkpoint 3.x).
+Compatibility: `langchain-core>=1.4.0,<2`, `langgraph>=1.2.4,<2` (verified against
+langchain-core 1.4.0 / langgraph 1.2.4 (the floor) and langchain-core 1.6.10 / langgraph 1.2.15 / langgraph-checkpoint 4.3.0).
 
 ---
 

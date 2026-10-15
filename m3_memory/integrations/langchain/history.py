@@ -249,6 +249,12 @@ def with_m3_history(
 ) -> RunnableWithMessageHistory:
     """Wrap a runnable so its message history persists to m3 — the one-liner.
 
+    Deprecated: LangChain deprecated ``RunnableWithMessageHistory`` in
+    langchain-core 1.3.3 and removes it in 2.0, so this wrapper stops working
+    there (the ``[langchain]`` extra stays below 2.0 until then). Use LangGraph
+    persistence with ``M3Saver`` instead. Constructing it raises LangChain's
+    ``LangChainDeprecationWarning``.
+
     The ``session_id`` in ``config={"configurable": {"session_id": ...}}`` becomes
     m3's ``conversation_id`` per invocation. Example::
 

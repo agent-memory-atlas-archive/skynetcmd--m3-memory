@@ -374,7 +374,7 @@ more:
 | pydantic | `>=2.11,<3` | fastmcp-slim 3.4.8 (core) | 2.11.7 |
 | pydantic | `>=2.11,<3` | pydantic-ai-slim / pydantic-graph 2.55 (`pydantic-ai` extra) | 2.12 with that extra |
 | starlette | `>=0.46` | sse-starlette 3.5.0 (core, via mcp) | 0.49.1 |
-| langchain-core | `>=0.3.0,<1` | langgraph-prebuilt 0.6.5 (`langchain` extra) | 0.3.67 with langgraph |
+| langchain-core | `>=1.4.0,<2` | langgraph 1.2.x, langgraph-prebuilt 1.1 (`langchain` extra) | 1.6.10 locked; floor set 1.4.0 tested |
 | packaging | `>=20.9` (`entity-ner`) | build, twine, deptry, pytest, langsmith, crewai | 23.2 to 24.0 in dev and extra installs |
 
 ### Dependents, their versions, and the limits they set

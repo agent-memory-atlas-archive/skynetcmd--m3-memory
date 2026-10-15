@@ -207,7 +207,9 @@ history.add_messages([HumanMessage(content="I'm vegetarian"),
 history.messages          # oldest -> newest, roles preserved
 history.clear()           # wipe just this conversation
 
-# One-liner to wrap a runnable so its history persists to m3:
+# One-liner to wrap a runnable so its history persists to m3. Deprecated:
+# LangChain removes RunnableWithMessageHistory in langchain-core 2.0; use
+# LangGraph persistence with M3Saver (below) for new code.
 chain = with_m3_history(prompt | model, user_id="alex")
 chain.invoke({"input": "hi"}, config={"configurable": {"session_id": "conv-1"}})
 
@@ -423,11 +425,12 @@ memory.call("chatlog_status")
   — `mem0_migration.py`, `native_store.py`, `langmem_on_m3.py`,
   `history_and_retriever.py`, `graph_checkpointer.py`, plus a `perf_baseline.py`
   and its committed numbers.
-- **Versions:** the `[langchain]` extra requires `langchain-core>=0.3.0,<1` and
-  `langgraph>=0.2.0,<1` — a major-version compatibility band, not a hard pin, so
-  any release inside that range is supported. Verified against langgraph 0.6.x /
-  langgraph-checkpoint 3.x. Across a `<1` range some API drift is possible; if you
-  hit it, the extra's floor/ceiling mark the tested boundary. The mem0 mirror
+- **Versions:** the `[langchain]` extra requires `langchain-core>=1.4.0,<2`,
+  `langgraph>=1.2.4,<2`, `langgraph-checkpoint>=4.1.1,<5` and
+  `langgraph-sdk>=0.4.4,<1`. The floors are past the 2026 security fixes in those
+  packages, and the oldest set that installs together. Verified against
+  langchain-core 1.4.0 / langgraph 1.2.4 (the floor) and langchain-core 1.6.10 / langgraph 1.2.15 / langgraph-checkpoint 4.3.0. `with_m3_history` is deprecated and stops working with
+  langchain-core 2.0. The mem0 mirror
   tracks mem0's OSS `.add`/`.search`/`.get_all`/`.delete` shapes — m3 never
   imports mem0 (a clean reimplementation of the interface).
 - **Read-your-writes** is via m3's FTS index (a query sharing words with the stored

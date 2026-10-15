@@ -413,6 +413,15 @@ the policy is forward-going only.
 
 ### Security
 
+- **The `[langchain]` extra moves to LangChain 1.x.** It now requires
+  `langchain-core>=1.4.0`, `langgraph>=1.2.4`, `langgraph-checkpoint>=4.1.1` and
+  `langgraph-sdk>=0.4.4`, past the 2026 advisories in those packages (path traversal
+  and SSRF in langchain-core, unsafe checkpoint deserialisation, an authorisation
+  bypass in langgraph-sdk). The previous range stopped below 1.0, where none is fixed.
+  **Affected:** installs with `m3-memory[langchain]` · **Action:** upgrade; code
+  using `with_m3_history` keeps working with a deprecation warning ·
+  **Data status:** none.
+
 - **Search expansion no longer returns another agent's private memories.** With
   `requesting_agent` set (or `M3_ENFORCE_AGENT_ISOLATION`), a search kept other
   agents' private (`scope = agent`) memories out of its own results, but graph
@@ -1095,6 +1104,12 @@ the policy is forward-going only.
   **Data status:** migrations `051` / `pg_059` add the activity columns.
 
 ### Deprecated
+
+- **`with_m3_history` (LangChain).** It wraps `RunnableWithMessageHistory`, which
+  LangChain deprecated in langchain-core 1.3.3 and removes in 2.0. Use LangGraph
+  persistence with `M3Saver` instead.
+  **Affected:** code calling `with_m3_history` · **Action:** move to `M3Saver`
+  before langchain-core 2.0 · **Data status:** none.
 
 - **Legacy environment names for settings** keep working for now and log a
   warning; `m3 config show --origin` shows which name supplied a value.

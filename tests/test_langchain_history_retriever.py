@@ -128,19 +128,15 @@ def test_system_message_roundtrips():
 
 
 def test_with_m3_history_builds_runnable():
+    # LangChain promoted RunnableWithMessageHistory from pending to deprecated in
+    # langchain-core 1.3.3, with removal in 2.0.0: the trigger this test's earlier
+    # note set for deprecating with_m3_history (users move to M3Saver / M3Store).
+    # The wrapper still works below 2.0, so assert the warning instead of hiding it.
+    from langchain_core._api.deprecation import LangChainDeprecationWarning
     from langchain_core.runnables import RunnableLambda
 
-    # NOTE (surfaced deprecation, intentionally NOT suppressed): this emits
-    # LangChainPendingDeprecationWarning because with_m3_history wraps LangChain's
-    # RunnableWithMessageHistory, which LangChain marked *Pending*Deprecation (in
-    # favor of LangGraph persistence). We keep the warning visible on purpose —
-    # it's the tracking signal for when to migrate. Disposition: the surface still
-    # works and is a deliberate compatibility shim for users on the older Runnable
-    # pattern; the LangGraph path already ships alongside it as M3Saver
-    # (BaseCheckpointSaver) / M3Store (BaseStore). Migrate with_m3_history to
-    # LangGraph (or remove it, pointing users at M3Saver) only when LangChain
-    # promotes this from Pending to an actual @deprecated with a removal version.
-    chain = with_m3_history(RunnableLambda(lambda x: x), user_id="alex")
+    with pytest.warns(LangChainDeprecationWarning, match="RunnableWithMessageHistory"):
+        chain = with_m3_history(RunnableLambda(lambda x: x), user_id="alex")
     # It's a RunnableWithMessageHistory; the factory produces M3ChatMessageHistory.
     hist = chain.get_session_history("sess-1")  # type: ignore[attr-defined]
     assert isinstance(hist, M3ChatMessageHistory)

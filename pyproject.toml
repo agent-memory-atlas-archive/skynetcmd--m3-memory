@@ -287,8 +287,18 @@ wiki = []
 # it). Pinned to a tested range so the version-pinned parity tests (§5) track a
 # fixed target rather than a moving API.
 langchain = [
-    "langchain-core>=0.3.0,<1",
-    "langgraph>=0.2.0,<1",
+    # Floors are the releases that fix the 2026 advisories (path traversal and SSRF
+    # in langchain-core; unsafe checkpoint deserialisation in langgraph and
+    # langgraph-checkpoint; authorisation bypass in langgraph-sdk). The two
+    # transitive packages are named so an older langgraph 1.0.x cannot pull a
+    # vulnerable copy. The core/langgraph floors are the oldest set that resolves
+    # together with those (langgraph 1.0.x needs langgraph-sdk<0.4, which is still
+    # vulnerable). <2: RunnableWithMessageHistory (with_m3_history) is
+    # removed in langchain-core 2.0.
+    "langchain-core>=1.4.0,<2",
+    "langgraph>=1.2.4,<2",
+    "langgraph-checkpoint>=4.1.1,<5",
+    "langgraph-sdk>=0.4.4,<1",
 ]
 # CrewAI integration (m3_memory/integrations/crewai/). Optional by design: core
 # m3 gains NO hard CrewAI dependency — the adapter imports crewai lazily and is
