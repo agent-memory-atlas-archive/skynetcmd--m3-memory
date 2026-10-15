@@ -179,6 +179,9 @@ before changing it, and every config file it edits keeps a `.bak` copy.
      Ollama or llama.cpp) instead of downloading another copy;
    - replaces an old embed server that a crontab line started at boot with m3's
      own service, where your system can run one (the crontab is saved first);
+   - on a computer shared with another m3 user (Linux, macOS), gives this
+     account free ports of its own when the usual ones (8082 for the embedder,
+     8088 for the dashboard) belong to the other account, and records them;
    - asks once whether to turn on background processing (the cognitive loop),
      if your old version did not have it;
    - updates the databases, backing each one up first.

@@ -31,6 +31,24 @@ the policy is forward-going only.
   install that never had it. **Affected:** installs upgraded from a release without
   `m3 upgrade` · **Action:** run `m3 setup` · **Data status:** none.
 
+- **A second m3 user on a shared computer gets an embedder and dashboard of its
+  own.** Another account's m3 held the usual ports, so this account had neither,
+  and the fix was to choose ports by hand. Setup now picks free ports (Linux,
+  macOS) and records them; a registered embedder service moves to the new port
+  (its own installer left the port out), clients follow it, and the doctor checks
+  it. A port you chose is never changed. **Affected:** Linux and macOS computers
+  with more than one m3 user · **Action:** none · **Data status:** none.
+
+- **The embedder service starts when an unsupervised server of yours holds its
+  port.** A repair could leave one running; the service then restarted in a loop,
+  loading the model every few seconds. Setup stops your own unsupervised server
+  first, never another account's. **Affected:** Linux and macOS · **Action:** none ·
+  **Data status:** none.
+
+- **Setup no longer reports "verification passed — m3 is installed and working"
+  before checking the background services**, which then failed. **Affected:** all
+  installs · **Action:** none · **Data status:** none.
+
 - **A warehouse address kept in an environment variable keeps working after an
   upgrade.** The new version reads no secret from the environment, and an older
   release's upgrade had no step to move it, so sync found no warehouse while the
