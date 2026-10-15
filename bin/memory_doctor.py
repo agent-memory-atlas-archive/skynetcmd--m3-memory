@@ -432,6 +432,11 @@ def main() -> int:
         # prints the fix command when the governor should own scheduled work.
         governor_probe.run(brief=brief)
 
+    from doctor import touchid_probe
+
+    # Report-only, macOS only: a tip when sudo could accept Touch ID.
+    touchid_probe.run(brief=brief)
+
     if not getattr(args, "skip_locks", False):
         from doctor import lock_probe
 

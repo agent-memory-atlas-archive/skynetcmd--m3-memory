@@ -81,3 +81,54 @@ def test_setup_offers_only_at_the_mac_and_remembers_a_no(mac, monkeypatch):
     setup_wizard._offer_touchid_sudo()
     assert len(asked) == 1, "a no is remembered"
     assert not (mac / "sudo_local").exists()
+
+
+def test_enable_by_name_overrides_an_earlier_no(mac, monkeypatch, capsys):
+    marker = mac / "config" / touchid.DECLINED
+    marker.parent.mkdir(exist_ok=True)
+    marker.write_text("", encoding="utf-8")
+    _fake_sudo_tee(monkeypatch)
+    assert touchid.main("enable") == 0
+    assert touchid.status() == "enabled"
+    assert not marker.exists(), "the no is withdrawn by asking for it"
+    assert touchid.TEST in capsys.readouterr().out
+
+
+def test_enable_when_already_on_runs_no_sudo(mac, monkeypatch, capsys):
+    (mac / "sudo_local").write_text(touchid.LINE + "\n", encoding="utf-8")
+    monkeypatch.setattr(touchid.subprocess, "run", lambda *a, **k: pytest.fail("sudo must not run"))
+    assert touchid.main("enable") == 0
+    assert "already on" in capsys.readouterr().out
+
+
+def test_enable_without_a_sensor_says_so_and_fails(mac, monkeypatch, capsys):
+    monkeypatch.setattr(touchid, "_sensor_present", lambda: False)
+    monkeypatch.setattr(touchid.subprocess, "run", lambda *a, **k: pytest.fail("sudo must not run"))
+    assert touchid.main("enable") == 1
+    assert "no Touch ID sensor" in capsys.readouterr().out
+
+
+def test_the_offer_is_silent_when_there_is_nothing_to_offer(mac, monkeypatch):
+    (mac / "sudo_local").write_text(touchid.LINE + "\n", encoding="utf-8")
+    touchid.offer(lambda q: pytest.fail("already on: no question"), print)
+
+
+def test_doctor_tip_only_on_a_mac_that_could_use_it(mac, monkeypatch, capsys):
+    from doctor import touchid_probe
+
+    touchid_probe.run(brief=True)
+    assert "m3 touchid enable" in capsys.readouterr().out
+    (mac / "sudo_local").write_text(touchid.LINE + "\n", encoding="utf-8")
+    touchid_probe.run(brief=True)
+    assert capsys.readouterr().out == "", "on: brief doctor stays quiet"
+    monkeypatch.setattr(touchid, "_is_mac", lambda: False)
+    touchid_probe.run(brief=False)
+    assert capsys.readouterr().out == ""
+
+
+def test_install_script_asks_on_the_terminal_not_the_download_pipe():
+    """Under `curl | bash`, setup's input is the download, so its own offer never fires."""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "install.sh").read_text(encoding="utf-8")
+    assert "m3 touchid offer </dev/tty" in src

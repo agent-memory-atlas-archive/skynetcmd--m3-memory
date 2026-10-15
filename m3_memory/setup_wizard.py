@@ -1325,37 +1325,15 @@ def _flush_elevation(*, gui: bool = False) -> None:
 
 
 def _offer_touchid_sudo() -> None:
-    """macOS: offer once to let sudo accept Touch ID. Only to someone at the
-    Mac; a "no" is remembered so later setups do not ask again."""
+    """macOS: offer once to let sudo accept Touch ID (touchid.offer: only at the
+    Mac, a "no" is remembered)."""
     if not is_macos() or not _stdin_is_interactive():
         return
     try:
         from m3_memory import touchid
-
-        _m3bin.ensure_on_path()
-        from m3_core.paths import get_m3_config_root
     except ImportError:
         return
-    marker = os.path.join(get_m3_config_root(), ".touchid_sudo_declined")
-    if not touchid.at_the_mac() or os.path.exists(marker) or touchid.status() != "available":
-        return
-    if not _ask_yes_no(
-        "  Let sudo accept Touch ID instead of your password? (adds one "
-        f"line to {touchid.SUDO_LOCAL}; asks for your password once now)",
-        default=True,
-    ):
-        try:
-            os.makedirs(os.path.dirname(marker), exist_ok=True)
-            open(marker, "w", encoding="utf-8").close()
-        except OSError:
-            pass
-        _say("  not enabled; setup will not ask again.")
-        return
-    ok, detail = touchid.enable()
-    if ok:
-        _ok(f"  Touch ID for sudo: {detail}. undo: {touchid.UNDO}")
-    else:
-        _warn(f"  Touch ID for sudo not enabled: {detail}")
+    touchid.offer(lambda q: _ask_yes_no(q, default=True), _say)
 
 
 def _restart_stale_embed_server() -> None:

@@ -82,3 +82,95 @@ def enable() -> tuple[bool, str]:
 
 
 UNDO = f"sudo sed -i '' '/pam_tid.so/d' {SUDO_LOCAL}"
+TEST = "sudo -k; sudo true"
+DECLINED = ".touchid_sudo_declined"  # in the config root: a "no" to the offer
+
+
+def _declined_marker() -> str:
+    from m3_memory import _bin
+
+    _bin.ensure_on_path()
+    from m3_core.paths import get_m3_config_root
+
+    return os.path.join(get_m3_config_root(), DECLINED)
+
+
+def offer(ask, say) -> None:
+    """Ask once whether sudo may accept Touch ID, and enable it on a yes.
+
+    The one offer, shared by `m3 setup`, `m3 touchid offer` and install.sh.
+    Silent unless it can help: only at the Mac, only when Touch ID is available
+    and not already on, and never again after a no. ``ask(question) -> bool``
+    and ``say(text)`` are the caller's prompt and output."""
+    if not at_the_mac() or os.path.exists(_declined_marker()) or status() != "available":
+        return
+    if not ask(
+        f"  Let sudo accept Touch ID instead of your password? (adds one line to {SUDO_LOCAL}; "
+        "asks for your password one last time)"
+    ):
+        try:
+            os.makedirs(os.path.dirname(_declined_marker()), exist_ok=True)
+            open(_declined_marker(), "w", encoding="utf-8").close()
+        except OSError:
+            pass
+        say("  Touch ID for sudo not enabled; m3 will not ask again. Later: m3 touchid enable")
+        return
+    ok, detail = enable()
+    say(
+        f"  Touch ID for sudo: {detail}. test: {TEST}  undo: {UNDO}"
+        if ok
+        else f"  Touch ID for sudo not enabled: {detail}"
+    )
+
+
+_STATUS_TEXT = {
+    "enabled": "on: sudo accepts Touch ID (not over SSH, and not inside tmux or screen)",
+    "available": "off: this Mac has Touch ID, but sudo asks for your password. turn on: m3 touchid enable",
+    "no-sensor": "not available: this Mac has no Touch ID sensor (or none is enrolled)",
+    "unsupported": "not available: needs macOS 14 or newer",
+}
+
+
+def _ask_tty(question: str) -> bool:
+    try:
+        ans = input(question + " [Y/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return ans in ("", "y", "yes")
+
+
+def main(sub: str | None) -> int:
+    """`m3 touchid [status|enable|offer]`."""
+    state = status()
+    if not _is_mac():
+        print("Touch ID for sudo is a macOS feature; nothing to do on this system.")
+        return 0 if sub in (None, "status") else 1
+    if sub in (None, "status"):
+        print(f"Touch ID for sudo: {_STATUS_TEXT[state]}")
+        return 0
+    if sub == "offer":
+        offer(_ask_tty, print)
+        return 0
+    # enable: asked for by name, so an earlier "no" to the offer does not apply.
+    if state == "enabled":
+        print(f"Touch ID for sudo is already on. test: {TEST}")
+        return 0
+    if state != "available":
+        print(f"Touch ID for sudo: {_STATUS_TEXT[state]}")
+        return 1
+    if not at_the_mac():
+        print(
+            "This session is over SSH: sudo will ask for your password here, and Touch ID\n"
+            "works only in a terminal at the Mac. Run `m3 touchid enable` there to try it at once."
+        )
+    ok, detail = enable()
+    if not ok:
+        print(f"Touch ID for sudo not enabled: {detail}")
+        return 1
+    try:
+        os.remove(_declined_marker())
+    except OSError:
+        pass
+    print(f"Touch ID for sudo: {detail}.\n  test: {TEST}\n  undo: {UNDO}")
+    return 0

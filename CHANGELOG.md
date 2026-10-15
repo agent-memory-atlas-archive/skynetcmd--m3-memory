@@ -940,6 +940,13 @@ the policy is forward-going only.
 
 ### Added
 
+- **`m3 touchid status|enable|offer` (macOS).** Lets `sudo` accept Touch ID instead of
+  your password, at any time. The install script now asks on the terminal (under
+  `curl | bash` setup could not ask), and `m3 doctor` shows a tip on a Mac that could
+  use it.
+  **Affected:** macOS with Touch ID · **Action:** optional, `m3 touchid enable` at the
+  Mac · **Data status:** none.
+
 - **The [Upgrade Guide](docs/HOW-TO-UPGRADE.md) starts with how you installed m3** (pipx,
   pip, the install script, a GitHub checkout, a git URL, or a host plugin) and the upgrade
   for each.

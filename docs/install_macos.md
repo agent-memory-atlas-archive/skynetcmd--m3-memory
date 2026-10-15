@@ -226,12 +226,22 @@ a second, differently named plist would start a second server fighting for `:808
 
 ## Touch ID for `sudo` (optional)
 
-On macOS 14 or later with Touch ID, `m3 setup` offers once to let `sudo` accept
-your fingerprint instead of your password. Saying yes adds one line,
-`auth sufficient pam_tid.so`, to `/etc/pam.d/sudo_local` (the file macOS updates
-leave alone); `sudo` asks for your password once to write it, and setup reads
-the file back to confirm. The offer is made only when you run setup at the Mac
-— a fingerprint cannot reach an SSH session — and a "no" is remembered.
+On macOS 14 or later with Touch ID, `sudo` can accept your fingerprint instead of
+your password. Turn it on at any time, in a terminal at the Mac:
+
+```bash
+m3 touchid enable     # asks for your password one last time
+sudo -k; sudo true    # test: asks for your fingerprint
+```
+
+It adds one line, `auth sufficient pam_tid.so`, to `/etc/pam.d/sudo_local` (the
+file macOS updates leave alone) and reads the file back to confirm.
+`m3 touchid status` says whether it is on.
+
+The install script and `m3 setup` offer it once when run at the Mac, and a "no"
+is remembered (`m3 touchid enable` still works afterwards). A Mac installed over
+SSH is never asked; `m3 doctor` shows the tip instead. A fingerprint cannot
+reach an SSH session or tmux/screen, so `sudo` there still asks for the password.
 
 Undo it with `sudo sed -i '' '/pam_tid.so/d' /etc/pam.d/sudo_local`.
 

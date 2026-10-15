@@ -343,6 +343,13 @@ if [[ $SETUP_RC -ne 0 && $SETUP_RC -ne 3 ]]; then
     exit $SETUP_RC
 fi
 
+# Touch ID for sudo. Setup asks only when its input is a keyboard, and under
+# `curl | bash` its input is the download, so ask on the terminal itself. No
+# terminal (CI, a scheduled run): skipped; `m3 doctor` shows the tip later.
+if [[ $OS == macos ]] && { : </dev/tty; } 2>/dev/null; then
+    m3 touchid offer </dev/tty || true
+fi
+
 echo
 if [[ $SETUP_RC -eq 3 ]]; then
     color_warn "m3-memory is installed, but verification did NOT pass."

@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_doctor.py
-sha1: 45773b207c51
-mtime_utc: 2026-10-14T21:57:32.752998+00:00
-generated_utc: 2026-10-14T21:57:43.912016+00:00
+sha1: aeb7e3f09d9c
+mtime_utc: 2026-10-15T03:35:58.616083+00:00
+generated_utc: 2026-10-15T03:36:04.079363+00:00
 private: false
 ---
 
@@ -111,6 +111,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `doctor (schedule_probe)`
 - `doctor (shared_embedder_probe)`
 - `doctor (startup_tools_probe)`
+- `doctor (touchid_probe)`
 - `doctor (vector_copy_probe)`
 - `m3_core.paths (resolve_engine_file)`
 - `memory.backends (active_backend)`

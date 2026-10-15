@@ -656,6 +656,13 @@ def _cmd_governor(args: argparse.Namespace) -> int:
     return _run_bin_script("governor_cli.py", argv)
 
 
+def _cmd_touchid(args: argparse.Namespace) -> int:
+    """`m3 touchid [status|enable|offer]`: let sudo accept Touch ID on a Mac."""
+    from m3_memory import touchid
+
+    return touchid.main(getattr(args, "touchid_cmd", None))
+
+
 def _cmd_restore(args: argparse.Namespace) -> int:
     """`m3 restore FILE [--at TIME]`: list the versions a rewrite saved in
     FILE.backup_history, or write one back (itself backed up, so it can be undone)."""
@@ -2465,6 +2472,16 @@ Examples:
     p_gov_mig = gov_sub.add_parser("migrate", help="Remove governor-eligible scheduled tasks.")
     p_gov_mig.add_argument("--yes", "-y", action="store_true", help="Skip the confirmation prompt (headless use).")
     p_governor.set_defaults(func=_cmd_governor)
+
+    p_touchid = subparsers.add_parser(
+        "touchid",
+        help="macOS: let sudo accept Touch ID instead of your password.",
+    )
+    tid_sub = p_touchid.add_subparsers(dest="touchid_cmd", metavar="<status|enable|offer>")
+    tid_sub.add_parser("status", help="Is Touch ID for sudo on, off, or not available here?")
+    tid_sub.add_parser("enable", help="Turn it on (asks for your password one last time).")
+    tid_sub.add_parser("offer", help="Ask once, as setup does; silent if it is on, unavailable, or declined.")
+    p_touchid.set_defaults(func=_cmd_touchid)
 
     p_config = subparsers.add_parser(
         "config",
