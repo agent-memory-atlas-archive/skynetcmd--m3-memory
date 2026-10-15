@@ -49,6 +49,17 @@ def test_matches_underscore_variant(monkeypatch, tmp_path):
     assert Path(E.discover_bge_m3_gguf()) == target
 
 
+def test_finds_a_model_at_the_top_of_home_but_does_not_walk_home(monkeypatch, tmp_path):
+    """Older install guides put the model in ~ itself; setup missed it and
+    downloaded a second copy (measured 2026-10-15). Home is not walked."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    _make_gguf(tmp_path, "bge-reranker-v2-m3-Q8_0.gguf")
+    _make_gguf(tmp_path, "Downloads/old/bge-m3-deep.gguf")
+    assert E.discover_bge_m3_gguf() is None
+    target = _make_gguf(tmp_path, "bge-m3-GGUF-Q4_K_M.gguf")
+    assert Path(E.discover_bge_m3_gguf()) == target
+
+
 def test_returns_none_when_no_model_dirs(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     assert E.discover_bge_m3_gguf() is None

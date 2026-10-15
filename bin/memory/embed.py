@@ -629,6 +629,16 @@ def discover_bge_m3_gguf(budget_s: float = _EMBED_GGUF_WALK_BUDGET_S) -> str | N
         except OSError:
             continue
 
+    # The home folder itself, top level only (a walk of home is unbounded): older
+    # install guides put the model there, and setup then downloaded a second copy.
+    try:
+        for path in sorted(home.glob("*.gguf")):
+            name = path.name.lower()
+            if ("bge-m3" in name or "bge_m3" in name) and os.path.isfile(path):
+                return str(path)
+    except OSError:
+        pass
+
     # Ollama last: its store needs a DIFFERENT strategy, so it cannot join the
     # rglob loop above. Blobs are content-addressed -- named `sha256-<digest>`
     # with NO .gguf extension -- so both the `*.gguf` glob and the "is 'bge-m3'
