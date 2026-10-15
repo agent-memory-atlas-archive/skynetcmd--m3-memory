@@ -21,6 +21,63 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Upgrading from an older release leaves m3 fully working.** After `pipx upgrade`
+  and `m3 setup`, answering *Keep the current settings* left Claude Code's hooks and
+  the agents' entries on the old install, and verification failed. Setup now
+  repairs wiring that points at an older install (backing up each file), registers
+  `m3_memory` in Claude Code, accepts an empty leftover chat store instead of
+  asking for it to be deleted, finds an embedding model already in the home folder
+  instead of downloading another copy, and offers background processing to an
+  install that never had it. **Affected:** installs upgraded from a release without
+  `m3 upgrade` · **Action:** run `m3 setup` · **Data status:** none.
+
+- **A warehouse address kept in an environment variable keeps working after an
+  upgrade.** The new version reads no secret from the environment, and an older
+  release's upgrade had no step to move it, so sync found no warehouse while the
+  upgrade reported success. Setup moves it. **Affected:** installs whose warehouse
+  DSN was an environment variable · **Action:** none · **Data status:** none.
+
+- **An embed server started by an older install's crontab line is replaced by m3's
+  service.** It held the port, so the new service could not start; the job audit
+  also misread `@reboot` lines. Where m3 can run the service, setup removes the line
+  (the crontab is saved first) and stops what it started. **Affected:** Linux and
+  macOS installs that followed older guides · **Action:** none ·
+  **Data status:** none.
+
+- **m3 in a `su` shell uses the user's systemd session.** The shell drops
+  `XDG_RUNTIME_DIR`, so every service step failed; m3 now reruns the command with
+  it set when the session runs, and says once, up front, how to enable one when
+  there is none. **Affected:** Linux users reached through `su` · **Action:** with
+  no session, `loginctl enable-linger <user>` as root · **Data status:** none.
+
+- **Windows: an upgrade no longer asks for an administrator over the dashboard
+  task.** `M3_CONFIG_ROOT` set to the default folder counted as a custom one, so
+  every job gained a `--config` argument and setup tried to recreate a boot task.
+  **Affected:** installs with `M3_CONFIG_ROOT` set to the default · **Action:**
+  none · **Data status:** none.
+
+- **Sync's reachability check probes the address it connects to.** A host setting
+  naming another address (one kept after the warehouse moved) could skip a sync
+  that would have worked. **Affected:** installs with `sync.target_ip` or
+  `sync.warehouse_host` · **Action:** none · **Data status:** none.
+
+- **`m3 doctor` reports what is true.** It no longer counts another user's or a
+  container's processes as this user's (a container host reported a cognitive loop
+  that did not exist); it checks the embedder with this install's binary, not an
+  older copy on PATH; it no longer says "no agent is set up" when Claude Code is;
+  it names `m3 setup --cognitive-loop` for a missing loop; and setup reports a
+  dashboard boot task as starting only when it was enabled. **Affected:** all
+  installs · **Action:** none · **Data status:** none.
+
+- **An agent still naming the moved `~/.m3-memory` root is repointed.** The old
+  folder survives its migration, so the entry passed the existence check while its
+  state went to the old place. **Affected:** installs migrated from `~/.m3-memory`
+  · **Action:** none · **Data status:** none.
+
+- **A failed warehouse-sync pass in the cognitive loop logs a warning.** It was an
+  INFO line, so a sync that failed every hour went unnoticed. **Affected:** installs
+  that sync · **Action:** none · **Data status:** none.
+
 - **Two m3 processes starting on a new store no longer fail its setup.** Each takes a
   backup before updating the store, and two in the same second chose the same file name;
   the second refused to overwrite the first and its update failed (`no such table`).
@@ -854,12 +911,14 @@ the policy is forward-going only.
 
   **Affected:** all installs · **Action:** none · **Data status:** none.
 
-- **`m3 upgrade` moves settings into `m3_config.toml`.** After setup it runs
-  `m3 config import-env --non-interactive`: settings that every place agrees on
-  are imported; disagreements are listed with the `m3 config set` that settles
-  them, and nothing is written for them. A problem here never stops the upgrade.
-  **Affected:** all installs · **Action:** settle any disagreement the upgrade
-  lists · **Data status:** none.
+- **`m3 setup` moves settings into `m3_config.toml` and the secrets file.** Each
+  run imports settings and keys from environment variables, shell startup files,
+  `.env` and agent configs (`m3 config import-env --non-interactive`), so an
+  upgrade from a release whose `m3 upgrade` lacks the step is covered too.
+  Settings that every place agrees on are imported; disagreements are listed with
+  the `m3 config set` that settles them, and nothing is written for them. A
+  problem here never stops setup. **Affected:** all installs · **Action:** settle
+  any disagreement setup lists · **Data status:** none.
 
 - **`m3 doctor --fix` no longer rewrites a `.env` or `~/.claude.json`.** Doctor
   prints the exact rename to make by hand in a `.env`. For `~/.claude.json`,
@@ -990,6 +1049,26 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Added
+
+- **[Coming from an older release](docs/HOW-TO-UPGRADE.md#coming-from-an-older-release)**
+  in the Upgrade Guide: the one-time steps for a release without `m3 upgrade`.
+  **Affected:** installs from before `m3 upgrade` · **Action:** follow it once ·
+  **Data status:** none.
+
+- **m3 says when an upgrade still needs `m3 setup`.** After a bare `pipx upgrade`,
+  every `m3` command except the setup ones prints one line until setup has run on
+  the new version, which it now records. **Affected:** pip and pipx installs ·
+  **Action:** run `m3 setup` when it says so · **Data status:** none.
+
+- **`m3 doctor` finds copies an older sync put in the wrong store** of a split
+  install (chat turns in the memory store, memories in the chat store). `m3 doctor
+  --fix` removes a copy only when its home store holds the same row, its links and
+  an embedding. **Affected:** split installs that synced before this release ·
+  **Action:** `m3 doctor --fix` · **Data status:** removes duplicate copies only.
+
+- **`m3 doctor` names an older `m3-embed-server` copy on PATH** with the command
+  that removes it. **Affected:** installs that followed older guides · **Action:**
+  remove the copy if you like · **Data status:** none.
 
 - **`m3 doctor` lists every m3 background job with a verdict**, on macOS, Linux and
   Windows: `current`, `outdated` (runs an older m3 install, with its version), `newer`,
