@@ -1141,6 +1141,10 @@ def cmd_install(args: argparse.Namespace) -> int:
         _service_cmd_quiet(binary, gguf, "stop")
         _service_cmd_quiet(binary, gguf, "uninstall")
         registered = False
+    if registered:
+        # A registered service restarting in a loop reads as running; the stray
+        # holding its port is why (its supervisor rebinds once it is gone).
+        _stop_own_stray_server(_embed_server_port())
     if registered and _service_reports_running(binary, gguf) and not _service_binary_is_stale(binary):
         if not quiet:
             print(f"[=] embedding model: {gguf} ({size_mb} MB)")
@@ -1203,6 +1207,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         return rc
 
     _pin_registered_port()
+    _stop_own_stray_server(_embed_server_port())
     print("[~] starting the embedder service")
     start_rc = run_svc(binary, gguf, "start")
     # Do not trust the exit code in EITHER direction; ask `status`.
@@ -1346,6 +1351,43 @@ def _service_defined_on_disk() -> bool:
         return importlib.import_module("install_schedules")._rust_embed_service_loaded() is True
     except Exception:  # noqa: BLE001 — unknown is "not shown as registered"
         return False
+
+
+def _stop_own_stray_server(port: int) -> list[int]:
+    """Stop this account's own in-process embed server listening on ``port``
+    when the service is about to start there: no service manager owns it (a
+    repair started it directly), and the service then failed to bind and
+    restarted in a loop, loading the model every few seconds. Never another
+    account's process. The stopped pids."""
+    try:
+        import psutil
+    except ImportError:
+        return []
+    from m3_memory._platform import owned_by_current_user
+
+    stopped = []
+    for p in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            if "embed_server_inproc.py" not in " ".join(p.info.get("cmdline") or []):
+                continue
+            if owned_by_current_user(p) is not True:
+                continue
+            conns = (getattr(p, "net_connections", None) or p.connections)(kind="tcp")
+            if not any(str(c.status).upper() == "LISTEN" and c.laddr and c.laddr.port == port for c in conns):
+                continue
+            p.terminate()
+            try:
+                p.wait(timeout=10)
+            except psutil.TimeoutExpired:
+                p.kill()
+            stopped.append(p.info["pid"])
+        except (psutil.Error, OSError):
+            continue
+    if stopped:
+        print(
+            f"[~] stopped this account's unsupervised embed server on port {port} (pid {', '.join(map(str, stopped))})"
+        )
+    return stopped
 
 
 def _pin_registered_port() -> None:

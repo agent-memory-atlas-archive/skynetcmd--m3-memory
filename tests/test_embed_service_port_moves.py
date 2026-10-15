@@ -118,3 +118,40 @@ def test_the_port_is_written_into_a_plist(monkeypatch, tmp_path):
         plistlib.dumps({"Label": "com.skynetcmd.m3-embed-server", "ProgramArguments": ["/b/m3-embed-server"]})
     )
     assert sched.pin_embed_port(8083) and sched.registered_embed_port() == 8083
+
+
+def test_only_this_accounts_inproc_server_on_that_port_is_stopped(monkeypatch):
+    import psutil
+
+    import m3_memory._platform as plat
+    from m3_memory import embedder_admin
+
+    class _C:
+        def __init__(self, port):
+            self.status, self.laddr = "LISTEN", type("A", (), {"port": port})()
+
+    class _P:
+        def __init__(self, pid, cmd, port, mine):
+            self.info = {"pid": pid, "cmdline": cmd}
+            self._port, self.mine, self.stopped = port, mine, False
+
+        def net_connections(self, kind="tcp"):
+            return [_C(self._port)]
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    inproc = ["python", "/x/bin/embed_server_inproc.py", "--port", "8083"]
+    procs = [
+        _P(1, inproc, 8083, True),
+        _P(2, inproc, 8083, False),  # another account's
+        _P(3, inproc, 8090, True),  # another port
+        _P(4, ["/x/m3-embed-server"], 8083, True),  # the service itself
+    ]
+    monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: iter(procs))
+    monkeypatch.setattr(plat, "owned_by_current_user", lambda p: p.mine)
+    assert embedder_admin._stop_own_stray_server(8083) == [1]
+    assert [p.stopped for p in procs] == [True, False, False, False]
