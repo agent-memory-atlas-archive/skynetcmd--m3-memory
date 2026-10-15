@@ -1542,12 +1542,12 @@ def _detect_cdw_target() -> str | None:
     #    primary store, so it uses the warehouse role.
     pg_url = resolve_pg_dsn(PgRole.WAREHOUSE)
     if pg_url:
-        try:
-            from urllib.parse import urlparse
+        _bin.ensure_on_path()
+        from m3_core.dsn import parse_pg_dsn
 
-            return cast("str | None", urlparse(pg_url).hostname)  # host only — drops user:pass
-        except Exception:  # noqa: BLE001
-            return "your configured PostgreSQL warehouse"
+        # libpq's parser: urlparse reads a keyword DSN (`host=h password=p`) as one path.
+        parts = parse_pg_dsn(pg_url)
+        return parts.host if parts is not None and parts.host else "your configured PostgreSQL warehouse"
     return None
 
 

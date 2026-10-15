@@ -72,3 +72,9 @@ def test_detect_extracts_host_from_pg_url(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     set_secret("PG_URL", "postgresql://u:p@db.internal:5432/x")
     assert installer._detect_cdw_target() == "db.internal"
+
+
+def test_detect_reads_a_keyword_dsn_without_its_password(monkeypatch):
+    """urlparse read `host=h password=p` as one path and named no host."""
+    set_secret("PG_URL", "host=db.internal port=5432 dbname=x user=u password=s3cret")
+    assert installer._detect_cdw_target() == "db.internal"
