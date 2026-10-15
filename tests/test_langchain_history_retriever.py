@@ -127,7 +127,36 @@ def test_system_message_roundtrips():
     assert msgs[1].type == "human"
 
 
+def _langchain_core_floor() -> str:
+    """The [langchain] extra's langchain-core floor, read from pyproject (one owner)."""
+    import tomllib
+    from pathlib import Path
+
+    from packaging.requirements import Requirement
+
+    data = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
+    for line in data["project"]["optional-dependencies"]["langchain"]:
+        req = Requirement(line)
+        if req.name == "langchain-core":
+            return next(s.version for s in req.specifier if s.operator == ">=")
+    raise AssertionError("pyproject's [langchain] extra names no langchain-core floor")
+
+
 def test_with_m3_history_builds_runnable():
+    import importlib.metadata
+
+    from packaging.version import Version
+
+    floor = _langchain_core_floor()
+    installed = importlib.metadata.version("langchain-core")
+    if Version(installed) < Version(floor):
+        pytest.skip(
+            skip_reason(
+                "dep",
+                f"langchain-core {installed} is below the [langchain] extra's floor {floor}; "
+                "the deprecation this test asserts exists from 1.3.3",
+            )
+        )
     # LangChain promoted RunnableWithMessageHistory from pending to deprecated in
     # langchain-core 1.3.3, with removal in 2.0.0: the trigger this test's earlier
     # note set for deprecating with_m3_history (users move to M3Saver / M3Store).
