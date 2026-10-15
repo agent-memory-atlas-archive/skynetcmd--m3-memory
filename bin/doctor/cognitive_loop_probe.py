@@ -102,9 +102,14 @@ def _process_running() -> bool | None:
     # something asked about it.
     try:
         import psutil
+        from m3_core.seams import owned_by_current_user
 
         for p in psutil.process_iter(["name", "cmdline"]):
             try:
+                # Another user's loop (on a container host, every container's)
+                # was reported as this user's: "OK" with no loop of their own.
+                if owned_by_current_user(p) is False:
+                    continue
                 name = (p.info.get("name") or "").lower()
                 if not any(i in name for i in ("python", "pythonw")):
                     continue

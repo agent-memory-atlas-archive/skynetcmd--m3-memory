@@ -166,3 +166,23 @@ def test_interactive_prompts_default_yes(monkeypatch):
         monkeypatch.setattr(sw, "_ask_yes_no", orig)
     assert seen["asked"], "wizard never offered the cognitive loop"
     assert plan.cognitive_loop is True  # default yes was accepted
+
+
+def test_another_users_loop_is_not_this_users(monkeypatch):
+    """On a container host every container's processes are visible: the doctor
+    said "cognitive loop: OK" for a user with no loop (measured 2026-10-15)."""
+    import m3_core.seams as seams
+    import psutil
+    from doctor import cognitive_loop_probe as p
+
+    class _Proc:
+        def __init__(self, mine):
+            self.mine = mine
+            self.info = {"name": "python3", "cmdline": ["python3", "bin/m3_cognitive_loop.py"]}
+
+    procs = [_Proc(False)]
+    monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: iter(procs))
+    monkeypatch.setattr(seams, "owned_by_current_user", lambda proc: proc.mine)
+    assert p._process_running() is not True
+    procs.append(_Proc(True))
+    assert p._process_running() is True

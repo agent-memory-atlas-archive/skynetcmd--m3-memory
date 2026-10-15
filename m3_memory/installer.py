@@ -2499,8 +2499,12 @@ def _live_bridge_counts() -> dict[str, int]:
     # First pass: map every bridge PID -> its matched script.
     pid_script: dict[int, str] = {}
     ppids: dict[int, int] = {}
+    from m3_memory._platform import owned_by_current_user
+
     for proc in psutil.process_iter(["pid", "ppid", "cmdline"]):
         try:
+            if owned_by_current_user(proc) is False:
+                continue  # another user's (or container's) server is not this user's
             cmd = " ".join(proc.info.get("cmdline") or [])
         except Exception:  # noqa: BLE001
             continue

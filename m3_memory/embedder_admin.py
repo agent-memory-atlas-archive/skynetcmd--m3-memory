@@ -570,8 +570,15 @@ def _service_binary_is_stale(binary: Path) -> bool:
         return False
     # "m3-embed-server.exe" -> "m3-embed-server"; Linux/macOS already match.
     target_stem = target.stem.lower()
+    from m3_memory._platform import owned_by_current_user
+
+    per_user = _embedder_is_per_user()
     for proc in psutil.process_iter(["name", "exe", "create_time"]):
         try:
+            # Another account's server (a container's, seen from its host, can
+            # even share the path) is not ours to call stale.
+            if per_user and owned_by_current_user(proc) is False:
+                continue
             exe = proc.info.get("exe")
             if exe:
                 if Path(exe).resolve() != target:
