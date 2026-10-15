@@ -1,6 +1,28 @@
 # <a href="../README.md"><img src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/m3_logo_icon.png" height="60" style="vertical-align: baseline; margin-bottom: -15px;"></a> How to Upgrade m3-memory
 
-This guide covers upgrading an existing checkout in place — pulling new code, updating dependencies, running schema migrations, and keeping the host OS current. For a fresh install see [`docs/install_linux.md`](install_linux.md), [`docs/install_macos.md`](install_macos.md), or [`docs/install_windows.md`](install_windows.md).
+How to move an existing m3 install to a newer release. For a fresh install see [`docs/install_linux.md`](install_linux.md), [`docs/install_macos.md`](install_macos.md), or [`docs/install_windows.md`](install_windows.md).
+
+## How did you install m3?
+
+| You installed with | Upgrade with |
+| --- | --- |
+| `pipx install m3-memory` | `m3 upgrade` |
+| `pip install m3-memory` (in a venv, or `--user`) | `m3 upgrade` (activate the venv first if m3 is in one) |
+| the install script (`curl … install.sh \| bash`) | `m3 upgrade`. The script installs with pipx, so this is the pipx case. Running the script again also upgrades, then reruns `m3 setup` |
+| a GitHub checkout (`git clone`, then `pip install -e .`) | `git pull`, `pip install -e .`, `m3 setup`, `m3 doctor` ([steps below](#tldr--developer-git-checkout-safe-default)) |
+| `pip install git+https://github.com/skynetcmd/m3-memory.git@<tag>` | the same command with the new tag, then `m3 setup` and `m3 doctor`. Or move to the PyPI release: `pip install --upgrade --force-reinstall m3-memory` |
+| a host plugin (Claude Code, Antigravity) | the host's plugin update ([below](#host-plugin-installs)) |
+
+Not sure? `m3 upgrade --dry-run` names the method it detects and changes nothing.
+For a checkout or a git-URL install it prints the steps for that method instead of
+upgrading from PyPI, which would replace your checkout or chosen tag with the
+release.
+
+Every method ends the same way: `m3 setup` applies database changes and rewires
+your agents, and `m3 doctor` checks the result. `m3 upgrade` runs both for you.
+
+If you sync to a PostgreSQL warehouse, read
+[Upgrading your warehouse](WAREHOUSE_UPGRADE.md) before upgrading.
 
 ---
 
@@ -95,7 +117,7 @@ rather than guessing.
 > release. Use `m3 upgrade` for that. (`m3 update` prints a nudge when PyPI has a
 > newer version than you have installed.)
 
-The rest of this guide is for **developers upgrading a git checkout in place.**
+The rest of this guide is for **upgrading a GitHub checkout in place.**
 
 ---
 
@@ -115,6 +137,7 @@ git pull --ff-only
 source .venv/bin/activate           # Windows: .\.venv\Scripts\Activate.ps1
 pip install --upgrade pip
 pip install --upgrade -r requirements.txt
+pip install -e .                    # if you installed the checkout with pip install -e
 
 # 4. Apply any pending DB migrations
 python3 bin/migrate_memory.py status

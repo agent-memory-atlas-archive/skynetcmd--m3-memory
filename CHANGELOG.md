@@ -940,6 +940,11 @@ the policy is forward-going only.
 
 ### Added
 
+- **The [Upgrade Guide](docs/HOW-TO-UPGRADE.md) starts with how you installed m3** (pipx,
+  pip, the install script, a GitHub checkout, a git URL, or a host plugin) and the upgrade
+  for each.
+  **Affected:** everyone upgrading · **Action:** none · **Data status:** none.
+
 - **[Upgrading your warehouse](docs/WAREHOUSE_UPGRADE.md).** What m3 changes in the
   warehouse on upgrade, the ownership it needs, and how to move the warehouse server to a
   new PostgreSQL version.
