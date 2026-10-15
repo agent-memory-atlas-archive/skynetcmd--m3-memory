@@ -147,7 +147,7 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
         _ok("M3 is installed and live. Restart your agent (above) and your")
         print("    memory + chatlog start working immediately — nothing else to do.")
     elif plan.agents_kept:
-        _ok("M3 is updated and live. Agent wiring is unchanged.")
+        _ok("M3 is updated and live. Your agent choices are kept.")
     else:
         _ok("M3 is installed. No agents were wired — run `m3 setup` again and")
         print("    pick at least one agent, or add the MCP server by hand.")
