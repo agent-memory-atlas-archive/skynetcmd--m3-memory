@@ -185,3 +185,19 @@ def test_postgres_removes_only_the_copys_family():
             cur.execute("DELETE FROM entities WHERE id = %s", (ent,))
             conn.commit()
         b.close()
+
+
+def test_the_doctor_points_at_the_fix_only_when_it_would_remove_something(monkeypatch, capsys):
+    """'0 removable: m3 doctor --fix' sent people to a command that did nothing."""
+    from doctor import misplaced_rows as mr
+
+    kept = mr.StoreReport("chatlog", "chat", stray=3, removable=0, kept={"its only copy": 3})
+    monkeypatch.setattr(mr, "check", lambda repair=False: [kept])
+    mr.run(brief=True)
+    mr.run(brief=False)
+    mr.repair_and_report()
+    out = capsys.readouterr().out
+    assert "--fix" not in out and "kept in the wrong store" in out and "[fixed]" not in out
+    kept.removable = 1
+    mr.run(brief=True)
+    assert "1 removable: m3 doctor --fix" in capsys.readouterr().out

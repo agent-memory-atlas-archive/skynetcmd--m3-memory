@@ -208,13 +208,18 @@ def run(brief: bool = False) -> int:
         return 0
     if brief:
         if reports:
-            n = sum(r.removable for r in reports)
-            print(f"misplaced rows: {sum(r.stray for r in reports)} in the wrong store, {n} removable: m3 doctor --fix")
+            n, total = sum(r.removable for r in reports), sum(r.stray for r in reports)
+            print(
+                f"misplaced rows: {total} in the wrong store, {n} removable: m3 doctor --fix"
+                if n
+                else f"misplaced rows: {total} kept in the wrong store until their home store holds them: "
+                "m3 doctor --verbose"
+            )
         return 0
     if reports:
         print("\n=== rows in the wrong store ===")
         for r in reports:
-            print(f"  {_line(r)}; {r.removable} removable by m3 doctor --fix")
+            print(f"  {_line(r)}" + (f"; {r.removable} removable by m3 doctor --fix" if r.removable else ""))
     return 0
 
 
@@ -226,6 +231,6 @@ def repair_and_report(dry_run: bool = False) -> None:
         print(f"  [skipped] rows in the wrong store: {type(e).__name__}: {e}")
         return
     for r in reports:
-        if r.stray:
+        if r.removable:  # kept rows alone are the report's, not a repair's
             tag = "dry-run" if dry_run else ("fixed" if r.removed == r.removable else "not fixed")
             print(f"  [{tag}] {_line(r)}")
