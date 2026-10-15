@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_memory.py
-sha1: 84c9cef4c6a8
-mtime_utc: 2026-10-14T15:50:54.621326+00:00
-generated_utc: 2026-10-14T15:51:13.485480+00:00
+sha1: 9cb2c209a2b1
+mtime_utc: 2026-10-15T06:29:43.587460+00:00
+generated_utc: 2026-10-15T06:29:56.631905+00:00
 private: false
 ---
 
@@ -41,7 +41,7 @@ transaction already committed.
 
 ## Entry points
 
-- `def main()` (line 1197)
+- `def main()` (line 1201)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -92,13 +92,13 @@ _(none detected)_
 **sqlite**
 
 - `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 150)
-- `sqlite3.connect()  → `f'file:{target.db_path}?mode=ro'`` (line 575)
-- `sqlite3.connect()  → `target.db_path`` (line 1033)
-- `sqlite3.connect()  → `target.db_path`` (line 1077)
-- `sqlite3.connect()  → `target.db_path`` (line 463)
-- `sqlite3.connect()  → `target.db_path`` (line 780)
-- `sqlite3.connect()  → `target.db_path`` (line 880)
-- `sqlite3.connect()  → `target.db_path`` (line 964)
+- `sqlite3.connect()  → `f'file:{target.db_path}?mode=ro'`` (line 579)
+- `sqlite3.connect()  → `target.db_path`` (line 1037)
+- `sqlite3.connect()  → `target.db_path`` (line 1081)
+- `sqlite3.connect()  → `target.db_path`` (line 467)
+- `sqlite3.connect()  → `target.db_path`` (line 784)
+- `sqlite3.connect()  → `target.db_path`` (line 884)
+- `sqlite3.connect()  → `target.db_path`` (line 968)
 
 
 ---

@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Two m3 processes starting on a new store no longer fail its setup.** Each takes a
+  backup before updating the store, and two in the same second chose the same file name;
+  the second refused to overwrite the first and its update failed (`no such table`).
+  **Affected:** fresh stores opened by two processes at once · **Action:** none ·
+  **Data status:** none.
+
 - **The macOS notification waiter's job file is valid XML.** A comment in it contained
   `--`, which launchd tolerates but other tools reject, so they could not read the job.
   **Affected:** macOS · **Action:** none; `m3 setup` rewrites it · **Data status:** none.

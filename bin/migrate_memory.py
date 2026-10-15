@@ -430,7 +430,11 @@ def take_backup(
     # Create per-target subdirectory under backup_dir
     target_backup_dir = os.path.join(backup_dir, target.name)
     os.makedirs(target_backup_dir, exist_ok=True)
-    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    # Microseconds and the pid: two migrations of a same-named store in one second
+    # (two processes starting on a fresh store) collided on a seconds-only name,
+    # and the second migration failed on "refusing to overwrite".
+    now = datetime.now(UTC)
+    ts = f"{now:%Y%m%dT%H%M%S}.{now.microsecond:06d}Z.p{os.getpid()}"
     db_basename = os.path.basename(target.db_path).replace(".db", "")
     basename = f"{db_basename}.v{version_before:03d}.{tag}.{ts}.db"
     dst = os.path.join(target_backup_dir, basename)
