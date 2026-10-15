@@ -41,37 +41,28 @@ LIMIT = 400
 def _orig(mode: str, has_vec: bool) -> str:
     """The SQL the builder is expected to produce, held verbatim.
 
-    The SEMANTIC variants are still byte-for-byte as they appeared inline before
-    extraction. The HYBRID variants were changed deliberately (see below) to
+    The SEMANTIC variants were changed deliberately (2026-10-15): they took 50
+    items in no order and ranked only those, so every query searched the same
+    50 rows. They now cover every in-scope embedding. The HYBRID variants were changed deliberately (see below) to
     pre-filter bm25 on the FTS table; the pin moved with them rather than being
     deleted, so the guarantee this file exists for still holds.
     """
     if mode == "semantic" and has_vec:
         return f"""
-                            WITH limited AS (
-                                SELECT mi.id FROM memory_items mi
-                                WHERE {WHERE}
-                                LIMIT 50
-                            )
                             SELECT mi.id, mi.content, mi.title, mi.type, mi.importance, me.embedding, 0.0 as bm25_score,
                                    (1.0 - vec_distance_cosine(me.embedding, ?)) as vec_score{EXTRA}
                             FROM memory_items mi
                             JOIN memory_embeddings me ON mi.id = me.memory_id
-                            WHERE mi.id IN (SELECT id FROM limited)
+                            WHERE {WHERE}
                             ORDER BY vec_score DESC
+                            LIMIT {LIMIT}
                         """
     if mode == "semantic":
         return f"""
-                            WITH limited AS (
-                                SELECT mi.id FROM memory_items mi
-                                WHERE {WHERE}
-                                LIMIT 50
-                            )
                             SELECT mi.id, mi.content, mi.title, mi.type, mi.importance, me.embedding, 0.0 as bm25_score{EXTRA}
                             FROM memory_items mi
                             JOIN memory_embeddings me ON mi.id = me.memory_id
-                            WHERE mi.id IN (SELECT id FROM limited)
-                            ORDER BY mi.created_at DESC
+                            WHERE {WHERE}
                         """
     # HYBRID: bm25 now ranks on the FTS table ALONE, in a CTE, and the joins
     # see only the survivors. Ranking inside the joined query made SQLite carry
@@ -152,16 +143,11 @@ class TestVariantShape:
         assert "memory_items_fts" not in sem
         assert "memory_items_fts MATCH ?" in hyb
 
-    def test_semantic_limits_items_via_cte_not_the_join(self):
-        """The CTE exists so LIMIT 50 counts ITEMS, not item x embedding rows.
-
-        Flattening it into the outer query would silently change how many
-        distinct memories reach the ranker whenever an item has >1 embedding.
-        """
-        sql = build_candidate_sql(search_mode="semantic", has_vec=False, where_sql=WHERE)
-        assert "WITH limited AS" in sql
-        cte = sql[sql.index("WITH limited AS") : sql.index(")", sql.index("LIMIT 50"))]
-        assert "JOIN" not in cte, "LIMIT must apply before the embedding join"
+    def test_semantic_has_no_item_cap_before_ranking(self):
+        """A cap applied before ranking searched a fixed 50 rows for every query."""
+        for hv in (True, False):
+            sql = build_candidate_sql(search_mode="semantic", has_vec=hv, where_sql=WHERE, row_limit=LIMIT)
+            assert "WITH limited" not in sql and "LIMIT 50" not in sql
 
     @pytest.mark.parametrize("mode", ["hybrid", "fts5"])
     def test_non_semantic_modes_take_the_hybrid_shape(self, mode):
@@ -178,11 +164,12 @@ class TestVariantShape:
             sql = build_candidate_sql(search_mode=mode, has_vec=hv, where_sql=marker, row_limit=LIMIT)
             assert marker in sql
 
-    def test_row_limit_applied_to_hybrid_only(self):
-        hyb = build_candidate_sql(search_mode="hybrid", has_vec=False, where_sql=WHERE, row_limit=17)
-        assert "LIMIT 17" in hyb
-        sem = build_candidate_sql(search_mode="semantic", has_vec=False, where_sql=WHERE)
-        assert "LIMIT 50" in sem and "LIMIT 17" not in sem
+    def test_row_limit_caps_rows_that_sql_has_ranked(self):
+        """Hybrid and semantic-with-sqlite-vec rank in SQL, so the cap follows the
+        ranking. Without sqlite-vec nothing is ranked yet; the caller caps."""
+        assert "LIMIT 17" in build_candidate_sql(search_mode="hybrid", has_vec=False, where_sql=WHERE, row_limit=17)
+        assert "LIMIT 17" in build_candidate_sql(search_mode="semantic", has_vec=True, where_sql=WHERE, row_limit=17)
+        assert "LIMIT" not in build_candidate_sql(search_mode="semantic", has_vec=False, where_sql=WHERE, row_limit=17)
 
 
 class TestSqlIsValid:

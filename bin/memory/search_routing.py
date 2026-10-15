@@ -341,9 +341,10 @@ def build_candidate_sql(
 ) -> str:
     """Build the SQLite fused candidate-fetch query. Pure; returns SQL text.
 
-    ``search_mode`` "semantic" selects the vector-only shape (a ``LIMIT 50``
-    CTE then a join, with no FTS); anything else selects the hybrid shape
-    (FTS5 MATCH joined inline, bm25-ordered, capped at ``row_limit``).
+    ``search_mode`` "semantic" selects the vector-only shape (every in-scope
+    embedding, no FTS; with sqlite-vec ranked and capped at ``row_limit`` in
+    SQL, without it ranked by the caller); anything else selects the hybrid
+    shape (FTS5 MATCH joined inline, bm25-ordered, capped at ``row_limit``).
 
     ``has_vec`` selects whether the cosine distance is computed IN SQL by
     sqlite-vec. It is an ACCELERATOR, not the vector engine: when False the same
@@ -359,36 +360,30 @@ def build_candidate_sql(
       hybrid             : (*where_params, fts_query)
     """
     if search_mode == "semantic":
-        # Vector-only: narrow to 50 candidates by the scoping predicates FIRST,
-        # then join embeddings. The CTE exists so the LIMIT applies to items,
-        # not to the item×embedding fan-out.
+        # Vector-only: every in-scope embedding is a candidate, ranked by
+        # similarity. This used to take 50 items by the scoping predicates, in
+        # no order, and rank only those: the same 50 rows for every query, so a
+        # store of thousands answered from a fixed handful (measured 2026-10-15:
+        # 0 of the 40 true nearest memories over 5 queries). The predicates also
+        # name `me.*`, which inside that CTE bound to the OUTER join.
         if has_vec:
             return f"""
-                            WITH limited AS (
-                                SELECT mi.id FROM memory_items mi
-                                WHERE {where_sql}
-                                LIMIT 50
-                            )
                             SELECT {_BASE_COLS}, 0.0 as bm25_score,
                                    (1.0 - vec_distance_cosine(me.embedding, ?)) as vec_score{extra_sql}
                             FROM memory_items mi
                             JOIN memory_embeddings me ON mi.id = me.memory_id
-                            WHERE mi.id IN (SELECT id FROM limited)
+                            WHERE {where_sql}
                             ORDER BY vec_score DESC
+                            LIMIT {row_limit}
                         """
-        # No sqlite-vec: SQL cannot rank by similarity, so order by recency and
-        # let the Rust cosine score them downstream.
+        # No sqlite-vec: SQL cannot rank by similarity, so every in-scope row is
+        # returned and the caller scores them all with the Rust cosine, then
+        # keeps the best.
         return f"""
-                            WITH limited AS (
-                                SELECT mi.id FROM memory_items mi
-                                WHERE {where_sql}
-                                LIMIT 50
-                            )
                             SELECT {_BASE_COLS}, 0.0 as bm25_score{extra_sql}
                             FROM memory_items mi
                             JOIN memory_embeddings me ON mi.id = me.memory_id
-                            WHERE mi.id IN (SELECT id FROM limited)
-                            ORDER BY mi.created_at DESC
+                            WHERE {where_sql}
                         """
     # Hybrid/fts5: rank on the FTS table ALONE, then join only the survivors.
     #

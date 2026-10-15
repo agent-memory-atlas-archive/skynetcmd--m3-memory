@@ -1218,6 +1218,7 @@ async def memory_search_scored_impl(
                         has_vec=_has_vec,
                         where_sql=where_sql,
                         extra_sql=extra_sql,
+                        row_limit=sql_row_limit,
                     )
                     _m3env.debug(f"SQL (semantic {'sqlite-vec' if _has_vec else 'standard'}):\n{sql}")
                     if _has_vec:
@@ -1283,8 +1284,11 @@ async def memory_search_scored_impl(
     # Under max-kind, trim AFTER dedup so SEARCH_ROW_CAP counts unique items,
     # not kind-duplicated rows. Under default (pins to one kind) the dupes
     # don't exist, so the cap already counts unique items and we trim up-front
-    # to avoid an unnecessary cosine batch.
-    if vector_kind_strategy != "max" and len(rows) > SEARCH_ROW_CAP:
+    # to avoid an unnecessary cosine batch. Semantic rows without sqlite-vec
+    # arrive UNRANKED, so they are scored first and the best kept (below);
+    # trimming them here would keep an arbitrary slice.
+    _rank_after_scoring = search_mode == "semantic" and not has_vec
+    if vector_kind_strategy != "max" and len(rows) > SEARCH_ROW_CAP and not _rank_after_scoring:
         rows = rows[:SEARCH_ROW_CAP]
 
     # Batched vector scoring: pass raw blobs straight to the Rust packed-cosine
@@ -1297,6 +1301,11 @@ async def memory_search_scored_impl(
         page_scores = [float(row["vec_score"]) for row in rows]
     else:
         page_scores = _cosine_batch_packed(q_vec, page_blobs, EMBED_DIM)
+    if _rank_after_scoring and len(rows) > sql_row_limit:
+        _best = sorted(range(len(rows)), key=page_scores.__getitem__, reverse=True)[:sql_row_limit]
+        rows = [rows[i] for i in _best]
+        page_scores = [page_scores[i] for i in _best]
+        page_blobs = [page_blobs[i] for i in _best]
 
     # Max-kind fusion: when the SQL let through multiple vector_kind rows
     # per memory_id, keep the row with the highest vector similarity so

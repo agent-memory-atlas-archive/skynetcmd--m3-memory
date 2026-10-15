@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Semantic search on SQLite considers every memory.** It ranked a fixed set of
+  50 memories, the same for every query, so most of a store could not be found by
+  meaning. Hybrid searches whose keywords matched nothing landed there too. It now
+  ranks every memory in scope. **Affected:** SQLite stores · **Action:** none ·
+  **Data status:** none.
+
 - **Upgrading from an older release leaves m3 fully working.** After `pipx upgrade`
   and `m3 setup`, answering *Keep the current settings* left Claude Code's hooks and
   the agents' entries on the old install, and verification failed. Setup now
