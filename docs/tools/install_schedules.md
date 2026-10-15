@@ -1,8 +1,8 @@
 ---
 tool: bin/install_schedules.py
-sha1: 1199bf11f5f8
-mtime_utc: 2026-10-15T19:16:08.957258+00:00
-generated_utc: 2026-10-15T19:16:10.326322+00:00
+sha1: e14464d1b10d
+mtime_utc: 2026-10-15T22:04:54.954628+00:00
+generated_utc: 2026-10-15T22:05:33.424773+00:00
 private: false
 ---
 

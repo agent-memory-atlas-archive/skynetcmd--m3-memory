@@ -654,7 +654,7 @@ def registered_embed_port() -> "int | None":
             return int(m.group(1))
     from m3_core.config.keys import REGISTRY
 
-    return int(REGISTRY.get("embed.server.port").default)
+    return REGISTRY.int_default("embed.server.port")
 
 
 def _rust_embed_service_loaded() -> "bool | None":

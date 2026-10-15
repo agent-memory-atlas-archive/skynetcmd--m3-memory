@@ -230,6 +230,16 @@ class Registry:
     def get(self, name: str) -> Key | None:
         return self._by_name.get(name)
 
+    def int_default(self, name: str) -> int:
+        """The built-in default of an integer key (a port, a size). Raises on an
+        unknown key or a non-integer default rather than handing back None."""
+        key = self._by_name.get(name)
+        if key is None:
+            raise KeyError(f"unknown config key {name!r}")
+        if isinstance(key.default, bool) or not isinstance(key.default, int):
+            raise TypeError(f"config key {name!r} has no integer default (observed {key.default!r})")
+        return key.default
+
     def by_env(self, env_name: str) -> Key | None:
         return self._by_env.get(env_name)
 

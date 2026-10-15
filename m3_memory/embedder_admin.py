@@ -1422,9 +1422,10 @@ def _registered_port() -> int | None:
     if bin_dir is None or not os.path.isfile(bin_dir / "install_schedules.py"):
         return None
     try:
-        return importlib.import_module("install_schedules").registered_embed_port()
+        port = importlib.import_module("install_schedules").registered_embed_port()
     except Exception:  # noqa: BLE001 — unknown: leave the registration alone
         return None
+    return port if isinstance(port, int) else None
 
 
 def _import_model_fetch(name: str):
@@ -1533,7 +1534,7 @@ def seed_shared_config(
     # so a move back is followed too. A hand edit no longer matches the record.
     from m3_core.config.keys import REGISTRY
 
-    ours = {f"http://127.0.0.1:{REGISTRY.get('embed.server.port').default}", existing.get("_m3_fallback_url")}
+    ours = {f"http://127.0.0.1:{REGISTRY.int_default('embed.server.port')}", existing.get("_m3_fallback_url")}
     if desired["fallback_url"] in ours:
         desired["fallback_url"] = url
     if desired["fallback_url"] == url:

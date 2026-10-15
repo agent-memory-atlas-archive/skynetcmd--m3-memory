@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import importlib
 import json
 import os
 import shutil
@@ -3628,7 +3629,9 @@ def _repair_kept_wiring() -> None:
             return
         _register_claude_server()
         _m3bin.ensure_on_path()
-        from doctor import agent_paths_probe, claude_mcp_probe, environment_probe
+        agent_paths_probe = importlib.import_module("doctor.agent_paths_probe")
+        claude_mcp_probe = importlib.import_module("doctor.claude_mcp_probe")
+        environment_probe = importlib.import_module("doctor.environment_probe")
 
         res = environment_probe.repair(dry_run=False)
         for act in res["actions"]:
@@ -3678,7 +3681,7 @@ def _claim_free_ports(plan: SetupPlan) -> None:
         current = {"embed.server.port": _config.setting("embed.server.port"), "dashboard.port": plan.dashboard_port}
         chosen = {}
         for key, port in current.items():
-            if port == REGISTRY.get(key).default and held_by_another_owner(port):
+            if port == REGISTRY.int_default(key) and held_by_another_owner(port):
                 free = first_free_port(port + 1)
                 if free:
                     chosen[key] = free
@@ -3709,7 +3712,7 @@ def _retire_replaced_embedder() -> None:
     manager to replace it with). Never raises."""
     try:
         _m3bin.ensure_on_path()
-        from doctor import job_inventory
+        job_inventory = importlib.import_module("doctor.job_inventory")
 
         for _job, ok, msg in job_inventory.retire_replaced_embedder():
             (_ok if ok else _warn)(f"  older embedder started from cron: {msg}")
@@ -3723,7 +3726,7 @@ def _step_job_cleanup() -> None:
     (doctor/job_inventory). Never raises."""
     try:
         _m3bin.ensure_on_path()
-        from doctor import job_inventory
+        job_inventory = importlib.import_module("doctor.job_inventory")
 
         job_inventory.repair_and_report()
     except Exception as e:  # noqa: BLE001 -- clean-up must not fail setup
