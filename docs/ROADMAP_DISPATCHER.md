@@ -1,8 +1,142 @@
 # <a href="../README.md"><img src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/m3_logo_icon.png" height="60" style="vertical-align: baseline; margin-bottom: -15px;"></a> Message Dispatch Daemon — design
 
-> **Status: proposed.** Nothing here is built. This records the design and the
-> reasoning behind each choice so the decisions are reviewable before code
-> exists.
+> **Status: partly built, daemon proposed.** The separate dispatch store
+> (`agent_dispatch.db` on SQLite, schema `m3_dispatch` on PostgreSQL), the lease
+> primitives (`claim_message`, fenced `complete`/`fail`/`renew`, the sweep with
+> dead-lettering) and an empty `deliberation_log` table exist. The daemon does
+> not. The sections after "Implementation" record the original design and its
+> reasoning; where they conflict with "Implementation", "Implementation" wins.
+
+---
+
+## Implementation: a crypto-free Rust daemon (2026-10-15)
+
+### What changed the design
+
+Three findings from reading the code against this document:
+
+1. **The queue rules already have one owner.** Addressing
+   (`_addressing_predicate`), message state (`message_state_sql`,
+   `inbox_membership_sql`), lease fences, `_from` stamping and task transitions
+   live in `memory/orchestration.py` and the dialect seam, on both backends. A
+   daemon that issued its own SQL would hold a second copy of each, and copies
+   drift (DESIGN_PHILOSOPHIES §10a).
+2. **FIPS 140-3 readiness forbids crypto in the daemon.** m3 implements no
+   cryptography and routes every operation through `crypto_provider.py`
+   (docs/FIPS_MODULE_BOUNDARY.md). TLS, request tokens, webhook HMACs or database
+   TLS inside a Rust binary would be a second, unvalidated boundary.
+3. **The cost today is the waiting, not the queue.** Each agent's waiter is a
+   Python supervisor plus a child that checks the store once a second. Measured
+   on one machine: the child held 515 MB of committed private memory (7.8 MB
+   resident) to watch one inbox. Delivery is up to a second late, and fifty
+   messages finishing together wake an agent fifty ways.
+
+### Shape
+
+```
+  writer (any m3 process) ──commit──▶ store (unchanged: SQLite or PostgreSQL)
+          │
+          └──"ring" (agent ids, message ids) over local IPC──▶ ┌────────────┐
+                                                               │ m3-dispatchd│ (Rust, no SQL,
+  waiter / agent ◀──"mail" event, one per burst───────────────│  per user   │  no crypto)
+          │                                                    └────────────┘
+          └──then reads, claims and acks through m3 as today (Python, the rules' owner)
+```
+
+**The daemon holds no database connection and issues no SQL.** It is a doorbell
+with pacing:
+
+- A writer that commits a message rings the daemon with the recipient ids. The
+  ring is sent after commit, fire-and-forget, with a short timeout; a missing
+  daemon costs nothing.
+- An agent's waiter subscribes for its ids and blocks. The daemon wakes it once
+  per burst: rings for one agent within a coalescing window (start at 250 ms)
+  become one event carrying a count.
+- **One outstanding wake per subscriber.** After a wake the daemon sends nothing
+  more to that subscriber until it subscribes again, which a waiter does after
+  its agent has handled the batch. That is the pacing rule the "Pacing" section
+  asks for, and it needs no ack tracking in the daemon.
+- `GET /status` gives the cross-agent view: subscribed agents, rings pending
+  since when, wakes sent. Routing policy ("this agent is saturated") reads it
+  later.
+
+**Everything durable stays where it is.** Messages, claims, leases, acks and
+dead letters remain rows written by m3's Python through the dialect seam, on
+either backend. The daemon's state is volatile; on start it sends `resync` to
+each subscriber, which reads its inbox once. A dead daemon degrades to today's
+polling waiter, slower but correct.
+
+### Transport and identity: local only, no crypto
+
+- **IPC:** a Unix domain socket in the user's runtime directory on Linux and
+  macOS; a named pipe on Windows. HTTP/1.1 with SSE over it (axum and tokio, the
+  stack `m3-embed-server` already ships).
+- **Who may connect is decided by the OS, not by a token.** The socket is mode
+  0600 and the daemon checks the peer's uid (`SO_PEERCRED` / `getpeereid`); the
+  pipe's DACL admits only the user's SID and rejects remote clients. No
+  credential exists, so none can leak, and nothing needs a random number
+  generator or a hash.
+- **Agent ids stay self-asserted,** exactly as today. Per-agent identity is the
+  separate "Agent identity model" item on the roadmap, enforced in SQL.
+
+### Remote agents and webhooks: outside the daemon
+
+Network exposure is a second process, written in Python, that serves HTTPS
+through `crypto_provider.get_ssl_context()`, authenticates requests with the
+existing credential chain, proxies subscribe and ring to the local daemon, and
+signs webhooks with `crypto_provider.hmac_sha256`. An operator may put a
+FIPS-validated reverse proxy there instead. Either way, every cryptographic
+operation stays inside the one boundary. The original "The daemon terminates
+TLS itself" (Security) is superseded by this.
+
+### Cross-machine (PostgreSQL)
+
+Writers on another machine cannot reach a local socket. PostgreSQL already has
+the signal: the writer issues `NOTIFY m3_dispatch` inside its own transaction,
+so the doorbell fires only if the message committed, and a small Python relay on
+each machine `LISTEN`s through m3's existing connection and rings its local
+daemon. SQLite stores are single-machine and ring directly.
+
+### Waiter
+
+The waiter keeps its contract (exit 0 on new mail, 2 on timeout), so no agent
+integration changes. It becomes a thin client: subscribe, block, exit. Shipped
+as a small Rust binary in the core wheel, it starts in milliseconds and holds a
+few MB. With no daemon it falls back to today's polling.
+
+### Supervision and packaging
+
+`m3-dispatchd` ships in the `m3_core_rs` wheel beside `m3-embed-server` and is
+installed by the same per-OS service installers (launchd, systemd user units,
+Task Scheduler). It is per OS user, like the socket. It is a separate binary
+rather than a second listener inside the embed server: the embed server may be
+GPU-bound and restarts for model changes, and messaging must not inherit that.
+
+### Phases
+
+1. **Local doorbell.** The daemon, ring calls from `notify_impl` and the task
+   senders, the thin waiter, the fallback. Pass criteria, measured before and
+   after: delivery latency, waiter memory, wakes per burst (fifty messages, one
+   wake).
+2. **PostgreSQL across machines.** `NOTIFY` in the writing transaction, the
+   `LISTEN` relay.
+3. **Remote agents and webhooks.** The Python HTTPS edge, behind
+   `crypto_provider`.
+4. **The queue itself, in Python.** Adopt claim and lease for agents that need
+   exactly-once work, retention and pruning (archive before ack, dead letters
+   kept), and the `deliberation_log` policy.
+
+### Found while reading the code
+
+- `notify_impl` and `notifications_mark_received_impl` stamp times from the
+  Python clock while leases use the database clock; mixed clocks misorder rows
+  across machines.
+- The waiter's docstring describes its change token as (mtime, size); the
+  SQLite token now also reads the header's change counter and the `-shm` index.
+- This document's "Store separation" and "Physical mapping" describe a choice
+  the code made differently: PostgreSQL uses a separate schema (`m3_dispatch`),
+  not prefixed tables, and `deliberation_log` records webhook egress rather than
+  message payloads (payloads reach memory through `memory_id`).
 
 ---
 
@@ -101,7 +235,7 @@ this codebase spent a release removing from its scheduler calls.
 **Logging.** The daemon strips authorization material from its logs. A token in
 a log file is a credential at rest in the one place nobody audits.
 
-**Transport security.** HTTPS is required, not optional — an agent token
+**Transport security** (superseded: see "Remote agents and webhooks" under Implementation). HTTPS is required, not optional — an agent token
 crossing an ordinary network in cleartext is a credential handed to anyone on
 the path. The daemon terminates TLS itself rather than assuming a reverse proxy,
 so a default install is safe without extra infrastructure.
@@ -385,6 +519,26 @@ second retry mechanism beside them would be two owners for one rule.
 ---
 
 ## Open questions
+
+Recommendations as of 2026-10-15 (Implementation above):
+
+- **Where the daemon keeps the queue** — nowhere: it issues no SQL, so it needs
+  no store, no backend dialect and no database TLS. The question was only open
+  while the daemon owned the queue.
+- **Request authentication** — none in the daemon (local IPC, OS identity). For
+  the remote edge: bearer over HTTPS through `crypto_provider`, tokens from the
+  existing resolver; JWT later if per-agent scopes are needed, signed by
+  `crypto_provider.hmac_sha256` (HS256), never by a Rust library.
+- **Supervision** — the core's per-OS service installers, as for the embed
+  server, not the cognitive loop: the loop is optional and runs on a schedule,
+  and messaging must not depend on it.
+- **Routing policy** — define "saturated" from `/status` once there is data:
+  rings pending longer than the agent's median handling time.
+- **Archive window and promotion** — unchanged by the daemon; Phase 4 (Python).
+- **Egress policy for callbacks** — required before the Python edge sends a
+  webhook; the daemon never sends one.
+
+The original list:
 
 - Request authentication: bearer vs JWT vs mTLS (see Security).
 - Whether the daemon reuses the cognitive loop's supervision or runs standalone.
