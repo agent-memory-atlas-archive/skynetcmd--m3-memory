@@ -1243,6 +1243,7 @@ def test_existing_install_keeps_settings_with_one_question(monkeypatch):
 def test_kept_wiring_is_not_reported_as_no_agents(monkeypatch, capsys):
     """Keeping the settings leaves targets empty on purpose; the output must
     not tell the user that no agent is wired."""
+    monkeypatch.setattr(setup_wizard, "_repair_kept_wiring", lambda: None)  # real repairs write files
     plan = setup_wizard.SetupPlan()
     plan.agents_kept = True
     setup_wizard._step_wire_agents(plan)

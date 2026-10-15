@@ -3605,16 +3605,28 @@ def _repair_kept_wiring() -> None:
     install: an upgrade from a release without `m3 upgrade` reaches this setup
     with hooks and agent entries still pointing at its payload clone, and
     verification then failed on them. The repairs `m3 doctor --fix --fix-hooks`
-    runs (each backs up the file it edits), for agents already wired to m3; no
-    agent is added and no choice changed. Never raises."""
+    runs (each backs up the file it edits), ONLY for what already uses m3: an
+    agent entry that exists and is stale is repointed, and Claude Code is
+    repaired only when it already uses m3. No agent is added and no choice
+    changed. Never raises."""
     try:
-        from m3_memory.installer import claude_wired_to_m3
+        from m3_memory.installer import (
+            _heal_agent_settings,
+            _heal_config_bridge_path,
+            _scan_agent_configs,
+            claude_uses_m3,
+        )
 
-        if claude_wired_to_m3():
-            _register_claude_server()
-        from m3_memory.installer import _heal_all_agents
-
-        _heal_all_agents()
+        for line in _heal_config_bridge_path(apply=True):
+            print(f"  {line}")
+        for _label, path, stale in _scan_agent_configs():
+            if stale:  # an existing m3 entry pointing at an older install
+                msg = _heal_agent_settings(path)
+                if msg:
+                    print(f"  {msg}")
+        if not claude_uses_m3():
+            return
+        _register_claude_server()
         _m3bin.ensure_on_path()
         from doctor import agent_paths_probe, claude_mcp_probe, environment_probe
 

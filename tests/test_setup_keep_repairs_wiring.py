@@ -18,7 +18,7 @@ def _plan(sw, *, kept: bool):
     return plan
 
 
-def _record_repairs(monkeypatch, sw, wired: bool) -> list[str]:
+def _record_repairs(monkeypatch, sw, wired: bool, agents=()) -> list[str]:
     import doctor.agent_paths_probe as ap
     import doctor.claude_mcp_probe as cm
     import doctor.environment_probe as ep
@@ -26,9 +26,11 @@ def _record_repairs(monkeypatch, sw, wired: bool) -> list[str]:
     from m3_memory import installer
 
     calls: list[str] = []
-    monkeypatch.setattr(installer, "claude_wired_to_m3", lambda: wired)
+    monkeypatch.setattr(installer, "claude_uses_m3", lambda: wired)
+    monkeypatch.setattr(installer, "_heal_config_bridge_path", lambda apply: [])
+    monkeypatch.setattr(installer, "_scan_agent_configs", lambda: list(agents))
+    monkeypatch.setattr(installer, "_heal_agent_settings", lambda path, **k: calls.append(f"heal {path}") or None)
     monkeypatch.setattr(sw, "_register_claude_server", lambda: calls.append("register") or True)
-    monkeypatch.setattr(installer, "_heal_all_agents", lambda: calls.append("heal") or 0)
     monkeypatch.setattr(ep, "repair", lambda dry_run=False: calls.append("hooks") or {"actions": []})
     monkeypatch.setattr(ap, "run", lambda brief=False, fix=False: calls.append(f"paths fix={fix}") or 0)
     monkeypatch.setattr(cm, "run", lambda brief=False, fix=False: calls.append(f"claude fix={fix}") or 0)
@@ -42,7 +44,7 @@ def test_keeping_the_settings_runs_the_doctor_repairs(monkeypatch):
 
     calls = _record_repairs(monkeypatch, sw, wired=True)
     assert sw._step_wire_agents(_plan(sw, kept=True))
-    assert calls == ["register", "heal", "hooks", "paths fix=True", "claude fix=True"]
+    assert calls == ["register", "hooks", "paths fix=True", "claude fix=True"]
 
 
 def test_an_agent_not_wired_to_m3_is_not_registered(monkeypatch):
@@ -50,7 +52,7 @@ def test_an_agent_not_wired_to_m3_is_not_registered(monkeypatch):
 
     calls = _record_repairs(monkeypatch, sw, wired=False)
     sw._step_wire_agents(_plan(sw, kept=True))
-    assert "register" not in calls and "ADDED AN AGENT" not in calls
+    assert calls == [], "Claude does not use m3: nothing of Claude's is touched"
 
 
 def test_no_agents_selected_touches_nothing(monkeypatch):
@@ -99,3 +101,23 @@ def test_a_claude_only_user_is_not_told_no_agent_uses_m3(monkeypatch, capsys):
         monkeypatch.setattr(installer, "claude_wired_to_m3", lambda wired=wired: wired)
         ap.run(brief=True, fix=False)
         assert expected in capsys.readouterr().out
+
+
+def test_only_an_existing_stale_agent_entry_is_repointed(monkeypatch):
+    """Keeping the settings never adds m3 to an agent that does not use it."""
+    from m3_memory import setup_wizard as sw
+
+    agents = [("Gemini", "/g/settings.json", True), ("Cursor", "/c/mcp.json", False)]
+    calls = _record_repairs(monkeypatch, sw, wired=False, agents=agents)
+    sw._step_wire_agents(_plan(sw, kept=True))
+    assert calls == ["heal /g/settings.json"]
+
+
+def test_claude_uses_m3_through_hooks_alone(tmp_path):
+    from m3_memory import installer
+
+    settings = tmp_path / "settings.json"
+    settings.write_text('{"hooks": {"Stop": [{"hooks": [{"command": "python /x/bin/hooks/chatlog/stop.py"}]}]}}')
+    assert installer.claude_uses_m3(tmp_path / "absent.json", settings)
+    settings.write_text('{"model": "sonnet"}')
+    assert not installer.claude_uses_m3(tmp_path / "absent.json", settings)

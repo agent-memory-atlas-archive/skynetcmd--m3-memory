@@ -2024,6 +2024,18 @@ def claude_wired_to_m3(claude_json: Path | None = None) -> bool:
     return any(isinstance(e, dict) and is_m3_server(n, e) for b in blocks if isinstance(b, dict) for n, e in b.items())
 
 
+def claude_uses_m3(claude_json: Path | None = None, settings: Path | None = None) -> bool:
+    """Whether Claude Code already uses m3: a registered m3 server, or m3's
+    chatlog hooks or status line in ~/.claude/settings.json."""
+    if claude_wired_to_m3(claude_json):
+        return True
+    try:
+        text = (settings or Path(os.path.expanduser("~")) / ".claude" / "settings.json").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return any(marker in text for marker in ("hooks/chatlog", "chatlog_status_line", "statusline-command.sh"))
+
+
 def _scan_agent_configs() -> list[tuple[str, Path, bool]]:
     """Return (label, path, needs_repoint) for every existing agent config that
     declares a ``memory`` MCP entry. ``needs_repoint`` is True when its paths are
