@@ -62,7 +62,9 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
         for line in restart_lines:
             print(line)
     elif plan.agents_kept:
-        print("Agent wiring unchanged. Restart your agents so they load the new version.")
+        print(
+            "Agent choices kept (paths into an older install repaired). Restart your agents so they load the new version."
+        )
     # No agents wired: the closing line below says so once.
     print()
     # Every choice setup made is in m3_config.toml. The one thing a file cannot
