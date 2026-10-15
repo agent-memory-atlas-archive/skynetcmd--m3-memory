@@ -13,11 +13,9 @@ How to move an existing m3 install to a newer release. For a fresh install see [
 | `pip install git+https://github.com/skynetcmd/m3-memory.git@<tag>` | the same command with the new tag, then `m3 setup` and `m3 doctor`. Or move to the PyPI release: `pip install --upgrade --force-reinstall m3-memory` |
 | a host plugin (Claude Code, Antigravity) | the host's plugin update ([below](#host-plugin-installs)) |
 
-**`m3: error: … invalid choice: 'upgrade'`?** Your m3 predates the command
-(releases before October 2026). Upgrade the package once by hand, then let the new
-version finish: `pipx upgrade m3-memory` (or `pip install --upgrade m3-memory`),
-then `m3 setup`. Answer *Keep the current settings* and setup repairs agent wiring
-that still points at the old install. From then on, `m3 upgrade` works.
+**`m3: error: … invalid choice: 'upgrade'`?** Your m3 predates the command.
+Follow [Coming from an older release](#coming-from-an-older-release) once; from
+then on, `m3 upgrade` works.
 
 Not sure? `m3 upgrade --dry-run` names the method it detects and changes nothing.
 For a checkout or a git-URL install it prints the steps for that method instead of
@@ -122,6 +120,95 @@ rather than guessing.
 > payload/bridge to your **already-installed** version — it will not pull a newer
 > release. Use `m3 upgrade` for that. (`m3 update` prints a nudge when PyPI has a
 > newer version than you have installed.)
+
+---
+
+## Coming from an older release
+
+Use this once if `m3 upgrade` is not a command on your machine (it says
+`invalid choice: 'upgrade'`), or if your m3 is from before October 2026
+(`m3 --version`). Afterwards, `m3 upgrade` is all you need.
+
+It takes a minute or two. Nothing you saved is lost: setup backs up each database
+before changing it, and every config file it edits keeps a `.bak` copy.
+
+### Before you start
+
+- **Use the account that runs m3**, not root or an administrator account.
+- **Linux, reached with `su` from root** (common on servers): switch with
+  `su - <user>` (with the dash) and run commands from that user's home folder.
+  m3's background services also need a systemd user session that runs without a
+  login; as root, once: `loginctl enable-linger <user>`. Without it, setup says so
+  in its first lines, finishes everything else, and the services start after you
+  enable it and run `m3 setup` again.
+- **Windows:** close Claude Code and other agents that use m3 first, or the
+  upgrade cannot replace m3's programs while they run.
+- **If you sync to a PostgreSQL warehouse:** read
+  [Upgrading your warehouse](WAREHOUSE_UPGRADE.md) first.
+
+### The steps
+
+1. **Upgrade the package** the way you installed it:
+
+   ```bash
+   pipx upgrade m3-memory              # installed with pipx or the install script
+   pip install --upgrade m3-memory     # installed with pip (activate its venv first)
+   ```
+
+   From here on, every `m3` command reminds you that setup has not run yet,
+   until it has.
+
+2. **Finish with setup**, and answer **Yes** to *Keep the current settings and
+   just update this install?*
+
+   ```bash
+   m3 setup
+   ```
+
+   Keeping the settings keeps your choices (which agents, which embedder, FIPS);
+   it does not keep anything that points at the old install. Setup:
+
+   - moves settings and keys you kept in environment variables, shell startup
+     files or agent configs into m3's own files (`m3_config.toml` and the
+     user-only secrets file). The new version no longer reads secrets from the
+     environment, so this is what keeps a warehouse sync working;
+   - repairs agent wiring that still points at the old install: Claude Code's
+     hooks, status line and MCP entry (registered once, as `m3_memory`), and the
+     other agents' entries;
+   - finds an embedding model you already have (in your home folder, LM Studio,
+     Ollama or llama.cpp) instead of downloading another copy;
+   - replaces an old embed server that a crontab line started at boot with m3's
+     own service, where your system can run one (the crontab is saved first);
+   - asks once whether to turn on background processing (the cognitive loop),
+     if your old version did not have it;
+   - updates the databases, backing each one up first.
+
+   It ends with **Setup complete — verified healthy** when everything works.
+
+3. **Restart your agents** so they load the new version (Claude Code: restart
+   it, or `/mcp` to reconnect).
+
+4. **Check:** `m3 doctor` should show only ✅ lines. Anything else names its fix.
+
+### Afterwards, if you like
+
+- The originals of moved settings stay where they were (environment variables,
+  shell files, the Windows registry); m3 no longer reads them. Remove them when
+  you are happy, especially plain-text keys.
+- If `m3 doctor` names an older `m3-embed-server` copy on your PATH, it is not
+  used; remove it with the command shown.
+- An old `~/.m3-memory` folder with a `MOVED.txt` inside was copied to `~/.m3`
+  and can go once everything works.
+
+### If something is still marked
+
+| You see | What it means | Fix |
+| --- | --- | --- |
+| `this shell has no systemd user session` | Linux: background services cannot start from this shell | as root: `loginctl enable-linger <user>`, then `m3 setup` |
+| `this shell lost the address of the systemd user session` | a `su` shell without the dash | `su - <user>`, or the `export` line shown, then `m3 setup` |
+| `cognitive loop: not installed` | background processing is off | `m3 setup --cognitive-loop` |
+| `… is set in the environment, which m3 does not read for secrets` | a key still only in an environment variable | `m3 config import-env` |
+| `VERIFICATION FAILED` | something above it is marked | fix what it names, then `m3 doctor` |
 
 The rest of this guide is for **upgrading a GitHub checkout in place.**
 
