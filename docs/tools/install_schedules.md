@@ -1,8 +1,8 @@
 ---
 tool: bin/install_schedules.py
-sha1: 092e7f8f6170
-mtime_utc: 2026-10-14T22:05:40.760926+00:00
-generated_utc: 2026-10-14T22:05:47.770129+00:00
+sha1: ba3040d97a2c
+mtime_utc: 2026-10-15T04:55:16.486604+00:00
+generated_utc: 2026-10-15T04:56:11.840668+00:00
 private: false
 ---
 
@@ -18,7 +18,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 ## Entry points
 
-- `def main()` (line 2747)
+- `def main()` (line 2754)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -55,6 +55,7 @@ Uses project virtual environment paths and ensures log directories exist.
 - `m3_halt (base_role)`
 - `m3_halt (holds_store)`
 - `m3_memory._ports (held_by_another_owner)`
+- `m3_memory.jobs (launcher_for)`
 - `m3_sdk (ensure_governor_config)`
 - `m3_sdk (get_m3_engine_root)`
 - `m3_sdk (kill_stale_daemons)`
@@ -65,7 +66,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 **subprocess**
 
-- `subprocess.run()  → `*args`` (line 28)
+- `subprocess.run()  → `*args`` (line 30)
 
 
 ---

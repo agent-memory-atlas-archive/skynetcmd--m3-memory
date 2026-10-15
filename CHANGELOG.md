@@ -534,6 +534,14 @@ the policy is forward-going only.
 
 ### Changed
 
+- **m3's background jobs show under their own names on macOS and Linux.** Login items
+  and process lists read `m3-cognitive-loop`, `m3-sync`, `m3-dashboard` and so on instead
+  of seven entries named `python`. Each job runs through a launcher of that name, which
+  pip and pipx recreate on every install and upgrade; the launchers are also on your PATH.
+  Windows is unchanged: Task Scheduler already shows each task's name.
+  **Affected:** macOS and Linux · **Action:** none; `m3 setup` (run by `m3 upgrade`)
+  re-registers the jobs · **Data status:** none.
+
 - **PostgreSQL 16 or newer is the supported range, as the store and as the sync
   warehouse.** It is tested on 16, 17 and 18, each on its own test machine.
   **Affected:** PostgreSQL users · **Action:** if your server is older than 16, plan

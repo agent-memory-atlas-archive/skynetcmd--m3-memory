@@ -422,6 +422,16 @@ dev = [
 m3 = "m3_memory.cli:main"
 mcp-memory = "m3_memory.cli:main"
 m3-team = "m3_memory.team_cli:main"
+# Background-job launchers (m3_memory/jobs.py): each runs one bin/ script, so the
+# job shows under its own name instead of "python" in login items and ps.
+m3-cognitive-loop = "m3_memory.jobs:run_script"
+m3-loop-watchdog = "m3_memory.jobs:run_script"
+m3-notification-waiter = "m3_memory.jobs:run_script"
+m3-dashboard = "m3_memory.jobs:run_script"
+m3-embed-inproc = "m3_memory.jobs:run_script"
+m3-sync = "m3_memory.jobs:run_script"
+m3-secret-rotator = "m3_memory.jobs:run_script"
+m3-chatlog-embed-sweep = "m3_memory.jobs:run_script"
 
 [project.urls]
 Homepage = "https://github.com/skynetcmd/m3-memory"

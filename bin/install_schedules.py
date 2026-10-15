@@ -21,6 +21,8 @@ from typing import cast
 
 from m3_core.seams import is_macos, is_windows, roots
 
+from m3_memory.jobs import launcher_for  # after m3_core.seams, which makes m3_memory importable
+
 
 def _run(*args, **kwargs):
     kwargs.setdefault("timeout", 30)
@@ -129,7 +131,8 @@ def render_cron_block(m3_memory_root) -> str:
     lines = ["# >>> m3-managed (do not edit this block) >>>"]
     for spec in unix_periodic_specs(m3_memory_root):
         lines.append(f"# {spec['name']}: {spec['description']}")
-        lines.append(f"{cron_schedule(spec)} {shlex.join([python_exe, *spec['args']])}")
+        program = launcher_for(python_exe, spec["args"][0])
+        lines.append(f"{cron_schedule(spec)} {shlex.join([program, *spec['args']])}")
     lines.append("# <<< m3-managed <<<")
     return "\n".join(lines) + "\n"
 
@@ -234,10 +237,14 @@ def _render_template(template_path: str, m3_memory_root: str, python_exe: str, p
     and systemd unit templates."""
     with open(template_path, encoding="utf-8") as f:
         content = f.read()
+    # [M3_PYTHON] becomes the job's own launcher, so the job is listed under its
+    # name rather than "python" (m3_memory.jobs). Each template runs one bin/ script.
+    script = re.search(r"\[M3_MEMORY_ROOT\]/bin/([A-Za-z0-9_]+\.py)", content)
+    program = launcher_for(python_exe, script.group(1)) if script else python_exe
     content = (
         content.replace("[M3_LOGS_ROOT]", _logs_dir())
         .replace("[M3_MEMORY_ROOT]", m3_memory_root)
-        .replace("[M3_PYTHON]", python_exe)
+        .replace("[M3_PYTHON]", program)
     )
     if port is not None:
         content = content.replace("[M3_DASHBOARD_PORT]", str(port))
@@ -365,7 +372,7 @@ def launchd_trigger(spec: dict) -> dict:
 def _launchd_plist(spec: dict, python_exe: str) -> dict:
     return {
         "Label": launchd_label(spec["name"]),
-        "ProgramArguments": [python_exe, *spec["args"]],
+        "ProgramArguments": [launcher_for(python_exe, spec["args"][0]), *spec["args"]],
         "WorkingDirectory": os.path.expanduser("~"),
         "RunAtLoad": False,
         **launchd_trigger(spec),
