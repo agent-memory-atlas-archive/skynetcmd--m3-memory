@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Sync no longer fails on the notification store.** Since the notification store
+  joined the migration set, every SQLite sync also tried to sync it and logged
+  `no such table: memory_items`. Sync now covers only the memory and chat stores.
+  **Affected:** SQLite installs that sync to a warehouse · **Action:** none ·
+  **Data status:** none; memories and chat synced normally.
+
 - **`m3 upgrade` no longer upgrades a source checkout or a git-URL install from PyPI.**
   An m3 installed with `pip install -e` or from a git URL was taken for a PyPI install, and
   the upgrade could target the system Python. It now names how m3 was installed and prints

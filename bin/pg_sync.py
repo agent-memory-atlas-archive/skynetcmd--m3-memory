@@ -1602,6 +1602,9 @@ class SyncTarget:
 _CORE_ROLES = ("items", "embeddings", "relationships")
 
 
+_SYNCED_STORES = ("main", "chatlog")  # the local stores with warehouse tables
+
+
 def resolve_sync_targets(main_uri: str | None = None) -> list[SyncTarget]:
     """The stores and table-sets to sync, resolved from the ACTIVE backend.
 
@@ -1639,7 +1642,11 @@ def resolve_sync_targets(main_uri: str | None = None) -> list[SyncTarget]:
         import migrate_memory
 
         for t in migrate_memory.targets("all"):
-            out.append(SyncTarget(t.name, t.db_path, dict(core_map)))
+            # "all" is the MIGRATION set, which also holds stores whose tables
+            # the warehouse does not carry (the notification store): syncing
+            # one failed every run with "no such table: memory_items".
+            if t.name in _SYNCED_STORES:
+                out.append(SyncTarget(t.name, t.db_path, dict(core_map)))
     except Exception as exc:  # noqa: BLE001 — fall back to the single main store
         logger.warning(f"Could not enumerate SQLite sync targets ({exc}); using main only.")
         out = [SyncTarget("main", main_uri, dict(core_map))]

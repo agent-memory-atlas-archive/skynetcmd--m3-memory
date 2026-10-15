@@ -276,3 +276,22 @@ def test_sync_dbs_override_keeps_windows_drive_letters(monkeypatch):
     assert [str(p) for p in sync_all._resolve_dbs()] == [a, b]
     monkeypatch.setenv("M3_SYNC_DBS", f"{a}{os.pathsep}{b}")
     assert [str(p) for p in sync_all._resolve_dbs()] == [a, b]
+
+
+def test_a_store_without_warehouse_tables_is_not_a_sync_target(as_backend, monkeypatch):
+    """The migration set also holds the notification store; syncing it failed
+    every run with "no such table: memory_items"."""
+    as_backend("sqlite")
+
+    class _T:
+        def __init__(self, name, path):
+            self.name, self.db_path = name, path
+
+    import migrate_memory
+
+    monkeypatch.setattr(
+        migrate_memory,
+        "targets",
+        lambda _sel="all": [_T("main", "/m/main.db"), _T("chatlog", "/m/chat.db"), _T("dispatch", "/m/d.db")],
+    )
+    assert [t.name for t in pg_sync.resolve_sync_targets()] == ["main", "chatlog"]

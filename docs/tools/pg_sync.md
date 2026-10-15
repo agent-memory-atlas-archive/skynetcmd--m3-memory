@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_sync.py
-sha1: 8a0dac4568fd
-mtime_utc: 2026-10-15T03:02:39.140801+00:00
-generated_utc: 2026-10-15T03:07:51.624618+00:00
+sha1: 7471af7ca8c9
+mtime_utc: 2026-10-15T03:49:37.557703+00:00
+generated_utc: 2026-10-15T03:49:49.476386+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 1707)
+- `def main()` (line 1714)
 - `if __name__ == "__main__"` guard
 
 ---
