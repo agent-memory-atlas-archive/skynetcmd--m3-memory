@@ -165,3 +165,12 @@ def test_scanner_path_is_appended_not_substituted(monkeypatch):
     parts = os.environ["PATH"].split(os.pathsep)
     assert parts[:2] == ["/opt/homebrew/bin", "/usr/bin"], "existing entries kept, in order"
     assert "/root/.local/bin" in parts and parts.count("/usr/bin") == 1
+
+
+def test_every_scanner_entry_resolves_to_a_binary_not_shell_syntax():
+    """Guessing from a bash wrapper returned `if`, `find` or `{repo}`, so the
+    preflight called present scanners missing and refused to scan."""
+    mod = _load()
+    for name, tmpl, *_ in mod.SCANNERS:
+        binary = mod._binary_for(name, tmpl)
+        assert binary and binary not in ("if", "find", "for", "bash", "sh", ">") and "{" not in binary, (name, binary)

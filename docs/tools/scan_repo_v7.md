@@ -1,8 +1,8 @@
 ---
 tool: scan_repo_v7.py
-sha1: 9f681b6afe62
-mtime_utc: 2026-10-11T16:14:48.307886+00:00
-generated_utc: 2026-10-11T16:19:14.393278+00:00
+sha1: c65a5878d437
+mtime_utc: 2026-10-15T01:58:59.631554+00:00
+generated_utc: 2026-10-15T01:59:24.565994+00:00
 private: false
 ---
 
@@ -43,7 +43,7 @@ with a setup hint covering both input shapes.
 
 ## Entry points
 
-- `def main()` (line 618)
+- `def main()` (line 708)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -79,11 +79,12 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `argv`` (line 453)
+- `subprocess.run()  → `['git', '-C', str(repo), *a]`` (line 680)
+- `subprocess.run()  → `argv`` (line 489)
 
 **http**
 
-- `requests.post()  → `url`` (line 526)
+- `requests.post()  → `url`` (line 562)
 
 
 ---
@@ -97,6 +98,7 @@ _(none detected)_
 ## File dependencies (repo paths referenced)
 
 - ` > {out}/sbom.cdx.json`
+- ` > {out}/sqlcheck.txt`
 - `/data/bin/trufflehog_exclude.txt`
 - `bandit.json`
 - `cargo-audit.json`
@@ -106,17 +108,16 @@ _(none detected)_
 - `mypy.txt`
 - `osv-scanner.json`
 - `pip-audit.json`
-- `safety.json`
 - `sbom.cdx.json`
 - `scancode.json`
+- `sqlcheck.txt`
+- `sqlfluff.txt`
 - `trivy.json`
 - `{out}/bandit.json`
 - `{out}/osv-scanner.json`
-- `{out}/safety.json`
 - `{out}/scancode.json`
 - `{out}/trivy.json`
 - `{repo}/pyproject.toml`
-- `{repo}/requirements.txt`
 - `{repo}/trivy-secret.yaml`
 - `{repo}/trivy.yaml`
 

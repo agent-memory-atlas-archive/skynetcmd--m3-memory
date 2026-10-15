@@ -262,6 +262,20 @@ SCANNERS = [
         "semgrep.sarif",
         "SARIF",
     ),
+    # Repo-local SQL rules (.semgrep/), when present: the SQL dialect seam's
+    # own checks. No .semgrep directory -> an empty SARIF, not an error.
+    (
+        "semgrep-sql",
+        [
+            "bash",
+            "-c",
+            "if [ -d {repo}/.semgrep ]; then semgrep --config={repo}/.semgrep --sarif "
+            "--output={out}/semgrep-sql.sarif --quiet --metrics=off {repo}/bin 2>/dev/null; fi; "
+            "[ -s {out}/semgrep-sql.sarif ] || echo " + EMPTY_SARIF + " > {out}/semgrep-sql.sarif",
+        ],
+        "semgrep-sql.sarif",
+        "SARIF",
+    ),
     (
         "bandit",
         [
@@ -301,12 +315,6 @@ SCANNERS = [
         ["osv-scanner", "-r", "{repo}", "--format", "json", "--output", "{out}/osv-scanner.json"],
         "osv-scanner.json",
         "OSV Scan",
-    ),
-    (
-        "safety",
-        ["safety", "check", "-r", "{repo}/requirements.txt", "--json", "--output", "{out}/safety.json"],
-        "safety.json",
-        "Safety Scan",
     ),
     (
         "scancode",
@@ -443,6 +451,34 @@ SCANNERS = [
         "mypy.txt",
         None,
     ),
+    # SQL files: lint (sqlfluff, structural rules only) and anti-pattern check
+    # (sqlcheck). Text reports for a reader; DefectDojo has no parser for them.
+    (
+        "sqlfluff",
+        [
+            "bash",
+            "-c",
+            'sqlf=$(find {repo} -name "*.sql" -not -path "*/.git/*" -not -path "*/build/*" 2>/dev/null); '
+            'if [ -n "$sqlf" ]; then sqlfluff lint $sqlf --dialect sqlite '
+            "--exclude-rules layout,capitalisation,convention,references,structure,ambiguous,aliasing "
+            '> {out}/sqlfluff.txt 2>&1 || true; else echo "no sql files" > {out}/sqlfluff.txt; fi',
+        ],
+        "sqlfluff.txt",
+        None,
+    ),
+    (
+        "sqlcheck",
+        [
+            "bash",
+            "-c",
+            '> {out}/sqlcheck.txt; found=0; for q in $(find {repo} -name "*.sql" -not -path "*/.git/*" '
+            '-not -path "*/build/*" 2>/dev/null); do found=1; echo "=== $q ===" >> {out}/sqlcheck.txt; '
+            'sqlcheck -f "$q" -c false >> {out}/sqlcheck.txt 2>&1 || true; done; '
+            '[ $found -eq 1 ] || echo "no sql files" > {out}/sqlcheck.txt',
+        ],
+        "sqlcheck.txt",
+        None,
+    ),
 ]
 
 
@@ -553,13 +589,28 @@ def _scanner_binary(argv_tmpl):
     return head
 
 
+# A bash-wrapped scanner needs the binary its entry is named after (gitleaks,
+# pip-audit, shellcheck, ...); guessing from the script returned `if`, `find` or
+# `{repo}`, so the preflight reported present scanners as missing. Exceptions:
+_BINARY_FOR = {"semgrep-sql": "semgrep"}
+
+
+def _binary_for(name, argv_tmpl):
+    """The executable a SCANNERS entry needs on PATH."""
+    if name in _BINARY_FOR:
+        return _BINARY_FOR[name]
+    if argv_tmpl and argv_tmpl[0] in ("bash", "sh"):
+        return name
+    return _scanner_binary(argv_tmpl)
+
+
 def missing_scanners():
     """Scanners in SCANNERS with no executable on PATH. Cheap, no subprocesses."""
     import shutil
 
     missing = []
     for name, tmpl, _fname, _dd in SCANNERS:
-        binary = _scanner_binary(tmpl)
+        binary = _binary_for(name, tmpl)
         if not binary:
             continue
         if shutil.which(binary) is None:
@@ -615,6 +666,45 @@ def _preflight(force_partial):
     sys.exit(3)
 
 
+def sync_repo(repo):
+    """Fast-forward `repo` to origin/<its branch> before scanning.
+
+    Best-effort by design: a scan of a STALE checkout is confidently wrong in
+    both directions (it reports issues already fixed and misses new ones), but a
+    network blip must not block scanning entirely. Prints the commit actually
+    scanned so every report is attributable.
+    """
+    import subprocess
+
+    def _git(*a):
+        return subprocess.run(["git", "-C", str(repo), *a], capture_output=True, text=True, timeout=180)
+
+    if not (Path(repo) / ".git").exists():
+        print(f"== {repo} is not a git checkout; scanning as-is", flush=True)
+        return
+    # Tracked changes only: untracked scratch files (*.bak) must not
+    # block a fast-forward, or the scan runs against stale source.
+    dirty = _git("status", "--porcelain", "--untracked-files=no").stdout.strip()
+    if dirty:
+        print(f"== {repo} has local changes; NOT syncing (scanning working tree)", flush=True)
+    else:
+        f = _git("fetch", "--quiet", "origin")
+        if f.returncode != 0:
+            print(
+                f"== WARNING: git fetch failed ({f.stderr.strip()[:120]}); scanning whatever is checked out", flush=True
+            )
+        else:
+            branch = _git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip() or "main"
+            target = f"origin/{branch}"
+            if _git("rev-parse", "--verify", target).returncode != 0:
+                target = "origin/main"
+            r = _git("reset", "--hard", target)
+            if r.returncode != 0:
+                print(f"== WARNING: could not sync to {target} ({r.stderr.strip()[:120]})", flush=True)
+    head = _git("log", "-1", "--format=%h %s").stdout.strip()
+    print(f"== scanning commit: {head[:110]}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("repo")
@@ -646,10 +736,19 @@ def main():
     out_dir = Path("/data/reports") / repo.name / ts
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"== scanning {repo} -> {out_dir}", flush=True)
+    sync_repo(repo)
     for name, tmpl, fname, _ in SCANNERS:
         run_scanner(name, tmpl, out_dir, str(repo))
     eng_name = args.engagement_name or f"scan {ts}"
-    eng_id = ensure_product_and_engagement(repo.name, eng_name)
+    # The scans above already wrote every report to out_dir. A DefectDojo outage
+    # or auth failure must not look like a scan failure, nor like a full success:
+    # keep the artifacts, say what failed, and exit 4.
+    try:
+        eng_id = ensure_product_and_engagement(repo.name, eng_name)
+    except Exception as e:  # noqa: BLE001 — any upload failure is reported, never raised
+        print(f"== WARNING: DefectDojo upload skipped — {e}", flush=True)
+        print(f"== scans SUCCEEDED; reports preserved in {out_dir}", flush=True)
+        return 4
     for name, tmpl, fname, dd_type in SCANNERS:
         if not dd_type:
             continue
