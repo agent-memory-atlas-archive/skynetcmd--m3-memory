@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Security
 
+- **The mac-agent example no longer resolves vulnerable `httpx2`/`httpcore2`.**
+  Its requirements set security floors (`httpx2>=2.12.0`, `httpcore2>=2.10.0`),
+  as the langchain-agent example does. **Affected:** users of
+  `examples/mac-agent` · **Action:** reinstall its requirements ·
+  **Data status:** none.
+
 - **A bad custom redaction regex is never quoted back.** With the native
   core, `m3 chatlog status` showed the text of a `custom_regex` that failed to
   compile; it now names the entry's position and length only, and reports an

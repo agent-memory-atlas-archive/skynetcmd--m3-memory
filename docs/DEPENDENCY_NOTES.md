@@ -125,6 +125,14 @@ That run did surface three real typing errors in memory/search_ranking.py --
 the numpy and pure-Python branches. Runtime was always correct on both paths;
 the branches now bind separate names. Fixed in the same change.
 
+### `chromadb` (not declared; transitive through the `[crewai]` extra)
+
+Tolerated, not pinned. osv-scanner reports 8 advisories (HIGH and CRITICAL)
+against chromadb 1.5.9 in `uv.lock`, with no fixed release (2026-10-16). It
+arrives only through crewai, so `pip install m3-memory` without `[crewai]`
+never installs it, and nothing in m3 imports it. When a fixed release
+exists, add it as a floor in the `crewai` extra and here.
+
 ### `rapidfuzz` (`rapidfuzz>=3.14.6,<4`)
 
 Fast fuzzy string matching for entity coalescing (token-order-aware, ~3-4x
