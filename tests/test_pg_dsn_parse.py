@@ -97,3 +97,25 @@ def test_sync_finds_the_host_of_a_keyword_warehouse_dsn(monkeypatch):
 
     monkeypatch.setattr(m3_sdk, "resolve_warehouse_dsn", lambda: "host=wh.example port=6432 dbname=cdw")
     assert sync_all.warehouse_target() == ("wh.example", 6432, "warehouse DSN")
+
+
+def test_hostaddr_is_what_libpq_dials_and_host_names_the_certificate():
+    parts = parse_pg_dsn("postgresql://u@db.example:5432/m3?hostaddr=192.0.2.7&sslmode=verify-full&sslrootcert=/ca.pem")
+    assert parts is not None
+    assert (parts.host, parts.hostaddr, parts.sslrootcert) == ("db.example", "192.0.2.7", "/ca.pem")
+    assert parts.dial_hosts() == ["192.0.2.7"]
+    assert parse_pg_dsn("host=a,b dbname=x").dial_hosts() == ["a", "b"]
+
+
+def test_a_local_name_with_a_remote_hostaddr_is_not_local():
+    """libpq dials the hostaddr, so calling this local skipped the FIPS TLS rule."""
+    assert not parse_pg_dsn("host=localhost hostaddr=192.0.2.7 dbname=m3").is_local()
+    assert parse_pg_dsn("host=db.example hostaddr=127.0.0.1 dbname=m3").is_local()
+
+
+def test_a_forbidden_hostaddr_is_refused(m3_settings):
+    from memory.backends.postgres_backend import _reject_forbidden_host
+
+    m3_settings({"db.postgres.forbidden_hosts": ["192.0.2.7"]})
+    with pytest.raises(RuntimeError, match="forbidden"):
+        _reject_forbidden_host("host=ok.example hostaddr=192.0.2.7 dbname=m3")

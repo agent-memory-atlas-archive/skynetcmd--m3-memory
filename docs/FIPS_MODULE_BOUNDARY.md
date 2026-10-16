@@ -108,6 +108,15 @@ OpenSSL for it, or carries the traffic over a validated transport (profile B).
 environment variable): m3 cannot inspect Python's OpenSSL or libpq for a FIPS
 provider, so whoever configured the validated library says so.
 
+"Over a network" is judged on the address libpq dials: `hostaddr` when set,
+else `host`. A self-signed server certificate whose name does not resolve on
+the client works with both: `host=<name in the certificate>
+hostaddr=<address> sslmode=verify-full sslrootcert=<certificate>`.
+
+Under either tier, warehouse sync from a PostgreSQL primary skips the
+`postgres_fdw` fast path and uses the bridge: the FDW link is opened by the
+primary server's libpq, where m3's transport check does not run.
+
 ### Deployment profiles
 
 - **Homelab and small teams (FIPS-ready, not validated).** Recommended: Tailscale

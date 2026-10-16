@@ -59,3 +59,38 @@ def test_nothing_configured_is_none(monkeypatch, live):
     m3_sdk, sync_all = live
     monkeypatch.setattr(m3_sdk, "resolve_warehouse_dsn", lambda: None)
     assert sync_all.warehouse_target() is None
+
+
+def test_the_probe_dials_hostaddr_not_the_certificate_name(monkeypatch, live):
+    """With verify-full, host names the certificate and may not resolve on this
+    machine; probing it skipped every sync as "unreachable"."""
+    m3_sdk, sync_all = live
+    monkeypatch.setattr(
+        m3_sdk,
+        "resolve_warehouse_dsn",
+        lambda: "postgresql://u@db.example.invalid:5432/w?hostaddr=192.0.2.7&sslmode=verify-full",
+    )
+    assert sync_all.warehouse_target() == ("192.0.2.7", 5432, "warehouse DSN")
+
+
+def test_a_host_list_is_reachable_when_any_host_answers(monkeypatch, live):
+    _m3_sdk, sync_all = live
+    tried = []
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake(addr, timeout):
+        tried.append(addr[0])
+        if addr[0] != "b.example.invalid":
+            raise OSError("refused")
+        return _Conn()
+
+    monkeypatch.setattr(sync_all.socket, "create_connection", fake)
+    assert sync_all.is_reachable("a.example.invalid, b.example.invalid", 5432)
+    assert tried == ["a.example.invalid", "b.example.invalid"]
+    assert not sync_all.is_reachable("a.example.invalid", 5432)

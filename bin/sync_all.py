@@ -109,7 +109,9 @@ def warehouse_target() -> "tuple[str, int, str] | None":
         why = "is not a DSN libpq can parse" if parts is None else "has no host"
         log.warning(f"the warehouse DSN {why}; sync is skipped. inspect: M3_CDW_PG_URL or the stored PG_URL")
         return None
-    return parts.host, parts.port, "warehouse DSN"
+    # The address libpq dials: hostaddr when set (host then only names the
+    # certificate, and may not resolve here), else the host list.
+    return ",".join(parts.dial_hosts()), parts.port, "warehouse DSN"
 
 
 # Logging is configured in main() via setup_task_runtime so scheduled-task
@@ -170,12 +172,15 @@ def _resolve_dbs() -> list[pathlib.Path]:
 
 
 def is_reachable(host: str, port: int = 5432, timeout: float = 3.0) -> bool:
-    """TCP probe — faster and more reliable than ping across platforms."""
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except OSError:
-        return False
+    """TCP probe — faster and more reliable than ping across platforms. A
+    comma-separated list (libpq's multi-host form) is reachable when any is."""
+    for h in (part.strip() for part in host.split(",")):
+        try:
+            with socket.create_connection((h, port), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 # ── pg_sync runner ────────────────────────────────────────────────────────────

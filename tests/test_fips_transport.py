@@ -192,3 +192,9 @@ def test_the_report_marks_a_refused_path_and_the_doctor_counts_it(tier, monkeypa
     assert fips_probe.run(brief=True) == 1
     tier("off")
     assert fips_probe.run(brief=True) == 0, "outside FIPS tiers the report never fails the doctor"
+
+
+def test_a_local_name_dialing_a_remote_hostaddr_still_needs_verify_full(tier):
+    cp = tier("mode")
+    with pytest.raises(cp.FipsTransportError):
+        cp.require_pg_transport("host=localhost hostaddr=192.0.2.7 dbname=m3")

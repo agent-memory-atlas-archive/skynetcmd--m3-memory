@@ -154,6 +154,11 @@ def _fips_strict() -> bool:
     return os.environ.get("M3_FIPS_STRICT") == "1"
 
 
+def fips_tier() -> str:
+    """The active tier: "strict", "mode" or "off"."""
+    return "strict" if _fips_strict() else ("mode" if _fips_mode() else "off")
+
+
 # ── Secure wolfSSL discovery (DLL-hijack / search-order hardening) ───────────
 # A bare `ctypes.CDLL("wolfssl.dll")` delegates to the OS loader search order,
 # which on Windows includes the CWD and %PATH%, and on Linux honours the
@@ -1239,7 +1244,7 @@ def crypto_paths_report() -> dict:
     """
     import ssl
 
-    tier = "strict" if _fips_strict() else ("mode" if _fips_mode() else "off")
+    tier = fips_tier()
     attested = _tls_validated_attested()
     rows: list[dict[str, object]] = []
 

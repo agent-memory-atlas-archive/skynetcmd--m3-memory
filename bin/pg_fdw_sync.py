@@ -144,7 +144,16 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
     """Idempotently set up postgres_fdw: extension, foreign server, user mapping,
     and IMPORT FOREIGN SCHEMA. Raises FdwUnavailable if the extension is missing
     (needs superuser to create) or the server can't be reached."""
+    from crypto_provider import fips_tier
     from m3_core.dsn import parse_pg_dsn
+
+    # The FDW link is opened by the primary server's libpq, outside this process,
+    # so require_pg_transport cannot vet it. FIPS tiers take the bridge, which can.
+    if fips_tier() != "off":
+        raise FdwUnavailable(
+            "FIPS tiers sync through the bridge: postgres_fdw connects from the primary server, "
+            "where m3's transport check does not run"
+        )
 
     # libpq's parser (m3_core.dsn): urlparse found no host in a keyword DSN and
     # left a URI's percent-encoded password encoded in the user mapping.
@@ -163,9 +172,11 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
             "postgres_fdw extension not installed on the primary (run `CREATE EXTENSION postgres_fdw;` as superuser)"
         )
 
-    # Foreign server + user mapping (idempotent). Server options can't be changed
-    # by CREATE IF NOT EXISTS if they drift, but for our fixed warehouse they're
-    # stable; a drop/recreate would invalidate imported tables, so keep IF NOT EXISTS.
+    # Foreign server, rebuilt each run so a changed DSN (address, sslmode) takes
+    # effect: CREATE IF NOT EXISTS kept the first run's options forever. CASCADE
+    # drops only the user mapping and foreign tables, both recreated below.
+    # hostaddr, sslmode and sslrootcert pass through so the link keeps the DSN's
+    # TLS terms; sslrootcert is read on the primary server's host.
     # Omit `host` entirely when the DSN carries none — a unix-socket DSN
     # (`postgresql:///db`, the default for a local cluster with peer auth) has
     # no host component, and passing host=NULL is a SQL syntax error, exactly
@@ -176,9 +187,13 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
     if host:
         server_opts.insert(0, "host %s")
         server_args.insert(0, host)
+    for name, value in (("hostaddr", parts.hostaddr), ("sslmode", parts.sslmode), ("sslrootcert", parts.sslrootcert)):
+        if value:
+            server_opts.append(f"{name} %s")
+            server_args.append(value)
+    pg_cur.execute(f"DROP SERVER IF EXISTS {FDW_SERVER} CASCADE")
     pg_cur.execute(
-        f"CREATE SERVER IF NOT EXISTS {FDW_SERVER} FOREIGN DATA WRAPPER postgres_fdw "
-        f"OPTIONS ({', '.join(server_opts)})",
+        f"CREATE SERVER {FDW_SERVER} FOREIGN DATA WRAPPER postgres_fdw OPTIONS ({', '.join(server_opts)})",
         tuple(server_args),
     )
     # User mapping: recreate to pick up a rotated password. current_user maps to

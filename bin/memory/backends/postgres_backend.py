@@ -351,8 +351,11 @@ def _reject_forbidden_host(url: str) -> None:
     from m3_core.dsn import parse_pg_dsn
 
     parts = parse_pg_dsn(url)
-    # libpq takes a comma-separated host list and tries each: any of them counts.
-    parsed_hosts = {h.strip().lower() for h in parts.host.split(",")} - {""} if parts else set()
+    # libpq takes a comma-separated host list and tries each: any of them counts,
+    # as does the hostaddr it dials in place of a host name.
+    parsed_hosts = (
+        {h.strip().lower() for h in f"{parts.host},{parts.hostaddr or ''}".split(",")} - {""} if parts else set()
+    )
     scheme = "postgres" if "://" not in url else url.strip().split("://", 1)[0]
 
     for host in forbidden:

@@ -30,6 +30,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
 import pg_fdw_sync  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _fips_off(monkeypatch):
+    """FIPS tiers refuse the FDW path outright (tested last); the SQL tests run outside them."""
+    import crypto_provider
+
+    monkeypatch.setattr(crypto_provider, "_fips_mode", lambda: False)
+    monkeypatch.setattr(crypto_provider, "_fips_strict", lambda: False)
+
+
 class _RecordingCursor:
     """Minimal cursor double: records SQL, reports postgres_fdw as installed."""
 
@@ -110,3 +119,30 @@ def test_no_statement_ever_receives_a_none_argument():
     ):
         for sql, args in _wire(dsn).calls:
             assert None not in args, f"{dsn} -> None in args for: {sql}"
+
+
+def test_the_dsn_tls_terms_and_hostaddr_reach_the_server_options():
+    """Without these the FDW link ran at libpq's default (prefer) whatever the DSN said."""
+    cur = _wire("postgresql://u@db.example/w?hostaddr=192.0.2.7&sslmode=verify-full&sslrootcert=/etc/ca.pem")
+    sql, args = cur.sql_for("CREATE SERVER")[0]
+    for opt, val in (("hostaddr", "192.0.2.7"), ("sslmode", "verify-full"), ("sslrootcert", "/etc/ca.pem")):
+        assert f"{opt} %s" in sql and val in args
+
+
+def test_the_server_is_rebuilt_so_changed_options_apply():
+    """CREATE SERVER IF NOT EXISTS kept the first run's options forever."""
+    sqls = [sql for sql, _ in _wire("postgresql://u@db.example/w").calls]
+    drop = sqls.index(f"DROP SERVER IF EXISTS {pg_fdw_sync.FDW_SERVER} CASCADE")
+    create = next(i for i, s in enumerate(sqls) if s.startswith(f"CREATE SERVER {pg_fdw_sync.FDW_SERVER} "))
+    assert drop < create
+
+
+def test_fips_tiers_take_the_bridge(monkeypatch):
+    """postgres_fdw connects from the primary server, where m3's transport check cannot run."""
+    import crypto_provider
+
+    monkeypatch.setattr(crypto_provider, "_fips_mode", lambda: True)
+    cur = _RecordingCursor()
+    with pytest.raises(pg_fdw_sync.FdwUnavailable, match="FIPS"):
+        pg_fdw_sync._ensure_fdw_wired(cur, "postgresql://u@db.example/w?sslmode=verify-full")
+    assert not cur.calls, "nothing may be sent to the primary before the refusal"

@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Warehouse sync probes the address it connects to.** With `hostaddr` in the
+  DSN, the reachability check resolved the host name instead, which may name only
+  the certificate, and skipped every sync as unreachable. A host list is
+  reachable when any of its hosts answers. **Affected:** warehouse DSNs using
+  `hostaddr` or several hosts · **Action:** none · **Data status:** none.
+
 - **Semantic search on SQLite considers every memory.** It ranked a fixed set of
   50 memories, the same for every query, so most of a store could not be found by
   meaning. Hybrid searches whose keywords matched nothing landed there too. It now
@@ -568,6 +574,13 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Security
+
+- **The postgres_fdw sync link keeps the warehouse DSN's TLS terms.** It ignored
+  `sslmode`, `sslrootcert` and `hostaddr`, so it ran at libpq's default (`prefer`),
+  and it kept its first options after the DSN changed. Under FIPS tiers it is
+  skipped and sync uses the bridge. A DSN naming `localhost` but dialing a
+  remote `hostaddr` is no longer treated as local. **Affected:** PostgreSQL
+  primaries syncing to a warehouse · **Action:** none · **Data status:** none.
 
 - **FIPS mode no longer lets network connections fall back silently.** Under
   `M3_FIPS_MODE`, a PostgreSQL connection that crosses a network must use

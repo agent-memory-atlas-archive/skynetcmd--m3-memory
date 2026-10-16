@@ -27,15 +27,25 @@ class DsnParts:
     user: str | None = None
     password: str | None = None
     sslmode: str | None = None  # None: not set, so libpq's default ("prefer") applies
+    sslrootcert: str | None = None
+    # libpq dials hostaddr when set and keeps host for the certificate check, so
+    # `host=db.lan hostaddr=192.0.2.5` verifies "db.lan" but connects to 192.0.2.5.
+    hostaddr: str | None = None
 
     def identity(self) -> tuple[str, int, str]:
         """``(host, port, dbname)``: which database, whatever the credentials."""
         return (self.host.lower(), self.port, self.dbname)
 
+    def dial_hosts(self) -> list[str]:
+        """The addresses libpq connects to, in order: hostaddr when set, else host.
+        "" means the default local socket."""
+        return [h.strip() for h in (self.hostaddr or self.host or "").split(",")]
+
     def is_local(self) -> bool:
         """True when the connection never crosses a network: a Unix socket (no
-        host, or a directory path) or the loopback interface."""
-        hosts = [h.strip().lower() for h in (self.host or "").split(",")]
+        host, or a directory path) or the loopback interface. Judged on the
+        address dialed, so `host=localhost hostaddr=192.0.2.5` is not local."""
+        hosts = [h.lower() for h in self.dial_hosts()]
         return all(not h or h.startswith("/") or h in ("localhost", "127.0.0.1", "::1") for h in hosts)
 
 
@@ -63,4 +73,6 @@ def parse_pg_dsn(dsn: str) -> DsnParts | None:
         user=raw.get("user"),
         password=raw.get("password"),
         sslmode=raw.get("sslmode") or None,
+        sslrootcert=raw.get("sslrootcert") or None,
+        hostaddr=raw.get("hostaddr") or None,
     )
