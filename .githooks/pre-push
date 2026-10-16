@@ -68,6 +68,7 @@ py_has_deps() { "$PY" -c 'import pytest, numpy, mcp' >/dev/null 2>&1; }
 # hardcoded origin/main guess that's wrong for feature branches / other remotes.
 ZERO="0000000000000000000000000000000000000000"
 RANGES=()
+TIPS=()        # the commits this push publishes: the drift gate checks THEM
 SAW_DELETE=0
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ -z "${local_sha:-}" ] && continue
@@ -75,8 +76,25 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     SAW_DELETE=1
     continue
   fi
+  TIPS+=("$local_sha")
   if [ "$remote_sha" = "$ZERO" ]; then
-    RANGES+=("$local_sha")                         # new remote branch — scan all of it
+    # New remote branch. NOT a bare "$local_sha": `git diff <commit>` compares
+    # the commit with the WORKING TREE, so the scan saw almost nothing and the
+    # leakage gate passed a new branch unread (found 2026-10-15). Baseline is the
+    # merge-base with the remote's trunk (what it already publishes), else the
+    # empty tree: every file in the branch.
+    # Of the merge-bases with each branch the remote already has, the one
+    # closest to this commit: everything before it is already published there.
+    nb_base=""
+    for ref in $(git for-each-ref --format='%(objectname)' "refs/remotes/${1:-origin}/"); do
+      mb="$(git merge-base "$ref" "$local_sha" 2>/dev/null || true)"
+      [ -z "$mb" ] && continue
+      if [ -z "$nb_base" ] || git merge-base --is-ancestor "$nb_base" "$mb" 2>/dev/null; then
+        nb_base="$mb"
+      fi
+    done
+    [ -z "$nb_base" ] && nb_base="$(git hash-object -t tree /dev/null)"
+    RANGES+=("$nb_base..$local_sha")
   elif git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
     RANGES+=("$remote_sha..$local_sha")            # fast-forward — only new commits
   else
@@ -115,7 +133,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     if [ -n "$base" ]; then
       RANGES+=("$base..$local_sha")
     else
-      RANGES+=("$local_sha")                       # unrelated histories — scan all
+      RANGES+=("$(git hash-object -t tree /dev/null)..$local_sha")  # unrelated histories — scan all (empty tree, not the working tree)
     fi
   fi
 done
@@ -134,7 +152,7 @@ if [ ${#RANGES[@]} -eq 0 ]; then
   if git rev-parse --verify --quiet origin/main >/dev/null; then
     RANGES=("origin/main..HEAD")
   else
-    RANGES=("HEAD")
+    RANGES=("$(git hash-object -t tree /dev/null)..HEAD")  # not bare HEAD: that diffs against the working tree
   fi
 fi
 
@@ -168,9 +186,27 @@ then
   if ! py_has_deps; then
     echo "[pre-push] 1/3 drift gate — WARNING: '$PY' lacks project deps; deferring to CI." >&2
     echo "           Install dev deps for local coverage: pip install -e '.[dev]'" >&2
-  elif ! "$PY" bin/check_tool_catalog_drift.py; then
-    echo "[pre-push] BLOCKED: tool-catalog drift. Regenerate + commit, then re-push." >&2
-    exit 1
+  else
+    # Check the commit being PUSHED, not the working tree. Checking the tree
+    # blocked a clean commit because of unrelated uncommitted edits (2026-10-15),
+    # and could equally pass a stale commit over a regenerated tree. When the
+    # tree is exactly the pushed commit the check runs here; otherwise in a
+    # temporary checkout of that commit.
+    [ ${#TIPS[@]} -eq 0 ] && TIPS=("$(git rev-parse HEAD)")
+    for tip in "${TIPS[@]}"; do
+      if [ "$tip" = "$(git rev-parse HEAD)" ] && [ -z "$(git status --porcelain)" ]; then
+        "$PY" bin/check_tool_catalog_drift.py || drift_rc=1
+      else
+        tmp_wt="$(mktemp -d)"
+        git worktree add -q --detach "$tmp_wt" "$tip" >/dev/null 2>&1 || { echo "[pre-push] cannot check out $tip to check drift" >&2; exit 1; }
+        (cd "$tmp_wt" && "$PY" bin/check_tool_catalog_drift.py) || drift_rc=1
+        git worktree remove --force "$tmp_wt" >/dev/null 2>&1
+      fi
+    done
+    if [ "${drift_rc:-0}" -ne 0 ]; then
+      echo "[pre-push] BLOCKED: tool-catalog drift in the pushed commit. Regenerate + commit, then re-push." >&2
+      exit 1
+    fi
   fi
 else
   echo "[pre-push] 1/3 tool-catalog drift gate — skipped (no catalog/doc paths in push)"
