@@ -121,10 +121,15 @@ waiter can tell mail relayed from another machine (phase 2).
 ### Supervision and packaging
 
 `m3-dispatchd` ships in the `m3_core_rs` wheel beside `m3-embed-server`. It is
-per OS user, like the socket, so m3's Python installer registers it as a
-per-user job (launchd agent, systemd user unit, logon task), as it does the
-cognitive loop, and passes the endpoint the OS seam chooses. The embed server's
-Rust service code installs a machine-wide service and is not reused. It is a separate binary
+per OS user, like the socket. The notification waiter, already a per-user job on
+every OS, starts it (detached, windowless, logging to `m3-dispatchd.log` in the
+logs root) when nothing answers on the endpoint, and again if it dies: no second
+registered service, so no new unit, task, upgrade or uninstall path. Two waiters
+racing to start it leave one, because a second daemon cannot bind a live
+endpoint. `m3 stop` (and so `m3 upgrade`) finds `m3-dispatchd` and `m3-wait` by
+program name: they hold no store, but on Windows a running copy locks its
+`.exe`. The waiter holds `m3-wait`'s stdin open and `m3-wait` exits when it
+closes, so a killed waiter leaves no `m3-wait` behind. It is a separate binary
 rather than a second listener inside the embed server: the embed server may be
 GPU-bound and restarts for model changes, and messaging must not inherit that.
 

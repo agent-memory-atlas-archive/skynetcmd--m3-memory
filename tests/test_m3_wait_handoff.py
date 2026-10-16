@@ -49,28 +49,41 @@ def _args(**kw):
     return types.SimpleNamespace(**{**base, **kw})
 
 
+class _Child:
+    def __init__(self, cmd, rc, seen):
+        seen["cmd"], seen["stdin"], self.rc = cmd, None, rc
+
+    def wait(self):
+        return self.rc
+
+
+def _popen(rc, seen):
+    def make(cmd, **kw):
+        child = _Child(cmd, rc, seen)
+        seen["stdin"] = kw.get("stdin")
+        return child
+
+    return make
+
+
 def test_the_m3_wait_command_carries_readers_and_the_confirm_step(monkeypatch):
     seen = {}
-
-    def run(cmd, **kw):
-        seen["cmd"] = cmd
-        return subprocess.CompletedProcess(cmd, 0)
-
-    monkeypatch.setattr(w.subprocess, "run", run)
+    monkeypatch.setattr(w.subprocess, "Popen", _popen(0, seen))
     monkeypatch.setattr(w.sys, "argv", ["waiter", "--agent-id", "a", "--config", "/c.toml", "--set=x=1"])
     assert w._wait_via_m3_wait(_args(), "/sock", "/bin/m3-wait") == 0
     cmd = seen["cmd"]
     sep = cmd.index("--")
     own, confirm = cmd[:sep], cmd[sep + 1 :]
-    assert own[:5] == ["/bin/m3-wait", "--endpoint", "/sock", "--timeout", "30.0"]
-    assert own[5:] == ["--reader", "a", "--reader", "b@1"]
+    assert own[:6] == ["/bin/m3-wait", "--endpoint", "/sock", "--timeout", "30.0", "--exit-when-stdin-closes"]
+    assert own[6:] == ["--reader", "a", "--reader", "b@1"]
+    assert seen["stdin"] == subprocess.PIPE, "stdin must stay open: its closing tells m3-wait the waiter died"
     assert confirm[2:5] == ["--confirm", "--engine-root", "/eng"]
     assert confirm[5:] == ["--agent-id", "a", "--agent-id", "b@1", "--ack", "--config", "/c.toml", "--set=x=1"]
 
 
 @pytest.mark.parametrize("rc,expected", [(0, 0), (2, 2), (3, None), (1, None)])
 def test_no_daemon_or_a_failure_falls_back_to_polling(monkeypatch, rc, expected):
-    monkeypatch.setattr(w.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, rc))
+    monkeypatch.setattr(w.subprocess, "Popen", _popen(rc, {}))
     warned = []
     monkeypatch.setattr(w, "_warn", warned.append)
     assert w._wait_via_m3_wait(_args(), "/sock", "/bin/m3-wait") == expected
@@ -78,6 +91,7 @@ def test_no_daemon_or_a_failure_falls_back_to_polling(monkeypatch, rc, expected)
 
 
 def test_main_uses_m3_wait_and_never_imports_the_store(monkeypatch):
+    monkeypatch.setattr(w, "_ensure_daemon", lambda ep: True)
     monkeypatch.setattr(w, "_doorbell_endpoint", lambda root: "/sock")
     monkeypatch.setattr(w, "_m3_wait_binary", lambda: "/bin/m3-wait")
     monkeypatch.setattr(w, "_wait_via_m3_wait", lambda args, ep, b: 0)
@@ -93,6 +107,7 @@ def test_main_polls_when_m3_wait_cannot_serve(monkeypatch):
     def polled(store):
         raise Polled
 
+    monkeypatch.setattr(w, "_ensure_daemon", lambda ep: True)
     monkeypatch.setattr(w, "_doorbell_endpoint", lambda root: "/sock")
     monkeypatch.setattr(w, "_m3_wait_binary", lambda: "/bin/m3-wait")
     monkeypatch.setattr(w, "_wait_via_m3_wait", lambda args, ep, b: None)
@@ -117,3 +132,50 @@ def test_the_doorbell_socket_path_always_fits_the_limit(monkeypatch):
     assert ep.replace("\\", "/").startswith("/tmp/m3-dispatch-"), ep
     short_root = os.path.abspath("/u/.m3/engine")
     assert _platform.dispatch_endpoint(short_root) == os.path.join(short_root, ".internal", "dispatch.sock")
+
+
+def test_main_polls_when_no_daemon_can_run(monkeypatch):
+    class Polled(Exception):
+        pass
+
+    def polled(store):
+        raise Polled
+
+    monkeypatch.setattr(w, "_ensure_daemon", lambda ep: False)
+    monkeypatch.setattr(w, "_doorbell_endpoint", lambda root: "/sock")
+    monkeypatch.setattr(w, "_m3_wait_binary", lambda: "/bin/m3-wait")
+    monkeypatch.setattr(w, "_wait_via_m3_wait", lambda args, ep, b: pytest.fail("m3-wait with no daemon"))
+    monkeypatch.setattr(w, "_has_change_signal", polled)
+    monkeypatch.setattr(w.sys, "argv", ["waiter", "--agent-id", "a"])
+    with pytest.raises(Polled):
+        w.main()
+
+
+@pytest.mark.parametrize(
+    "alive,binary,started,expected,warns",
+    [
+        (True, None, None, True, False),  # already up: nothing started
+        (False, None, None, False, False),  # this core has no daemon: polling is normal, said nowhere
+        (False, "/bin/m3-dispatchd", True, True, False),
+        (False, "/bin/m3-dispatchd", False, False, True),  # started but silent: reported
+    ],
+)
+def test_the_waiter_keeps_the_daemon_up(monkeypatch, alive, binary, started, expected, warns):
+    from m3_core import doorbell
+
+    monkeypatch.setattr(doorbell, "alive", lambda ep: alive)
+    monkeypatch.setattr(w, "_core_binary", lambda base: binary if base == "m3-dispatchd" else None)
+    calls = []
+
+    def start(ep, b, log, wait_s=3.0):
+        calls.append((ep, b, log))
+        return started
+
+    monkeypatch.setattr(doorbell, "start_daemon", start)
+    warned = []
+    monkeypatch.setattr(w, "_warn", warned.append)
+    assert w._ensure_daemon("/sock") is expected
+    assert bool(calls) == (started is not None)
+    if calls:
+        assert calls[0][2].endswith("m3-dispatchd.log")
+    assert bool(warned) == warns

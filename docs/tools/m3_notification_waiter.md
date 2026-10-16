@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: 2e8b510784e8
-mtime_utc: 2026-10-16T04:12:49.533448+00:00
-generated_utc: 2026-10-16T04:12:50.429226+00:00
+sha1: cdcfd392f700
+mtime_utc: 2026-10-16T04:12:50.996404+00:00
+generated_utc: 2026-10-16T04:12:51.913602+00:00
 private: false
 ---
 
@@ -72,7 +72,7 @@ _(none detected)_
 **subprocess**
 
 - `subprocess.Popen()  → `cmd`` (line 407)
-- `subprocess.run()  → `cmd`` (line 787)
+- `subprocess.Popen()  → `cmd`` (line 819)
 - `subprocess.run()` (line 238)
 
 
@@ -84,6 +84,7 @@ _(none detected)_
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
+- `m3_core.paths (get_m3_logs_root)`
 - `m3_core.paths (notification_store_paths)`
 - `m3_core.paths (resolve_backend_name)`
 - `m3_core.seams (core_bins)`

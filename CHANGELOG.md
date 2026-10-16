@@ -674,13 +674,14 @@ the policy is forward-going only.
 
 ### Changed
 
-- **The notification waiter waits in `m3-wait` when the dispatch daemon runs.**
-  With `m3-dispatchd` running and a core that ships `m3-wait`, the waiter blocks
-  there (about 19 MB committed in all, against about 515 MB for the polling child)
-  and confirms each wake in the store. On that path, mail that arrived while no
-  waiter ran is reported at its first wake. Without the daemon or `m3-wait`, it
-  polls as before. **Affected:** installs running `m3-dispatchd` · **Action:**
-  none · **Data status:** none.
+- **The notification waiter blocks on the dispatch doorbell when the core has it.**
+  With a core that ships `m3-dispatchd` and `m3-wait`, the waiter starts the
+  daemon if it is not running and waits in `m3-wait` (about 19 MB committed in
+  all, against about 515 MB for the polling child), confirming each wake in the
+  store. On that path, mail that arrived while no waiter ran is reported at its
+  first wake. `m3 stop` also stops both programs. Otherwise the waiter polls as
+  before. **Affected:** installs whose core ships the dispatch programs ·
+  **Action:** none · **Data status:** none.
 
 - **m3's background jobs show under their own names on macOS and Linux.** Login items
   and process lists read `m3-cognitive-loop`, `m3-sync`, `m3-dashboard` and so on instead

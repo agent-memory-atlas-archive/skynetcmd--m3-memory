@@ -268,6 +268,10 @@ _WRITER_CMDLINE_SIGNATURES = {
     # service, so it is the copy actually running on most installs.
     "embed-server": ("embed_server_inproc.py", "m3-embed-server"),
     "waiter": ("m3_notification_waiter.py",),
+    # The dispatch doorbell and the waiter's m3-wait child hold no store, but on
+    # Windows a running copy locks its .exe and a core upgrade cannot replace it.
+    "dispatchd": ("m3-dispatchd",),
+    "m3-wait": ("m3-wait",),
     # `mcp-memory` is the legacy console script, but the Claude Code plugin
     # launches the server as bare `m3` (mcp_config.json -> command: "m3"), which
     # matched NOTHING here: the MCP server — the longest-lived DB writer on a
@@ -476,7 +480,7 @@ def elevated_kill_commands(pids: list[int]) -> list[str]:
 # Blocking on it would be a false positive with teeth: it stalls a legitimate
 # upgrade for the full quiesce timeout and then asks the operator to kill an
 # irrelevant process — which is how people learn to reflex-dismiss the prompt.
-NON_BLOCKING_ROLES = ("embed-server", "waiter")
+NON_BLOCKING_ROLES = ("embed-server", "waiter", "dispatchd", "m3-wait")
 
 
 def _is_venv_launcher_stub(proc) -> bool:

@@ -224,3 +224,28 @@ def test_every_reader_that_sees_a_message_is_told_once(stores, capsys, tmp_path)
     assert w._confirm(bare) == w._KEEP_WAITING, "the bare waiter re-reported: its baseline was overwritten"
     assert w._confirm(inst) == w._KEEP_WAITING, "the instance waiter re-reported: its baseline was overwritten"
     capsys.readouterr()
+
+
+def test_start_daemon_brings_one_up_and_a_second_start_does_not_double_it(tmp_path):
+    """What the waiter does when nothing answers. A racing second start exits
+    ("already serving"), leaving the first in place."""
+    import psutil
+
+    exe = _core_bin("m3-dispatchd")
+    if not exe:
+        pytest.skip(skip_reason("dep", "m3-dispatchd is not installed (a core with the dispatch daemon)"))
+    endpoint = doorbell.endpoint_for(str(tmp_path / "engine"))
+    (tmp_path / "engine" / ".internal").mkdir(parents=True, exist_ok=True)
+    log = str(tmp_path / "logs" / "m3-dispatchd.log")
+    assert not doorbell.alive(endpoint)
+    assert doorbell.start_daemon(endpoint, exe, log)
+    try:
+        assert doorbell.start_daemon(endpoint, exe, log)  # still answers: the first one
+        time.sleep(0.5)
+        mine = [p for p in psutil.process_iter(["cmdline"]) if endpoint in " ".join(p.info.get("cmdline") or [])]
+        assert len(mine) == 1, f"{len(mine)} daemons on one endpoint"
+        assert "already serving" in pathlib.Path(log).read_text(encoding="utf-8", errors="replace")
+    finally:
+        for p in psutil.process_iter(["cmdline"]):
+            if endpoint in " ".join(p.info.get("cmdline") or []):
+                p.kill()

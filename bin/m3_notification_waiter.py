@@ -625,7 +625,7 @@ def main() -> int:
     # this interpreter imports none of the store. Otherwise, the paths below.
     bell, wait_bin = _doorbell_endpoint(args.engine_root), _m3_wait_binary()
     if bell and wait_bin:
-        while True:
+        while _ensure_daemon(bell):
             if args.supervise:
                 args.agent_ids = refresh_agent_ids(args.agent_ids)
             rc = _wait_via_m3_wait(args, bell, wait_bin)
@@ -761,20 +761,51 @@ def _pinning_argv() -> list[str]:
     return out
 
 
-def _m3_wait_binary() -> str | None:
+def _core_binary(base: str) -> str | None:
     try:
         from m3_core.seams import core_bins
     except ImportError:
         return None
-    found = core_bins.core_binary("m3-wait")
+    found = core_bins.core_binary(base)
     return str(found) if found else None
+
+
+def _m3_wait_binary() -> str | None:
+    return _core_binary("m3-wait")
+
+
+def _ensure_daemon(endpoint: str) -> bool:
+    """m3-dispatchd answers on ``endpoint``, started here if the core has it.
+
+    The waiter is already a per-user job on every OS, so it keeps the daemon up
+    rather than a second registered service: no new unit, task or uninstall
+    path. A daemon that died is started again at the next round."""
+    from m3_core import doorbell
+
+    if doorbell.alive(endpoint):
+        return True
+    binary = _core_binary("m3-dispatchd")
+    if not binary:
+        return False  # this core has no daemon: polling is the normal path
+    from m3_core.paths import get_m3_logs_root
+
+    log = os.path.join(get_m3_logs_root(), "m3-dispatchd.log")
+    if doorbell.start_daemon(endpoint, binary, log):
+        return True
+    _warn(
+        f"m3-dispatchd did not answer after starting. observed: binary {binary}, endpoint {endpoint}. "
+        f"polling instead. inspect: {log}"
+    )
+    return False
 
 
 def _wait_via_m3_wait(args, endpoint: str, binary: str) -> int | None:
     """Block in m3-wait (about 1 MB committed) instead of this interpreter, and
     confirm each wake with ``--confirm``. None when it cannot serve (no daemon,
     or m3-wait failed: reported), so the caller polls as before."""
-    cmd = [binary, "--endpoint", endpoint, "--timeout", str(args.timeout)]
+    # --exit-when-stdin-closes: m3-wait ends when this process does, however it
+    # ends, so a killed waiter leaves no child running confirm commands.
+    cmd = [binary, "--endpoint", endpoint, "--timeout", str(args.timeout), "--exit-when-stdin-closes"]
     for a in args.agent_ids:
         cmd += ["--reader", a]
     cmd += ["--", sys.executable, os.path.abspath(__file__), "--confirm", "--engine-root", args.engine_root]
@@ -784,7 +815,9 @@ def _wait_via_m3_wait(args, endpoint: str, binary: str) -> int | None:
         cmd.append("--ack")
     cmd += _pinning_argv()
     try:
-        rc = subprocess.run(cmd, **_no_window()).returncode  # nosec B603 - argv list, no shell
+        # Popen + wait, not run(): run() closes stdin at once, which is the signal to exit.
+        child = subprocess.Popen(cmd, stdin=subprocess.PIPE, **_no_window())  # nosec B603 - argv list, no shell
+        rc = child.wait()
     except OSError as exc:
         _warn(f"m3-wait did not start: {exc!r}. observed: binary {binary}, endpoint {endpoint}. polling instead")
         return None

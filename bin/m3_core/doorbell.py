@@ -21,6 +21,9 @@ import os
 import threading
 
 RING_BUDGET_S = 0.25  # the most a writer waits on a ring, daemon up or not
+# Daemons this process started. Never waited for, by design (they outlive us);
+# holding the handles keeps Popen from reporting them as leaked children.
+_STARTED: list = []
 _PIPE_PREFIX = "\\\\.\\pipe\\"
 
 
@@ -121,3 +124,45 @@ def endpoint_for(engine_root: str) -> str | None:
     except ImportError:
         return None
     return dispatch_endpoint(engine_root)
+
+
+def alive(endpoint: str | None) -> bool:
+    """True when a daemon answers on ``endpoint``."""
+    if not endpoint or (not _is_pipe(endpoint) and not os.path.exists(endpoint)):
+        return False
+    try:
+        status, _ = _request(endpoint, "GET", "/health", None, 2.0)
+    except (OSError, ValueError, IndexError):
+        return False
+    return status == 200
+
+
+def start_daemon(endpoint: str, binary: str, log_path: str, wait_s: float = 3.0) -> bool:
+    """Start ``binary`` (m3-dispatchd) serving ``endpoint``, detached and windowless,
+    its log appended to ``log_path``; True once it answers within ``wait_s``.
+
+    Safe to race: a second daemon on a live endpoint exits at once ("already
+    serving"), so two waiters starting one each leave one running."""
+    import subprocess
+    import time
+    from pathlib import Path
+
+    from m3_core.seams import detached_spawn_kwargs
+
+    log_file = Path(log_path)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    with log_file.open("ab") as log:
+        proc = subprocess.Popen(  # nosec B603 - argv list, no shell; binary is m3's own core-wheel executable
+            [binary, "--endpoint", endpoint],
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=log,
+            **detached_spawn_kwargs(),
+        )
+    _STARTED.append(proc)
+    deadline = time.monotonic() + wait_s
+    while time.monotonic() < deadline:
+        if alive(endpoint):
+            return True
+        time.sleep(0.05)
+    return False
