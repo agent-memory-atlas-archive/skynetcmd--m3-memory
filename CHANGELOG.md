@@ -569,6 +569,24 @@ the policy is forward-going only.
 
 ### Security
 
+- **FIPS mode no longer lets network connections fall back silently.** Under
+  `M3_FIPS_MODE`, a PostgreSQL connection that crosses a network must use
+  `sslmode=verify-full`; it could previously fall back to plaintext or skip the
+  server's certificate. Under `M3_FIPS_STRICT`, network TLS is refused unless
+  you attest a validated TLS library with `crypto.tls_validated = true`, and
+  `psycopg2-binary` (which bundles its own OpenSSL) is refused. **Affected:**
+  installs running `M3_FIPS_MODE` or `M3_FIPS_STRICT` with a PostgreSQL store or
+  warehouse on another machine · **Action:** add `sslmode=verify-full` and the
+  server's CA (`sslrootcert`) to that DSN; under strict, also see
+  docs/FIPS_MODULE_BOUNDARY.md · **Data status:** none.
+
+- **Keys, IVs, salts and tokens come from the crypto provider's random source.**
+  With the wolfCrypt backend they are drawn from wolfCrypt's DRBG instead of the
+  operating system's. `m3 doctor` now shows each cryptographic path, what serves
+  it and whether the active FIPS tier accepts it, and the FIPS documentation
+  now lists every path, including network TLS, which the platform's TLS library
+  serves. **Affected:** all · **Action:** none · **Data status:** none.
+
 - **The `[langchain]` extra moves to LangChain 1.x.** It now requires
   `langchain-core>=1.4.0`, `langgraph>=1.2.4`, `langgraph-checkpoint>=4.1.1` and
   `langgraph-sdk>=0.4.4`, past the 2026 advisories in those packages (path traversal

@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: 3b4771ca89aa
-mtime_utc: 2026-10-15T03:05:31.956594+00:00
-generated_utc: 2026-10-15T03:07:51.601684+00:00
+sha1: 3991ce41d8a1
+mtime_utc: 2026-10-16T00:41:47.965082+00:00
+generated_utc: 2026-10-16T00:51:49.228116+00:00
 private: false
 ---
 
@@ -26,7 +26,7 @@ The warehouse DSN is the M3_CDW_PG_URL secret (m3 secret set M3_CDW_PG_URL).
 
 ## Entry points
 
-- `def main()` (line 38)
+- `def main()` (line 36)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -60,8 +60,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.pgconn (pg_connect)`
 - `m3_core.secret_store (PgRole, resolve_pg_dsn)`
-- `psycopg2`
 
 ---
 

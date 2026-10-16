@@ -44,7 +44,6 @@ from __future__ import annotations
 import enum
 import hmac
 import logging
-import secrets
 
 from m3_core.errors import log_swallowed
 
@@ -136,7 +135,9 @@ class StaticTokenVerifier:
 
 def generate_token() -> str:
     """Mint a new bearer token. ~43 urlsafe chars from 32 bytes of entropy."""
-    return secrets.token_urlsafe(_TOKEN_ENTROPY_BYTES)
+    from crypto_provider import get_token_urlsafe  # random source inside the FIPS boundary
+
+    return get_token_urlsafe(_TOKEN_ENTROPY_BYTES)
 
 
 def is_loopback(host: str | None) -> bool:

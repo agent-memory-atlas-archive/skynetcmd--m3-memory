@@ -399,6 +399,34 @@ def user_service_runtime_dir() -> str | None:
     return None
 
 
+def os_fips_mode() -> bool | None:
+    """Whether the operating system reports FIPS mode, or None where there is no
+    such switch (macOS) or it cannot be read.
+
+    Linux: ``/proc/sys/crypto/fips_enabled``. Windows: the FipsAlgorithmPolicy
+    registry value. Informational only: it says what the OS enforces for its own
+    crypto, not what a library bundling its own OpenSSL (Python's ssl on
+    Windows, psycopg2-binary) does, so it can never prove validated TLS.
+    """
+    if is_linux():
+        try:
+            with open("/proc/sys/crypto/fips_enabled", encoding="ascii") as f:
+                return f.read().strip() == "1"
+        except OSError:
+            return None
+    if is_windows():
+        try:
+            import winreg
+
+            key = r"SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as k:
+                value, _ = winreg.QueryValueEx(k, "Enabled")
+            return bool(value)
+        except OSError:
+            return None
+    return None
+
+
 def dispatch_endpoint(engine_root: str) -> str:
     """Where this engine root's dispatch doorbell (m3-dispatchd) listens.
 

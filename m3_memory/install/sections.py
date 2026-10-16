@@ -780,9 +780,9 @@ def _backend_section(cfg: dict) -> None:
     masked = mask_dsn_passwords(dsn)
     print(f"  primary DSN:              {masked}")
     try:
-        import psycopg2
+        from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
 
-        conn = psycopg2.connect(dsn, connect_timeout=5)
+        conn = pg_connect(dsn, connect_timeout=5)
         cur = conn.cursor()
         # Identity (host/db) for the panel — prepared as the same shape other
         # SQL backends (MariaDB, …) would report.

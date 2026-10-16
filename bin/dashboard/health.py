@@ -1041,9 +1041,9 @@ def _backend_block() -> dict:
             masked = mask_dsn_passwords(dsn) if dsn else ""
             rows, last, reachable = None, "—", False
             if dsn:
-                import psycopg2
+                from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
 
-                conn = psycopg2.connect(dsn, connect_timeout=5)
+                conn = pg_connect(dsn, connect_timeout=5)
                 cur = conn.cursor()
                 cur.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0")
                 rows = cur.fetchone()[0]

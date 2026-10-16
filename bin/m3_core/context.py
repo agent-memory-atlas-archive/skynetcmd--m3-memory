@@ -708,7 +708,9 @@ class M3Context:
         last_exc = None
         for attempt in range(2):
             try:
-                conn = psycopg2.connect(url, connect_timeout=10)
+                from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
+
+                conn = pg_connect(url, connect_timeout=10)
                 self._record_success("postgresql")
                 try:
                     yield conn

@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_warehouse_to_schema.py
-sha1: 380c09754b06
-mtime_utc: 2026-10-12T18:47:42.555286+00:00
-generated_utc: 2026-10-12T18:59:10.571680+00:00
+sha1: e902609c6984
+mtime_utc: 2026-10-16T00:42:10.168429+00:00
+generated_utc: 2026-10-16T00:51:49.207836+00:00
 private: false
 ---
 
@@ -77,9 +77,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.pgconn (pg_connect)`
 - `m3_core.secret_store (PgRole, explain_pg_dsn)`
-- `psycopg`
-- `psycopg2`
 
 ---
 

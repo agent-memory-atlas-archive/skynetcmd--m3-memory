@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_doctor.py
-sha1: d025933262bd
-mtime_utc: 2026-10-15T10:46:14.905943+00:00
-generated_utc: 2026-10-15T10:49:36.993322+00:00
+sha1: 0e0baf1d694c
+mtime_utc: 2026-10-16T00:56:14.314411+00:00
+generated_utc: 2026-10-16T00:58:19.855615+00:00
 private: false
 ---
 
@@ -104,6 +104,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `doctor (entrypoint_probe)`
 - `doctor (environment_probe)`
 - `doctor (files_extraction_probe)`
+- `doctor (fips_probe)`
 - `doctor (governor_probe)`
 - `doctor (job_inventory)`
 - `doctor (lock_probe)`

@@ -1,8 +1,8 @@
 ---
 tool: bin/secret_rotator.py
-sha1: 9e562ed85029
-mtime_utc: 2026-10-12T22:51:17.785729+00:00
-generated_utc: 2026-10-12T23:24:27.788602+00:00
+sha1: 4fc2346a9624
+mtime_utc: 2026-10-16T00:38:13.276411+00:00
+generated_utc: 2026-10-16T00:51:49.320430+00:00
 private: false
 ---
 
@@ -40,6 +40,7 @@ _(none detected)_
 
 - `_task_runtime (add_log_file_arg, setup_task_runtime)`
 - `auth_utils (set_api_key)`
+- `crypto_provider (random_choice)`
 - `m3_sdk (M3Context)`
 - `m3_sdk (add_database_arg)`
 
@@ -56,7 +57,6 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.paths (active_database, seam_backend, seam_dialect)`
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (pin_database)`
-- `secrets`
 
 ---
 

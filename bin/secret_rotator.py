@@ -9,7 +9,6 @@ _apply_early_argv()
 
 import logging
 import os
-import secrets
 import string
 import sys
 from datetime import UTC, datetime
@@ -30,7 +29,9 @@ ROTATION_TARGETS = ["AGENT_OS_INTERNAL_SERVICE_TOKEN"]
 def generate_secure_token(length: int = 64) -> str:
     """Generates a cryptographically secure random string."""
     alphabet = string.ascii_letters + string.digits + string.punctuation.replace('"', "").replace("'", "")
-    return "".join(secrets.choice(alphabet) for _ in range(length))
+    from crypto_provider import random_choice  # random source inside the FIPS boundary
+
+    return "".join(random_choice(alphabet) for _ in range(length))
 
 
 def rotate_secrets(dry_run: bool = False):

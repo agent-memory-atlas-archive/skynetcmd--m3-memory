@@ -1149,9 +1149,9 @@ def _pg_reachable(dsn: str) -> tuple[bool, str]:
     except Exception as e:  # noqa: BLE001 — the forbidden-host refusal
         return False, str(e)
     try:
-        import psycopg2
+        from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
 
-        conn = psycopg2.connect(dsn, connect_timeout=5)
+        conn = pg_connect(dsn, connect_timeout=5)
         conn.close()
         return True, "reachable"
     except Exception as e:  # noqa: BLE001 — connection/auth/DNS all land here

@@ -20,7 +20,7 @@
 | :--- | :--- | :--- |
 | **SC-13** | Cryptographic Protection | All hashing and encryption is abstracted through `bin/crypto_provider.py`, supporting FIPS-validated wolfCrypt backends. |
 | **SC-12** | Cryptographic Key Establishment | Key derivation uses PBKDF2-HMAC-SHA256 (600,000 iterations) with per-device salts, executed within the FIPS boundary. |
-| **SC-8** | Transmission Confidentiality | Transmission to local/remote engines is restricted to TLS 1.3 with FIPS-approved ciphersuites via wolfSSL contexts. |
+| **SC-8** | Transmission Confidentiality | Network transport uses the platform's TLS library (Python's OpenSSL for HTTPS, libpq's OpenSSL for PostgreSQL), not wolfCrypt. Under `M3_FIPS_MODE` a PostgreSQL connection over a network must use `sslmode=verify-full`; under `M3_FIPS_STRICT` network TLS is refused unless the operator attests a validated TLS library (`crypto.tls_validated`). See [FIPS_MODULE_BOUNDARY.md §2a](FIPS_MODULE_BOUNDARY.md#2a-every-cryptographic-path). |
 | **IA-7** | Cryptographic Module Authentication | Crypto operations are delegated to the validated module (wolfCrypt); module-level role/authentication is enforced by that module per its certificate, not re-implemented by m3. (Note: m3's `lock_key`/`unlock_key` hooks are no-ops on the open-source build, which lacks those symbols — see boundary doc §6.) |
 
 ---

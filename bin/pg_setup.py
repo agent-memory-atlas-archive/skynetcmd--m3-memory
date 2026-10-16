@@ -15,8 +15,6 @@ import argparse
 import logging
 import sys
 
-import psycopg2
-
 logger = logging.getLogger("pg_setup")
 
 
@@ -48,7 +46,9 @@ def main() -> int:
     import pg_sync
 
     try:
-        conn = psycopg2.connect(_get_pg_url())
+        from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
+
+        conn = pg_connect(_get_pg_url())
     except Exception as e:
         logger.error(f"could not connect to the warehouse: {type(e).__name__}: {e}")
         return 1

@@ -39,8 +39,18 @@ class MockLibWolf:
         self.wc_PBKDF2 = MockCFunction(self._wc_PBKDF2)
         self.PRIVATE_KEY_LOCK = MockCFunction(self._PRIVATE_KEY_LOCK)
         self.PRIVATE_KEY_UNLOCK = MockCFunction(self._PRIVATE_KEY_UNLOCK)
+        # Init and the DRBG, as every real wolfCrypt build exports them.
+        self.wolfCrypt_Init = MockCFunction(lambda: 0)
+        self.wc_rng_new = MockCFunction(lambda nonce, nonce_sz, heap: 0xC0FFEE)
+        self.wc_RNG_GenerateBlock = MockCFunction(self._wc_RNG_GenerateBlock)
+        self.wc_rng_free = MockCFunction(lambda rng: None)
 
     def _wolfCrypt_SetCb_fips(self, cb):
+        return 0
+
+    def _wc_RNG_GenerateBlock(self, rng, out, sz):
+        # The mock's own randomness: an independent source the provider wraps.
+        ctypes.memmove(out, os.urandom(sz), sz)
         return 0
 
     def _wc_SetSeed_Cb(self, cb):

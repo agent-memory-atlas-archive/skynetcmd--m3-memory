@@ -93,6 +93,14 @@ RUNTIME: list[Key] = [
         False,
         "Also require the CMVP-validated wolfCrypt build (implies the wolfSSL backend).",
     ),
+    _flag(
+        "crypto.tls_validated",
+        (),
+        False,
+        "Under crypto.fips_strict, attest that network TLS (Python's ssl and PostgreSQL's libpq) runs on a "
+        "FIPS 140-3 validated library, e.g. an OS FIPS OpenSSL provider. m3 cannot verify this itself; without "
+        "it, strict mode refuses network TLS. See docs/FIPS_MODULE_BOUNDARY.md.",
+    ),
     Key[str](
         name="crypto.backend",
         parse=_upper,

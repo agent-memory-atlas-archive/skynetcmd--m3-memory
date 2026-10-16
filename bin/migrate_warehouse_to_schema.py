@@ -179,10 +179,6 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     dsn = _resolve_dsn(args.dsn)
-    try:
-        import psycopg2
-    except ImportError:
-        import psycopg as psycopg2
 
     warehouse_ddl = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -192,7 +188,9 @@ def main(argv: list[str] | None = None) -> int:
         "pg_warehouse_chatlog_v1.sql",
     )
 
-    conn = psycopg2.connect(dsn, connect_timeout=10)
+    from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
+
+    conn = pg_connect(dsn, connect_timeout=10)
     conn.autocommit = False
     try:
         with conn.cursor() as cur:

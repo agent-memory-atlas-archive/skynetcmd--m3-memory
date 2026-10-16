@@ -26,10 +26,17 @@ class DsnParts:
     dbname: str
     user: str | None = None
     password: str | None = None
+    sslmode: str | None = None  # None: not set, so libpq's default ("prefer") applies
 
     def identity(self) -> tuple[str, int, str]:
         """``(host, port, dbname)``: which database, whatever the credentials."""
         return (self.host.lower(), self.port, self.dbname)
+
+    def is_local(self) -> bool:
+        """True when the connection never crosses a network: a Unix socket (no
+        host, or a directory path) or the loopback interface."""
+        hosts = [h.strip().lower() for h in (self.host or "").split(",")]
+        return all(not h or h.startswith("/") or h in ("localhost", "127.0.0.1", "::1") for h in hosts)
 
 
 def parse_pg_dsn(dsn: str) -> DsnParts | None:
@@ -49,4 +56,11 @@ def parse_pg_dsn(dsn: str) -> DsnParts | None:
     dbname = (raw.get("dbname") or "").strip("/")
     if not host and not dbname:
         return None
-    return DsnParts(host=host, port=port, dbname=dbname, user=raw.get("user"), password=raw.get("password"))
+    return DsnParts(
+        host=host,
+        port=port,
+        dbname=dbname,
+        user=raw.get("user"),
+        password=raw.get("password"),
+        sslmode=raw.get("sslmode") or None,
+    )

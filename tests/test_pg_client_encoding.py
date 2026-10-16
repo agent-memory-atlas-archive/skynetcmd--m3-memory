@@ -25,6 +25,17 @@ import pytest
 
 from conftest import skip_reason
 
+
+@pytest.fixture(autouse=True)
+def _transport_check_off(monkeypatch):
+    """These tests build pools from placeholder DSNs to read the encoding choice;
+    the FIPS transport rule (m3_core.pgconn) is pinned in test_fips_transport and
+    must not depend on whether the developer exported M3_FIPS_MODE."""
+    import importlib
+
+    monkeypatch.setattr(importlib.import_module("m3_core.pgconn"), "check_dsn", lambda dsn: None)
+
+
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "bin"))

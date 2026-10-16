@@ -71,6 +71,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `backend` | string | `DEFAULT` | `M3_CRYPTO_BACKEND` | restart to apply; one of `DEFAULT`, `WOLFSSL`; Crypto backend: DEFAULT or WOLFSSL (forced by crypto.fips_mode / fips_strict). (Today an unknown value acts as DEFAULT; it is now an error.) |
 | `fips_mode` | boolean | `false` | `M3_FIPS_MODE` | restart to apply; FIPS 140-3 mode: wolfSSL/wolfCrypt is required and any failure is fatal. |
 | `fips_strict` | boolean | `false` | `M3_FIPS_STRICT` | restart to apply; Also require the CMVP-validated wolfCrypt build (implies the wolfSSL backend). |
+| `tls_validated` | boolean | `false` | (none) | restart to apply; Under crypto.fips_strict, attest that network TLS (Python's ssl and PostgreSQL's libpq) runs on a FIPS 140-3 validated library, e.g. an OS FIPS OpenSSL provider. m3 cannot verify this itself; without it, strict mode refuses network TLS. See docs/FIPS_MODULE_BOUNDARY.md. |
 | `wolfssl_lib` | path | (none) | `M3_WOLFSSL_LIB` | restart to apply; The wolfSSL library file tried first; unset searches the trusted lib dirs. |
 | `wolfssl_sha256` | string | (none) | `M3_WOLFSSL_SHA256` | restart to apply; Integrity pin for the wolfSSL library; checked when wolfSSL initialises. |
 

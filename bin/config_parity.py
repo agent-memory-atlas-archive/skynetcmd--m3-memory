@@ -42,7 +42,6 @@ import importlib
 import json
 import os
 import re
-import secrets
 import socket
 import sys
 from datetime import UTC, datetime
@@ -118,6 +117,13 @@ def _keyring():
     return keyring
 
 
+def _token_hex() -> str:
+    """32 random bytes as hex, from the FIPS boundary's random source."""
+    from crypto_provider import get_token_hex
+
+    return get_token_hex(32)
+
+
 def _key_file() -> Path:
     from m3_core.paths import get_m3_config_root
 
@@ -178,7 +184,7 @@ def init_key() -> str | None:
         import keyring.errors
 
         try:
-            _keyring().set_password(KEYRING_SERVICE, KEYRING_USER, secrets.token_hex(32))
+            _keyring().set_password(KEYRING_SERVICE, KEYRING_USER, _token_hex())
         except keyring.errors.KeyringError as e:
             # A locked macOS keychain over SSH READS fine (None for a missing
             # item) and refuses only the write: -25308 errSecInteractionNotAllowed.
@@ -194,7 +200,7 @@ def init_key() -> str | None:
     from m3_core.atomic_io import atomic_write  # a new file is created 0600 (user-only)
 
     p.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(p, secrets.token_hex(32) + "\n")
+    atomic_write(p, _token_hex() + "\n")
     return str(p)
 
 

@@ -1171,7 +1171,7 @@ class PostgresBackend:
             if self._pool is not None:
                 return self._pool
             try:
-                from psycopg2.pool import ThreadedConnectionPool
+                from psycopg2.pool import ThreadedConnectionPool  # noqa: F401 — availability probe; the pool comes from pg_pool
             except ImportError as e:  # fail loud, actionable
                 raise RuntimeError(
                     "observed: psycopg2 module is not available. "
@@ -1221,7 +1221,9 @@ class PostgresBackend:
                 already_set = False
             if not already_set:
                 connect_kwargs["client_encoding"] = "UTF8"
-            self._pool = ThreadedConnectionPool(minconn, maxconn, dsn=self._dsn, **connect_kwargs)
+            from m3_core.pgconn import pg_pool  # FIPS transport check, one owner
+
+            self._pool = pg_pool(minconn, maxconn, self._dsn, **connect_kwargs)
             return self._pool
 
     def close(self) -> None:
@@ -1505,7 +1507,6 @@ class PostgresBackend:
         Scope is ``current_schema()`` — the same tables ``list_tables`` reports
         — so what is counted is exactly what is dumped and verified.
         """
-        import psycopg2
         from psycopg2 import sql
 
         pg_dump = _pg_tool("pg_dump")
@@ -1516,7 +1517,9 @@ class PostgresBackend:
         partial = dst + ".partial"
 
         try:
-            conn = psycopg2.connect(self._dsn)
+            from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
+
+            conn = pg_connect(self._dsn)
         except Exception as e:  # noqa: BLE001 — psycopg2 errors may quote the DSN
             raise SnapshotError(f"cannot connect for the snapshot ({type(e).__name__}).") from e
         try:

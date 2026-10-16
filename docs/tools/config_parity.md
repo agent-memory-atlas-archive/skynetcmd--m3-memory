@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: 9c3fd0a4b548
-mtime_utc: 2026-10-14T05:25:28.206623+00:00
-generated_utc: 2026-10-14T05:25:28.800406+00:00
+sha1: 1728ca34125f
+mtime_utc: 2026-10-16T00:38:13.276927+00:00
+generated_utc: 2026-10-16T00:51:48.427946+00:00
 private: false
 ---
 
@@ -48,7 +48,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 
 ## Entry points
 
-- `def main()` (line 387)
+- `def main()` (line 393)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -74,6 +74,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 - `check_env_access`
 - `crypto_provider (get_hmac_sha256)`
 - `crypto_provider (get_sha256)`
+- `crypto_provider (get_token_hex)`
 
 ---
 
@@ -94,7 +95,6 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.paths (get_m3_config_root)`
 - `m3_core.seams (current_uid)`
 - `memory.backends (active_backend)`
-- `secrets`
 
 ---
 

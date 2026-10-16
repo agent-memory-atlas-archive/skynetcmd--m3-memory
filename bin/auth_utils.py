@@ -372,7 +372,7 @@ def _get_device_salt() -> bytes:
         )
 
     # Genuine fresh install (empty/absent vault): mint a new salt.
-    salt = os.urandom(16)
+    salt = crypto.random_bytes(16)
     # Ensure config directory exists
     os.makedirs(os.path.dirname(salt_path), exist_ok=True)
     try:

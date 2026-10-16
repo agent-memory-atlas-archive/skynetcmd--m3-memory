@@ -87,12 +87,14 @@ def _resolve_dsn(explicit: str | None = None) -> str:
 
 def _connect(dsn: str):
     try:
-        import psycopg2
+        import psycopg2  # noqa: F401 — availability probe for the actionable message below
     except ImportError as e:  # fail loud, actionable
         raise SystemExit(
             "psycopg2 is required for the PG migration runner. Install it: pip install 'psycopg2-binary'."
         ) from e
-    return psycopg2.connect(dsn)
+    from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
+
+    return pg_connect(dsn)
 
 
 # ── Discovery ────────────────────────────────────────────────────────────────

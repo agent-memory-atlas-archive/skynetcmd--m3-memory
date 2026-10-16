@@ -48,6 +48,7 @@ _Names1 = Literal[
     "cloud.allow_fallback",
     "crypto.fips_mode",
     "crypto.fips_strict",
+    "crypto.tls_validated",
     "dashboard.llm_smoke",
     "embed.autodetect",
     "embed.inproc",

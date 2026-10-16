@@ -8,6 +8,7 @@ import ctypes
 import hashlib
 import logging
 import os
+import threading
 import weakref
 
 from m3_core.seams import is_macos, is_windows
@@ -311,6 +312,7 @@ class CryptoProvider:
     # property of the LOADED LIBRARY, not of any one instance — so it is worth
     # saying once per process, never once per object.
     _non_fips_notice_emitted = False
+    _tls_fallback_noted = False
 
     def __init__(self, backend="DEFAULT"):
         self.backend = backend
@@ -319,6 +321,8 @@ class CryptoProvider:
         self._libwolf: ctypes.CDLL | None = None
         self._lib_path: str | None = None  # absolute path the lib was loaded from
         self._fips_cb_ref = None  # Keep reference to prevent GC
+        self._wolf_rng = None  # wolfCrypt DRBG instance (WC_RNG*), when the backend is live
+        self._rng_lock = threading.Lock()
 
         if self.backend == "WOLFSSL":
             self._initialize_wolfssl()
@@ -382,6 +386,15 @@ class CryptoProvider:
                 else:
                     self._libwolf = ctypes.CDLL(self._lib_path)
                 logger.info(f"M3 Crypto: loaded wolfSSL from trusted path {self._lib_path}")
+                # Initialise wolfCrypt before any service. The hash, cipher and KDF
+                # calls happen to work without it; the RNG does not -- wc_rng_new
+                # crashed with an access violation on an uninitialised library
+                # (measured 2026-10-15). Idempotent (reference-counted) in wolfCrypt.
+                if hasattr(self._libwolf, "wolfCrypt_Init"):
+                    self._libwolf.wolfCrypt_Init.restype = ctypes.c_int
+                    init_rc = self._libwolf.wolfCrypt_Init()
+                    if init_rc != 0:
+                        raise OSError(f"wolfCrypt_Init failed with code {init_rc}")
             except OSError as e:
                 if _fips_mode() or _fips_strict():
                     raise RuntimeError(
@@ -475,6 +488,30 @@ class CryptoProvider:
                     "FATAL: wc_PBKDF2 symbol not found in loaded wolfSSL library. "
                     "observed: the loaded library does not export wc_PBKDF2. "
                     "inspect: M3_WOLFSSL_LIB names a wolfSSL build with PBKDF2 enabled (docs/FIPS_MODULE_BOUNDARY.md)"
+                )
+
+            # Random bytes (keys, IVs, salts, tokens) come from wolfCrypt's DRBG,
+            # so random generation sits inside the same module as the rest. One
+            # RNG instance for the process; wolfCrypt's RNG is not thread-safe,
+            # so random_bytes() serialises access.
+            if all(hasattr(self._libwolf, s) for s in ("wc_rng_new", "wc_RNG_GenerateBlock", "wc_rng_free")):
+                self._libwolf.wc_rng_new.argtypes = [ctypes.c_char_p, ctypes.c_uint, ctypes.c_void_p]
+                self._libwolf.wc_rng_new.restype = ctypes.c_void_p
+                self._libwolf.wc_RNG_GenerateBlock.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint]
+                self._libwolf.wc_RNG_GenerateBlock.restype = ctypes.c_int
+                self._libwolf.wc_rng_free.argtypes = [ctypes.c_void_p]
+                self._libwolf.wc_rng_free.restype = None
+                self._wolf_rng = self._libwolf.wc_rng_new(None, 0, None)
+                if not self._wolf_rng and (_fips_mode() or _fips_strict()):
+                    raise RuntimeError(
+                        "FATAL: wc_rng_new returned NULL. observed: wolfCrypt could not instantiate its DRBG. "
+                        "inspect: the loaded wolfSSL build and the OS entropy source (docs/FIPS_MODULE_BOUNDARY.md)"
+                    )
+            elif _fips_mode() or _fips_strict():
+                raise RuntimeError(
+                    "FATAL: wolfCrypt RNG symbols (wc_rng_new, wc_RNG_GenerateBlock) not found in loaded wolfSSL "
+                    "library. inspect: M3_WOLFSSL_LIB names a wolfSSL build with the RNG enabled "
+                    "(docs/FIPS_MODULE_BOUNDARY.md)"
                 )
 
             # 1. Register FIPS Status Callback
@@ -642,7 +679,13 @@ class CryptoProvider:
         if back != _KAT_AESGCM_PLAINTEXT:
             raise RuntimeError("AES-256-GCM decrypt KAT failed: plaintext mismatch")
 
-        logger.info("M3 Crypto: FIPS power-up KATs passed (SHA-256, PBKDF2, AES-256-GCM).")
+        # DRBG sanity (the validated module runs its own SP 800-90A health tests at
+        # POST): two draws must have the requested length and differ.
+        if self._wolf_rng:
+            r1, r2 = self.random_bytes(32), self.random_bytes(32)
+            if len(r1) != 32 or r1 == r2:
+                raise RuntimeError("wolfCrypt DRBG self-test failed: repeated or short output")
+        logger.info("M3 Crypto: FIPS power-up KATs passed (SHA-256, PBKDF2, AES-256-GCM, DRBG).")
 
     def _wolf_sha256(self, data: bytes) -> str:
         if not self._libwolf:
@@ -657,7 +700,7 @@ class CryptoProvider:
         if not self._libwolf:
             raise RuntimeError("wolfSSL library not loaded")
 
-        iv = os.urandom(12)
+        iv = self.random_bytes(12)
         out_buf = ctypes.create_string_buffer(len(data))
         tag_buf = ctypes.create_string_buffer(16)
 
@@ -752,6 +795,38 @@ class CryptoProvider:
         if ret != 0:
             raise RuntimeError(f"wc_PBKDF2 failed with code: {ret}")
         return out_buf.raw[:length]
+
+    def random_bytes(self, n: int) -> bytes:
+        """``n`` cryptographically secure random bytes: keys, IVs, salts, tokens.
+
+        From wolfCrypt's DRBG when that backend is live, so random generation is
+        inside the same module as every other service; otherwise the OS CSPRNG
+        (``os.urandom``). Under a FIPS tier the backend is required (the
+        constructor fails closed), so this never quietly uses the OS source there.
+        """
+        if n < 0:
+            raise ValueError(f"random_bytes: n must be >= 0; got {n}")
+        # Keyed on what the draw needs (a loaded library with a DRBG), not on
+        # _initialized: the power-up self-test draws before that flag is set.
+        if self._libwolf is not None and self._wolf_rng:
+            buf = ctypes.create_string_buffer(n)
+            with self._rng_lock:
+                ret = self._libwolf.wc_RNG_GenerateBlock(self._wolf_rng, buf, n)
+            if ret != 0:
+                raise RuntimeError(f"wc_RNG_GenerateBlock failed with code: {ret}")
+            return buf.raw
+        self._require_fips_backend()
+        return os.urandom(n)
+
+    def token_hex(self, nbytes: int = 32) -> str:
+        """A random token of ``nbytes`` bytes as hex (``secrets.token_hex``'s shape)."""
+        return self.random_bytes(nbytes).hex()
+
+    def token_urlsafe(self, nbytes: int = 32) -> str:
+        """A random URL-safe token of ``nbytes`` bytes (``secrets.token_urlsafe``'s shape)."""
+        import base64
+
+        return base64.urlsafe_b64encode(self.random_bytes(nbytes)).rstrip(b"=").decode("ascii")
 
     def _require_fips_backend(self) -> None:
         """Under M3_FIPS_MODE / M3_FIPS_STRICT every service must run on an
@@ -869,7 +944,7 @@ class CryptoProvider:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
         aesgcm = AESGCM(key)
-        nonce = os.urandom(12)
+        nonce = self.random_bytes(12)
         ciphertext = aesgcm.encrypt(nonce, data, None)
         return nonce + ciphertext
 
@@ -920,7 +995,20 @@ class CryptoProvider:
                 logger.info("M3 Crypto: Created FIPS-hardened TLS 1.3 context (wolfSSL).")
                 return ctx
             except (ImportError, AttributeError) as e:
-                logger.warning(f"M3 Crypto: wolfssl module unavailable ({e}), using FIPS-hardened standard fallback.")
+                # The usual state: the `wolfssl` Python package is optional and
+                # rarely installed. Said once, at info: it is a fact about which
+                # library serves TLS, not a fault (section 3: no false alarms).
+                if not CryptoProvider._tls_fallback_noted:
+                    import ssl as _ssl
+
+                    CryptoProvider._tls_fallback_noted = True
+                    logger.info(
+                        "M3 Crypto: TLS is served by Python's ssl (%s), restricted to TLS 1.3, not by wolfSSL "
+                        "(the wolfssl package is not importable: %s). It is outside crypto_provider's module; "
+                        "see docs/FIPS_MODULE_BOUNDARY.md.",
+                        _ssl.OPENSSL_VERSION,
+                        e,
+                    )
 
         # Default Fallback (Standard Python ssl)
         import ssl
@@ -943,7 +1031,7 @@ class CryptoProvider:
             if hasattr(ssl, "OP_NO_TLSv1_2"):
                 ctx.options |= ssl.OP_NO_TLSv1_2  # noqa: E701
 
-        # Configure FIPS-validated ciphers for default SSL context if possible
+        # Restrict to FIPS-APPROVED suites (approved algorithms; the library itself is not a validated module)
         try:
             ctx.set_ciphers(
                 "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
@@ -964,6 +1052,131 @@ def get_sha256(data: bytes) -> str:
 
 def get_hmac_sha256(key: bytes, data: bytes) -> str:
     return provider.hmac_sha256(key, data)
+
+
+def get_random_bytes(n: int) -> bytes:
+    """Secure random bytes through the boundary (wolfCrypt's DRBG when live)."""
+    return provider.random_bytes(n)
+
+
+def get_token_hex(nbytes: int = 32) -> str:
+    return provider.token_hex(nbytes)
+
+
+def get_token_urlsafe(nbytes: int = 32) -> str:
+    return provider.token_urlsafe(nbytes)
+
+
+def random_choice(seq):
+    """A uniformly chosen element of ``seq`` (``secrets.choice``'s contract),
+    drawn from the boundary's random source by rejection sampling: no modulo bias."""
+    n = len(seq)
+    if n == 0:
+        raise IndexError("random_choice from an empty sequence")
+    limit = (1 << 32) - ((1 << 32) % n)
+    while True:
+        v = int.from_bytes(provider.random_bytes(4), "big")
+        if v < limit:
+            return seq[v % n]
+
+
+# ── Network transport under a FIPS tier ──────────────────────────────────────
+# m3's own cryptography runs in the provider above. NETWORK TLS does not: Python's
+# `ssl` (OpenSSL) serves every HTTPS client in the process, and libpq (OpenSSL)
+# serves PostgreSQL. The rules, by tier (docs/FIPS_MODULE_BOUNDARY.md):
+#
+#   M3_FIPS_MODE   : no downgrade. A PostgreSQL connection that crosses a network
+#                    must use sslmode=verify-full; open-source TLS libraries are
+#                    accepted in this tier, as open-source wolfCrypt is.
+#   M3_FIPS_STRICT : every path on a validated module. m3 cannot inspect Python's
+#                    OpenSSL or libpq for a FIPS provider, so the operator attests
+#                    it (crypto.tls_validated). Without that, TLS is refused: the
+#                    guard below makes every TLS handshake in the process fail
+#                    with this explanation, and PostgreSQL over a network is
+#                    refused. psycopg2-binary bundles its own OpenSSL, which can
+#                    never be the OS's validated one, so strict refuses it too.
+
+
+class FipsTransportError(RuntimeError):
+    """A network connection a FIPS tier does not allow, with the remedy."""
+
+
+def _tls_validated_attested() -> bool:
+    try:
+        from m3_core.config import settings as _cfg
+
+        return bool(_cfg.setting("crypto.tls_validated"))
+    except Exception:  # noqa: BLE001 — no readable setting means no attestation
+        return False
+
+
+def _psycopg2_is_binary_wheel() -> bool:
+    from importlib import metadata
+
+    try:
+        metadata.distribution("psycopg2-binary")
+        return True
+    except metadata.PackageNotFoundError:
+        return False
+
+
+_STRICT_TLS_REFUSAL = (
+    "M3_FIPS_STRICT refuses network TLS: m3 cannot confirm that this process's TLS library (Python's ssl, "
+    "OpenSSL {openssl}) is a FIPS 140-3 validated module. observed: crypto.tls_validated is not set. "
+    "remedy: run on a FIPS-validated OpenSSL provider (e.g. an OS FIPS mode) and set crypto.tls_validated = true "
+    "in m3_config.toml, or carry the traffic over a validated transport (docs/FIPS_MODULE_BOUNDARY.md, profiles)."
+)
+
+
+def _install_strict_tls_guard() -> None:
+    """Under strict with no attestation, make every TLS handshake in this
+    process refuse with the reason. Plain HTTP (local services) is unaffected."""
+    import ssl
+
+    if getattr(ssl.SSLContext, "_m3_fips_guard", False):
+        return
+    message = _STRICT_TLS_REFUSAL.format(openssl=ssl.OPENSSL_VERSION)
+
+    def refuse(self, *a, **k):
+        raise FipsTransportError(message)
+
+    ssl.SSLContext.wrap_socket = refuse  # type: ignore[method-assign]
+    ssl.SSLContext.wrap_bio = refuse  # type: ignore[method-assign]
+    ssl.SSLContext._m3_fips_guard = True  # type: ignore[attr-defined]
+    logger.error("M3 Crypto: %s", message)
+
+
+def require_pg_transport(dsn: str) -> None:
+    """Refuse a PostgreSQL connection the active FIPS tier does not allow.
+    Called by m3_core.pgconn before every connect; a no-op outside FIPS tiers."""
+    if not (_fips_mode() or _fips_strict()):
+        return
+    from m3_core.dsn import parse_pg_dsn
+
+    parts = parse_pg_dsn(dsn)
+    if parts is None or parts.is_local():
+        return  # libpq rejects a bad DSN itself; a local socket crosses no network
+    if parts.sslmode != "verify-full":
+        raise FipsTransportError(
+            "FIPS mode refuses a PostgreSQL connection that can fall back to plaintext or skip the server's "
+            f"certificate. observed: host {parts.host}, sslmode={parts.sslmode or 'unset (libpq default: prefer)'}. "
+            "remedy: add sslmode=verify-full (and the server's CA as sslrootcert) to the DSN."
+        )
+    if _fips_strict():
+        if not _tls_validated_attested():
+            import ssl
+
+            raise FipsTransportError(_STRICT_TLS_REFUSAL.format(openssl=ssl.OPENSSL_VERSION))
+        if _psycopg2_is_binary_wheel():
+            raise FipsTransportError(
+                "M3_FIPS_STRICT refuses psycopg2-binary: it bundles its own OpenSSL, which cannot be the "
+                "validated OS provider crypto.tls_validated attests. remedy: install psycopg2 from source "
+                "against the OS OpenSSL (pip install --no-binary psycopg2 psycopg2) and remove psycopg2-binary."
+            )
+
+
+if _fips_strict() and not _tls_validated_attested():
+    _install_strict_tls_guard()
 
 
 def active_crypto_status() -> dict:
@@ -1013,3 +1226,99 @@ def active_crypto_status() -> dict:
             "(M3_FIPS_STRICT would refuse this)."
         )
     return out
+
+
+def crypto_paths_report() -> dict:
+    """Every cryptographic path m3 uses, what serves it, and whether the active
+    FIPS tier accepts it -- for `m3 doctor`. Read-only; never raises.
+
+    Returns {"tier": "off"|"mode"|"strict", "rows": [{path, served_by, validated,
+    ok, note}], "os_fips_mode": bool|None}. `validated` is True/False when m3
+    can tell, None when only the operator can (an attestation). `ok` is False
+    only when the active tier refuses the path.
+    """
+    import ssl
+
+    tier = "strict" if _fips_strict() else ("mode" if _fips_mode() else "off")
+    attested = _tls_validated_attested()
+    rows: list[dict[str, object]] = []
+
+    backend = getattr(provider, "backend", "DEFAULT")
+    validated_module = bool(getattr(provider, "_fips_validated", False))
+    rows.append(
+        {
+            "path": "at rest: secrets vault, key derivation, HMACs, audit chain",
+            "served_by": "wolfCrypt" if backend == "WOLFSSL" else "Python cryptography (OpenSSL)",
+            "validated": validated_module,
+            "ok": True,  # the constructor already fails closed for each tier
+            "note": "" if validated_module else "open-source build; M3_FIPS_STRICT needs the validated module",
+        }
+    )
+    rows.append(
+        {
+            "path": "random numbers: keys, IVs, salts, tokens",
+            "served_by": "wolfCrypt DRBG" if getattr(provider, "_wolf_rng", None) else "OS CSPRNG (os.urandom)",
+            "validated": validated_module if getattr(provider, "_wolf_rng", None) else False,
+            "ok": True,
+            "note": "",
+        }
+    )
+    rows.append(
+        {
+            "path": "HTTPS from m3 (Python ssl)",
+            "served_by": ssl.OPENSSL_VERSION,
+            "validated": True if attested else None,
+            "ok": tier != "strict" or attested,
+            "note": "attested by crypto.tls_validated"
+            if attested
+            else ("refused: set crypto.tls_validated on a validated OpenSSL" if tier == "strict" else ""),
+        }
+    )
+    pg_lib = "OpenSSL bundled in psycopg2-binary" if _psycopg2_is_binary_wheel() else "libpq linked to the OS OpenSSL"
+    try:
+        from m3_core.dsn import parse_pg_dsn
+        from m3_core.secret_store import PgRole, resolve_pg_dsn
+
+        for role in (PgRole.PRIMARY, PgRole.WAREHOUSE):
+            parts = parse_pg_dsn(resolve_pg_dsn(role))
+            if parts is None:
+                continue
+            local = parts.is_local()
+            mode_ok = local or parts.sslmode == "verify-full"
+            strict_ok = local or (mode_ok and attested and not _psycopg2_is_binary_wheel())
+            ok = True if tier == "off" else (strict_ok if tier == "strict" else mode_ok)
+            note = (
+                "local connection, no network TLS"
+                if local
+                else f"sslmode={parts.sslmode or 'unset (libpq default: prefer)'}"
+                + ("" if mode_ok else "; FIPS tiers require verify-full")
+            )
+            rows.append(
+                {
+                    "path": f"PostgreSQL ({role.value})",
+                    "served_by": pg_lib,
+                    "validated": None if local else (True if attested and not _psycopg2_is_binary_wheel() else False),
+                    "ok": ok,
+                    "note": note,
+                }
+            )
+    except Exception as e:  # noqa: BLE001 — the report is best-effort
+        rows.append(
+            {"path": "PostgreSQL", "served_by": pg_lib, "validated": None, "ok": True, "note": f"not read ({e})"}
+        )
+    rows.append(
+        {
+            "path": "Rust core HTTP client (remote HTTPS embedder only)",
+            "served_by": "rustls (ring)",
+            "validated": False,
+            "ok": True,
+            "note": "used only for an https:// embedder URL; to be removed from the core",
+        }
+    )
+    try:
+        from m3_core.seams import os_fips_mode
+
+        osf = os_fips_mode()
+    except Exception:  # noqa: BLE001
+        osf = None
+    return {"tier": tier, "rows": rows, "os_fips_mode": osf}

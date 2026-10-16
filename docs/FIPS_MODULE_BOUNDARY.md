@@ -14,15 +14,20 @@
 
 m3 is FIPS-deployment-ready because it:
 
-1. **Implements no custom cryptography.** All crypto is delegated to a provider.
+1. **Implements no custom cryptography.** All crypto is delegated to modules.
 2. **Uses only FIPS-approved algorithms:** AES-256-GCM (authenticated
    encryption), SHA-256/384/512, HMAC-SHA-256, PBKDF2-HMAC-SHA256, and TLS 1.3.
    It blocks non-approved algorithms (MD5, SHA-1, DES, RC4, Fernet for new
    writes).
-3. **Routes every cryptographic operation through a single boundary**
-   (`bin/crypto_provider.py`) so a validated module can serve all of it.
-4. **Can use a FIPS-validated provider** (wolfCrypt) and **fails closed** when
-   required — it never silently falls back to non-validated crypto in FIPS mode.
+3. **Routes its own cryptography through one provider** (`bin/crypto_provider.py`):
+   the secrets vault, key derivation, HMACs, the audit chain and every random
+   key, IV, salt and token. A validated module (wolfCrypt FIPS) can serve all of it.
+4. **Names every other path, and fails closed on it in FIPS mode.** Network
+   transport (HTTPS, PostgreSQL TLS) is served by the platform's TLS library,
+   not by the provider. §2a lists each path; under a FIPS tier m3 refuses a path
+   the tier does not accept instead of using it silently.
+
+`m3 doctor` prints this posture for the running install, path by path.
 
 It is **not** "FIPS 140-3 compliant / certified / validated" — those terms have
 specific NIST/CMVP regulatory meaning and apply to a validated module + its
@@ -73,6 +78,55 @@ enforces all of this by static scan.
 **Roles:** m3 has no privileged crypto-operator role of its own — it is a
 *crypto user*. The operator configures the mode (below) via environment; the
 validated module enforces its own role separation per its CMVP certificate.
+
+---
+
+## 2a. Every cryptographic path
+
+| Path | Served by | Validated when |
+|---|---|---|
+| At rest: secrets vault, key derivation, HMACs, audit chain | `crypto_provider`: wolfCrypt (or Python `cryptography` with FIPS off) | the CMVP-validated wolfCrypt FIPS module is loaded (`M3_FIPS_STRICT`) |
+| Random numbers: keys, IVs, salts, tokens | `crypto_provider`: wolfCrypt's DRBG (the OS CSPRNG with FIPS off) | as above |
+| HTTPS from m3 | Python's `ssl` module, which is **OpenSSL** (the optional `wolfssl` Python package is rarely installed) | Python's OpenSSL runs a validated FIPS provider, e.g. an OS FIPS mode, and the operator attests it (`crypto.tls_validated`) |
+| PostgreSQL (primary store, warehouse) | **libpq**, with the OpenSSL it is linked to; `psycopg2-binary` bundles its own | `psycopg2` is built from source against a validated OS OpenSSL, attested as above |
+| Rust core HTTP client (only for a remote `https://` embedder) | rustls (ring) | never; it is to be removed from the core, and remote HTTPS will go through m3's Python client |
+| Agent doorbell (`m3-dispatchd`) | none: local IPC only (Unix socket, Windows named pipe), access decided by the OS | nothing to validate |
+
+PostgreSQL's libpq has no wolfSSL backend (its TLS support is OpenSSL-based), so
+database TLS cannot run on wolfCrypt. A validated deployment uses a validated
+OpenSSL for it, or carries the traffic over a validated transport (profile B).
+
+### Transport rules by tier
+
+| Tier | HTTPS | PostgreSQL over a network | PostgreSQL on a local socket or loopback |
+|---|---|---|---|
+| off | platform defaults | as the DSN says | as the DSN says |
+| `M3_FIPS_MODE` | TLS 1.3, approved suites, where m3 builds the context | **`sslmode=verify-full` required**; open-source TLS libraries accepted, as open-source wolfCrypt is | allowed: it crosses no network |
+| `M3_FIPS_STRICT` | **refused** unless `crypto.tls_validated = true`: every TLS handshake in the process fails with the reason | `verify-full`, `crypto.tls_validated = true`, and **no `psycopg2-binary`** | allowed |
+
+`crypto.tls_validated` is an operator attestation in `m3_config.toml` (no
+environment variable): m3 cannot inspect Python's OpenSSL or libpq for a FIPS
+provider, so whoever configured the validated library says so.
+
+### Deployment profiles
+
+- **Homelab and small teams (FIPS-ready, not validated).** Recommended: Tailscale
+  between machines, especially when a central PostgreSQL or warehouse is reached
+  from outside one LAN, **plus `sslmode=verify-full` on every PostgreSQL DSN**.
+  Tailscale authenticates devices; the inner TLS protects the data. Tailscale
+  is a recommendation, never a requirement: many organisations block VPN clients.
+- **Validated, profile A (validated TLS at the application).** wolfCrypt FIPS
+  for the provider (`M3_FIPS_STRICT`), an OS FIPS OpenSSL provider for HTTPS and
+  libpq (`psycopg2` from source), and `crypto.tls_validated = true`. Works over
+  any network, Tailscale included: Tailscale's own FedRAMP guidance treats
+  traffic wrapped in FIPS-validated TLS as the compliant layer.
+- **Validated, profile B (validated mesh).** wolfCrypt FIPS for the provider,
+  and wolfSSL's wolfScale (Tailscale built on wolfGuard and wolfCrypt FIPS)
+  carrying traffic between machines, so the mesh is the validated transport
+  layer. wolfScale is a wolfSSL product; licence, platforms and the Headscale
+  control server are wolfSSL's to confirm.
+
+m3 is the same software in every profile; only the modules underneath change.
 
 ---
 
