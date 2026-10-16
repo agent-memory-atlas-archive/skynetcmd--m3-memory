@@ -102,6 +102,10 @@ def _run_fips_subprocess(body: str, env: dict) -> dict:
             os.environ["M3_WOLFSSL_LIB"] = fake
             ctypes.CDLL = _mock_cdll
             sys.modules.pop("crypto_provider", None)  # ensure a fresh FIPS init
+            # crypto_provider reads [crypto] through the config registry, whose
+            # snapshot was cached by _bin_mock's import with FIPS off.
+            from m3_core.config import settings as _st
+            _st._reset_for_tests()
             import crypto_provider
             return crypto_provider
     """)
@@ -249,6 +253,19 @@ def _restore_crypto_provider():
                 os.environ[_k] = _v
 
 
+def _reset_crypto_settings():
+    from m3_core.config import settings as st
+
+    st._reset_for_tests()
+
+
+def _set_crypto_env(monkeypatch, name, value):
+    """A [crypto] env name set after the provider loaded: the registry snapshot
+    caches env, so rebuild it for the next read."""
+    monkeypatch.setenv(name, value)
+    _reset_crypto_settings()
+
+
 def _reload_provider(monkeypatch, backend=None, fips_mode=None, strict=None):
     """Reload crypto_provider with specific env knobs (DEFAULT backend only — the
     native-wolfSSL path is exercised via _run_fips_subprocess to avoid the #85
@@ -266,7 +283,9 @@ def _reload_provider(monkeypatch, backend=None, fips_mode=None, strict=None):
     else:
         monkeypatch.delenv("M3_FIPS_STRICT", raising=False)
 
-    # Reload so module-level BACKEND and provider re-evaluate env vars
+    # Reload so module-level BACKEND and provider re-evaluate the settings
+    # (the registry snapshot caches env, so it is rebuilt first).
+    _reset_crypto_settings()
     import crypto_provider
 
     importlib.reload(crypto_provider)
@@ -626,7 +645,7 @@ class TestSecureWolfsslDiscovery:
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
         pinned = tmp_path / "wolfssl.dll"
         pinned.write_bytes(b"x")
-        monkeypatch.setenv("M3_WOLFSSL_LIB", str(pinned))
+        _set_crypto_env(monkeypatch, "M3_WOLFSSL_LIB", str(pinned))
         assert cp._trusted_wolfssl_candidates()[0] == os.path.abspath(str(pinned))
         assert cp._resolve_wolfssl_path() == str(pinned)
 
@@ -650,8 +669,8 @@ class TestSecureWolfsslDiscovery:
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
         lib = tmp_path / "wolfssl.dll"
         lib.write_bytes(b"the-real-bytes")
-        monkeypatch.setenv("M3_WOLFSSL_LIB", str(lib))
-        monkeypatch.setenv("M3_WOLFSSL_SHA256", "00" * 32)  # wrong
+        _set_crypto_env(monkeypatch, "M3_WOLFSSL_LIB", str(lib))
+        _set_crypto_env(monkeypatch, "M3_WOLFSSL_SHA256", "00" * 32)  # wrong
         with pytest.raises(RuntimeError, match="integrity check failed"):
             cp._resolve_wolfssl_path()
 
@@ -662,8 +681,8 @@ class TestSecureWolfsslDiscovery:
         lib = tmp_path / "wolfssl.dll"
         data = b"the-real-bytes"
         lib.write_bytes(data)
-        monkeypatch.setenv("M3_WOLFSSL_LIB", str(lib))
-        monkeypatch.setenv("M3_WOLFSSL_SHA256", hashlib.sha256(data).hexdigest())
+        _set_crypto_env(monkeypatch, "M3_WOLFSSL_LIB", str(lib))
+        _set_crypto_env(monkeypatch, "M3_WOLFSSL_SHA256", hashlib.sha256(data).hexdigest())
         assert cp._resolve_wolfssl_path() == str(lib)
 
     def test_fips_mode_fatal_when_no_trusted_lib(self):

@@ -21,6 +21,15 @@ the policy is forward-going only.
 
 ### Security
 
+- **FIPS mode set in `m3_config.toml` takes effect.** `[crypto] fips_mode`,
+  `fips_strict`, `backend`, `wolfssl_lib` and `wolfssl_sha256` were read from
+  the environment only, so a process configured by the file, such as a
+  background service, ran on the default crypto backend. Error messages now
+  name the config key with its environment alias. **Affected:** installs that
+  set FIPS or wolfSSL options in `m3_config.toml` · **Action:** upgrade and
+  restart m3's services; a missing wolfSSL now stops them, as FIPS mode requires
+  · **Data status:** none.
+
 - **The mac-agent example no longer resolves vulnerable `httpx2`/`httpcore2`.**
   Its requirements set security floors (`httpx2>=2.12.0`, `httpcore2>=2.10.0`),
   as the langchain-agent example does. **Affected:** users of
