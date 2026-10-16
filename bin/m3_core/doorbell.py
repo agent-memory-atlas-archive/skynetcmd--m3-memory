@@ -166,3 +166,15 @@ def start_daemon(endpoint: str, binary: str, log_path: str, wait_s: float = 3.0)
             return True
         time.sleep(0.05)
     return False
+
+
+def status(endpoint: str | None) -> dict | None:
+    """The daemon's /status view (rings logged, per reader set: pending, waiting,
+    wakes), or None when no daemon answers."""
+    if not alive(endpoint):
+        return None
+    try:
+        code, payload = _request(str(endpoint), "GET", "/status", None, 2.0)
+    except (OSError, ValueError, IndexError):
+        return None
+    return payload if code == 200 and isinstance(payload, dict) else None

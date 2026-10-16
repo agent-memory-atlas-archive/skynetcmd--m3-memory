@@ -452,6 +452,11 @@ def main() -> int:
     # otherwise informational.
     exit_code = max(exit_code, fips_probe.run(brief=brief))
 
+    from doctor import dispatch_probe
+
+    # Report-only: without the dispatch daemon the waiter polls (supported).
+    dispatch_probe.run(brief=brief)
+
     if not getattr(args, "skip_locks", False):
         from doctor import lock_probe
 

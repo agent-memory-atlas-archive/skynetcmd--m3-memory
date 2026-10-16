@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_doctor.py
-sha1: 0e0baf1d694c
-mtime_utc: 2026-10-16T00:56:14.314411+00:00
-generated_utc: 2026-10-16T00:58:19.855615+00:00
+sha1: 7d0e95fc03b0
+mtime_utc: 2026-10-16T04:15:15.118066+00:00
+generated_utc: 2026-10-16T04:15:31.234399+00:00
 private: false
 ---
 
@@ -99,6 +99,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `doctor (cognitive_loop_probe)`
 - `doctor (dashboard_probe)`
 - `doctor (db_repair)`
+- `doctor (dispatch_probe)`
 - `doctor (embed_server_probe)`
 - `doctor (embed_space_probe)`
 - `doctor (entrypoint_probe)`

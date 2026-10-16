@@ -249,3 +249,10 @@ def test_start_daemon_brings_one_up_and_a_second_start_does_not_double_it(tmp_pa
         for p in psutil.process_iter(["cmdline"]):
             if endpoint in " ".join(p.info.get("cmdline") or []):
                 p.kill()
+
+
+def test_status_reports_a_live_daemon_and_none_without_one(daemon, tmp_path):
+    assert doorbell.status(doorbell.endpoint_for(str(tmp_path / "nothing-here"))) is None
+    doorbell.wait(daemon, ["probe"], 0)
+    view = doorbell.status(daemon)
+    assert view is not None and "probe" in view["readers"]

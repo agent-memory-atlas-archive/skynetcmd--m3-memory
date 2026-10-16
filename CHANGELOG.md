@@ -1126,6 +1126,12 @@ the policy is forward-going only.
 
 ### Added
 
+- **`m3 doctor` reports the dispatch doorbell.** It shows whether `m3-dispatchd`
+  is serving this engine root, which reader sets wait on it and how much is
+  pending, and says when a core that ships the daemon has nothing answering.
+  Report-only. **Affected:** all installs · **Action:** none ·
+  **Data status:** none.
+
 - **Agent mail can wake waiters at once instead of on a one-second poll.** When
   the Rust core's dispatch doorbell (`m3-dispatchd`) is running, sending a
   message rings it and each agent's waiter is woken immediately, once per burst
