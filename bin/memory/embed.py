@@ -17,6 +17,7 @@ will move only when telemetry gets its own module.
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import logging
 import math
@@ -729,6 +730,65 @@ def _discover_ollama_bge_m3(deadline: float) -> str | None:
     return None
 
 
+# EmbeddedEmbedder's keyword parameters, each set by the registry key embed.<name>
+# (m3-core-rs crates/m3-core-py: EmbeddedEmbedder(model_path, warmup, *, ...)).
+EMBEDDED_PARAMS = ("streams", "ctx", "seq_max", "n_batch", "n_ubatch", "coalesce_ms", "max_batch_tokens")
+_OLD_CORE_SAID = False
+
+
+def embedded_params() -> dict[str, int]:
+    """The in-process embedder's settings from the registry. A key with no value
+    (n_batch, n_ubatch, max_batch_tokens unset) is left out: the core derives it."""
+    out: dict[str, int] = {}
+    for name in EMBEDDED_PARAMS:
+        value = _m3cfg.setting(f"embed.{name}")
+        if isinstance(value, int):  # integer keys (registry); None = unset
+            out[name] = value
+    return out
+
+
+def new_embedded_embedder(core, gguf: str):
+    """``core.EmbeddedEmbedder(gguf, **settings)``: the ONE construction site.
+
+    Cores before 3.10.16 take no settings parameters (they read M3_EMBED_* env
+    themselves). Detected by the call itself, not a version: such a core raises
+    TypeError naming an unexpected keyword, and is then built with the GGUF
+    alone; that is said once, as a warning when a value set in m3_config.toml
+    (or by --set) is thereby not applied, so it is never dropped in silence."""
+    global _OLD_CORE_SAID
+    params = embedded_params()
+    try:
+        return core.EmbeddedEmbedder(gguf, **params)
+    except TypeError as e:
+        if not params or "keyword" not in str(e):
+            raise
+        # An env-set value still reaches such a core: it reads M3_EMBED_* itself.
+        dropped = sorted(n for n in params if not _m3cfg.origin_of(f"embed.{n}").startswith(("default", "env-legacy:")))
+        if not _OLD_CORE_SAID:
+            _OLD_CORE_SAID = True
+            try:  # the version-coupling owner; absent only on a bin/-only checkout
+                # By name: a static import pulls the installer into this module's
+                # import graph. str(): untyped (Any) values here left mypy unable to
+                # type memory_core's re-exports in every module importing it.
+                rci = importlib.import_module("m3_memory.rust_core_install")
+                needed, fix = str(rci.M3_CORE_RS_READS_M3_CONFIG), str(rci.core_upgrade_hint())
+            except ImportError:
+                needed, fix = "a newer m3-core-rs", "m3 embedder install-gpu --force"
+            version = getattr(core, "__version__", "(version unknown)")
+            msg = (
+                "observed: the installed m3_core_rs %s predates config-file settings (EmbeddedEmbedder: %s); it "
+                "needs %s or later to take them. %s fix: %s"
+            )
+            what = (
+                f"NOT applied: {', '.join(f'embed.{n}' for n in dropped)} (set in m3_config.toml); the core uses "
+                "its defaults or its own M3_EMBED_* environment names instead."
+                if dropped
+                else "Nothing configured is lost: no embed.* sizing setting is set outside the environment."
+            )
+            (logger.warning if dropped else logger.info)(msg, version, e, needed, what, fix)
+        return core.EmbeddedEmbedder(gguf)
+
+
 def _get_embedded_embedder():
     """Return the in-process EmbeddedEmbedder, or None if unavailable/unsafe."""
     global _embedded_embedder, _embedded_embed_checked, _EMBED_GGUF_PATH, _EMBEDDED_INIT_ERROR
@@ -772,7 +832,7 @@ def _get_embedded_embedder():
 
         def _load() -> None:
             try:
-                em = config.m3_core_rs.EmbeddedEmbedder(_EMBED_GGUF_PATH)
+                em = new_embedded_embedder(config.m3_core_rs, _EMBED_GGUF_PATH)
                 _box["result"] = (em, em.embedding_dim())
             except Exception as _le:  # noqa: BLE001 — surfaced via _box for the caller
                 _box["error"] = _le
@@ -795,7 +855,7 @@ def _get_embedded_embedder():
                 raise _box["error"]
             emb, dim = _box["result"]
         else:
-            emb = config.m3_core_rs.EmbeddedEmbedder(_EMBED_GGUF_PATH)
+            emb = new_embedded_embedder(config.m3_core_rs, _EMBED_GGUF_PATH)
             dim = emb.embedding_dim()
         if dim != config.EMBED_DIM:
             _EMBEDDED_INIT_ERROR = f"GGUF {_EMBED_GGUF_PATH} has dimension {dim}, expected EMBED_DIM {config.EMBED_DIM}"

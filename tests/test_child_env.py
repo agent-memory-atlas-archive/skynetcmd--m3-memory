@@ -45,33 +45,9 @@ def test_pg_tools_get_no_m3_secret(monkeypatch):
     assert env["PGPASSWORD"] == "pw"
 
 
-def test_a_handoff_carries_only_the_names_it_sanctions():
-    import pytest
+def test_no_m3_setting_is_handed_to_a_child_through_env():
+    """The one sanctioned handoff (m3-embed-server's GGUF and port) is gone: the
+    server reads m3_config.toml, named by --config (test_embed_server_config_file)."""
+    import inspect
 
-    from m3_memory._childenv import RUST_EMBED_SERVER
-
-    env = child_env(handoff=(RUST_EMBED_SERVER, {"M3_EMBED_SERVER_PORT": "8099"}))
-    assert env["M3_EMBED_SERVER_PORT"] == "8099"
-    with pytest.raises(ValueError, match="does not sanction"):
-        child_env(handoff=(RUST_EMBED_SERVER, {"M3_DATABASE": "x"}))
-
-
-def test_the_sanctioned_handoffs_are_reviewed():
-    """Adding a handoff, or a name to one, must change this list: env is not a
-    general channel for m3 settings."""
-    from m3_memory._childenv import HANDOFFS
-
-    assert {h.name: sorted(h.names) for h in HANDOFFS} == {
-        "rust-embed-server": ["M3_EMBED_GGUF", "M3_EMBED_SERVER_PORT"],
-    }  # no secret is ever handed over env: m3 reads none from there
-
-
-def test_the_embed_server_gets_the_configured_port(m3_settings, tmp_path):
-    """The port was hardcoded to 8082: a port set in m3_config.toml moved m3's own
-    probe but never the server."""
-    from m3_memory import embedder_admin
-
-    m3_settings({"embed.server.port": 9123})
-    env = embedder_admin._embed_server_env(tmp_path / "m.gguf")
-    assert env["M3_EMBED_SERVER_PORT"] == "9123"
-    assert env["M3_EMBED_GGUF"] == str(tmp_path / "m.gguf")
+    assert "handoff" not in inspect.signature(child_env).parameters

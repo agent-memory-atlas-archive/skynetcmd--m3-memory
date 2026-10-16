@@ -93,8 +93,9 @@ from m3_memory._pyver import wheel_python_tag
 #
 # Total footprint is bounded: baseline + streams x graph. It is NOT a leak —
 # exactly `streams` requests pay, and every request after that is free whatever
-# its size. Overridable per host by M3_EMBED_STREAMS or [embed].streams in the
-# server's config.toml; the resolved value is logged at startup.
+# its size. Overridable per host in m3_config.toml: embed.server.streams for the
+# server, embed.streams for the in-process embedder (default 8); the server logs
+# the resolved value at startup.
 #
 # WHERE EACH WHEEL LIVES — not every backend can go to PyPI. The CUDA wheels
 # exceed PyPI's per-file size limit (windows-cuda ~244 MiB, linux-cuda ~949 MiB
@@ -138,6 +139,23 @@ from m3_memory._pyver import wheel_python_tag
 # and off by default in release.yml.
 M3_CORE_RS_VERSION = "3.10.7"
 M3_CORE_RS_GIT_TAG = "v2026.10.7"
+# The first core whose m3-embed-server takes `--config <m3_config.toml>` and
+# whose EmbeddedEmbedder takes its settings as parameters. Named in messages
+# only: callers detect the capability itself (embedder_admin, memory.embed).
+M3_CORE_RS_READS_M3_CONFIG = "3.10.16"
+
+
+def core_upgrade_hint() -> str:
+    """The command that brings in a core with M3_CORE_RS_READS_M3_CONFIG's
+    capabilities: install-gpu when this m3 pins such a core, else an m3 upgrade
+    (install-gpu would reinstall the older pinned one)."""
+    if _parse_version(M3_CORE_RS_VERSION) >= _parse_version(M3_CORE_RS_READS_M3_CONFIG):
+        return f"m3 embedder install-gpu --force (installs m3-core-rs {M3_CORE_RS_VERSION})"
+    return (
+        f"m3 upgrade (this m3 pins m3-core-rs {M3_CORE_RS_VERSION}, older than "
+        f"{M3_CORE_RS_READS_M3_CONFIG}; a newer m3 pins a core that has it)"
+    )
+
 
 # Cargo features per backend, mirroring build_wheel.py's _MATRIX (the source
 # fallback passes these to maturin via pip's config-settings).

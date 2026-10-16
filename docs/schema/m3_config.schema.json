@@ -334,6 +334,11 @@
           "description": "Character overlap between chunks.",
           "default": 8000
         },
+        "coalesce_ms": {
+          "type": "integer",
+          "description": "In-process embedder: milliseconds the dispatcher waits to coalesce requests into one batch.",
+          "default": 3
+        },
         "compatible_models": {
           "type": "array",
           "description": "Other model tags whose vectors share this space.",
@@ -393,10 +398,22 @@
           "description": "Allow the in-process tier-1 embedder (opt-in, DESIGN_PHILOSOPHIES \u00a78).",
           "default": false
         },
+        "max_batch_tokens": {
+          "type": "integer",
+          "description": "In-process embedder: the dispatcher's coalescing ceiling in tokens. Unset: embed.streams x embed.ctx."
+        },
         "model": {
           "type": "string",
           "description": "The embedding model name requested from the endpoint.",
           "default": "text-embedding-bge-m3"
+        },
+        "n_batch": {
+          "type": "integer",
+          "description": "In-process embedder: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe value)."
+        },
+        "n_ubatch": {
+          "type": "integer",
+          "description": "In-process embedder: llama.cpp micro-batch tokens. Unset: embed.ctx (the only encoder-safe value)."
         },
         "norm_tolerance": {
           "type": "number",
@@ -413,9 +430,19 @@
           "description": "Seconds a search waits for its query embedding; 0 disables the limit.",
           "default": 8.0
         },
+        "seq_max": {
+          "type": "integer",
+          "description": "In-process embedder: sequences packed into one decode call.",
+          "default": 32
+        },
         "space_tag": {
           "type": "string",
           "description": "The vector space rows are tagged with; decides search compatibility. Default: embed.model."
+        },
+        "streams": {
+          "type": "integer",
+          "description": "In-process embedder: worker contexts (each holds a ~4 GiB compute graph at ctx 8192).",
+          "default": 8
         },
         "token_budget": {
           "type": "integer",
@@ -530,6 +557,11 @@
               "type": "string",
               "description": "The m3-embed-server binary; unset uses the wheel's, then PATH."
             },
+            "coalesce_ms": {
+              "type": "integer",
+              "description": "m3-embed-server: milliseconds the dispatcher waits to coalesce requests into one batch.",
+              "default": 3
+            },
             "concurrency": {
               "type": "integer",
               "description": "Concurrent requests; 0 uses the backend's stream pool.",
@@ -555,10 +587,46 @@
               "description": "Texts per server batch.",
               "default": 2048
             },
+            "max_batch_tokens": {
+              "type": "integer",
+              "description": "m3-embed-server: the dispatcher's coalescing ceiling in tokens.",
+              "default": 2048
+            },
+            "n_batch": {
+              "type": "integer",
+              "description": "m3-embed-server: llama.cpp batch tokens; the core raises a value below embed.ctx to embed.ctx.",
+              "default": 2048
+            },
+            "n_ubatch": {
+              "type": "integer",
+              "description": "m3-embed-server: llama.cpp micro-batch tokens; the core raises a value below embed.ctx to embed.ctx.",
+              "default": 512
+            },
             "port": {
               "type": "integer",
               "description": "Port of the shared embed server (also read by the Rust server, as a u16).",
               "default": 8082
+            },
+            "remote_listen": {
+              "type": "string",
+              "description": "m3-embed-server: address (ip or ip:port) of the TLS listener for other machines; unset = loopback only. Set by `m3 embedder secure`; needs tls_cert, tls_key and the M3_EMBED_SERVER_TOKEN_SHA256 secret."
+            },
+            "seq_max": {
+              "type": "integer",
+              "description": "m3-embed-server: sequences packed into one decode call.",
+              "default": 32
+            },
+            "streams": {
+              "type": "integer",
+              "description": "m3-embed-server: worker contexts. Unset: 2 on a GPU build (cuda/vulkan/metal), 1 on a CPU-only build; each holds a ~4 GiB compute graph at ctx 8192."
+            },
+            "tls_cert": {
+              "type": "string",
+              "description": "m3-embed-server: TLS certificate chain (PEM) for embed.server.remote_listen."
+            },
+            "tls_key": {
+              "type": "string",
+              "description": "m3-embed-server: private key (PEM) of embed.server.tls_cert; must be readable only by its owner."
             }
           }
         }

@@ -62,8 +62,20 @@ elif "--database" in sys.argv:
     i = sys.argv.index("--database")
     if i + 1 < len(sys.argv):
         _override = sys.argv[i + 1]
+
+
+def _default_db() -> str:
+    """The engine root's store, ~/.m3/engine/agent_memory.db by default, where
+    every m3 reader looks (not the pre-Homecoming <repo>/memory/). Its owner,
+    m3_memory._roots, is stdlib-only and reached through m3_core.seams; imported
+    only when no store was named, so the bootstrap pair still runs on its own."""
+    from m3_core.seams import roots as _roots
+
+    return os.path.join(_roots.engine_root(), "agent_memory.db")
+
+
 # env-owner: bootstrap exception: creates the first SQLite store before m3 (and its registry) imports
-DB = pathlib.Path(_override or os.environ.get("M3_DATABASE") or (BASE / "memory" / "agent_memory.db"))
+DB = pathlib.Path(_override or os.environ.get("M3_DATABASE") or _default_db())
 MIGS = BASE / "memory" / "migrations"
 
 

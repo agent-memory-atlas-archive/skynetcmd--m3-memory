@@ -179,6 +179,9 @@ before changing it, and every config file it edits keeps a `.bak` copy.
      Ollama or llama.cpp) instead of downloading another copy;
    - replaces an old embed server that a crontab line started at boot with m3's
      own service, where your system can run one (the crontab is saved first);
+   - moves the embed server's old `config.toml` (from m3-core-rs before 3.10.16)
+     into `m3_config.toml` and the secrets file, then removes it: the server now
+     reads only m3's files, started with `--config <m3_config.toml>`;
    - on a computer shared with another m3 user (Linux, macOS), gives this
      account free ports of its own when the usual ones (8082 for the embedder,
      8088 for the dashboard) belong to the other account, and records them;
@@ -191,7 +194,20 @@ before changing it, and every config file it edits keeps a `.bak` copy.
 3. **Restart your agents** so they load the new version (Claude Code: restart
    it, or `/mcp` to reconnect).
 
-4. **Check:** `m3 doctor` should show only ✅ lines. Anything else names its fix.
+4. **Windows, embedder service registered by an earlier version:** it must be
+   registered again so it starts with `--config <m3_config.toml>` (as
+   LocalSystem it cannot find your settings otherwise). Open an *Administrator*
+   terminal and run:
+
+   ```powershell
+   m3 embedder install
+   ```
+
+   It updates the existing registration and restarts the service. `m3 doctor`
+   reports a registration still missing `--config`. On macOS and Linux
+   `m3 setup` re-registers the user service itself.
+
+5. **Check:** `m3 doctor` should show only ✅ lines. Anything else names its fix.
 
 ### Afterwards, if you like
 
@@ -211,6 +227,8 @@ before changing it, and every config file it edits keeps a `.bak` copy.
 | `this shell lost the address of the systemd user session` | a `su` shell without the dash | `su - <user>`, or the `export` line shown, then `m3 setup` |
 | `cognitive loop: not installed` | background processing is off | `m3 setup --cognitive-loop` |
 | `… is set in the environment, which m3 does not read for secrets` | a key still only in an environment variable | `m3 config import-env` |
+| `embed-server: the embedder service is registered without --config` | the service predates m3_config.toml and starts without its settings | Windows: `m3 embedder install` in an Administrator terminal; elsewhere `m3 embedder install` |
+| `does not read m3_config.toml` (from `m3 embedder`) | the installed m3-core-rs predates 3.10.16 | the command it names (`m3 embedder install-gpu --force` or `m3 upgrade`) |
 | `VERIFICATION FAILED` | something above it is marked | fix what it names, then `m3 doctor` |
 
 The rest of this guide is for **upgrading a GitHub checkout in place.**

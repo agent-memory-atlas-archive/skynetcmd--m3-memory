@@ -53,7 +53,7 @@ def test_install_failure_hint_is_os_correct(platform, expected, forbidden):
     for a service that registers with SCM.
     """
     with mock.patch.object(sys, "platform", platform):
-        hint = ea._install_failure_hint(Path("/models/bge.gguf"))
+        hint = ea._install_failure_hint()
     assert expected.lower() in hint.lower()
     for bad in forbidden:
         assert bad.lower() not in hint.lower(), f"{bad!r} leaked into {platform} advice"
@@ -488,7 +488,7 @@ def test_start_failure_hint_is_os_correct(platform, expected, forbidden):
     including Windows, where the embedder is an SCM service and neither exists.
     Same defect the install hint had (m3 supports 3 OSes)."""
     with mock.patch.object(sys, "platform", platform):
-        hint = ea._start_failure_hint(Path("/models/bge.gguf"))
+        hint = ea._start_failure_hint()
     assert expected.lower() in hint.lower()
     for bad in forbidden:
         assert bad.lower() not in hint.lower(), f"{bad!r} leaked into {platform} advice"

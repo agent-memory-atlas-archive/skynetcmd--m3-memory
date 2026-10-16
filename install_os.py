@@ -1,7 +1,5 @@
 import getpass
-import ntpath
 import os
-import posixpath
 import subprocess
 import sys
 import venv
@@ -34,25 +32,6 @@ if hasattr(sys.stderr, "reconfigure"):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def get_m3_root() -> str:
-    """Returns the M3 root directory for user state (~/.m3-memory)."""
-    # env-owner: the root locator of a stdlib-only pre-install script (config lives under a root)
-    root = os.getenv("M3_MEMORY_ROOT")
-    if root:
-        # Do NOT abspath a root that is already absolute: os.path.abspath only
-        # understands the host convention, so on Windows a POSIX root like
-        # /data/.m3 (exported from Git Bash or WSL) reads as relative and would
-        # be rewritten to C:\data\.m3. Mirrors bin/m3_core/paths.py::_abs_root.
-        p = os.path.expanduser(root)
-        if posixpath.isabs(p) or ntpath.isabs(p):
-            return p.replace("\\", "/")
-        return os.path.abspath(p).replace("\\", "/")
-    return os.path.join(os.path.expanduser("~"), ".m3-memory")
-
-
-M3_ROOT = get_m3_root()
-
-
 def _is_installed_layout(root: str) -> bool:
     """True when `root` is an INSTALLED package dir (…/site-packages/… or
     …/dist-packages/…) rather than a source checkout.
@@ -76,8 +55,23 @@ def _is_installed_layout(root: str) -> bool:
 # create nothing.
 _INSTALLED = _is_installed_layout(BASE_DIR)
 VENV_DIR = None if _INSTALLED else os.path.join(BASE_DIR, ".venv")
-DB_DIR = os.path.join(M3_ROOT, "memory")
-LOGS_DIR = os.path.join(M3_ROOT, "logs")
+
+
+def _state_dirs() -> tuple[str, str]:
+    """(engine root, logs root) from m3's root owner, m3_memory._roots (stdlib-
+    only): ~/.m3/engine and ~/.m3/logs by default, moved by M3_ENGINE_ROOT /
+    M3_LOGS_ROOT / M3_MEMORY_ROOT / [paths]. Resolved when the install runs, not
+    at import, which must not need m3 (tests load this script by path). The
+    package is importable by then: a checkout has it beside this file, an
+    installed layout one level up."""
+    pkg_parent = os.path.dirname(BASE_DIR) if _INSTALLED else BASE_DIR
+    if pkg_parent not in sys.path:
+        sys.path.append(pkg_parent)
+    from m3_memory import _roots
+
+    return _roots.engine_root(), _roots.logs_root()
+
+
 REQ_FILE = os.path.join(BASE_DIR, "requirements.txt")
 
 
@@ -373,6 +367,7 @@ def main():
 
     # 1. Ensure auxiliary directories exist
     print("\n[1/6] Creating auxiliary directories...")
+    DB_DIR, LOGS_DIR = _state_dirs()
     os.makedirs(DB_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
     print(f"  -> {DB_DIR}")

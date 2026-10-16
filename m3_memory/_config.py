@@ -36,3 +36,25 @@ else:
 def explicit(name: str) -> bool:
     """True when key ``name`` was set by the file or an env name, not defaulted."""
     return bool(_settings().explicit(name))
+
+
+def origin(name: str) -> str:
+    """Where key ``name``'s value came from (``default``, ``file:...``, ``env-legacy:NAME``, ``cli``...)."""
+    return str(_settings().origin_of(name))
+
+
+def write(values: dict[str, Any]):
+    """Set (None: remove) each named key in m3_config.toml, as `m3 config set`
+    does (the one writer: m3_core.config.writer). Returns the file. Raises
+    ConfigWriteError, naming the key, for a refused value; the file is then unchanged."""
+    _bin.ensure_on_path()
+    from m3_core.config import REGISTRY, locate
+    from m3_core.config.writer import ConfigWriteError, set_values
+
+    keys = {}
+    for name, value in values.items():
+        key = REGISTRY.get(name)
+        if key is None:
+            raise ConfigWriteError(f"{name} is not a registry key")
+        keys[key] = value
+    return set_values(locate(), keys)

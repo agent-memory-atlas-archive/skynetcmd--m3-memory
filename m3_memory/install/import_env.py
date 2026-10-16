@@ -16,7 +16,8 @@ shown, logged or backed up). m3_config.toml is backed up first (``GuardedRewrite
 ``.backup_history`` section), and every imported key must then resolve from the
 file to the chosen value; if one does not, the backup is restored. The legacy
 places are never edited; ``.llm_config.json`` is renamed ``.imported`` once all
-of its values are in the file.
+of its values are in the file. Last, the retired m3-embed-server config.toml
+is moved into m3_config.toml and the secrets file (``embed_server_legacy``).
 
 Exit codes: 0 = done (or nothing to do); 2 = refused or rolled back.
 """
@@ -178,6 +179,22 @@ def _rename_llm_file(loc: Location, after: Settings) -> str | None:
 
 
 def run(config: str | None, *, dry_run: bool, non_interactive: bool = False) -> int:
+    """Import the legacy settings, then move the retired m3-embed-server
+    config.toml into the same files (after the import, so it sees the result).
+    2 when either step was refused or could not write."""
+    rc = _import_settings(config, dry_run=dry_run, non_interactive=non_interactive)
+    from m3_memory.install.embed_server_legacy import migrate
+
+    report = migrate(config=config, dry_run=dry_run)
+    if report is None:
+        return rc
+    print(f"m3 config import-env: the retired m3-embed-server config ({report.old})")
+    for line in report.lines():
+        print(line, file=sys.stderr if line.lstrip().startswith("[!]") else sys.stdout)
+    return rc or (0 if report.ok else 2)
+
+
+def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool) -> int:
     from m3_core.atomic_io import GuardedRewrite, atomic_write
     from m3_core.config.writer import ConfigWriteError, set_values
 

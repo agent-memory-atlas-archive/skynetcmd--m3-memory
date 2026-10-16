@@ -827,6 +827,45 @@ the policy is forward-going only.
 
 ### Changed
 
+- **The embed server reads `m3_config.toml` and the secrets file; its own
+  `config.toml` is retired.** m3 starts `m3-embed-server` with
+  `--config <m3_config.toml>` and hands it nothing through the environment.
+  New keys: `[embed.server]` `streams`, `seq_max`, `n_batch`, `n_ubatch`,
+  `coalesce_ms`, `max_batch_tokens`, `remote_listen`, `tls_cert`, `tls_key`,
+  and `[embed]` `streams`, `seq_max`, `n_batch`, `n_ubatch`, `coalesce_ms`,
+  `max_batch_tokens` for the in-process embedder (the legacy `M3_EMBED_*`
+  names set these). `m3 config import-env` (so `m3 upgrade`) and
+  `m3 embedder install` move the old file's values into m3's files and remove
+  it; a value `m3_config.toml` already holds differently is reported and kept.
+  `m3 embedder install` records the model and any server setting held only in
+  the environment before registering the service. Needs m3-core-rs 3.10.16 or
+  later; with an older core `m3 embedder install` and `secure` stop and name the
+  upgrade. **Affected:** installs running the embed server ·
+  **Action:** Windows: re-register the service from an *Administrator*
+  terminal with `m3 embedder install` (`m3 doctor` reports one registered
+  without `--config`); macOS/Linux: `m3 upgrade` re-registers it ·
+  **Data status:** none.
+
+- **`m3 embedder secure` records the listener itself.** The server only
+  checks the settings (`secure --check`); m3 writes
+  `embed.server.remote_listen`, `tls_cert` and `tls_key` to `m3_config.toml`
+  and the token's SHA-256 as the secret `M3_EMBED_SERVER_TOKEN_SHA256`.
+  `--off` unsets them. No elevation needed on Windows. **Affected:** servers
+  shared with other machines · **Action:** none (the old file's values are
+  migrated) · **Data status:** none.
+
+- **`m3 embedder install --concurrency` has no effect and says so.** The
+  server never read it; its worker count is `embed.server.streams`.
+  **Affected:** scripts passing `--concurrency` · **Action:** use
+  `m3 config set embed.server.streams <n>` · **Data status:** none.
+
+- **The OS installer and `setup_memory.py` use the engine and logs roots.**
+  `install_os.py` created `~/.m3-memory/memory` and `~/.m3-memory/logs`, and
+  `setup_memory.py` defaulted to `<repo>/memory/agent_memory.db`; both now use
+  `~/.m3/engine` and `~/.m3/logs` (or the configured roots). **Affected:**
+  source installs using those scripts · **Action:** none ·
+  **Data status:** none (existing stores are found by m3's resolver; nothing moves).
+
 - **An unknown `dispatch.mode` is an error** naming the key, instead of
   meaning `separate`. **Affected:** configs with a misspelt dispatch mode ·
   **Action:** set `dispatch.mode` to a listed value · **Data status:** none.

@@ -185,6 +185,18 @@ def run(brief: bool = False) -> int:
             )
     except Exception:  # noqa: BLE001 — a diagnostic must never break the probe
         pass
+    # A service registered before the server read m3_config.toml starts without
+    # --config; on Windows (LocalSystem) it then cannot find the settings at all.
+    reregister = 0
+    try:
+        from m3_memory.embedder_admin import registration_lacks_config_message
+
+        msg = registration_lacks_config_message()
+        if msg:
+            print(f"⚠️  embed-server: {msg}")
+            reregister = 1
+    except Exception as e:  # noqa: BLE001 — a diagnostic must never break the probe; said
+        print(f"embed-server: could not check the service's command line ({type(e).__name__}: {e})")
     if not brief:
         print()
         print("=== Rust-side service health (m3-embed-server doctor) ===")
@@ -220,8 +232,12 @@ def run(brief: bool = False) -> int:
             sub = "status"
             # Captured in both modes: an uncaptured child writes straight to the
             # terminal, ahead of this process's buffered section header.
+            from pathlib import Path
+
+            from m3_memory.embedder_admin import _service_verb_argv
+
             r = subprocess.run(
-                [exe, "status"],
+                _service_verb_argv(Path(exe), "status"),  # with --config where the binary reads m3_config.toml
                 capture_output=True,
                 text=True,
                 timeout=TIMEOUT_SECS,
@@ -270,7 +286,7 @@ def run(brief: bool = False) -> int:
                 said = ((r.stderr or "").strip() or (r.stdout or "").strip()).splitlines()
                 first = f": {said[-1][:200]}" if said else " (no output)"
                 print(f"❌ embed-server: `{os.path.basename(exe)} {sub}` exited {r.returncode}{first}")
-        return r.returncode
+        return r.returncode or reregister
     except subprocess.TimeoutExpired:
         print("embed-server: ❌ timed out" if brief else f"  m3-embed-server doctor timed out after {TIMEOUT_SECS}s")
         return 1

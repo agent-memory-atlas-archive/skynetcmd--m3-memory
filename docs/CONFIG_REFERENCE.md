@@ -122,6 +122,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `bulk_concurrency` | integer | `4` | `M3_EMBED_BULK_CONCURRENCY`, `EMBED_BULK_CONCURRENCY` | restart to apply; Concurrent bulk embedding requests. |
 | `chunk_max_chars` | integer | `28000` | `M3_EMBED_CHUNK_MAX_CHARS` | restart to apply; Characters per chunk. |
 | `chunk_overlap_chars` | integer | `8000` | `M3_EMBED_CHUNK_OVERLAP_CHARS` | restart to apply; Character overlap between chunks. |
+| `coalesce_ms` | integer | `3` | `M3_EMBED_COALESCE_MS` | restart to apply; In-process embedder: milliseconds the dispatcher waits to coalesce requests into one batch. |
 | `compatible_models` | list of strings | `[]` | `M3_EMBED_COMPATIBLE_MODELS` | restart to apply; Other model tags whose vectors share this space. |
 | `ctx` | integer | `8192` | `M3_EMBED_CTX` | restart to apply; Context length in tokens (also read by the Rust core, as a u32). |
 | `dim` | integer | `1024` | `M3_EMBED_DIM`, `EMBED_DIM` | restart to apply; Embedding dimension. |
@@ -134,11 +135,16 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `gguf_model_tag` | string | (none) | `M3_EMBED_GGUF_MODEL_TAG` | restart to apply; Tag of vectors from the in-process GGUF embedder. Default: embed.space_tag. |
 | `init_timeout_s` | number | `20.0` | `M3_EMBED_INIT_TIMEOUT_S` | restart to apply; Seconds to wait for the in-process embedder to load; 0 disables the limit. |
 | `inproc` | boolean | `false` | `M3_EMBED_INPROC` | restart to apply; Allow the in-process tier-1 embedder (opt-in, DESIGN_PHILOSOPHIES §8). |
+| `max_batch_tokens` | integer | (none) | `M3_EMBED_MAX_BATCH_TOKENS` | restart to apply; In-process embedder: the dispatcher's coalescing ceiling in tokens. Unset: embed.streams x embed.ctx. |
 | `model` | string | `text-embedding-bge-m3` | `M3_EMBED_MODEL`, `EMBED_MODEL` | restart to apply; The embedding model name requested from the endpoint. |
+| `n_batch` | integer | (none) | `M3_EMBED_N_BATCH` | restart to apply; In-process embedder: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe value). |
+| `n_ubatch` | integer | (none) | `M3_EMBED_N_UBATCH` | restart to apply; In-process embedder: llama.cpp micro-batch tokens. Unset: embed.ctx (the only encoder-safe value). |
 | `norm_tolerance` | number | `0.05` | `M3_EMBED_NORM_TOL` | restart to apply; Allowed deviation from unit norm. |
 | `require_unit_norm` | boolean | `true` | `M3_EMBED_REQUIRE_UNIT_NORM` | restart to apply; Reject vectors whose norm is not 1 within embed.norm_tolerance. |
 | `search_deadline_s` | number | `8.0` | `M3_EMBED_SEARCH_DEADLINE_S` | restart to apply; Seconds a search waits for its query embedding; 0 disables the limit. |
+| `seq_max` | integer | `32` | `M3_EMBED_SEQ_MAX` | restart to apply; In-process embedder: sequences packed into one decode call. |
 | `space_tag` | string | (none) | `M3_EMBED_SPACE_TAG` | restart to apply; The vector space rows are tagged with; decides search compatibility. Default: embed.model. |
+| `streams` | integer | `8` | `M3_EMBED_STREAMS` | restart to apply; In-process embedder: worker contexts (each holds a ~4 GiB compute graph at ctx 8192). |
 | `token_budget` | integer | `7000` | `M3_EMBED_TOKEN_BUDGET` | restart to apply; Tokens per chunk. |
 | `token_overlap` | integer | `2000` | `M3_EMBED_TOKEN_OVERLAP` | restart to apply; Token overlap between chunks. |
 | `url` | string | (none) | `M3_EMBED_URL` | restart to apply; Embedding endpoint override; unset uses the configured endpoints. |
@@ -178,12 +184,21 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
 | `bin` | path | (none) | `M3_EMBED_SERVER_BIN` | restart to apply; The m3-embed-server binary; unset uses the wheel's, then PATH. |
+| `coalesce_ms` | integer | `3` | (none) | restart to apply; m3-embed-server: milliseconds the dispatcher waits to coalesce requests into one batch. |
 | `concurrency` | integer | `0` | `M3_EMBED_SERVER_CONCURRENCY` | restart to apply; Concurrent requests; 0 uses the backend's stream pool. |
 | `host` | string | `127.0.0.1` | `M3_EMBED_SERVER_HOST`, `EMBED_SERVER_HOST` | restart to apply; Address the shared embed server binds (also read by the Rust server). |
 | `interactive_max_texts` | integer | `8` | `M3_EMBED_INTERACTIVE_MAX_TEXTS` | restart to apply; Largest request still treated as interactive. |
 | `interactive_reserved` | integer | `1` | `M3_EMBED_SERVER_INTERACTIVE_RESERVED` | restart to apply; Slots reserved for interactive (search) requests. |
 | `max_batch` | integer | `2048` | `M3_EMBED_SERVER_MAX_BATCH` | restart to apply; Texts per server batch. |
+| `max_batch_tokens` | integer | `2048` | (none) | restart to apply; m3-embed-server: the dispatcher's coalescing ceiling in tokens. |
+| `n_batch` | integer | `2048` | (none) | restart to apply; m3-embed-server: llama.cpp batch tokens; the core raises a value below embed.ctx to embed.ctx. |
+| `n_ubatch` | integer | `512` | (none) | restart to apply; m3-embed-server: llama.cpp micro-batch tokens; the core raises a value below embed.ctx to embed.ctx. |
 | `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server, as a u16). |
+| `remote_listen` | string | (none) | (none) | restart to apply; m3-embed-server: address (ip or ip:port) of the TLS listener for other machines; unset = loopback only. Set by `m3 embedder secure`; needs tls_cert, tls_key and the M3_EMBED_SERVER_TOKEN_SHA256 secret. |
+| `seq_max` | integer | `32` | (none) | restart to apply; m3-embed-server: sequences packed into one decode call. |
+| `streams` | integer | (none) | (none) | restart to apply; m3-embed-server: worker contexts. Unset: 2 on a GPU build (cuda/vulkan/metal), 1 on a CPU-only build; each holds a ~4 GiB compute graph at ctx 8192. |
+| `tls_cert` | path | (none) | (none) | restart to apply; m3-embed-server: TLS certificate chain (PEM) for embed.server.remote_listen. |
+| `tls_key` | path | (none) | (none) | restart to apply; m3-embed-server: private key (PEM) of embed.server.tls_cert; must be readable only by its owner. |
 
 ## [enrich]
 
@@ -531,6 +546,7 @@ Secrets are never read from this file, or from the environment. Each resolves fr
 | `M3_CDW_PG_URL` | `M3_CDW_PG_URL`, `PG_URL` | no | DSN of the pg_sync data warehouse. |
 | `M3_CLOUD_AUTH_TOKEN` | `M3_CLOUD_AUTH_TOKEN` | no | Bearer token for the tier-4 cloud embedder. |
 | `M3_EMBED_SERVER_TOKEN` | `M3_EMBED_SERVER_TOKEN` | no | Bearer token for the shared embed server's listener for other machines (`m3 embedder secure`). |
+| `M3_EMBED_SERVER_TOKEN_SHA256` | `M3_EMBED_SERVER_TOKEN_SHA256` | no | SHA-256 (hex) of M3_EMBED_SERVER_TOKEN; m3-embed-server checks bearer tokens against it (written by `m3 embedder secure`). |
 | `M3_PRIMARY_PG_URL` | `M3_PRIMARY_PG_URL`, `M3_PG_URL` | yes | DSN of a PostgreSQL primary store. |
 | `M3_SERVE_TOKEN` | `M3_SERVE_TOKEN` | no | Bearer token `m3 serve` requires. |
 | `MCP_PROXY_KEY` | `MCP_PROXY_KEY` | no | Shared token the MCP proxy requires; unset runs it without auth (warned). |

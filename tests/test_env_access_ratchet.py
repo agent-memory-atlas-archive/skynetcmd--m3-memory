@@ -28,7 +28,9 @@ _BUDGET = 51
 # _bin, chatlog_timing, doctor's root report), the M3_DATABASE and chatlog
 # legacy-name shims, setup_memory's bootstrap, the waiter without m3_core, and
 # install_os naming a secret left in the environment.
-_OWNER_BUDGET = 60
+# 2026-10-16: 59: install_os takes its roots from m3_memory._roots (its own
+# M3_MEMORY_ROOT read, and the ~/.m3-memory default, are gone).
+_OWNER_BUDGET = 59
 # 2026-10-16: 595 (crypto tests moved to the config file; one setenv dropped, one
 # added: install_os must name, never store, a master key seen only in env).
 _TESTS_BUDGET = 595

@@ -83,7 +83,7 @@ _EMBED_CTX = _m3cfg.setting("embed.ctx")
 # ── Two-lane admission gate (interactive fast-lane) ───────────────────────────
 # WHY: the Rust `m3_core_rs.EmbeddedEmbedder` is NOT one serial CUDA context —
 # it wraps `m3_dispatcher::Dispatcher<EmbeddedBackend>` with a POOL of
-# `M3_EMBED_STREAMS` (default 8) independent contexts, its own slot semaphore,
+# `embed.streams` (default 8) independent contexts, its own slot semaphore,
 # and a circuit breaker. `embed()` releases the GIL and its decode region is
 # pure Rust, so it is SAFE to call concurrently — the dispatcher fans calls out
 # across its stream pool without interleaving into a single context. (The old
@@ -103,7 +103,7 @@ _EMBED_CTX = _m3cfg.setting("embed.ctx")
 # concurrency is `total-1` instead of `total` during idle periods — accepted in
 # exchange for a constant, load-independent interactive latency.
 #
-# `total` DEFAULTS TO THE BACKEND STREAM POOL (M3_EMBED_STREAMS, typically 8) —
+# `total` DEFAULTS TO THE BACKEND STREAM POOL (embed.streams, typically 8) —
 # resolved from the loaded embedder in _resolve_admission(), so the server uses
 # the full concurrency the Rust dispatcher offers rather than an arbitrary cap.
 # Override with M3_EMBED_SERVER_CONCURRENCY (still clamped to the backend pool).
@@ -296,7 +296,7 @@ def _load_embedder() -> None:
     global _embedder, _model_tag, _dim
     gguf = ""
     try:
-        from memory.embed import _EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf
+        from memory.embed import _EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf, new_embedded_embedder
 
         from memory import config
 
@@ -342,7 +342,7 @@ def _load_embedder() -> None:
             sys.exit(2)
 
         t0 = time.perf_counter()
-        emb = config.m3_core_rs.EmbeddedEmbedder(gguf)
+        emb = new_embedded_embedder(config.m3_core_rs, gguf)
         dim = emb.embedding_dim()
         if dim != config.EMBED_DIM:
             logger.error(

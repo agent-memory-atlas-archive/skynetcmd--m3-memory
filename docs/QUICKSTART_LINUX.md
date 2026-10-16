@@ -183,8 +183,8 @@ m3 embedder install       # registers + starts the systemd --user unit
 `m3 embedder fetch-model` downloads the model to `~/.m3/models/` if it isn't there yet.
 
 ```bash
-M3_EMBED_GGUF=~/.m3/models/bge-m3-Q4_K_M.gguf \
-    nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &
+m3 config set embed.gguf ~/.m3/models/bge-m3-Q4_K_M.gguf   # once; the server reads m3_config.toml
+nohup m3-embed-server --config ~/.m3/config/m3_config.toml >> ~/.m3/logs/embed-server.log 2>&1 &
 ```
 
 To start automatically on boot without systemd:
@@ -192,7 +192,7 @@ To start automatically on boot without systemd:
 ```bash
 crontab -e
 # Add this line:
-@reboot M3_EMBED_GGUF=~/.m3/models/bge-m3-Q4_K_M.gguf m3-embed-server >> ~/.m3/engine/embed-server.log 2>&1 &
+@reboot m3-embed-server --config ~/.m3/config/m3_config.toml >> ~/.m3/logs/embed-server.log 2>&1 &
 ```
 
 ### Keep the systemd service alive across logout (headless / server)

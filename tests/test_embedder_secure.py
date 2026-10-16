@@ -1,5 +1,6 @@
-"""`m3 embedder secure`: the server gets only the token's SHA-256, the token is
-stored only after the server accepted the settings, and a stored token is reused."""
+"""`m3 embedder secure`: the server gets only the token's SHA-256 (to CHECK the
+settings; it writes nothing), the token is stored only after the server accepted
+them, and a stored token is reused."""
 
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ def world(monkeypatch, tmp_path):
     monkeypatch.setattr(ea, "_service_cmd", service)
     monkeypatch.setattr(ss, "get_secret", lambda n: secrets.get(n))
     monkeypatch.setattr(ss, "set_secret", lambda n, v: secrets.__setitem__(n, v))
+    monkeypatch.setattr(ss, "delete_secret", lambda n: secrets.pop(n, None) is not None)
     return secrets, calls, state
 
 
@@ -79,5 +81,6 @@ def test_missing_arguments_and_off(world, capsys):
     _, calls, _ = world
     assert ea.cmd_secure(_args(cert=None)) == 2
     assert "--cert" in capsys.readouterr().err
+    n = len(calls)
     assert ea.cmd_secure(_args(off=True)) == 0
-    assert calls[-1] == ("secure", "--off")
+    assert len(calls) == n, "--off unsets m3's keys itself; the server no longer writes config"

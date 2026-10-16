@@ -1,8 +1,8 @@
 ---
 tool: install_os.py
-sha1: d1b359b5609e
-mtime_utc: 2026-10-16T22:11:18.346210+00:00
-generated_utc: 2026-10-16T22:11:19.710270+00:00
+sha1: 89628eadda09
+mtime_utc: 2026-10-16T23:02:58.010900+00:00
+generated_utc: 2026-10-16T23:03:22.624534+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 366)
+- `def main()` (line 360)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -31,12 +31,12 @@ _(no argparse arguments detected)_
 
 - `AGENT_OS_MASTER_KEY`
 - `M3_INSTALL_OXIDATION`
-- `M3_MEMORY_ROOT`
 
 ---
 
 ## Calls INTO this repo (intra-repo imports)
 
+- `m3_memory (_roots)`
 - `m3_memory.rust_core_install (install_rust_core)`
 
 ---
@@ -45,13 +45,13 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['fnm', '--version']`` (line 261)
-- `subprocess.run()  → `['node', '--version']`` (line 223)
-- `subprocess.run()  → `['nvm', 'version']`` (line 214)
-- `subprocess.run()  → `['winget', '--version']`` (line 233)
-- `subprocess.run()  → `[python_exe, pg_sync_script]`` (line 451)
-- `subprocess.run()  → `cmd`` (line 112)
-- `subprocess.run()` (line 234)
+- `subprocess.run()  → `['fnm', '--version']`` (line 255)
+- `subprocess.run()  → `['node', '--version']`` (line 217)
+- `subprocess.run()  → `['nvm', 'version']`` (line 208)
+- `subprocess.run()  → `['winget', '--version']`` (line 227)
+- `subprocess.run()  → `[python_exe, pg_sync_script]`` (line 446)
+- `subprocess.run()  → `cmd`` (line 106)
+- `subprocess.run()` (line 228)
 
 
 ---
@@ -59,8 +59,6 @@ _(no argparse arguments detected)_
 ## Notable external imports
 
 - `getpass`
-- `ntpath`
-- `posixpath`
 - `venv`
 
 ---

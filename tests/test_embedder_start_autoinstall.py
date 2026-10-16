@@ -42,6 +42,9 @@ def _patch_common(monkeypatch, service_calls):
         return 0
 
     monkeypatch.setattr(ea, "_service_cmd", fake_service_cmd)
+    # What `install` records in m3_config.toml first is pinned in
+    # test_embed_server_config_file; these tests pin the service flow.
+    monkeypatch.setattr(ea, "_prepare_service_config", lambda gguf: True)
 
 
 def test_start_autoinstalls_when_service_not_registered(monkeypatch):
@@ -50,12 +53,12 @@ def test_start_autoinstalls_when_service_not_registered(monkeypatch):
     monkeypatch.setattr(ea, "_service_reports_installed", lambda b, g: False)
 
     # The real `start` subparser has NO --concurrency; cmd_install must tolerate
-    # that via its getattr default (2) rather than raising AttributeError.
+    # that via its getattr default rather than raising AttributeError.
     rc = ea.cmd_start(argparse.Namespace(embedder_cmd="start"))
 
     assert rc == 0
     # cmd_install both registers AND starts, so we expect install then start.
-    assert calls == [("install", ["--concurrency", "2"]), ("start", [])]
+    assert calls == [("install", []), ("start", [])]
 
 
 def test_start_uses_normal_path_when_registered(monkeypatch):
@@ -78,7 +81,7 @@ def test_install_on_a_running_current_service_runs_nothing(monkeypatch, capsys):
     monkeypatch.setattr(ea, "_service_reports_installed", lambda b, g: True)
     monkeypatch.setattr(ea, "_service_binary_is_stale", lambda b: False)
     monkeypatch.setattr(ea, "_warn_if_port_busy", lambda phase: pytest.fail("no port notice for our own service"))
-    assert ea.cmd_install(argparse.Namespace(concurrency=2)) == 0
+    assert ea.cmd_install(argparse.Namespace(concurrency=None)) == 0
     assert calls == []
     assert "running on port" in capsys.readouterr().out
 
@@ -91,7 +94,7 @@ def test_install_on_a_stale_running_service_still_restarts_it(monkeypatch):
     monkeypatch.setattr(
         ea, "_service_cmd", lambda b, g, action, *e: calls.append(action) or (1 if action == "install" else 0)
     )
-    assert ea.cmd_install(argparse.Namespace(concurrency=2)) == 0
+    assert ea.cmd_install(argparse.Namespace(concurrency=None)) == 0
     assert calls == ["install", "stop", "start"]
 
 
@@ -112,7 +115,7 @@ def test_reregistering_a_known_service_is_quiet_first_install_is_not(monkeypatch
     monkeypatch.setattr(ea, "_verify_started_or_explain", lambda *a, **k: 0)
     monkeypatch.setattr(ea, "_service_cmd", lambda b, g, s, *e: used.append(("loud", s)) or 0)
     monkeypatch.setattr(ea, "_service_cmd_quiet", lambda b, g, s, *e: used.append(("quiet", s)) or 0)
-    assert ea.cmd_install(argparse.Namespace(concurrency=2)) == 0
+    assert ea.cmd_install(argparse.Namespace(concurrency=None)) == 0
     mode = "quiet" if registered else "loud"
     assert used == [(mode, "install"), (mode, "start")]
 
@@ -129,7 +132,7 @@ def test_an_unchanged_embedder_is_silent_under_the_upgrade(monkeypatch, capsys, 
         monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     else:
         monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
-    assert ea.cmd_install(argparse.Namespace(concurrency=2)) == 0
+    assert ea.cmd_install(argparse.Namespace(concurrency=None)) == 0
     out = capsys.readouterr().out
     assert (out == "") is from_upgrade
     assert calls == []

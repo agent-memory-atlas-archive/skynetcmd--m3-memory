@@ -581,6 +581,27 @@ def set_secret(name: str, value: str | KeyringRef) -> Path:
     return p
 
 
+def delete_secret(name: str) -> bool:
+    """Remove one entry (a value or a keyring pointer) under the file lock;
+    other entries and comments survive. True when it was there. A keyring entry
+    the pointer named is left in the keyring."""
+    from m3_core.locking import file_lock
+
+    p = secrets_file_path()
+    if not os.path.isfile(p):
+        return False
+    with file_lock(str(p) + ".lock", purpose="secrets file"):
+        if name not in read_secret_entries():  # checks the file (permissions, syntax, names)
+            return False
+
+        def drop(table) -> None:
+            del table[name]
+
+        _rewrite_file(p, drop)
+    bump_secret_generation()  # running processes drop their cached copy
+    return True
+
+
 def _check_new_file_would_be_private(directory: Path) -> None:
     """Windows: a new file takes its directory's inheritable ACL, and atomic_write's
     0600 means nothing there. So learn what a file in ``directory`` inherits from an

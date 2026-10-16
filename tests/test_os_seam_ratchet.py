@@ -106,7 +106,8 @@ def test_the_budget_is_not_stale():
 # 2026-10-16: 45 -> 51 is a MEASUREMENT correction, not growth: the gate now
 # resolves import aliases and sees conftest's `import os as _os` sites (5 of
 # them the platform-identity restorer itself, 1 the Windows console guard).
-_TESTS_BUDGET = 51
+# 2026-10-16: 49 (test_config_embed_file.py removed with the generated file).
+_TESTS_BUDGET = 49
 
 
 def test_os_checks_in_tests_do_not_grow():

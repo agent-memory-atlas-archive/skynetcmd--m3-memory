@@ -178,8 +178,8 @@ m3 doctor   # shows Tier-1 / Tier-2 status and embed roundtrip latency
 Run the server directly for the current session:
 
 ```bash
-M3_EMBED_GGUF=~/.m3/models/bge-m3-Q4_K_M.gguf \
-    nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &
+m3 config set embed.gguf ~/.m3/models/bge-m3-Q4_K_M.gguf   # once; the server reads m3_config.toml
+nohup m3-embed-server --config ~/.m3/config/m3_config.toml >> ~/.m3/logs/embed-server.log 2>&1 &
 ```
 
 Or create the launchd plist manually — see

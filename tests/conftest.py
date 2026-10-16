@@ -1098,6 +1098,35 @@ def pytest_runtest_teardown(item, nextitem):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_legacy_embed_server_config(monkeypatch, tmp_path):
+    """The retired m3-embed-server config.toml lives OUTSIDE m3's roots
+    (%PROGRAMDATA%, ~/.config, ~/Library/Application Support), so the root
+    sandbox does not cover it, and `import-env` / `m3 embedder install` move and
+    DELETE it. Point its locator at this test's temp dir."""
+    import importlib
+
+    legacy = importlib.import_module("m3_memory.install.embed_server_legacy")
+    monkeypatch.setattr(legacy, "legacy_server_config_path", lambda: tmp_path / "legacy-embed-server" / "config.toml")
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _embed_server_reads_m3_config_by_default(monkeypatch):
+    """`m3 embedder` asks the server binary's help whether it takes
+    --config <m3_config.toml>; tests fake the binary, so answer yes (a current
+    core). Tests of the probe call `embedder_admin._server_reads_m3_config_impl`;
+    tests of the registration reader call install_schedules directly."""
+    import importlib
+
+    ea = importlib.import_module("m3_memory.embedder_admin")
+    monkeypatch.setattr(ea, "_server_reads_m3_config", lambda *a, **k: True)
+    # The registered service's command line comes from the real service manager
+    # (`sc.exe qc`, a launchd plist, a systemd unit): unknown unless a test says.
+    monkeypatch.setattr(ea, "_registered_command_line", lambda: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _embed_port_serving_by_default(monkeypatch):
     """`m3 embedder install` waits for :8082 to answer before reporting success.
     Tests that stub the service as running would otherwise poll the developer's

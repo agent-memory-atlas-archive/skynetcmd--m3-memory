@@ -321,23 +321,56 @@ cargo build -p m3-embed-server --release --features embedded-metal
 # Binary at: C:\Users\<USER>\m3-core-rs\target\release\m3-embed-server.exe
 ```
 
+### Settings: m3_config.toml (and the secrets file)
+
+The server reads m3's own two files and nothing else: `m3_config.toml` and the
+secrets file it names (`secrets.file`, default `<config root>/m3_secrets.toml`).
+Its keys (all optional except `embed.gguf`; full list with defaults in
+[CONFIG_REFERENCE.md](CONFIG_REFERENCE.md)):
+
+```toml
+[embed]
+gguf = "C:/Users/<USER>/.m3/models/bge-m3-Q4_K_M.gguf"
+ctx  = 8192
+
+[embed.server]
+host = "127.0.0.1"
+port = 8082
+# streams, seq_max, n_batch, n_ubatch, coalesce_ms, max_batch_tokens,
+# remote_listen, tls_cert, tls_key (set by `m3 embedder secure`)
+
+[crypto]
+fips_mode = false
+```
+
+Set them with `m3 config set <key> <value>` (for example
+`m3 config set embed.server.port 8093`), then restart the server.
+**Precedence**: `--set` (foreground and `secure --check` only) >
+`m3_config.toml` > the legacy `M3_*` environment names > the default. Without
+`--config` the server finds the file the way m3 does
+(`M3_CONFIG_ROOT` > `M3_MEMORY_ROOT/config` > `~/.m3/config`); an invalid file
+exits 78.
+
+Cores before 3.10.16 kept a separate `config.toml`
+(`%PROGRAMDATA%\m3-embed-server\config.toml`, `~/.config/m3-embed-server/`,
+`~/Library/Application Support/m3-embed-server/`). The server no longer reads
+it; `m3 config import-env` (run by `m3 upgrade`) and `m3 embedder install`
+move its values into m3's files and remove it. A value `m3_config.toml`
+already holds differently is reported, not overwritten.
+
 ### Install as a Windows Service (elevated PowerShell)
 
 ```powershell
-# Snapshot M3_EMBED_* into the service config — LocalSystem can't read your
-# user env, so the installer captures the current shell's vars into TOML.
-$env:M3_EMBED_GGUF        = "C:\Users\<USER>\.lmstudio\models\deepsweet\bge-m3-GGUF-Q4_K_M\bge-m3-GGUF-Q4_K_M.gguf"
-$env:M3_EMBED_SERVER_PORT = "8082"   # optional; this is the default
-
-C:\Users\<USER>\m3-core-rs\target\release\m3-embed-server.exe install
+m3 embedder install
 ```
 
-Edit the resulting config if needed, then start the service:
-
-```powershell
-notepad C:\ProgramData\m3-embed-server\config.toml
-C:\Users\<USER>\m3-core-rs\target\release\m3-embed-server.exe start
-```
+`m3 embedder install` records what the service needs in `m3_config.toml`
+(the model it found, and any server setting this shell has only from an
+environment variable), then runs `m3-embed-server --config <m3_config.toml>
+install`, which registers the service with that `--config` on its command line:
+it runs as LocalSystem and could not find your config otherwise. The server
+itself refuses to install while this shell sets a value the file does not hold,
+and names the `m3 config set` command.
 
 Verify the service is up:
 
@@ -345,49 +378,19 @@ Verify the service is up:
 curl http://127.0.0.1:8082/health    # -> "OK"
 curl http://127.0.0.1:8082/metrics   # -> JSON dispatcher stats
 Get-Service m3-embed-server          # status: Running
+m3 embedder status
 ```
 
-Stop / status / uninstall:
-
-```powershell
-C:\Users\<USER>\m3-core-rs\target\release\m3-embed-server.exe stop
-C:\Users\<USER>\m3-core-rs\target\release\m3-embed-server.exe status
-C:\Users\<USER>\m3-core-rs\target\release\m3-embed-server.exe uninstall
-# `status` works without admin; `start`/`stop`/`install`/`uninstall` need elevation.
-```
-
-`uninstall` does NOT delete `%PROGRAMDATA%\m3-embed-server\config.toml` —
-remove it manually if you want a fully clean uninstall.
+`status` works without admin; `start`/`stop`/`install`/`uninstall` need
+elevation. `uninstall` leaves `m3_config.toml` in place (it is m3's).
 
 ### Foreground / dev mode
 
 ```powershell
-$env:M3_EMBED_GGUF = "C:\Users\<USER>\.lmstudio\models\deepsweet\bge-m3-GGUF-Q4_K_M\bge-m3-GGUF-Q4_K_M.gguf"
-C:\Users\<USER>\m3-core-rs\target\release\m3-embed-server.exe
+m3-embed-server --config "$env:USERPROFILE\.m3\config\m3_config.toml"
+# a one-off override:  m3-embed-server "--set={embed.server.port=8093}"
 # Ctrl-C to stop. Logs go to stderr.
 ```
-
-### Config file (`%PROGRAMDATA%\m3-embed-server\config.toml`)
-
-```toml
-[embed]
-gguf             = "C:/Users/<USER>/.lmstudio/models/deepsweet/bge-m3-GGUF-Q4_K_M/bge-m3-GGUF-Q4_K_M.gguf"
-port             = 8082
-host             = "127.0.0.1"
-streams          = 2
-ctx              = 8192
-seq_max          = 32
-n_batch          = 2048
-n_ubatch         = 512
-coalesce_ms      = 3
-max_batch_tokens = 2048
-```
-
-All keys are optional except `gguf`. **Precedence**: process env var > TOML
-value > built-in default. Env > TOML makes ad-hoc overrides easy in
-foreground mode; in service mode LocalSystem cannot see your user env, so
-the TOML written at `install` time is the source of truth (plus any
-machine-level env vars you have set explicitly).
 
 ### Recovery actions
 
@@ -476,7 +479,7 @@ python bin/embed_server_inproc.py --port 8082
 This is a **config file, not an env var** — because a headless daemon (the
 scheduled-task loop, the MCP server) does not inherit your shell environment
 (DESIGN_PHILOSOPHIES §3). `bin/memory/embed.py` reads it at import: precedence is
-env var > config file > default, so a one-off `M3_EMBED_GGUF` still overrides.
+m3_config.toml > config file > default.
 
 ### Revert
 
@@ -529,9 +532,11 @@ m3 config set embed.fallback_ca /path/to/ca.pem
 ```
 
 - `--listen` takes an IP or `IP:port` (the port defaults to the loopback one).
-  On Windows the server's config lives under `%PROGRAMDATA%`, so run `secure`
-  from an elevated prompt.
-- The server stores only the token's SHA-256; `/health` needs no token.
+- The server checks the settings first (`m3-embed-server secure --check`, which
+  writes nothing); m3 then records `embed.server.remote_listen`, `tls_cert` and
+  `tls_key` in `m3_config.toml`, and the token's SHA-256 as the secret
+  `M3_EMBED_SERVER_TOKEN_SHA256` in the secrets file. No elevation is needed.
+- The server keeps only the token's SHA-256; `/health` needs no token.
 - Clients send the token only over `https://` (or to loopback), never in
   plaintext to another machine.
 - Tailscale decides who can reach the port; TLS and the token still apply inside
@@ -540,7 +545,8 @@ m3 config set embed.fallback_ca /path/to/ca.pem
   the `fips` build of m3-embed-server (AWS-LC's FIPS module), and
   `crypto.fips_strict` refuses the listener from any other build. For a
   validated deployment end to end, see [FIPS_MODULE_BOUNDARY.md](FIPS_MODULE_BOUNDARY.md).
-- `m3 embedder secure --off` removes the listener; `--new-token` rotates the token.
+- `m3 embedder secure --off` unsets those keys and the digest (restart to
+  apply); `--new-token` rotates the token.
 
 ## Draining an embed backlog
 
@@ -658,13 +664,13 @@ defaults:
 | `M3_EMBED_GGUF_MODEL_TAG`   | `embed_model` cache-namespace tag for in-process + fallback rows.  |
 | `M3_EMBED_URL`              | Legacy primary HTTP endpoint (LM Studio, llama-server).            |
 | `M3_EMBED_FALLBACK_URL`     | CPU HTTP fallback endpoint (default `http://127.0.0.1:8082`).      |
-| `M3_EMBED_STREAMS`          | In-process / fallback dispatcher concurrency (context count).      |
+| `M3_EMBED_STREAMS`          | Legacy name of `embed.streams`: in-process context count. The server's is `embed.server.streams`. |
 | `M3_EMBED_CTX`              | Per-context `n_ctx`; KV cache scales with this.                    |
-| `M3_EMBED_SEQ_MAX`          | Max sequences per batch (parallelism within a context).            |
-| `M3_EMBED_N_BATCH`          | llama.cpp batch tokens per pass.                                   |
-| `M3_EMBED_N_UBATCH`         | llama.cpp micro-batch tokens.                                      |
-| `M3_EMBED_COALESCE_MS`      | Dispatcher coalescing window in ms.                                |
-| `M3_EMBED_MAX_BATCH_TOKENS` | Hard cap on tokens per dispatcher batch.                           |
+| `M3_EMBED_SEQ_MAX`          | Legacy name of `embed.seq_max` (server: `embed.server.seq_max`).   |
+| `M3_EMBED_N_BATCH`          | Legacy name of `embed.n_batch` (server: `embed.server.n_batch`).   |
+| `M3_EMBED_N_UBATCH`         | Legacy name of `embed.n_ubatch` (server: `embed.server.n_ubatch`). |
+| `M3_EMBED_COALESCE_MS`      | Legacy name of `embed.coalesce_ms` (server: `embed.server.coalesce_ms`). |
+| `M3_EMBED_MAX_BATCH_TOKENS` | Legacy name of `embed.max_batch_tokens` (server: `embed.server.max_batch_tokens`). |
 | `M3_EMBED_SERVER_PORT`      | Port `m3-embed-server` binds (default 8082).                       |
 | `M3_EMBED_SERVER_HOST`      | Bind host (default `127.0.0.1`).                                   |
 | `GGML_CUDA_DISABLE_GRAPHS`  | Blackwell auto-set by wave 9.1; user value wins if explicit.       |
@@ -688,8 +694,8 @@ the form `detected CUDA compute cap X.Y - setting GGML_CUDA_DISABLE_GRAPHS=1`.
 
 ### CUDA OOM during bulk ingest
 
-Reduce `M3_EMBED_STREAMS` (default 8 in the in-process path; 2 in the
-shipped server TOML). Each context costs roughly `n_ctx * 96 KB` of KV
+Reduce `embed.streams` (in-process, default 8) or `embed.server.streams`
+(the server: 2 on a GPU build, 1 on CPU): `m3 config set embed.streams 4`. Each context costs roughly `n_ctx * 96 KB` of KV
 cache on the GPU for bge-m3 fp16. At `M3_EMBED_CTX=8192` x 8 streams that is
 ~6 GB on a 16 GB RTX 5080; drop to 4 streams for headroom, or shrink `ctx`.
 
@@ -713,8 +719,8 @@ Get-NetTCPConnection -LocalPort 8082 | Select-Object OwningProcess
 Get-Process -Id <pid>
 ```
 
-Either kill the offender, or change `M3_EMBED_SERVER_PORT` in
-`%PROGRAMDATA%\m3-embed-server\config.toml` and restart the service. Then
+Either kill the offender, or move the server: `m3 config set
+embed.server.port <port>` and restart the service. Then
 point m3 at the new port with `m3 embedder shared --port <port>` (writes
 `.embed_config.json`) and update `M3_EMBED_FALLBACK_URL` wherever it is set in
 the MCP server registration's `env` — background services don't read your
@@ -733,7 +739,7 @@ get_embed_backend_stats()
 
 Cross-check:
 
-- `M3_EMBED_GGUF` is set and the file exists?
+- `embed.gguf` names a file that exists (`m3 config get embed.gguf --origin`)?
 - `python -c "import m3_core_rs; print(m3_core_rs.embed_backend_label())"`
   returns the backend you expect?
 - `curl http://127.0.0.1:8082/health` returns `OK`?

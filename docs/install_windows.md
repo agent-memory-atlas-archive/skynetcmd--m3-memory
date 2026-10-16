@@ -186,10 +186,11 @@ m3 doctor   # shows Tier-1 / Tier-2 status and embed roundtrip latency
 ### No admin rights? Use Task Scheduler instead
 
 ```powershell
-$gguf     = "$env:USERPROFILE\.m3\models\bge-m3-Q4_K_M.gguf"   # `m3 embedder fetch-model` puts it here
+m3 config set embed.gguf "$env:USERPROFILE\.m3\models\bge-m3-Q4_K_M.gguf"   # once; `m3 embedder fetch-model` puts it there
+$cfg     = "$env:USERPROFILE\.m3\config\m3_config.toml"   # the file the server reads
 $action   = New-ScheduledTaskAction `
                 -Execute "powershell.exe" `
-                -Argument "-WindowStyle Hidden -Command `"& { `$env:M3_EMBED_GGUF='$gguf'; m3-embed-server }`"" `
+                -Argument "-WindowStyle Hidden -Command `"& { m3-embed-server --config '$cfg' }`"" `
                 -WorkingDirectory "$env:USERPROFILE"
 $trigger  = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0
@@ -204,8 +205,9 @@ and survives reboots. To remove: `Unregister-ScheduledTask -TaskName "m3-embed-s
 Or run the server manually for the current session only:
 
 ```powershell
-$env:M3_EMBED_GGUF = "$env:USERPROFILE\.m3\models\bge-m3-Q4_K_M.gguf"
+m3 config set embed.gguf "$env:USERPROFILE\.m3\models\bge-m3-Q4_K_M.gguf"   # once
 Start-Process -WindowStyle Hidden -FilePath "m3-embed-server" `
+    -ArgumentList "--config", "$env:USERPROFILE\.m3\config\m3_config.toml" `
     -RedirectStandardOutput "$env:TEMP\m3-embed.log" `
     -RedirectStandardError  "$env:TEMP\m3-embed.log"
 ```

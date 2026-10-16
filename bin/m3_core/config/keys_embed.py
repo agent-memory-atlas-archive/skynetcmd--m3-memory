@@ -36,6 +36,20 @@ def _int(
     )
 
 
+def _int_derived(name: str, env: tuple[str, ...], doc: str, *, lo: int = 1, hi: int = 2**32 - 1) -> Key[int]:
+    """An integer whose default the Rust core derives (from ctx, streams or the
+    build), so m3 has no single number to state: unset = the core decides."""
+    return Key[int](
+        name=name,
+        parse=parse_int,
+        default=None,
+        validate=in_range(lo=lo, hi=hi),
+        env_names=env,
+        reloadable=False,
+        doc=doc,
+    )
+
+
 def _float(name: str, env: tuple[str, ...], default: float, doc: str, *, reloadable: bool = False) -> Key[float]:
     return Key[float](
         name=name, parse=parse_float, default=default, validate=_NONNEG, env_names=env, reloadable=reloadable, doc=doc
@@ -167,6 +181,51 @@ EMBED: list[Key] = [
         "Context length in tokens (also read by the Rust core, as a u32).",
         hi=2**32 - 1,
     ),
+    # ── the in-process embedder (m3_core_rs.EmbeddedEmbedder parameters) ──
+    # Defaults: m3-core-rs crates/m3-core-py/src/config.rs resolve(), which reads
+    # m3_dispatcher DEFAULT_STREAMS = 8 and DEFAULT_COALESCE_WINDOW_MS = 3
+    # (m3-dispatcher/src/lib.rs:85,87) and m3_embed_llamacpp DEFAULT_SEQ_MAX = 32
+    # (m3-embed-llamacpp/src/lib.rs:73). The legacy M3_EMBED_* names alias THESE
+    # keys, not [embed.server]: in an m3 process they only ever reached the
+    # in-process core (core-py maps them the same way), while m3-embed-server
+    # reads them in its own process, below m3_config.toml (embed-server config.rs).
+    _int(
+        "embed.streams",
+        ("M3_EMBED_STREAMS",),
+        8,
+        "In-process embedder: worker contexts (each holds a ~4 GiB compute graph at ctx 8192).",
+        hi=4096,
+    ),
+    _int(
+        "embed.seq_max",
+        ("M3_EMBED_SEQ_MAX",),
+        32,
+        "In-process embedder: sequences packed into one decode call.",
+        hi=2**32 - 1,
+    ),
+    _int_derived(
+        "embed.n_batch",
+        ("M3_EMBED_N_BATCH",),
+        "In-process embedder: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe value).",
+    ),
+    _int_derived(
+        "embed.n_ubatch",
+        ("M3_EMBED_N_UBATCH",),
+        "In-process embedder: llama.cpp micro-batch tokens. Unset: embed.ctx (the only encoder-safe value).",
+    ),
+    _int(
+        "embed.coalesce_ms",
+        ("M3_EMBED_COALESCE_MS",),
+        3,
+        "In-process embedder: milliseconds the dispatcher waits to coalesce requests into one batch.",
+        lo=0,
+        hi=2**32 - 1,
+    ),
+    _int_derived(
+        "embed.max_batch_tokens",
+        ("M3_EMBED_MAX_BATCH_TOKENS",),
+        "In-process embedder: the dispatcher's coalescing ceiling in tokens. Unset: embed.streams x embed.ctx.",
+    ),
     _int("embed.token_budget", ("M3_EMBED_TOKEN_BUDGET",), 7000, "Tokens per chunk."),
     _int("embed.token_overlap", ("M3_EMBED_TOKEN_OVERLAP",), 2000, "Token overlap between chunks.", lo=0),
     _int("embed.chunk_max_chars", ("M3_EMBED_CHUNK_MAX_CHARS",), 28000, "Characters per chunk."),
@@ -236,6 +295,63 @@ EMBED: list[Key] = [
         reloadable=False,
         doc="The m3-embed-server binary; unset uses the wheel's, then PATH.",
     ),
+    # The Rust m3-embed-server reads the keys below from this file (embed-server
+    # src/config.rs KEYS; defaults are its DEFAULT_* constants there). No m3 env
+    # name: the legacy M3_EMBED_* names belong to the in-process keys above, and
+    # the server honours them only in its own environment, below the file.
+    _int_derived(
+        "embed.server.streams",
+        (),
+        "m3-embed-server: worker contexts. Unset: 2 on a GPU build (cuda/vulkan/metal), 1 on a CPU-only "
+        "build; each holds a ~4 GiB compute graph at ctx 8192.",
+        hi=4096,
+    ),
+    _int("embed.server.seq_max", (), 32, "m3-embed-server: sequences packed into one decode call.", hi=2**32 - 1),
+    _int(
+        "embed.server.n_batch",
+        (),
+        2048,
+        "m3-embed-server: llama.cpp batch tokens; the core raises a value below embed.ctx to embed.ctx.",
+        hi=2**32 - 1,
+    ),
+    _int(
+        "embed.server.n_ubatch",
+        (),
+        512,
+        "m3-embed-server: llama.cpp micro-batch tokens; the core raises a value below embed.ctx to embed.ctx.",
+        hi=2**32 - 1,
+    ),
+    _int(
+        "embed.server.coalesce_ms",
+        (),
+        3,
+        "m3-embed-server: milliseconds the dispatcher waits to coalesce requests into one batch.",
+        lo=0,
+    ),
+    _int("embed.server.max_batch_tokens", (), 2048, "m3-embed-server: the dispatcher's coalescing ceiling in tokens."),
+    _str(
+        "embed.server.remote_listen",
+        (),
+        None,
+        "m3-embed-server: address (ip or ip:port) of the TLS listener for other machines; unset = loopback "
+        "only. Set by `m3 embedder secure`; needs tls_cert, tls_key and the M3_EMBED_SERVER_TOKEN_SHA256 secret.",
+    ),
+    Key(
+        name="embed.server.tls_cert",
+        parse=parse_path,
+        default=None,
+        env_names=(),
+        reloadable=False,
+        doc="m3-embed-server: TLS certificate chain (PEM) for embed.server.remote_listen.",
+    ),
+    Key(
+        name="embed.server.tls_key",
+        parse=parse_path,
+        default=None,
+        env_names=(),
+        reloadable=False,
+        doc="m3-embed-server: private key (PEM) of embed.server.tls_cert; must be readable only by its owner.",
+    ),
     _int("embed.server.max_batch", ("M3_EMBED_SERVER_MAX_BATCH",), 2048, "Texts per server batch."),
     _int(
         "embed.server.concurrency",
@@ -299,3 +415,28 @@ EMBED: list[Key] = [
         "Rows one sweeper run embeds.",
     ),
 ]
+
+# Every key m3-embed-server reads from m3_config.toml (m3-core-rs
+# crates/m3-embed-server/src/config.rs KEYS, less the secrets.file locator). A
+# supervised server sees only the file, so `m3 embedder install` records each of
+# these that this process has from anywhere else before registering it.
+EMBED_SERVER_READS: tuple[str, ...] = (
+    "embed.gguf",
+    "embed.ctx",
+    "embed.server.host",
+    "embed.server.port",
+    "embed.server.streams",
+    "embed.server.seq_max",
+    "embed.server.n_batch",
+    "embed.server.n_ubatch",
+    "embed.server.coalesce_ms",
+    "embed.server.max_batch_tokens",
+    "embed.server.remote_listen",
+    "embed.server.tls_cert",
+    "embed.server.tls_key",
+    "crypto.fips_mode",
+    "crypto.fips_strict",
+)
+# Of those, the ones every m3 process reads too: m3 never records one on the
+# server's behalf (a migration or `install` must not switch m3's crypto mode).
+EMBED_SERVER_M3_WIDE: frozenset[str] = frozenset({"crypto.fips_mode", "crypto.fips_strict"})

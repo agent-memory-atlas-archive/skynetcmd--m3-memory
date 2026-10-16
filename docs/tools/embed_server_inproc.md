@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server_inproc.py
-sha1: cf3c7496ae0f
-mtime_utc: 2026-10-16T14:55:37.348379+00:00
-generated_utc: 2026-10-16T15:27:52.511172+00:00
+sha1: a2b55a16bee6
+mtime_utc: 2026-10-16T23:01:24.237482+00:00
+generated_utc: 2026-10-16T23:03:22.015128+00:00
 private: false
 ---
 
@@ -94,7 +94,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.tier2_client (EXIT_CONFIG_REFUSED, is_loopback_host, plaintext_bind_refusal)`
 - `memory (config)`
-- `memory.embed (_EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf)`
+- `memory.embed (_EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf, new_embedded_embedder)`
 - `numpy`
 - `pydantic (BaseModel, Field)`
 - `uvicorn`

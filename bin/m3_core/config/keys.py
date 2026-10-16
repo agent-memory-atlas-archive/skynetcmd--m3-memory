@@ -252,6 +252,13 @@ SECRETS: list[Key] = [
         "M3_EMBED_SERVER_TOKEN",
         "Bearer token for the shared embed server's listener for other machines (`m3 embedder secure`).",
     ),
+    # Read by m3-embed-server from the secrets file (plain value; a keyring
+    # pointer is refused there), only when embed.server.remote_listen is set.
+    _secret(
+        "M3_EMBED_SERVER_TOKEN_SHA256",
+        "SHA-256 (hex) of M3_EMBED_SERVER_TOKEN; m3-embed-server checks bearer tokens against it "
+        "(written by `m3 embedder secure`).",
+    ),
     _secret("OPENCLAW_GATEWAY_TOKEN", "OpenClaw gateway token."),
     _secret("MCP_PROXY_KEY", "Shared token the MCP proxy requires; unset runs it without auth (warned)."),
     _secret("XAI_API_KEY", "xAI API key (the connect_xai_grok profile)."),

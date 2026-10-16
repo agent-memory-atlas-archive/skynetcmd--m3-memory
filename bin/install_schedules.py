@@ -665,6 +665,35 @@ def pin_embed_port(port: int) -> bool:
     return False
 
 
+def registered_embed_command_line() -> "str | None":
+    """The command line the registered Rust embed service runs: the Windows
+    service's BINARY_PATH_NAME (`sc.exe qc`, which needs no elevation), the
+    launchd ProgramArguments, the systemd ExecStart. None when no definition is
+    found or it cannot be read."""
+    import plistlib
+
+    osn = _os_name()
+    try:
+        if osn == "Windows":
+            r = _run(["sc.exe", "qc", _WINDOWS_RUST_EMBED_SERVICE, "4096"], capture_output=True, text=True, timeout=20)
+            if r.returncode != 0:
+                return None
+            m = re.search(r"BINARY_PATH_NAME\s*:\s*(.+)", r.stdout or "")
+            return m.group(1).strip() if m else None
+        if osn == "Darwin":
+            with open(os.path.expanduser(f"~/Library/LaunchAgents/{_RUST_EMBED_LABEL}.plist"), "rb") as f:
+                args = plistlib.load(f).get("ProgramArguments") or []
+            return " ".join(str(a) for a in args) or None
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+        with open(os.path.join(base, "systemd", "user", _LINUX_EMBED_UNIT), encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith("ExecStart="):
+                    return line.strip().removeprefix("ExecStart=")
+    except (OSError, subprocess.SubprocessError, plistlib.InvalidFileException, ValueError):
+        return None
+    return None
+
+
 def registered_embed_port() -> "int | None":
     """The port the registered embed service listens on, read from its definition
     (systemd unit or launchd plist, either server): `--port N`, else
@@ -685,6 +714,10 @@ def registered_embed_port() -> "int | None":
         with open(path, encoding="utf-8") as f:
             text = "\n".join(ln for ln in f.read().splitlines() if not ln.lstrip().startswith("#"))
     except OSError:
+        return None
+    if re.search(r"(^|[\s>])--config([\s<=]|$)", text):
+        # Started with --config <m3_config.toml>: the port is that file's
+        # embed.server.port, read at each start, not part of the definition.
         return None
     for pattern in (r"--port(?:\s*=\s*|\s+|</string>\s*<string>)(\d{2,5})", r"M3_EMBED_SERVER_PORT\D{0,40}?(\d{2,5})"):
         m = re.search(pattern, text)

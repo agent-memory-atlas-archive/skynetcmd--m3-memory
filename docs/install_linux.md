@@ -191,12 +191,12 @@ m3 chatlog init --apply-gemini
   systemd --user is unavailable (container, SSH session without D-Bus, minimal
   image). Run the server directly:
   ```bash
-  M3_EMBED_GGUF=~/.m3/models/bge-m3-Q4_K_M.gguf \
-      nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &
+  m3 config set embed.gguf ~/.m3/models/bge-m3-Q4_K_M.gguf   # once; the server reads m3_config.toml
+  nohup m3-embed-server --config ~/.m3/config/m3_config.toml >> ~/.m3/logs/embed-server.log 2>&1 &
   ```
   For boot persistence: `crontab -e` and add:
   ```
-  @reboot M3_EMBED_GGUF=~/.m3/models/bge-m3-Q4_K_M.gguf m3-embed-server >> ~/.m3/engine/embed-server.log 2>&1 &
+  @reboot m3-embed-server --config ~/.m3/config/m3_config.toml >> ~/.m3/logs/embed-server.log 2>&1 &
   ```
   This shared server (Tier-2) is the default embedder, so keep it running;
   in-process (Tier-1) embedding is opt-in only (`embed.inproc = true` (`m3 config set embed.inproc true`)).

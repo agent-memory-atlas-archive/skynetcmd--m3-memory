@@ -228,7 +228,7 @@ def test_cmd_install_does_not_claim_success_when_the_service_stays_down(pair, mo
     monkeypatch.setattr(ea, "_service_reports_running", lambda *a, **k: False)
     monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
 
-    rc = ea.cmd_install(SimpleNamespace(concurrency=2))
+    rc = ea.cmd_install(SimpleNamespace(concurrency=None))
 
     cap = capsys.readouterr()
     assert rc == ea.EXIT_REGISTERED_NOT_RUNNING
@@ -245,7 +245,7 @@ def test_cmd_install_reports_ok_when_the_service_comes_up(pair, monkeypatch, cap
     monkeypatch.setattr(ea, "_service_cmd", lambda *a, **k: 0)
     monkeypatch.setattr(ea, "_service_reports_running", lambda *a, **k: True)
 
-    rc = ea.cmd_install(SimpleNamespace(concurrency=2))
+    rc = ea.cmd_install(SimpleNamespace(concurrency=None))
 
     assert rc == 0
     assert "[OK] embedder running on port 8082" in capsys.readouterr().out
@@ -269,7 +269,7 @@ def test_already_registered_and_running_is_not_restarted(pair, monkeypatch, caps
 
     monkeypatch.setattr(ea, "_service_cmd", _svc)
 
-    rc = ea.cmd_install(SimpleNamespace(concurrency=2))
+    rc = ea.cmd_install(SimpleNamespace(concurrency=None))
 
     assert rc == 0
     assert "start" not in seen, "bounced a service that was already running"
@@ -300,7 +300,7 @@ def test_registered_but_stopped_is_started_not_assumed(pair, monkeypatch):
 
     monkeypatch.setattr(ea, "_service_cmd", _svc)
 
-    rc = ea.cmd_install(SimpleNamespace(concurrency=2))
+    rc = ea.cmd_install(SimpleNamespace(concurrency=None))
 
     assert rc == 0
     assert "start" in seen, "a stopped service was assumed to be serving"

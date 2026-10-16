@@ -2258,20 +2258,21 @@ def _step_cpu_sovereign_embedder() -> bool:
     """Install the sovereign baseline embedder: BGE-M3 CPU on port 8082.
 
     Always runs. This is the new 'works with no LM Studio, no Ollama, no GPU,
-    no internet' default. Concurrency=2; OpenAI-compatible HTTP endpoint.
+    no internet' default. OpenAI-compatible HTTP endpoint.
 
     Delegates to `m3 embedder install` which:
       1. fetches bge-m3 Q4_K_M.gguf into ~/.m3/models/ (one-time, ~300MB)
       2. locates the m3-embed-server binary (from the m3-core-rs `oxidation` extra)
-      3. registers it as a systemd / launchd / Windows Service with concurrency=2
+      3. records the service's settings in m3_config.toml and registers it as a
+         systemd / launchd / Windows Service started with --config <that file>
       4. starts it
     """
     _step(3, "the embedder (turns text into searchable vectors, on this computer)")
     # Lazy import: setup_wizard is imported during install, and embedder_admin
     # pulls in the payload-root helpers (§2 cycle-breaking via lazy imports).
-    from m3_memory.embedder_admin import EXIT_REGISTERED_NOT_RUNNING
+    from m3_memory.embedder_admin import EXIT_REGISTERED_NOT_RUNNING, EXIT_SERVER_TOO_OLD
 
-    cmd = _m3_cli("embedder", "install", "--concurrency", "2")
+    cmd = _m3_cli("embedder", "install")
     m3_env = _m3_child_env()
     try:
         _run(cmd, env=m3_env)  # reports "running on port 8082" itself
@@ -2287,6 +2288,9 @@ def _step_cpu_sovereign_embedder() -> bool:
             _say("  Setup continues. Once the cause is fixed:")
             _say("    m3 embedder start")
             _say("    m3 embedder status     # confirms it is serving")
+            return False
+        if getattr(e, "returncode", None) == EXIT_SERVER_TOO_OLD:
+            _warn("the installed m3-embed-server is too old to read m3_config.toml; the lines above name the fix.")
             return False
         # NOT a failure — this OPTIONAL always-on CPU embedder was skipped (its
         # GGUF/binary or admin rights aren't present). m3 embeds fine WITHOUT it:
@@ -2324,13 +2328,14 @@ def _step_cpu_sovereign_embedder() -> bool:
                 print("    run the server directly instead:")
             else:
                 print("    systemctl not found — run the server directly:")
-            gguf_hint = _config.setting("embed.gguf") or "~/bge-m3-GGUF-Q4_K_M.gguf"
-            print(f"        M3_EMBED_GGUF={gguf_hint} \\")
-            print("            nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &")
+            from m3_memory.embedder_admin import _foreground_command
+
+            print("        m3 config set embed.gguf <path to a bge-m3 GGUF>   # if `m3 embedder install` did not")
+            print(f"        nohup {_foreground_command()}")
             print()
             print("    To start automatically on boot (no systemd needed):")
             print("        crontab -e   # then add:")
-            print(f"        @reboot M3_EMBED_GGUF={gguf_hint} m3-embed-server >> ~/.m3/engine/embed-server.log 2>&1 &")
+            print(f"        @reboot {_foreground_command()}")
             if has_systemctl and has_loginctl:
                 print()
                 print("    To keep the systemd service running after logout (headless / server):")

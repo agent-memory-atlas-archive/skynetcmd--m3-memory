@@ -413,35 +413,118 @@ def repair_exec_bit(binary: Path | None = None, dry_run: bool = False) -> dict:
     }
 
 
-def _embed_server_env(gguf: Path) -> dict[str, str]:
-    """The Rust server's environment: its sanctioned handoff (env is its only
-    configuration interface) with the GGUF and the RESOLVED port. The port used to
-    be hardcoded to 8082, so a port set in m3_config.toml moved m3's own probe but
-    never the server."""
-    return _childenv.child_env(
-        handoff=(
-            _childenv.RUST_EMBED_SERVER,
-            {"M3_EMBED_GGUF": str(gguf), "M3_EMBED_SERVER_PORT": str(_embed_server_port())},
-        )
+# ── m3-embed-server's command line ───────────────────────────────────────────
+#
+# The server reads its settings from m3_config.toml and the secrets file (m3
+# 9655f30a); m3 names the file with `--config` and hands it nothing through env.
+# A server from a core before M3_CORE_RS_READS_M3_CONFIG gives `--config` another
+# meaning (its own config.toml, foreground and `secure` only), so the flag goes
+# only to a binary that says it reads m3_config.toml.
+
+# Exit code for "this m3-embed-server is too old for the command": nothing ran.
+EXIT_SERVER_TOO_OLD = 4
+# Subcommands that only drive the service manager: an older binary runs them
+# without --config (it refuses the flag there), so status/stop keep working.
+_SERVICE_VERBS = frozenset({"status", "start", "stop", "uninstall"})
+_READS_M3_CONFIG: dict[tuple[str, int, int], bool | None] = {}
+_READS_M3_CONFIG_ERROR: dict[str, str] = {}
+
+
+def _server_reads_m3_config_impl(binary: Path) -> bool | None:
+    """Whether ``binary`` takes `--config <m3_config.toml>`: its help text names
+    m3_config.toml (core 3.10.16+), an older one's never does. None when the help
+    could not be run (_READS_M3_CONFIG_ERROR says why). Cached per file version."""
+    try:
+        st = binary.stat()
+    except OSError as e:
+        _READS_M3_CONFIG_ERROR[str(binary)] = f"{type(e).__name__}: {e}"
+        return None
+    key = (str(binary), st.st_mtime_ns, st.st_size)
+    if key not in _READS_M3_CONFIG:
+        try:
+            _ensure_executable(binary)
+            out = subprocess.run(
+                [str(binary), "help"],
+                env=_childenv.child_env(),
+                check=False,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=15,
+            )
+            _READS_M3_CONFIG[key] = "m3_config.toml" in f"{out.stdout}\n{out.stderr}"
+        except (OSError, subprocess.SubprocessError) as e:
+            _READS_M3_CONFIG_ERROR[str(binary)] = f"{type(e).__name__}: {e}"
+            return None
+    return _READS_M3_CONFIG[key]
+
+
+_server_reads_m3_config = _server_reads_m3_config_impl  # tests stub this name (conftest)
+
+
+def _server_too_old_message(binary: Path, sub: str) -> str:
+    from m3_memory.rust_core_install import M3_CORE_RS_READS_M3_CONFIG, core_upgrade_hint
+
+    known = _server_reads_m3_config(binary)
+    observed = (
+        "its `help` does not mention m3_config.toml"
+        if known is False
+        else f"its `help` could not be run ({_READS_M3_CONFIG_ERROR.get(str(binary), 'no reason recorded')})"
+    )
+    return (
+        f"[!] `m3-embed-server {sub}` was not run: {binary} does not read m3_config.toml (observed: {observed}). "
+        f"Embedder settings now live in m3_config.toml ({_roots_config_file()}), which needs m3-core-rs "
+        f"{M3_CORE_RS_READS_M3_CONFIG} or later; an older server's --config means its own config.toml. "
+        f"fix: {core_upgrade_hint()}, then rerun this command. Nothing was changed."
     )
 
 
+def _roots_config_file() -> str:
+    """The m3_config.toml this process reads (its stdlib-only locator, m3_memory._roots)."""
+    from m3_memory import _roots
+
+    return _roots.config_file()
+
+
+def _service_verb_argv(binary: Path, sub: str, *extra: str) -> list[str]:
+    """`<binary> [--config <m3_config.toml>] <sub> [extra...]`: --config only
+    where the binary reads m3_config.toml (callers keep other subcommands off an
+    older binary: _server_argv)."""
+    head = ["--config", _roots_config_file()] if _server_reads_m3_config(binary) else []
+    return [str(binary), *head, sub, *extra]
+
+
+def _server_argv(binary: Path, sub: str, *extra: str) -> list[str] | None:
+    """`<binary> --config <m3_config.toml> <sub> [extra...]`; the service verbs
+    without --config on an older binary; None (said, on stderr) for any other
+    subcommand on a binary that does not read m3_config.toml."""
+    if sub in _SERVICE_VERBS or _server_reads_m3_config(binary):
+        return _service_verb_argv(binary, sub, *extra)
+    print(_server_too_old_message(binary, sub), file=sys.stderr)
+    return None
+
+
 def _service_cmd(binary: Path, gguf: Path, sub: str, *extra: str) -> int:
-    """Run `<binary> <sub> [extra...]` with the GGUF path in env."""
+    """Run `m3-embed-server [--config <file>] <sub> [extra...]`. ``gguf`` is not
+    passed: the server reads embed.gguf from m3_config.toml (cmd_install records it)."""
     _ensure_executable(binary)
-    env = _embed_server_env(gguf)
+    argv = _server_argv(binary, sub, *extra)
+    if argv is None:
+        return EXIT_SERVER_TOO_OLD
     # The child writes straight to the same stream; flush ours first so a piped
     # (block-buffered) stdout does not print our lines after its output.
     sys.stdout.flush()
-    return subprocess.run([str(binary), sub, *extra], env=env, check=False).returncode
+    return subprocess.run(argv, env=_childenv.child_env(), check=False).returncode
 
 
 def _service_cmd_quiet(binary: Path, gguf: Path, sub: str, *extra: str) -> int:
     """_service_cmd, printing the binary's output only when it fails."""
     _ensure_executable(binary)
-    env = _embed_server_env(gguf)
+    argv = _server_argv(binary, sub, *extra)
+    if argv is None:
+        return EXIT_SERVER_TOO_OLD
     proc = subprocess.run(
-        [str(binary), sub, *extra], env=env, check=False, capture_output=True, text=True, errors="replace"
+        argv, env=_childenv.child_env(), check=False, capture_output=True, text=True, errors="replace"
     )
     if proc.returncode != 0:
         sys.stdout.write(proc.stdout or "")
@@ -510,8 +593,8 @@ def _run_status(binary: Path, gguf: Path, timeout: float) -> str | None:
     global _LAST_STATUS_UNKNOWN
     try:
         out = subprocess.run(
-            [str(binary), "status"],
-            env=_embed_server_env(gguf),
+            _service_verb_argv(binary, "status"),
+            env=_childenv.child_env(),
             check=False,
             capture_output=True,
             text=True,
@@ -786,8 +869,8 @@ def restart_stale_embed_service(*, allow_elevation: bool) -> dict:
         from m3_memory.elevate import ElevationBatch
 
         batch = ElevationBatch()
-        batch.add("stop the embed service", [str(binary), "stop"])
-        batch.add("start the embed service on the new core", [str(binary), "start"])
+        batch.add("stop the embed service", _service_verb_argv(binary, "stop"))
+        batch.add("start the embed service on the new core", _service_verb_argv(binary, "start"))
         results = batch.run()
         if results is None:
             return {"outcome": "declined", "pids": pids, "detail": ""}
@@ -928,14 +1011,23 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, q
     print(
         f"[!] m3-embed-server is REGISTERED but `status` does not report it "
         f"running{exited}.\n"
-        f"{_start_failure_hint(gguf)}\n"
+        f"{_start_failure_hint()}\n"
         f"  {tier1_availability()}",
         file=sys.stderr,
     )
     return rc
 
 
-def _start_failure_hint(gguf: Path) -> str:
+def _foreground_command() -> str:
+    """The command that runs the server in the foreground, where no service
+    manager is available: it reads the same m3_config.toml the service would."""
+    from m3_memory import _roots
+
+    log = os.path.join(_roots.logs_root(), "embed-server.log")
+    return f'm3-embed-server --config "{_roots_config_file()}" >> "{log}" 2>&1 &'
+
+
+def _start_failure_hint() -> str:
     """OS-correct advice when `m3-embed-server start` really fails.
 
     The previous text offered systemd/`nohup` unconditionally — printed even on
@@ -954,15 +1046,12 @@ def _start_failure_hint(gguf: Path) -> str:
         return (
             "  If the launchd user domain is unavailable (SSH with no GUI login),\n"
             "  run the server directly instead:\n"
-            f"    M3_EMBED_GGUF={gguf} nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &"
+            f"    nohup {_foreground_command()}"
         )
-    return (
-        "  If systemd --user is unavailable, start the server directly:\n"
-        f"    M3_EMBED_GGUF={gguf} nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &"
-    )
+    return f"  If systemd --user is unavailable, start the server directly:\n    nohup {_foreground_command()}"
 
 
-def _install_failure_hint(gguf: Path) -> str:
+def _install_failure_hint() -> str:
     """OS-correct recovery advice. The previous text printed systemd/nohup/
     crontab unconditionally — none of which exist on Windows, where the
     embedder registers as a Windows Service instead."""
@@ -977,15 +1066,15 @@ def _install_failure_hint(gguf: Path) -> str:
         return (
             "  This usually means the launchd user domain is unavailable (SSH session\n"
             "  with no GUI login). Run the server directly instead:\n"
-            f"    M3_EMBED_GGUF={gguf} nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &"
+            f"    nohup {_foreground_command()}"
         )
     return (
         "  This usually means systemd --user is unavailable (container, SSH session,\n"
         "  or system without a D-Bus user session).\n"
         "  You can run the embed server directly instead:\n"
-        f"    M3_EMBED_GGUF={gguf} nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &\n"
+        f"    nohup {_foreground_command()}\n"
         "  To start it automatically on boot, add to crontab (crontab -e):\n"
-        f"    @reboot M3_EMBED_GGUF={gguf} m3-embed-server >> ~/.m3/engine/embed-server.log 2>&1 &"
+        f"    @reboot {_foreground_command()}"
     )
 
 
@@ -1141,9 +1230,24 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     quiet = called_by_upgrade()  # under `m3 upgrade`: changes and problems only
 
+    if not _server_reads_m3_config(binary):
+        print(_server_too_old_message(binary, "install"), file=sys.stderr)
+        return EXIT_SERVER_TOO_OLD
+    if getattr(args, "concurrency", None) is not None:
+        print(
+            "[i] --concurrency has no effect and is ignored: m3-embed-server never read it. Its worker count is "
+            "embed.server.streams: m3 config set embed.server.streams <n>"
+        )
+    if not _prepare_service_config(gguf):
+        from m3_core.tier2_client import EXIT_CONFIG_REFUSED  # importable: _prepare_service_config put bin/ on the path
+
+        return int(EXIT_CONFIG_REFUSED)
+
     # Registered, running and on the current binary: nothing to install or
     # start, and a port-in-use notice would be about this same service.
     registered = _service_reports_installed(binary, gguf) or _service_defined_on_disk()
+    # Registered by an earlier m3/core without --config: `install` converges it.
+    lacks_config = registered and _registration_lacks_config(binary)
     on_port = _registered_port() if registered else None
     if on_port is not None and on_port != _embed_server_port():
         # `install` leaves an existing registration as it is, so a port chosen
@@ -1156,7 +1260,12 @@ def cmd_install(args: argparse.Namespace) -> int:
         # A registered service restarting in a loop reads as running; the stray
         # holding its port is why (its supervisor rebinds once it is gone).
         _stop_own_stray_server(_embed_server_port())
-    if registered and _service_reports_running(binary, gguf) and not _service_binary_is_stale(binary):
+    if (
+        registered
+        and not lacks_config
+        and _service_reports_running(binary, gguf)
+        and not _service_binary_is_stale(binary)
+    ):
         if not quiet:
             print(f"[=] embedding model: {gguf} ({size_mb} MB)")
         return _verify_started_or_explain(binary, gguf, quiet_ok=quiet)
@@ -1167,14 +1276,22 @@ def cmd_install(args: argparse.Namespace) -> int:
     run_svc = _service_cmd_quiet if registered else _service_cmd
 
     _warn_if_port_busy("install")
-    # getattr default: cmd_start delegates here to auto-install, and the `start`
-    # subparser has no --concurrency flag (install's default of 2 applies).
-    concurrency = getattr(args, "concurrency", 2)
-    print(f"[~] setting up the embedder service ({concurrency} requests at a time)")
-    extra: list[str] = []
-    if concurrency:
-        extra += ["--concurrency", str(concurrency)]
-    rc = run_svc(binary, gguf, "install", *extra)
+    if lacks_config:
+        print("[~] the embedder service was registered without --config; updating it to read m3_config.toml")
+    else:
+        print("[~] setting up the embedder service")
+    rc = run_svc(binary, gguf, "install")
+    if rc != 0 and lacks_config and _registration_lacks_config(binary):
+        print(
+            f"[!] `m3-embed-server install` exited {rc} and the service still starts without --config, so it "
+            f"cannot read {_roots_config_file()}. fix: {_reregister_hint()}",
+            file=sys.stderr,
+        )
+        return rc
+    if rc == 0 and lacks_config and is_windows():
+        # SCM keeps running the old command line until the service restarts;
+        # launchd/systemd were reloaded by `install` itself.
+        _service_cmd_quiet(binary, gguf, "stop")
     if rc != 0:
         # An already-registered service is NOT a failure. Older embed-server
         # builds error out of `install` with an opaque winapi/IO message when
@@ -1195,7 +1312,7 @@ def cmd_install(args: argparse.Namespace) -> int:
                     print(f"[OK] sovereign CPU embedder restarted on the new binary (port {_embed_server_port()})")
                     return 0
                 print(
-                    f"[!] restart failed — the service is still on the OLD binary.\n{_install_failure_hint(gguf)}",
+                    f"[!] restart failed — the service is still on the OLD binary.\n{_install_failure_hint()}",
                     file=sys.stderr,
                 )
                 return rc
@@ -1210,7 +1327,7 @@ def cmd_install(args: argparse.Namespace) -> int:
                 start_rc = _service_cmd(binary, gguf, "start")
             return _verify_started_or_explain(binary, gguf, start_rc=start_rc)
         print(
-            f"[!] `m3-embed-server install` exited {rc}\n{_install_failure_hint(gguf)}\n  {tier1_availability()}",
+            f"[!] `m3-embed-server install` exited {rc}\n{_install_failure_hint()}\n  {tier1_availability()}",
             file=sys.stderr,
         )
         return rc
@@ -1446,6 +1563,133 @@ def _registered_port() -> int | None:
     except Exception:  # noqa: BLE001 — unknown: leave the registration alone
         return None
     return port if isinstance(port, int) else None
+
+
+def _registered_command_line() -> str | None:
+    """The registered embed service's command line (install_schedules owns where
+    each OS keeps it), or None when there is none or it cannot be read."""
+    import importlib
+
+    from m3_memory import _bin
+
+    bin_dir = _bin.ensure_on_path()
+    if bin_dir is None or not os.path.isfile(bin_dir / "install_schedules.py"):
+        return None
+    try:
+        line = importlib.import_module("install_schedules").registered_embed_command_line()
+    except Exception:  # noqa: BLE001 — unknown: nothing is reported as wrong with it
+        return None
+    return line if isinstance(line, str) else None
+
+
+def _registration_lacks_config(binary: Path) -> bool:
+    """True when the service is registered with a command line that does not
+    name m3_config.toml while ``binary`` reads it: registered by an earlier m3
+    or core, it starts the new server without its settings (on Windows, as
+    LocalSystem, it cannot find the user's config at all). False when either
+    side cannot be told."""
+    line = _registered_command_line()
+    return line is not None and "--config" not in line and _server_reads_m3_config(binary) is True
+
+
+def _reregister_hint() -> str:
+    """What re-registers the service so it starts with --config."""
+    if is_windows():
+        return "open an *Administrator* terminal and run: m3 embedder install  (it updates the registration)"
+    return "m3 embedder install"
+
+
+def registration_lacks_config_message() -> str | None:
+    """For `m3 doctor`: the problem and its fix when the registered service does
+    not start with --config <m3_config.toml>; None when it does, or when that
+    cannot be told (no binary, no registration, unreadable definition)."""
+    binary = _server_binary()
+    if binary is None or not _registration_lacks_config(binary):
+        return None
+    return (
+        f"the embedder service is registered without --config (observed: {_registered_command_line()}), so it "
+        f"starts without the settings in {_roots_config_file()} (on Windows it cannot find them at all). "
+        f"fix: {_reregister_hint()}"
+    )
+
+
+def _prepare_service_config(gguf: Path) -> bool:
+    """Before `install`: put every value the service needs into m3_config.toml.
+
+    A supervised server reads only that file, and its `install` refuses a value
+    this shell has that the file lacks. So: move the retired per-server
+    config.toml in, record embed.gguf (m3 resolved it; the server has no model
+    discovery), and record each server key this process has only from a legacy
+    env name or a .env file. Refused, with the command that settles it: a --set
+    value (this process only), an embed.gguf in the file naming no file, and a
+    crypto setting held only outside the file (it would apply to every m3
+    process). False when refused or not written; the reason is printed."""
+    from m3_memory import _bin
+    from m3_memory.install.embed_server_legacy import migrate
+
+    report = migrate()
+    for line in report.lines() if report else []:
+        print(line)
+    _bin.ensure_on_path()
+    from m3_core.config.keys_embed import EMBED_SERVER_M3_WIDE, EMBED_SERVER_READS
+    from m3_core.config.writer import ConfigWriteError
+
+    file = _roots_config_file()
+    record: dict[str, object] = {}
+    refused: list[str] = []
+    for name in EMBED_SERVER_READS:
+        origin = _config.origin(name)
+        value = _config.setting(name)
+        shown = Path(value).as_posix() if isinstance(value, Path) else value
+        if name == "embed.gguf":
+            if origin.startswith("file:") and not _same_path(value, gguf):
+                refused.append(
+                    f"embed.gguf in {file} names {shown}, which does not exist (m3 found {gguf.as_posix()}). "
+                    f"fix: m3 config set embed.gguf {gguf.as_posix()}  (or a path to your bge-m3 GGUF)"
+                )
+            elif not origin.startswith("file:") and origin != "cli":
+                record[name] = gguf
+                continue
+        if origin == "default" or origin.startswith("file:"):
+            continue
+        if origin == "cli":
+            refused.append(
+                f"{name} = {shown} comes from --set, which applies to this process only; the service reads {file}. "
+                f"Record it: m3 config set {name} {shown}"
+            )
+        elif name in EMBED_SERVER_M3_WIDE:
+            refused.append(
+                f"{name} = {shown} comes from {origin}, which the service does not see, and recording it would change "
+                f"every m3 process. Decide, then record it: m3 config set {name} {shown}"
+            )
+        else:
+            record[name] = value
+    if refused:
+        print("[!] the embedder service was not registered: it reads only m3_config.toml, and", file=sys.stderr)
+        for line in refused:
+            print(f"    - {line}", file=sys.stderr)
+        return False
+    if not record:
+        return True
+    try:
+        _config.write(record)
+    except (OSError, ConfigWriteError) as e:
+        print(
+            f"[!] could not record the service's settings in {file} ({type(e).__name__}: {e}); the embedder "
+            "service was not registered. inspect: m3 config show --origin",
+            file=sys.stderr,
+        )
+        return False
+    names = ", ".join(f"{n} = {Path(v).as_posix() if isinstance(v, Path) else v}" for n, v in record.items())
+    print(f"[~] recorded for the service in {file}: {names}")
+    return True
+
+
+def _same_path(a: object, b: Path) -> bool:
+    try:
+        return a is not None and os.path.normcase(os.path.abspath(Path(str(a)))) == os.path.normcase(os.path.abspath(b))
+    except (TypeError, ValueError):
+        return False
 
 
 def _import_model_fetch(name: str):
@@ -1701,50 +1945,77 @@ def cmd_unshared(args: argparse.Namespace) -> int:
 _EMBED_TOKEN_SECRET = "M3_EMBED_SERVER_TOKEN"
 
 
+_REMOTE_KEYS = ("embed.server.remote_listen", "embed.server.tls_cert", "embed.server.tls_key")
+
+
 def cmd_secure(args: argparse.Namespace) -> int:
     """Add (or with --off remove) m3-embed-server's listener for other machines:
     TLS with the given certificate, plus a bearer token. The loopback listener
-    is untouched. The token is minted inside the FIPS boundary, the server keeps
-    only its SHA-256, and this machine's copy goes to the secrets file once the
-    server has accepted the settings."""
+    is untouched. The token is minted inside the FIPS boundary; the server is
+    asked to CHECK the settings (`secure --check`, it writes nothing), then m3
+    records them: embed.server.remote_listen / tls_cert / tls_key in
+    m3_config.toml, the token's SHA-256 (all the server keeps) and this
+    machine's copy of the token in the secrets file."""
+    if args.off:
+        return _secure_off()
     pair = _binary_and_gguf_or_fail()
     if not pair:
         return 1
     binary, gguf = pair
-    if args.off:
-        rc = _service_cmd(binary, gguf, "secure", "--off")
-        if rc == 0:
-            print("     Restart to apply:  m3 embedder stop && m3 embedder start")
-        return rc
     missing = [f"--{n}" for n in ("listen", "cert", "key") if not getattr(args, n)]
     if missing:
         print(f"Error: {', '.join(missing)} required (or --off).", file=sys.stderr)
         return 2
+    if not _server_reads_m3_config(binary):
+        print(_server_too_old_message(binary, "secure"), file=sys.stderr)
+        return EXIT_SERVER_TOO_OLD
 
     from crypto_provider import get_sha256
-    from m3_core.secret_store import get_secret, set_secret
+    from m3_core.config.writer import ConfigWriteError
+    from m3_core.secret_store import SecretsFileError, get_secret, set_secret
     from m3_http_auth import generate_token
+
+    from m3_memory.install.embed_server_legacy import TOKEN_SECRET as _EMBED_TOKEN_DIGEST_SECRET
 
     existing = None if args.new_token else (get_secret(_EMBED_TOKEN_SECRET) or "").strip()
     token = existing or generate_token()
+    digest = get_sha256(token.encode("utf-8"))
+    cert, key = os.path.abspath(args.cert), os.path.abspath(args.key)
     rc = _service_cmd(
         binary,
         gguf,
         "secure",
+        "--check",
         "--listen",
         args.listen,
         "--cert",
-        os.path.abspath(args.cert),
+        cert,
         "--key",
-        os.path.abspath(args.key),
+        key,
         "--token-sha256",
-        get_sha256(token.encode("utf-8")),
+        digest,
     )
     if rc != 0:
         return rc  # the server said why; nothing was stored
     minted = token != existing
+    file = _roots_config_file()
+    try:
+        # The digest first: a listener recorded without it is refused at startup.
+        set_secret(_EMBED_TOKEN_DIGEST_SECRET, digest)
+        _config.write(dict(zip(_REMOTE_KEYS, (args.listen.strip(), Path(cert), Path(key)), strict=True)))
+        if minted:
+            set_secret(_EMBED_TOKEN_SECRET, token)
+    except (OSError, ConfigWriteError, SecretsFileError) as e:
+        print(
+            f"[!] the server accepted the settings, but recording them failed ({type(e).__name__}: {e}); "
+            f"inspect: m3 config show --origin ({file}) and the secrets file ({_secrets_location()}), then rerun "
+            "this command",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"[OK] recorded the listener for other machines in {file} ({', '.join(_REMOTE_KEYS)}), and the token's")
+    print(f"     SHA-256 as secret {_EMBED_TOKEN_DIGEST_SECRET} in {_secrets_location()}.")
     if minted:
-        set_secret(_EMBED_TOKEN_SECRET, token)
         print(f"[OK] new bearer token stored here as secret {_EMBED_TOKEN_SECRET}.")
     print("\nNext:")
     print("  1. Restart the server:  m3 embedder stop && m3 embedder start")
@@ -1766,6 +2037,33 @@ def cmd_secure(args: argparse.Namespace) -> int:
             f"{_EMBED_TOKEN_SECRET} in {_secrets_location()}; `--new-token` mints and shows a new one "
             "(every client then needs it)."
         )
+    return 0
+
+
+def _secure_off() -> int:
+    """`secure --off`: unset the listener's keys and the token digest. The
+    server writes nothing any more, so this needs no binary. This machine's own
+    token (M3_EMBED_SERVER_TOKEN) stays: it is what clients present elsewhere."""
+    from m3_core.config.writer import ConfigWriteError
+    from m3_core.secret_store import SecretsFileError, delete_secret
+
+    from m3_memory.install.embed_server_legacy import TOKEN_SECRET as _EMBED_TOKEN_DIGEST_SECRET
+
+    file = _roots_config_file()
+    try:
+        _config.write(dict.fromkeys(_REMOTE_KEYS))
+        had_digest = delete_secret(_EMBED_TOKEN_DIGEST_SECRET)
+    except (OSError, ConfigWriteError, SecretsFileError) as e:
+        print(
+            f"[!] could not remove the listener for other machines ({type(e).__name__}: {e}). inspect: "
+            f"m3 config show --origin ({file}); by hand: m3 config unset embed.server.remote_listen (and "
+            "embed.server.tls_cert, embed.server.tls_key)",
+            file=sys.stderr,
+        )
+        return 1
+    digest = f"; removed secret {_EMBED_TOKEN_DIGEST_SECRET}" if had_digest else ""
+    print(f"[OK] removed {', '.join(_REMOTE_KEYS)} from {file}{digest}.")
+    print("     Restart to apply:  m3 embedder stop && m3 embedder start")
     return 0
 
 
@@ -1880,8 +2178,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     p_install.add_argument(
         "--concurrency",
         type=int,
-        default=2,
-        help="Max concurrent embed requests (default: 2). Higher = more RAM.",
+        default=None,
+        help="No effect (m3-embed-server never read it); kept so existing scripts run. "
+        "The worker count is embed.server.streams.",
     )
     p_install.set_defaults(func=cmd_install)
 
