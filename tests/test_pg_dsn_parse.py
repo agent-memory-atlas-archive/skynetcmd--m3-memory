@@ -119,3 +119,50 @@ def test_a_forbidden_hostaddr_is_refused(m3_settings):
     m3_settings({"db.postgres.forbidden_hosts": ["192.0.2.7"]})
     with pytest.raises(RuntimeError, match="forbidden"):
         _reject_forbidden_host("host=ok.example hostaddr=192.0.2.7 dbname=m3")
+
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("postgresql://u@localhost/m3", "postgresql://u@127.0.0.1/m3"),
+        ("postgresql:///m3", "host=localhost dbname=m3"),  # default socket vs loopback
+        ("host=/var/run/postgresql dbname=m3", "postgresql://u@[::1]/m3"),
+        ("host=h user=m3", "host=h dbname=m3"),  # libpq: missing dbname is the user name
+    ],
+)
+def test_spellings_of_one_local_database_share_an_identity(a, b):
+    pa, pb = parse_pg_dsn(a), parse_pg_dsn(b)
+    assert pa is not None and pb is not None
+    assert pa.identity() == pb.identity()
+    assert pa.may_be_same_database(pb) and pb.may_be_same_database(pa)
+
+
+def test_a_partial_identity_cannot_prove_a_different_database():
+    """No dbname and no user: libpq uses the OS user, which the DSN cannot tell
+    us. A refusal guard must treat that as possibly the same database."""
+    partial = parse_pg_dsn("host=wh.example port=5432")
+    full = parse_pg_dsn("postgresql://u@wh.example:5432/cdw")
+    assert partial is not None and full is not None
+    assert partial.identity() == ("wh.example", 5432, "")
+    assert partial.may_be_same_database(full)
+
+
+def test_hostaddr_and_host_spellings_meet():
+    via_name = parse_pg_dsn("host=db.lan hostaddr=192.0.2.5 dbname=m3")
+    via_addr = parse_pg_dsn("host=192.0.2.5 dbname=m3")
+    assert via_name is not None and via_addr is not None
+    assert via_name.may_be_same_database(via_addr)
+
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("host=h dbname=one", "host=h dbname=two"),
+        ("host=h port=5432 dbname=m3", "host=h port=5433 dbname=m3"),
+        ("host=a.example dbname=m3", "host=b.example dbname=m3"),
+    ],
+)
+def test_provably_different_databases_stay_different(a, b):
+    pa, pb = parse_pg_dsn(a), parse_pg_dsn(b)
+    assert pa is not None and pb is not None
+    assert not pa.may_be_same_database(pb)

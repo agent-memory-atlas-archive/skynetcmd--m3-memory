@@ -9,6 +9,7 @@ Verifies:
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import struct
@@ -118,7 +119,7 @@ async def test_search_uses_sqlite_vec_when_active(monkeypatch):
 
         monkeypatch.setattr(memory_core, "_db", lambda: MockDBContext())
         monkeypatch.setattr(search, "_db", lambda: MockDBContext())
-        monkeypatch.setattr(search, "EMBED_DIM", 3)
+        monkeypatch.setattr(importlib.import_module("memory.config"), "EMBED_DIM", 3)
 
         results = await search.memory_search_scored_impl("test query", search_mode="semantic", k=5)
 
@@ -204,7 +205,7 @@ async def test_search_falls_back_when_sqlite_vec_inactive(monkeypatch):
 
         monkeypatch.setattr(memory_core, "_db", lambda: MockDBContext())
         monkeypatch.setattr(search, "_db", lambda: MockDBContext())
-        monkeypatch.setattr(search, "EMBED_DIM", 3)
+        monkeypatch.setattr(importlib.import_module("memory.config"), "EMBED_DIM", 3)
 
         results = await search.memory_search_scored_impl("test query", search_mode="semantic", k=5)
 

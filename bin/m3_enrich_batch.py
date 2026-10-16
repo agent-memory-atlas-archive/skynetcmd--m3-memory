@@ -565,6 +565,7 @@ async def _poll_fetch_ingest_one_batch(
     print(f"[batch] {label} fetching results...", flush=True)
     results_by_gid: dict[int, list[tuple[int, object]]] = {}
     n_results = 0
+    n_bad_id = 0
     async for r in runner.fetch_results(batch_id, client=client):
         n_results += 1
         try:
@@ -574,17 +575,32 @@ async def _poll_fetch_ingest_one_batch(
             gid = int(gid_str)
             ci = int(ci_str)
         except Exception:
+            n_bad_id += 1
             print(f"[batch] WARN: bad custom_id {r.custom_id!r}", flush=True)
             continue
         results_by_gid.setdefault(gid, []).append((ci, r))
-    print(f"[batch] {label} fetched {n_results} results across {len(results_by_gid)} groups; ingesting...", flush=True)
+    expected = status.n_succeeded + status.n_errored + status.n_canceled + status.n_expired
+    print(
+        f"[batch] {label} fetched {n_results} of {expected} results the provider reported "
+        f"across {len(results_by_gid)} groups ({n_bad_id} unparseable custom_id); ingesting...",
+        flush=True,
+    )
+    if n_results != expected:
+        print(
+            f"[batch] WARN: {label} batch {batch_id} returned {n_results} results but its status counts "
+            f"{expected}; groups without a result stay in_progress until the end-of-run sweep marks them "
+            "failed (batch_no_result)",
+            flush=True,
+        )
 
     n_success = n_empty = n_failed = 0
+    n_orphan = 0
     cost_added = 0.0
     ingested_in_slice = 0
     for gid, chunk_results in results_by_gid.items():
         meta = group_meta.get(str(gid))
         if meta is None:
+            n_orphan += 1
             print(f"[batch] WARN: gid {gid} not in group_meta (orphan result?)", flush=True)
             continue
         _, uid, conv_id, turns = meta
@@ -616,7 +632,11 @@ async def _poll_fetch_ingest_one_batch(
                 f"cost+=${cost_added:.2f})",
                 flush=True,
             )
-    print(f"[batch] {label} done: groups_ingested={ingested_in_slice}", flush=True)
+    print(
+        f"[batch] {label} done: groups_ingested={ingested_in_slice} of {len(results_by_gid)} with results "
+        f"(orphan results skipped: {n_orphan})",
+        flush=True,
+    )
     return n_success, n_empty, n_failed, cost_added
 
 

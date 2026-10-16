@@ -1,8 +1,8 @@
 ---
 tool: bin/check_control_chars.py
-sha1: c96b34247aaf
-mtime_utc: 2026-10-10T21:05:16.837499+00:00
-generated_utc: 2026-10-10T21:05:29.391483+00:00
+sha1: 0c31e9b3eeae
+mtime_utc: 2026-10-16T17:35:43.426979+00:00
+generated_utc: 2026-10-16T19:03:59.104387+00:00
 private: false
 ---
 
@@ -27,6 +27,10 @@ PowerShell's single-letter escapes — which is why `sqlx`, `sha2`, `proptest`
 and `maturin` all survive untouched in the same document. That selectivity
 makes the damage easy to miss in review: most of the file looks perfect.
 
+What this DETECTS is narrower: `b, `a, `f, `v and `0 (and any other C0 byte).
+`n, `r and `t produce LF, CR and TAB, which are legitimate in text files, so
+those three manglings are not detectable here.
+
 Real incident (2026-07-15, repaired 2026-07-23): a design plan was authored
 through such a string. Six crate names lost their leading letter and the file
 was committed twice with the damage before anyone noticed, because a stray
@@ -41,13 +45,17 @@ Usage:
     python bin/check_control_chars.py [paths...]   # explicit paths
     python bin/check_control_chars.py --staged     # git-staged text files
 
-Exit 0 = clean, 1 = corruption found (prints file:line:col and a repair hint).
+``--staged`` scans the STAGED blob (what the commit will contain), not the
+working-tree file.
+
+Exit 0 = clean, 1 = corruption found (prints file:line:col and a repair hint),
+2 = could not check (git failed, a file could not be read).
 
 ---
 
 ## Entry points
 
-- `def main()` (line 106)
+- `def main()` (line 131)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -77,7 +85,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['git', 'diff', '--cached', '--name-only', '--diff-filter=ACMR']`` (line 68)
+- `subprocess.run()  → `['git', *args]`` (line 80)
 
 
 ---

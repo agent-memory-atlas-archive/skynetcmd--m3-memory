@@ -125,6 +125,32 @@ def test_the_placeholder_allow_list_is_applied(tmp_path):
     )
 
 
+def test_a_placeholder_does_not_hide_a_credential_on_the_same_line(tmp_path):
+    """The allow-list blanks the placeholder span; it must not skip the line."""
+    pats = tmp_path / "p.txt"
+    pats.write_text(_PATTERN + "\n")
+    allow = r"(/home/(bob|alice))([\\/]|$)"
+    r = _run(f'+p = "/home/bob/x"; KEY = "{_HIT}"\n', "--patterns", str(pats), "--exclude-identities", allow)
+    assert r.returncode == 1, r.stdout + r.stderr
+
+
+def test_selftest_without_a_policy_does_not_pass():
+    """A selftest with nothing to prove alive must not print PASS."""
+    r = _run("", "--selftest")
+    assert r.returncode == 2
+    assert "PASS" not in r.stdout
+    assert "--patterns" in r.stderr
+
+
+def test_selftest_fails_on_a_pattern_that_matches_everything(tmp_path):
+    """A pattern matching an innocuous line would block every push."""
+    pats = tmp_path / "p.txt"
+    pats.write_text(_PATTERN + "\nnothing|x\n")
+    r = _run("", "--selftest", "--patterns", str(pats))
+    assert r.returncode == 1
+    assert "p.txt:2" in r.stdout
+
+
 def test_an_uncompilable_allow_list_blocks(tmp_path):
     """A broken allow-list would turn every placeholder into a reported leak."""
     pats = tmp_path / "p.txt"

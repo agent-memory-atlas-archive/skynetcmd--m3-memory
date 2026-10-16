@@ -165,7 +165,7 @@ does not reimplement memory logic. It translates the framework's calls into
 Because the adapter only speaks tool-dispatch, it works over **every** storage
 backend with no per-backend code.
 
-All three shipped adapters reuse the framework-agnostic **`M3Client`** dispatch core (`m3_memory/integrations/langchain/m3client.py`) — it owns the shared event-loop thread and the `_dispatch_one` bridge, so a new adapter never re-implements dispatch.
+Every shipped integration (LangChain/LangGraph, CrewAI, PydanticAI and the Hermes Agent memory provider) uses the one **`M3Client`** in `m3_memory/integrations/_client.py` — it owns the shared event-loop thread, the dispatch bridge and the shared operations (`write_turns`, schema self-heal, listing), so a new adapter never re-implements them. A private copy drifts: the Hermes plugin's own copy kept an outdated `chatlog_write` call and captured no turns. The client never reorders `sys.path` or edits `sys.modules`; a host whose own `memory` package shadows m3's is reported (`shadowing_memory_package()`), not patched around.
 
 **Three shipped examples of this recipe:**
 

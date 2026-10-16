@@ -69,12 +69,20 @@ def _orig(mode: str, has_vec: bool) -> str:
     # both joins across every FTS match: on a 7,500-row store a query for "the"
     # issued 1,080,000 internal FTS index lookups and took 734 ms, against 36
     # lookups and 29 ms pre-filtered. Note the MATCH parameter now binds FIRST.
+    # The CTE also applies the scope (2026-10-16): ranking the GLOBAL match set
+    # let other users' rows fill the cap and drop in-scope matches, so the
+    # scope params now bind twice (CTE, then outer WHERE).
     if has_vec:
         return f"""
                         WITH ranked AS (
-                            SELECT rowid AS _rid, bm25(memory_items_fts) AS _b
+                            SELECT memory_items_fts.rowid AS _rid, bm25(memory_items_fts) AS _b
                             FROM memory_items_fts
+                            JOIN memory_items mi ON mi.rowid = memory_items_fts.rowid
                             WHERE memory_items_fts MATCH ?
+                              AND EXISTS (
+                                  SELECT 1 FROM memory_embeddings me
+                                  WHERE me.memory_id = mi.id AND {WHERE}
+                              )
                             ORDER BY _b ASC
                             LIMIT {LIMIT}
                         )
@@ -89,9 +97,14 @@ def _orig(mode: str, has_vec: bool) -> str:
                     """
     return f"""
                         WITH ranked AS (
-                            SELECT rowid AS _rid, bm25(memory_items_fts) AS _b
+                            SELECT memory_items_fts.rowid AS _rid, bm25(memory_items_fts) AS _b
                             FROM memory_items_fts
+                            JOIN memory_items mi ON mi.rowid = memory_items_fts.rowid
                             WHERE memory_items_fts MATCH ?
+                              AND EXISTS (
+                                  SELECT 1 FROM memory_embeddings me
+                                  WHERE me.memory_id = mi.id AND {WHERE}
+                              )
                             ORDER BY _b ASC
                             LIMIT {LIMIT}
                         )

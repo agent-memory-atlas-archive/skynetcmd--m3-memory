@@ -356,13 +356,40 @@ def _entry_point_names(pkg: pathlib.Path | None) -> list[str]:
     return names or ["m3", "m3-team", "mcp-memory"]
 
 
+def _version_key(v: str) -> tuple:
+    """Sort key for a version string. packaging when importable; otherwise the
+    leading numeric release (a string sort puts 3.9 above 3.10)."""
+    try:
+        from packaging.version import InvalidVersion, Version
+
+        try:
+            return (1, Version(v))
+        except InvalidVersion:
+            pass
+    except ImportError:
+        pass
+    nums = re.match(r"\d+(?:\.\d+)*", v)
+    return (0, tuple(int(n) for n in nums.group(0).split(".")) if nums else (), v)
+
+
 def installed_version(pkg: pathlib.Path | None) -> str | None:
-    """The installed m3-memory version, from its dist-info directory name."""
+    """The installed m3-memory version, from its dist-info directory name.
+
+    Several dist-info directories mean a broken uninstall left one behind;
+    the highest version is returned and the leftovers are named."""
     if pkg is None:
         return None
-    for d in sorted(pkg.parent.glob("m3_memory-*.dist-info")):
-        return d.name[len("m3_memory-") : -len(".dist-info")]
-    return None
+    found = [d.name[len("m3_memory-") : -len(".dist-info")] for d in pkg.parent.glob("m3_memory-*.dist-info")]
+    if not found:
+        return None
+    found.sort(key=_version_key)
+    if len(found) > 1:
+        print(
+            f"  [!] {len(found)} m3-memory dist-info directories in {pkg.parent} ({', '.join(found)}); "
+            f"reporting the highest, {found[-1]}. The others are leftovers of an interrupted "
+            "install; delete their m3_memory-<version>.dist-info directories there."
+        )
+    return found[-1]
 
 
 def locked_launchers(scripts_dir: pathlib.Path, names: list[str]) -> list[pathlib.Path]:
@@ -445,9 +472,12 @@ def launcher_holders(locked: list[pathlib.Path]) -> tuple[list[int], list[int]]:
     return own, others
 
 
-def stop_holders(pids: list[int], timeout: float = 10.0) -> None:
+def stop_holders(pids: list[int], timeout: float = 10.0) -> list[int]:
     """Stop these m3 launcher processes and their children (the real server is
-    the launcher's child). Precise pids only, never a name match."""
+    the launcher's child). Precise pids only, never a name match.
+
+    Reports each requested pid from what psutil observed after the wait, and
+    returns the pids still running (empty when every one stopped)."""
     import psutil
 
     procs = []
@@ -456,8 +486,10 @@ def stop_holders(pids: list[int], timeout: float = 10.0) -> None:
             p = psutil.Process(pid)
             procs.extend(p.children(recursive=True))
             procs.append(p)
+        except psutil.NoSuchProcess:
+            continue  # already gone: reported as stopped below
         except psutil.Error:
-            continue
+            continue  # access denied etc.: the liveness check below reports it
     for p in procs:
         try:
             p.terminate()
@@ -469,8 +501,18 @@ def stop_holders(pids: list[int], timeout: float = 10.0) -> None:
             p.kill()
         except psutil.Error:
             pass
+    if alive:
+        psutil.wait_procs(alive, timeout=3)
+    survivors = [pid for pid in pids if psutil.pid_exists(pid)]
     for pid in pids:
-        print(f"  stopped m3 in an agent session (pid {pid}); reconnect that agent afterwards (Claude Code: /mcp)")
+        if pid in survivors:
+            print(
+                f"  [!] could NOT stop m3 in an agent session (pid {pid}): still running after "
+                "terminate and kill; close that agent, then re-run `m3 upgrade`"
+            )
+        else:
+            print(f"  stopped m3 in an agent session (pid {pid}); reconnect that agent afterwards (Claude Code: /mcp)")
+    return survivors
 
 
 def interactive_console() -> bool:
@@ -639,11 +681,6 @@ def run_captured_rc(cmd: list[str], *, timeout: int = 900, env: dict[str, str] |
         return 124, f"      !! timed out after {timeout}s\n"
 
 
-def run_captured(cmd: list[str], *, timeout: int = 900) -> str:
-    """run_captured_rc's output only."""
-    return run_captured_rc(cmd, timeout=timeout)[1]
-
-
 # Lines `m3 doctor --fix --fix-hooks` prints when a check passed and nothing
 # was changed. A run made only of these collapses to its health line; any other
 # line (a repair, a warning, a probe added later) shows the full output.
@@ -756,6 +793,39 @@ def plugin_update(out: str) -> tuple[str, str] | None:
     plugin loads only when Claude Code restarts; `/mcp` does not load it."""
     m = _PLUGIN_UPDATED.search(out)
     return (m.group(1), m.group(2)) if m else None
+
+
+# Lines `m3 stop` prints when nothing ran (m3_memory.cli._cmd_stop owns them).
+_STOP_NOTHING = re.compile(r"^\[m3\] (nothing to stop|no other m3 DB-writers running)")
+# `m3 stop`'s line for a daemon it left running (owner: m3_halt.describe_left_running).
+_STOP_LEFT = re.compile(r"^\s*(\S+) \(pid (\d+)\) left running \((.*)\); it holds no data\.$")
+
+
+def step3_report(rc: int, out: str) -> list[str]:
+    """Step 3's lines from `m3 stop`'s exit code and output.
+
+    Anything still running after the package was replaced runs the OLD code, so
+    each survivor is named by role and pid. A nonzero exit is reported as such,
+    never as "no daemon survived"."""
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    left = [m for m in (_STOP_LEFT.match(ln) for ln in lines) if m]
+    if rc == 0 and not left and all(_STOP_NOTHING.match(ln) for ln in lines):
+        return ["\n[3/5] no daemon survived on old code"]
+    report = ["\n[3/5] stopping daemons that survived on OLD code:", *lines]
+    for m in left:
+        role, pid, why = m.group(1), m.group(2), m.group(3)
+        fix = "`m3 embedder stop` then `m3 embedder start`" if "embed" in role else "stop and restart it"
+        report.append(
+            f"  [!] {role} (pid {pid}) is still running the OLD binary ({why}); "
+            f"it loads the new version only when restarted: {fix}"
+            + (" from an elevated shell." if "administrator" in why else ".")
+        )
+    if rc != 0:
+        report.append(
+            f"  [!] `m3 stop` exited {rc}: a writer survived on the old code and may hold a file lock; "
+            "step 4 continues. Re-run `m3 stop` from an elevated shell, then `m3 setup`."
+        )
+    return report
 
 
 def summary_lines(
@@ -1028,7 +1098,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n[1/5] stopping m3 DB writers: {_cmd_label([m3, 'stop'])}")
         # Non-fatal: nothing may be running, and that is a fine state to upgrade from.
         # --caller makes the stop summarize its services in one line.
-        run([m3, *_caller_args(m3, dry), "stop"], dry=dry, timeout=180)
+        stop1_rc = run([m3, *_caller_args(m3, dry), "stop"], dry=dry, timeout=180)
+        if stop1_rc != 0:
+            print(
+                f"  [!] `m3 stop` exited {stop1_rc}: a writer may still hold a file lock; "
+                "continuing (step 2 re-checks the launchers)."
+            )
+    else:
+        stop1_rc = 0
 
     print(f"\n[2/5] upgrading the package: {_cmd_label(up)}")
     # Re-probe: a hook or agent may have started an m3 launcher since the check
@@ -1037,7 +1114,12 @@ def main(argv: list[str] | None = None) -> int:
     if locked:
         explain_locked(locked, owner_python, user_flags)
         if not args.skip_stop:
-            print("Step 1 stopped m3's services; `m3 setup` starts them again.")
+            if stop1_rc == 0:
+                print("Step 1 stopped m3's services; `m3 setup` starts them again.")
+            else:
+                print(
+                    f"Step 1 (`m3 stop`, exit {stop1_rc}) may have stopped some services; `m3 setup` starts them again."
+                )
         return 2
     if dry:
         rc = run(up, dry=dry)
@@ -1082,26 +1164,55 @@ def main(argv: list[str] | None = None) -> int:
     unchanged = not dry and old_version is not None and new_version == old_version
     local_source = bool(spec and not source_is_pypi(spec)) and not args.from_pypi
     latest = pypi_latest() if unchanged and not local_source else None
-    if should_retry_uncached(
-        unchanged=unchanged, local_source=local_source, latest=latest, installed=old_version
-    ) and not locked_launchers(scripts_dir, launchers):
-        # pip's (and uv's) cached index can lag a release published minutes ago:
-        # the install "succeeds" on the old version while PyPI serves the new
-        # one. Only then is a second install worth its time.
-        print(f"\n  PyPI has {latest} but the cached index offered nothing newer; asking again without the cache")
-        retry_rc, retry_out = run_captured_rc(up, timeout=900, env=no_cache_env())
-        if retry_rc != 0 or args.log:
-            print(retry_out.rstrip())
-        m3 = find_m3_launcher() or m3
-        new_version = installed_version(find_m3_package(m3) or pkg)
-        unchanged = old_version is not None and new_version == old_version
+    # Why a run ended unchanged; one message per cause (set only when it applies).
+    retry_note = ""
+    if should_retry_uncached(unchanged=unchanged, local_source=local_source, latest=latest, installed=old_version):
+        if locked_launchers(scripts_dir, launchers):
+            retry_note = (
+                f"PyPI has {latest}, but the uncached retry was skipped: an m3 launcher in "
+                f"{scripts_dir} is in use. Close the agent using it, then re-run `m3 upgrade`."
+            )
+        else:
+            # pip's (and uv's) cached index can lag a release published minutes ago:
+            # the install "succeeds" on the old version while PyPI serves the new
+            # one. Only then is a second install worth its time.
+            print(f"\n  PyPI has {latest} but the cached index offered nothing newer; asking again without the cache")
+            retry_rc, retry_out = run_captured_rc(up, timeout=900, env=no_cache_env())
+            if retry_rc != 0 or args.log:
+                print(retry_out.rstrip())
+            if retry_rc != 0 and m3_still_installed(owner_python) is False:
+                pin = f"m3-memory=={old_version}" if old_version else "m3-memory"
+                print(
+                    f"\nThe uncached retry failed (exit {retry_rc}) after removing the old package: "
+                    f'm3 is NOT installed now. Restore it:\n    "{owner_python}" -m pip install '
+                    f"--force-reinstall --no-deps {pin}\nthen: m3 setup"
+                )
+                return retry_rc
+            m3 = find_m3_launcher() or m3
+            new_version = installed_version(find_m3_package(m3) or pkg)
+            unchanged = old_version is not None and new_version == old_version
+            if retry_rc != 0:
+                retry_note = f"PyPI has {latest}, but the uncached retry `{_cmd_label(up)}` failed (exit {retry_rc}); see its output above."
+            else:
+                retry_note = (
+                    f"PyPI has {latest}, but `{_cmd_label(up)}` installed {new_version} again even "
+                    "without the cache; a pin or constraint may hold it back."
+                )
     if unchanged:
-        where = spec if local_source else "the package index"
-        print(f"\n  [!] m3 is still {old_version}: {where} has no newer version.")
         if local_source:
+            print(f"\n  [!] m3 is still {old_version}: {spec} has no newer version.")
             print(
                 "      This install tracks that source, not PyPI. To move to the PyPI release: m3 upgrade --from-pypi"
             )
+        elif retry_note:
+            print(f"\n  [!] m3 is still {old_version}: {retry_note}")
+        elif latest is None:
+            print(
+                f"\n  [!] m3 is still {old_version}: the package index offered nothing newer, and PyPI "
+                "could not be asked for its current release (offline?)."
+            )
+        else:
+            print(f"\n  [!] m3 is still {old_version}: PyPI's current release is {latest}; nothing newer to install.")
 
     # A long-lived daemon that SURVIVED step 1 now runs the OLD code against a
     # NEW package, and step 4's verify only restarts services it finds STOPPED —
@@ -1118,18 +1229,16 @@ def main(argv: list[str] | None = None) -> int:
     # (`m3 stop` already owns the per-OS mechanism), and non-fatal because
     # "nothing running" is a fine state.
     if not args.skip_stop:
-        # --quiet: step 1 already reported anything left running. Captured so a
-        # step that found nothing reads as one line, not a header and a command.
+        # Not --quiet: it hides daemons that hold no database (the Rust embed
+        # server), and those are exactly the ones that keep the OLD binary.
+        # Captured so a step that found nothing reads as one line.
         if dry:
             print("\n[3/5] stopping any daemon that survived on OLD code ...")
-            run([m3, "stop", "--quiet"], dry=dry, timeout=180)
+            run([m3, "stop"], dry=dry, timeout=180)
         else:
-            out = run_captured([m3, "stop", "--quiet"], timeout=180)
-            if out.strip():
-                print("\n[3/5] stopping daemons that survived on OLD code:")
-                print(out.rstrip())
-            else:
-                print("\n[3/5] no daemon survived on old code")
+            stop3 = [m3, *_caller_args(m3), "stop"]
+            stop3_rc, out = run_captured_rc(stop3, timeout=180)
+            print("\n".join(step3_report(stop3_rc, out)))
 
     # --force-quiesce: step 1's `m3 stop` is best-effort and non-fatal, so a
     # writer that did not exit would leave `setup --non-interactive` waiting on
@@ -1175,10 +1284,12 @@ def main(argv: list[str] | None = None) -> int:
     # Tells setup that this run verifies and summarizes (see setup_wizard._called_by_upgrade).
     rc = run(setup_cmd, dry=dry)
     if rc != 0:
-        print(
-            f"\n`m3 setup` failed (exit {rc}). The package IS upgraded; re-run\n"
-            "`m3 setup` by hand to finish wiring it up."
+        state = (
+            f"m3 is still {old_version} (nothing was upgraded)"
+            if unchanged
+            else f"The package IS upgraded ({old_version or '?'} -> {new_version or '?'})"
         )
+        print(f"\n`m3 setup` failed (exit {rc}). {state}; re-run\n`m3 setup` by hand to finish wiring it up.")
         _summary("m3 setup", rc)
         return rc
 
@@ -1209,10 +1320,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(out.rstrip())
     if rc != 0:
+        done = "Nothing was upgraded" if unchanged else "The upgrade completed"
         print(
-            f"\n`m3 doctor --fix --fix-hooks` reported problems (exit {rc}). The\n"
-            "upgrade completed and repairs were attempted; read the doctor output\n"
-            "above before relying on this install."
+            f"\n`m3 doctor --fix --fix-hooks` reported problems (exit {rc}). {done}\n"
+            "and repairs were attempted; read the doctor output above before relying on this install."
         )
         _summary("m3 doctor", rc)
         return rc

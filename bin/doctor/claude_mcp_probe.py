@@ -42,10 +42,17 @@ import os
 import shutil
 import subprocess
 
-# Mirror of m3_memory.setup_wizard._CLAUDE_PLUGIN_SERVER_IDS and
-# generate_configs.install_claude_settings section 4. `memory` is the current
-# plugin server key; `m3` is the pre-rename key an upgrader may still carry.
-_PLUGIN_SERVER_IDS = ("plugin:m3:memory", "plugin:m3:m3")
+from m3_core.config.claude_settings import (
+    PLUGIN_SERVER_ID as _PLUGIN_SERVER_ID,
+)
+from m3_core.config.claude_settings import (
+    PLUGIN_SERVER_IDS as _PLUGIN_SERVER_IDS,
+)
+from m3_core.config.claude_settings import (
+    SettingsUnreadable,
+    plugin_server_disabled,
+    read_json_object,
+)
 
 # The direct registration names m3 uses/used in ~/.claude.json mcpServers.
 _DIRECT_NAME = "m3_memory"  # current, roots-pinned, mcp__m3_memory__
@@ -132,8 +139,7 @@ def _plugin_state() -> dict:
     except Exception:  # noqa: BLE001
         installed, enabled = False, False
     settings = _read_json(os.path.join(_claude_dir(), "settings.json"))
-    disabled = settings.get("disabledMcpServers") if isinstance(settings, dict) else None
-    server_disabled = isinstance(disabled, list) and "plugin:m3:memory" in disabled
+    server_disabled = isinstance(settings, dict) and plugin_server_disabled(settings)
     return {
         "installed": installed,
         "enabled": enabled,
@@ -197,9 +203,11 @@ def _disable_plugin_server_in_settings() -> tuple[bool, str | None, str]:
     """Back up settings.json, then merge the plugin server ids into
     disabledMcpServers. Returns (changed, backup_path, detail)."""
     settings_path = os.path.join(_claude_dir(), "settings.json")
-    live = _read_json(settings_path)
-    if not isinstance(live, dict):
-        live = {}
+    try:
+        live = read_json_object(settings_path)
+    except SettingsUnreadable as e:
+        # Merging into {} would replace the user's whole settings.json.
+        return False, None, str(e)
     disabled = live.get("disabledMcpServers")
     if not isinstance(disabled, list):
         disabled = []
@@ -210,7 +218,7 @@ def _disable_plugin_server_in_settings() -> tuple[bool, str | None, str]:
 
     disabled.extend(to_add)
     live["disabledMcpServers"] = disabled
-    text = json.dumps(live, indent=2, sort_keys=True)
+    text = json.dumps(live, indent=2) + "\n"
     backup = None
     try:
         if os.path.isfile(settings_path):
@@ -234,7 +242,7 @@ def _fix(a: dict, brief: bool = False) -> None:
     #    direct server exists to take over (never leave zero m3 servers).
     if a["double_run"] and a["direct_present"]:
         changed, backup, detail = _disable_plugin_server_in_settings()
-        status = "ok" if changed else "skip"
+        status = "ok" if changed else ("skip" if not backup and detail.endswith("already disabled") else "error")
         print(f"  [{status}] disable plugin server: {detail}")
         if backup:
             print(f"         settings.json backed up to {backup}")
@@ -294,6 +302,16 @@ def _print_fix_hint() -> None:
     )
 
 
+def _inactive_plugin_reason(p: dict) -> str:
+    """Why an installed plugin's server is not running (no direct entry)."""
+    if not p.get("enabled"):
+        return "the m3 plugin is installed but disabled, and no direct m3_memory server is registered"
+    return (
+        f'the m3 plugin server is in disabledMcpServers ("{_PLUGIN_SERVER_ID}"), and no direct '
+        "m3_memory server is registered"
+    )
+
+
 def run(brief: bool = False, fix: bool = False) -> int:
     a = _assess()
 
@@ -305,6 +323,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
         return 0
 
     if brief:
+        p_state = a["plugin"]
         for directory, name, _e in a.get("local", ()):
             print(
                 f"⚠️  claude mcp: `{name}` is also registered for {directory} (local "
@@ -330,7 +349,9 @@ def run(brief: bool = False, fix: bool = False) -> int:
                 "claude mcp: no m3 memory server registered (to add one: `m3 setup --non-interactive --agents claude`)"
             )
         else:
-            print("✅ claude mcp: single m3 server")
+            # Plugin installed but not running (plugin or its server disabled)
+            # and no direct registration: zero live servers, not one.
+            print(f"⚠️  claude mcp: no m3 server is live — {_inactive_plugin_reason(p_state)}. Run `m3 setup`")
         return 0
 
     print()
@@ -376,7 +397,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
         print("  status    : no m3 memory server registered for Claude Code (fine if you")
         print("              run m3 purely via the CLI). `m3 setup` registers one.")
     else:
-        print("  status    : OK — single m3 server.")
+        print(f"  status    : [WARN] no m3 server is live — {_inactive_plugin_reason(p)}.")
+        print("  fix       : m3 setup   (registers the direct m3_memory server)")
 
     # Exit-code-neutral: a double-run still works (wastefully) and a plugin-only
     # setup is a supported choice — nag with the fix, never fail the doctor.

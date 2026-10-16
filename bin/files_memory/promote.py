@@ -172,6 +172,22 @@ def _find_promoted_orphan(source_uuid: str) -> str | None:
         return None
 
 
+def _promoted_row_state(memory_id: str) -> str:
+    """ "live" | "deleted" | "absent" for a promotion's memory_items row. A lookup
+    failure raises: an idempotent "already promoted" answer must not name a row
+    nobody checked."""
+    from memory.backends import dialect as _dialect
+
+    from .entities import _memory_db
+
+    _p = _dialect().param()
+    with _memory_db() as conn:
+        row = conn.execute(f"SELECT is_deleted FROM memory_items WHERE id = {_p}", (memory_id,)).fetchone()
+    if row is None:
+        return "absent"
+    return "deleted" if row[0] else "live"
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Promotion
 # ──────────────────────────────────────────────────────────────────────────────
@@ -219,6 +235,16 @@ def files_promote(
             (source_uuid,),
         ).fetchone()
         if existing:
+            state = _promoted_row_state(existing["promoted_to"])
+            if state == "absent":
+                # The memory was hard-deleted -- only gdpr_forget does that. Re-promoting
+                # would put erased content back, so that is the operator's decision.
+                raise ValueError(
+                    f"source {source_uuid!r} was promoted to memory {existing['promoted_to']} "
+                    f"(marker {existing['uuid']}), which no longer exists (erased by gdpr_forget). "
+                    "Not re-promoting erased content; if it is wanted back, delete the marker "
+                    "and promote again deliberately."
+                )
             return {
                 "promoted_to": existing["promoted_to"],
                 "marker_uuid": existing["uuid"],
@@ -226,6 +252,7 @@ def files_promote(
                 "mapped_type": existing["mapped_type"],
                 "source_uuid": source_uuid,
                 "already_promoted": True,
+                "promoted_row_state": state,
             }
 
         promoted_type = _default_type_for(source["kind"], mapped_type)

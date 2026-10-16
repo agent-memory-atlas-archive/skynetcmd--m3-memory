@@ -1,87 +1,103 @@
-# <a href="../README.md"><img src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/m3_logo_icon.png" height="60" style="vertical-align: baseline; margin-bottom: -15px;"></a> ⚡ m3 Memory Integration for Hermes Agent
+# <a href="../README.md"><img src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/m3_logo_icon.png" height="60" style="vertical-align: baseline; margin-bottom: -15px;"></a> m3 Memory for Hermes Agent
 
-Welcome! This guide walks you through integrating **m3 Memory** (State-of-the-Art, vector-accelerated rich memory) with **Hermes Agent**.
+m3 plugs into [Hermes Agent](https://github.com/nousresearch/hermes-agent) as an
+external **memory provider**: Hermes' single slot for long-term memory, beside its
+always-on built-in `MEMORY.md` / `USER.md`. m3 runs inside the Hermes process. It
+needs no server and no API key, and memories stay on the machine unless you
+configure sync.
 
-By combining Hermes' powerful autonomous execution with m3's advanced 100+ tool multi-corpus memory system, you unlock SOTA long-term recall, semantic association, and tamper-proof cryptographic audit trails.
+What the provider gives the agent:
 
----
+| Hermes hook | What m3 does |
+|---|---|
+| `prefetch` (before each turn) | hybrid recall (FTS5 + vector + MMR) for the user's message |
+| `sync_turn` (after each turn) | queues the turn into m3's chatlog; facts are extracted in the background |
+| `m3_search` tool | hybrid recall, scoped to the user |
+| `m3_conclude` tool | stores a fact verbatim |
+| `m3_profile` tool | lists the user's stored facts |
 
-## 🌟 The Best of Both Worlds: Two Integration Modes
+Cron jobs and subagents (`agent_context` other than `primary`) are **recall-only**:
+they can search, but they store no facts and no turns, as Hermes' provider
+contract asks.
 
-m3 is designed to be highly flexible. When hooking it up to Hermes Agent, you can choose between two main operating strategies:
+## Requirements
 
-### Option A: Optimal Replacement (Recommended for Unified SOTA Memory)
-In this mode, you configure Hermes Agent to use **m3 as its primary memory provider**. 
-* **Why do this?** Hermes' default file-based memory can grow slow and lacks semantic understanding. By replacing it with m3, Hermes gains instant access to **BGE-M3 vector embeddings**, **FTS5 hybrid search**, and automated **fact decay/curation**.
-* **How it works:** Hermes loads the m3 memory provider plugin, redirecting all default read/write operations to the m3 SQLite memory catalog (`~/.m3/engine/agent_memory.db`).
+- **Hermes Agent 0.22 or newer.** Earlier versions put their `plugins/` folder on
+  the import path, where it shadows m3's `memory` package.
+- **Python 3.12 or newer in Hermes' environment.** Current Hermes installs use
+  3.14. A Hermes on Python 3.11 cannot load m3. The provider reports this,
+  naming the interpreter, rather than failing silently.
 
-### Option B: Parallel Co-existence (SOTA Rich Memory Toolbelt)
-In this mode, you keep Hermes' default memory provider active, but load m3's **100+ MCP tools** directly into Hermes' runtime toolbelt.
-* **Why do this?** This allows Hermes to continue using its lightweight built-in memory for simple context holding while granting it access to m3's specialized tools (like `memory_link`, `task_create`, `files_ingest`, and `chatlog_search`) for complex research and file-indexing tasks.
+## Install
 
----
+Install m3-memory into **the same Python that runs Hermes**, not your system Python.
+Hermes finds the provider through the `hermes_agent.memory_providers` entry point
+that m3-memory declares, so you don't need a plugin folder or a `PYTHONPATH`.
 
-## 🚀 Step-by-Step Setup Guide
-
-### Step 1: Run the m3 Setup Wizard
-The easiest way to integrate m3 is through our automated interactive wizard:
 ```bash
-python -m m3_memory.setup_wizard
-```
-1. The wizard will automatically probe common system locations (such as `%LOCALAPPDATA%\hermes`, `~/.hermes`, `~/hermes-agent`) to **autodetect** your Hermes Agent installation.
-2. When prompted:
-   > `Install the m3 SOTA memory-provider plugin into Hermes Agent? [y/N]`
-   Type **`y`** to automatically copy the m3 provider files into the Hermes plugins tree.
-
-### Step 2: Configure Environment Variables
-Hermes Agent loads plugins dynamically and needs to find m3's core package in its search path. You must add m3's payload `bin/` directory to the `PYTHONPATH` environment variable in Hermes' launch environment. On a pip/pipx install there is no repo checkout: run `m3 doctor` and use the directory of the `resolved bridge` path it prints (e.g. `.../site-packages/m3_memory/bin`); with a source checkout, it is the checkout's `bin/`.
-
-#### On Windows (PowerShell):
-```powershell
-$env:PYTHONPATH = "C:\path\to\m3-memory\bin;" + $env:PYTHONPATH
+# the interpreter of Hermes' venv; `head -1 "$(command -v hermes)"` shows it
+/path/to/hermes/venv/bin/python -m pip install m3-memory
 ```
 
-#### On Linux / macOS (Bash/Zsh):
+Then select m3:
+
 ```bash
-export PYTHONPATH="/path/to/m3-memory/bin:$PYTHONPATH"
+hermes memory setup     # choose "m3"; optionally set user_id / agent_id
+hermes memory status    # "Provider: m3" and m3 listed under installed plugins
 ```
 
-> [!TIP]
-> To make this change permanent, add the environment variable to your terminal profile (`.bashrc` / `.zshrc`) or user-level environment settings in Windows.
+`hermes memory setup` writes `memory.provider: m3` to Hermes' `config.yaml`. You
+can also set that key yourself.
 
-### Step 3: Select the m3 Plugin in Hermes
-Now, tell Hermes Agent to activate the m3 provider. Memory providers in Hermes are **single-select**.
+### Configuration
 
-1. Open your Hermes terminal configuration or run the plugin selector:
-   ```bash
-   hermes plugins
-   ```
-2. Navigate to the **Memory Providers** section and select **`m3`**.
-3. Save and close.
+| Setting | Default | Where |
+|---|---|---|
+| `user_id` | `hermes-user` | `$HERMES_HOME/m3.json`, m3 setting `integrations.hermes.user_id`, or `M3_USER_ID` |
+| `agent_id` | `hermes` | `$HERMES_HOME/m3.json`, m3 setting `integrations.hermes.agent_id` |
 
----
+A gateway that passes a `user_id` to the provider overrides the configured one,
+so each user's memories stay separate.
 
-## 🔍 Verifying the Connection
+### The folder plugin (catalog shape)
 
-To verify that the bridge is functional, you can run the provider logic verification script:
+`m3_memory/integrations/hermes/folder_plugin/` is a manifest plus a one-line stub
+that imports the provider from the installed package. It is the shape Hermes'
+plugin catalog installs, and `m3 setup` can place it in Hermes' plugins tree. The
+stub holds no code of its own, so upgrading m3-memory upgrades the provider.
+
+## Verify
+
 ```bash
-python m3_memory/integrations/hermes/test_provider_logic.py
+hermes plugins doctor /path/to/site-packages/m3_memory/integrations/hermes/folder_plugin
+hermes memory status
 ```
-If successful, the test suite will print a green confirmation indicating that Hermes is successfully reading, writing, and querying the m3 memory database.
 
----
+Then have a conversation and ask the agent to recall something from it. The
+turns are in m3's chatlog (`m3 chatlog status` shows the latest write), and
+facts extracted from them appear in `m3_search` results.
 
-## 🛠️ Diagnostics & Curation
-Once hooked up, you can monitor the health and performance of the memory bridge using the live interactive diagnostics dashboard built into m3:
-```bash
-python bin/chatlog_status.py --live
+If m3 does not appear in `hermes memory status` at all, m3-memory is not
+installed in Hermes' Python. Install it into that interpreter, as shown above.
+If m3 appears but shows `Status: not available`, the `unavailable:` line under
+`m3 config` gives the reason and its fix: a missing payload or a shadowing
+`memory` package. The same message is logged once when Hermes starts.
+
+## Also: m3's MCP tools in Hermes
+
+To give the agent m3's full tool catalog (linking, tasks, file ingest, chatlog
+search) as well, register m3's MCP server in Hermes' `config.yaml`:
+
+```yaml
+mcp_servers:
+  m3:
+    command: m3
 ```
-From the TUI monitor, you can:
-* Press **`[S]`** to run the embedding sweeper.
-* Press **`[D]`** or **`[A]`** to review or apply deterministic decay sweeps.
-* Press **`[F]`** to ingest or sync external project directories directly into m3.
 
-For more details on m3's capabilities, check out our primary documentation:
-* [Main Documentation Gateway](../README.md)
-* [MCP Tools Catalog](MCP_TOOLS.md)
-* [Curation Guide](../agents/curate-memory.md)
+This works with or without the memory provider. Both read the same store.
+
+## See also
+
+- [Main documentation](../README.md)
+- [MCP tools catalog](MCP_TOOLS.md)
+- [Extending m3 / integrations](EXTENDING.md)

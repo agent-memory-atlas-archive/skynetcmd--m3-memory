@@ -16,6 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from m3_memory import rust_core_install as rci  # noqa: E402
 from m3_memory._pyver import wheel_python_tag  # noqa: E402
 
+# Captured at import, before the autouse _host_neutral stub replaces it.
+_REAL_CORE_IMPORTS = rci._core_imports
+
 # Real function captured before the autouse fixture can patch it, so the unit
 # tests that exercise is_rust_core_current itself call the genuine impl.
 _REAL_IS_CURRENT = rci.is_rust_core_current
@@ -39,6 +42,9 @@ def _host_neutral(monkeypatch):
     set it themselves."""
     monkeypatch.setattr(rci, "_core_imports", lambda: (True, ""))
     monkeypatch.setattr(rci, "_nvidia_driver_present", lambda: True)
+    # Sibling-package cleanup reads THIS env's installed distributions and would
+    # pip-uninstall a real m3-core-rs-* package. Tests that exercise it patch it.
+    monkeypatch.setattr(rci, "_installed_core_packages", lambda: [])
 
 
 # ── name mapping (must mirror build_wheel.py) ──────────────────────────────────
@@ -858,14 +864,46 @@ def test_sha256sums_parser_accepts_both_coreutils_forms(monkeypatch):
 
 
 def test_sha256sums_non_https_url_is_refused():
-    """The manifest URL is external data; pin the scheme as the wheel URL is."""
-    assert (
+    """The manifest URL is external data; pin the scheme as the wheel URL is.
+    A listed-but-unusable manifest is fatal, not a reason to skip verifying."""
+    with pytest.raises(rci.DigestManifestError, match="non-https"):
         rci._fetch_release_sha256sums(
             [{"name": "SHA256SUMS", "browser_download_url": "http://example.com/SHA256SUMS"}],
             git_tag="vtest",
         )
-        is None
-    )
+
+
+def test_unparseable_sha256sums_blocks_the_install(monkeypatch, capsys):
+    """A listed manifest with no usable line must not degrade to 'unverified'."""
+    choice, name = _metal_target()
+    payload, sums = _release_with_sums({name: GOOD_WHEEL}, sums_text="garbage\n")
+    _wire_release(monkeypatch, payload, sums, [GOOD_WHEEL])
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pytest.fail("installed unverified"))
+
+    assert rci.install_from_github_release(choice) == 1
+    assert "no parseable" in capsys.readouterr().err
+
+
+def test_unfetchable_sha256sums_blocks_the_install(monkeypatch, capsys):
+    import urllib.error
+    import urllib.request as _ur
+
+    choice, name = _metal_target()
+    payload, sums = _release_with_sums({name: GOOD_WHEEL})
+    _wire_release(monkeypatch, payload, sums, [GOOD_WHEEL])
+    served = _ur.urlopen
+
+    def flaky(req, timeout=None):
+        url = req.full_url if hasattr(req, "full_url") else req
+        if url.endswith("SHA256SUMS"):
+            raise urllib.error.URLError("connection reset")
+        return served(req, timeout=timeout)
+
+    monkeypatch.setattr(_ur, "urlopen", flaky)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pytest.fail("installed unverified"))
+
+    assert rci.install_from_github_release(choice) == 1
+    assert "could not be fetched" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -1106,7 +1144,7 @@ def test_unimportable_wheel_is_removed_and_the_chain_continues(monkeypatch, caps
     assert rc == 0
     assert landed == ["cuda", "vulkan"]
     assert removed == [("uninstall", "-y", "m3-core-rs-linux-cuda")]
-    assert "does not import" in capsys.readouterr().err
+    assert "failed the import check" in capsys.readouterr().err
 
 
 def test_no_source_build_when_the_detected_backend_will_not_import(monkeypatch):
@@ -1115,3 +1153,64 @@ def test_no_source_build_when_the_detected_backend_will_not_import(monkeypatch):
     monkeypatch.setattr(rci, "_pip", lambda *a, **k: None)
     monkeypatch.setattr(rci, "install_from_source", lambda *a, **k: pytest.fail("source build attempted"))
     assert rci.install_rust_core(os_tok="windows") == 1
+
+
+# ── post-install identity: version check + sibling backend packages ──────────
+
+
+class _Ran:
+    def __init__(self, rc, out="", err=""):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+
+
+@pytest.mark.parametrize(
+    "stdout,ok",
+    [(f"{rci.M3_CORE_RS_VERSION}\n", True), ("3.0.1\n", False), ("None\n", False)],
+)
+def test_core_imports_checks_the_version(monkeypatch, stdout, ok):
+    """pip exiting 0 does not prove the module that imports is the new one."""
+    monkeypatch.setattr(rci.subprocess, "run", lambda *a, **k: _Ran(0, stdout))
+    got, why = _REAL_CORE_IMPORTS()
+    assert got is ok
+    if not ok:
+        assert rci.M3_CORE_RS_VERSION in why and "expected" in why
+
+
+def test_sibling_backend_packages_are_removed_before_install(monkeypatch):
+    """Siblings share the module's files: removal must precede the install."""
+    events = []
+    monkeypatch.setattr(
+        rci, "_installed_core_packages", lambda: ["m3-core-rs-windows-cpu", "m3-core-rs-windows-cuda", "m3-core-rs"]
+    )
+    monkeypatch.setattr(rci, "_pip", lambda *a, **k: events.append(("pip", *a)) or _Ran(0))
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: events.append(("install",)) or 0)
+    monkeypatch.setattr(rci, "install_log", lambda m: None)
+
+    assert rci.install_prebuilt(rci.BackendChoice("windows", "cuda", "t")) == 0
+    assert events == [("pip", "uninstall", "-y", "m3-core-rs-windows-cpu", "m3-core-rs"), ("install",)]
+
+
+def test_failed_sibling_uninstall_names_the_repair(monkeypatch, capsys):
+    monkeypatch.setattr(rci, "_installed_core_packages", lambda: ["m3-core-rs-linux-cpu"])
+    monkeypatch.setattr(rci, "_pip", lambda *a, **k: _Ran(1, "", "Permission denied"))
+    monkeypatch.setattr(rci, "install_log", lambda m: None)
+
+    assert rci._remove_sibling_core_packages("m3-core-rs-linux-vulkan") is False
+    err = capsys.readouterr().err
+    assert "pip exit 1" in err and "Permission denied" in err
+    assert "pip uninstall -y m3-core-rs-linux-cpu" in err
+
+
+def test_core_family_covers_every_prebuilt_and_the_source_build():
+    fam = rci._core_family()
+    assert "m3-core-rs" in fam
+    assert {rci.package_name(o, b) for o, b in rci._VALID} <= fam
+
+
+def test_install_log_lives_under_the_logs_root(monkeypatch, tmp_path):
+    """Not config_root.parent: a pinned logs root must be honoured."""
+    from m3_memory import _roots
+
+    monkeypatch.setattr(rci, "_os_name", lambda: "Windows")
+    monkeypatch.setattr(_roots, "logs_root", lambda: str(tmp_path / "pinned-logs"))
+    assert rci._install_log_path() == tmp_path / "pinned-logs" / "m3_rust_core_install.log"

@@ -295,9 +295,121 @@ def test_uninstall_with_yes(tmp_path, monkeypatch):
         }
     )
 
-    installer.uninstall_m3(yes=True)
+    assert installer.uninstall_m3(yes=True) == 0
     assert not repo_path.exists()
     assert not cfg_file.is_file()
+
+
+def _uninstall_sandbox(monkeypatch, tmp_path, repo_path):
+    from m3_memory import installer
+
+    cfg_dir = tmp_path / ".m3-memory"
+    cfg_file = cfg_dir / "config.json"
+    monkeypatch.setattr(installer, "config_dir", lambda: cfg_dir)
+    monkeypatch.setattr(installer, "config_file", lambda: cfg_file)
+    installer.save_config({"repo_path": str(repo_path)})
+    return installer, cfg_file
+
+
+@pytest.mark.parametrize("layout", ["site-packages", "checkout"])
+def test_uninstall_never_deletes_an_installed_package_or_a_checkout(monkeypatch, tmp_path, capsys, layout):
+    """config.json's repo_path also names the installed wheel and a source
+    checkout; uninstall must keep those and say why."""
+    if layout == "site-packages":
+        repo_path = tmp_path / "venv" / "Lib" / "site-packages" / "m3_memory"
+    else:
+        repo_path = tmp_path / "src" / "m3-memory"
+    (repo_path / "bin").mkdir(parents=True)
+    installer, cfg_file = _uninstall_sandbox(monkeypatch, tmp_path, repo_path)
+
+    assert installer.uninstall_m3(yes=True) == 0
+    out = capsys.readouterr().out
+    assert repo_path.is_dir(), "uninstall deleted a tree m3 did not clone"
+    assert f"kept {repo_path}" in out
+    assert not cfg_file.is_file()
+
+
+def test_uninstall_reports_a_clone_it_could_not_remove(monkeypatch, tmp_path, capsys):
+    repo_path = tmp_path / ".m3-memory" / "repo"
+    (repo_path / "bin").mkdir(parents=True)
+    installer, _cfg = _uninstall_sandbox(monkeypatch, tmp_path, repo_path)
+
+    def locked(path, *a, **k):
+        raise PermissionError(13, "in use", str(path))
+
+    monkeypatch.setattr(installer.shutil, "rmtree", locked)
+    assert installer.uninstall_m3(yes=True) == 1
+    out = capsys.readouterr().out
+    assert "could not remove" in out and "still exists" in out
+    assert f"removed {repo_path}" not in out
+
+
+def test_cli_uninstall_returns_the_uninstall_code(monkeypatch):
+    import argparse
+    import importlib
+
+    from m3_memory import cli
+
+    installer = importlib.import_module("m3_memory.installer")  # the module cli imports from
+
+    monkeypatch.setattr(installer, "uninstall_m3", lambda yes=False: 1)
+    assert cli._cmd_uninstall(argparse.Namespace(yes=True)) == 1
+
+
+def test_doctor_brief_exit_code_follows_a_broken_verdict(monkeypatch, tmp_path, capsys):
+    """A broken verdict with a resolvable bridge must not exit 0."""
+    from m3_memory import installer
+
+    bridge = tmp_path / "memory_bridge.py"
+    bridge.write_text("# stub", encoding="utf-8")
+    monkeypatch.setattr(installer, "find_bridge", lambda: bridge)
+    monkeypatch.setattr(installer, "_heal_config_bridge_path", lambda apply=False: [])
+    for name in (
+        "_agent_config_section",
+        "_duplicate_registration_section",
+        "_deprecated_env_config_section",
+    ):
+        monkeypatch.setattr(installer, name, lambda *a, **k: None)
+    monkeypatch.setattr(installer, "_memory_root_migration_section", lambda fix: None)
+    verdict = {"v": "broken"}
+    monkeypatch.setattr(installer, "status_summary", lambda: {"verdict": verdict["v"], "headline": verdict["v"]})
+    assert installer.doctor(brief=True) == 1
+    verdict["v"] = "healthy"
+    assert installer.doctor(brief=True) == 0
+
+
+def test_cli_doctor_returns_the_worse_of_both_doctors(monkeypatch):
+    import argparse
+    import importlib
+
+    from m3_memory import cli
+
+    installer = importlib.import_module("m3_memory.installer")  # the module cli imports from
+
+    monkeypatch.setattr(installer, "doctor", lambda fix=False, brief=False: 1)
+    monkeypatch.setattr(cli, "_resolve_bin_script", lambda name: Path("memory_doctor.py"))
+    monkeypatch.setattr(cli, "_run_bin_script", lambda name, argv: 0)
+    args = argparse.Namespace(verbose=False, fix=False, fix_hooks=False, rest=[])
+    assert cli._cmd_doctor(args) == 1
+
+
+def test_cognitive_loop_failure_names_the_cause_and_a_real_command(monkeypatch, tmp_path, capsys):
+    from types import SimpleNamespace
+
+    from m3_memory import installer
+
+    script = tmp_path / "install_schedules.py"
+    script.write_text("# stub", encoding="utf-8")
+    monkeypatch.setattr(installer, "_install_schedules_script", lambda: script)
+    monkeypatch.setattr(
+        installer.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(returncode=3, stdout="", stderr="Access is denied."),
+    )
+    assert installer._prompt_and_install_cognitive_loop(interactive=False, forced=True) is False
+    out = capsys.readouterr().out
+    assert "exited 3" in out and "Access is denied." in out
+    assert "Enable later with:  m3 schedules add cognitive-loop" in out
 
 
 def test_doctor_reports_missing_when_not_installed(tmp_path, monkeypatch, capsys):

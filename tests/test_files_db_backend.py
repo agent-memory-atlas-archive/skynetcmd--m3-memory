@@ -279,3 +279,46 @@ def test_pg_files_search_keyword_channel_tsvector(pg_files):
     # the matching hit carries an fts_rank (came through the keyword channel)
     fox = next(h for h in hits if h.leaf_uuid == target)
     assert fox.fts_rank is not None
+
+
+def _hits_roundtrip(fdb):
+    """record_leaf_hits increments through the dialect upsert and stamps
+    last_hit_at; the second hit adds to the first."""
+    from files_memory.config import files_table
+    from files_memory.promotability import record_leaf_hits
+    from memory.backends import dialect
+
+    fdb.init_db()
+    p = dialect().param()
+    with fdb._db() as db:
+        db.execute(f"INSERT INTO {files_table('file_nodes')} ({_FILE_NODE_COLS}) VALUES ({_FILE_NODE_VALS})")
+        db.execute(
+            f"INSERT INTO {files_table('ingestion_runs')} (uuid,file_node,run_id,ingester_version,chunker_version,"
+            "extract_mode) VALUES ('r1','u1','r','iv','cv','m')"
+        )
+        db.execute(
+            f"INSERT INTO {files_table('leaves')} (uuid,file_node,ingestion_run,division_type,division_id,text,"
+            "text_sha256,char_range_start,char_range_end) VALUES ('l1','u1','r1','heading','0','t','s',0,1)"
+        )
+        db.execute(
+            f"INSERT INTO {files_table('facts')} (uuid,leaf,file_node,statement,source_span_start,source_span_end,"
+            "extraction_run) VALUES ('f1','l1','u1','s',0,1,'r1')"
+        )
+    with fdb._db() as db:
+        assert record_leaf_hits(db, ["l1"]) == 1
+    with fdb._db() as db:
+        assert record_leaf_hits(db, ["l1"]) == 1
+    with fdb._db() as db:
+        r = db.execute(
+            f"SELECT hit_count, last_hit_at FROM {files_table('fact_hit_stats')} WHERE fact_uuid = {p}", ("f1",)
+        ).fetchone()
+    assert r["hit_count"] == 2 and r["last_hit_at"]
+
+
+def test_sqlite_record_leaf_hits_increments(sqlite_files):
+    _hits_roundtrip(sqlite_files)
+
+
+@pg
+def test_pg_record_leaf_hits_increments(pg_files):
+    _hits_roundtrip(pg_files)

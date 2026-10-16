@@ -36,11 +36,10 @@ def _patterns() -> tuple[str, str]:
 
 
 def _blocked(line: str) -> bool:
-    """Mirror the hook: drop whitelisted lines, then apply the leak pattern."""
+    """Mirror the scanner: blank out whitelisted spans, then apply the leak pattern."""
     whitelist, leak = _patterns()
-    if re.search(whitelist, line, re.IGNORECASE):
-        return False
-    return bool(re.search(leak, line, re.IGNORECASE))
+    body = re.sub(whitelist, " ", line, flags=re.IGNORECASE)
+    return bool(re.search(leak, body, re.IGNORECASE))
 
 
 @pytest.mark.parametrize(

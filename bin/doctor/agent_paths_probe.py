@@ -212,11 +212,9 @@ def _remediate() -> bool:
     statusline) to the current payload AND correct decoupled roots via the
     canonical writer, generate_configs.install_claude_settings.
 
-    This is the ONLY path that actually repairs an existing broken config:
-      - `m3 setup` / environment_probe.repair go through
-        chatlog_init.apply_claude_settings, which SKIPS when a chatlog entry is
-        already present — so it never upgrades an unpinned or mis-rooted hook;
-      - _heal_agent_settings only touches the memory entry + dead hooks.
+    The same writer serves `m3 setup` (via chatlog_init.apply_claude_settings,
+    a thin delegate) and environment_probe.repair; _heal_agent_settings only
+    touches other hosts' memory entry + dead hooks.
     install_claude_settings replaces the m3-owned entries wholesale, so it fixes
     unpinned hooks and wrong M3_*_ROOT env blocks even when the script paths are
     not stale. Idempotent: a dry-run gate means no backup and no write happen

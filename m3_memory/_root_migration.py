@@ -84,10 +84,14 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
 
     if os.path.isdir(old):
         trail_src, trail_dst = old / "audit_trail.log.jsonl", new / "audit_trail.log.jsonl"
-        if os.path.exists(trail_src):
+        # A failed later step withholds the migration marker, so this runs again
+        # on retry; its own marker keeps the old trail from being prepended twice.
+        trail_merged = new / ".audit_trail_merged"
+        if os.path.exists(trail_src) and not os.path.exists(trail_merged):
             try:
                 merged = trail_src.read_bytes() + (trail_dst.read_bytes() if os.path.exists(trail_dst) else b"")
                 trail_dst.write_bytes(merged)
+                trail_merged.write_text(f"merged from {trail_src}\n", encoding="utf-8")
                 report["moved"].append("audit_trail.log.jsonl (merged)")
             except Exception as e:  # noqa: BLE001
                 report["failed"].append(f"audit_trail.log.jsonl: {e}")
@@ -97,8 +101,9 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
         _copy(".agent_os_salt", dst_dir=cfg)
         if not report["failed"]:
             (old / MOVED_NOTE).write_text(
-                f"m3's memory root moved to {new} (root-1). This directory was copied, not "
-                f"deleted: remove it once m3 runs from the new root. repo/ is still used here.\n",
+                f"m3's memory root is now {new} (root-1). Its state files were COPIED there; "
+                f"the copies here are no longer read. Keep repo/ in this directory: it is still used. "
+                f"Everything else here may be deleted once m3 runs from the new root.\n",
                 encoding="utf-8",
             )
     if report["failed"]:

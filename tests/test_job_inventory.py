@@ -28,6 +28,14 @@ def _agent(agents: Path, label: str, program, script) -> None:
     (agents / f"{label}.plist").write_bytes(plistlib.dumps({"Label": label, "ProgramArguments": args}))
 
 
+class _Ok:
+    returncode, stdout, stderr = 0, "", ""
+
+
+class _Fail:
+    returncode, stdout, stderr = 5, "", "Boot-out failed: 5: Input/output error"
+
+
 @pytest.fixture
 def mac(tmp_path, monkeypatch):
     import install_schedules as sched
@@ -48,7 +56,7 @@ def mac(tmp_path, monkeypatch):
     (tmp_path / "backup").mkdir()
     monkeypatch.setattr(sched, "_venv_python", lambda root, windowless=False: str(this_py))
     calls = []
-    monkeypatch.setattr(ji, "_run", lambda argv, **k: calls.append(argv))
+    monkeypatch.setattr(ji, "_run", lambda argv, **k: calls.append(argv) or _Ok())
     if not hasattr(os, "getuid"):
         monkeypatch.setattr(os, "getuid", lambda: 501, raising=False)
     return ji, agents, this_py, tmp_path, calls
@@ -108,6 +116,54 @@ def test_repair_removes_outdated_retired_and_dangling_and_backs_them_up(mac, mon
     backed_up = {p.name for p in (tmp / "backup").iterdir()}
     assert backed_up == {"com.m3memory.dashboard.plist", "com.m3memory.gone.plist", "com.m3memory.oldthing.plist"}
     assert any(c[:2] == ["launchctl", "bootout"] and c[2].endswith("/com.m3memory.dashboard") for c in calls)
+
+
+@pytest.mark.parametrize("still_loaded", [True, False])
+def test_a_failed_bootout_keeps_the_plist_only_while_launchd_still_holds_the_job(mac, monkeypatch, still_loaded):
+    ji, agents, _this, tmp, _calls = mac
+    _agent(agents, "com.m3memory.gone", tmp / "nowhere" / "python", ROOT / "bin" / "sync_all.py")
+    monkeypatch.setattr(
+        ji,
+        "_run",
+        lambda argv, **k: _Fail() if argv[1] == "bootout" else (_Ok() if still_loaded else _Fail()),
+    )
+    ((_job, ok, msg),) = ji.repair(str(ROOT))
+    assert (agents / "com.m3memory.gone.plist").exists() is still_loaded
+    assert ok is not still_loaded
+    if still_loaded:
+        assert "exited 5" in msg and "launchctl bootout gui/" in msg
+
+
+def test_a_failed_systemd_disable_keeps_the_unit_file(tmp_path, monkeypatch):
+    from doctor import job_inventory as ji
+
+    unit = tmp_path / "m3-dashboard.service"
+    unit.write_text("[Service]\n", encoding="utf-8")
+    (tmp_path / "backup").mkdir()
+    calls = []
+    monkeypatch.setattr(ji, "_run", lambda argv, **k: calls.append(argv) or _Fail())
+    ok, msg = ji._remove(ji.Job("systemd", unit.name, None, None, str(unit)), str(tmp_path / "backup"))
+    assert not ok and unit.exists()
+    assert "exited 5" in msg and f"systemctl --user disable --now {unit.name}" in msg
+    assert ["systemctl", "--user", "daemon-reload"] not in calls
+
+
+def test_a_task_whose_query_fails_is_unknown_with_the_error(monkeypatch):
+    from doctor import job_inventory as ji
+    from doctor import schedule_probe as sp
+
+    monkeypatch.setattr(ji, "_task_names", lambda: {"AgentOS_HourlySync"})
+
+    def boom(name):
+        raise OSError("access denied")
+
+    monkeypatch.setattr(sp, "_query_task_xml", boom)
+    monkeypatch.setattr(ji, "_taken_over_by_loop", set)
+    monkeypatch.setattr(ji, "expected_idents", lambda root: set())
+    monkeypatch.setattr(ji, "_this_version", lambda: None)
+    ((job,),) = [ji._task_jobs()]
+    assert "access denied" in job.unreadable
+    assert ji.judge([job], str(ROOT))[0].verdict == "unknown"
 
 
 def test_without_its_own_version_nothing_is_called_outdated(mac):

@@ -217,3 +217,13 @@ def test_installed_version_ignores_a_shadowing_cwd(tmp_path, monkeypatch):
         "read the version from a dist-info in the CWD — the probe is still "
         "shadowable and will invent stale-launcher findings in any checkout"
     )
+
+
+def test_one_file_listed_twice_on_path_is_not_a_shadow(probe, tmp_path, monkeypatch):
+    monkeypatch.setattr(probe, "is_windows", lambda: False)
+    (tmp_path / "m3").write_text("", encoding="utf-8")
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "m3").write_text("", encoding="utf-8")
+    monkeypatch.setenv("PATH", os.pathsep.join([str(tmp_path), str(tmp_path) + os.sep, str(other)]))
+    assert probe._which_all("m3") == [str(tmp_path / "m3"), str(other / "m3")]

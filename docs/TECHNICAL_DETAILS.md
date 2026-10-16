@@ -110,7 +110,7 @@ Schema migrations are managed by `bin/migrate_memory.py` — a subcommand-driven
 python bin/migrate_memory.py status           # show current version + pending
 python bin/migrate_memory.py up                # apply pending (interactive, prompts for backup dir + confirmation)
 python bin/migrate_memory.py up -y             # apply pending non-interactively (CI/scripted)
-python bin/migrate_memory.py down --to N       # roll back to version N
+python bin/migrate_memory.py down --target main --to N  # roll back one store (main/chatlog/dispatch) to version N
 python bin/migrate_memory.py backup [--out DIR]  # standalone backup
 python bin/migrate_memory.py restore <PATH>    # restore from backup
 ```
@@ -401,7 +401,7 @@ Always-on: when `metadata.temporal_anchors` is supplied, resolved ISO dates are 
 
 ### Test Suite (`tests/`)
 
-6,900+ collected tests (7,300+ with the native core) from 5,100+ test functions across 600+ files (parametrised cases expand the total), run in CI on Linux, macOS and Windows × Python 3.12–3.15 plus a PostgreSQL lane, and at release on 3 OSes × SQLite and PostgreSQL × pure-Python and native core (12 lanes, about 75,000 executions in all, measured 2026-10-10), across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
+7,700+ collected tests (8,100+ with the native core) from 5,700+ test functions across 680+ files (parametrised cases expand the total), run in CI on Linux, macOS and Windows × Python 3.12–3.15 plus a PostgreSQL lane, and at release on 3 OSes × SQLite and PostgreSQL × pure-Python and native core (12 lanes, about 75,000 executions in all, measured 2026-10-10), across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
 
 | Category | Tests | What's Verified |
 |----------|-------|----------------|

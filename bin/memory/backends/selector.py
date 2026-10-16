@@ -188,8 +188,10 @@ def backend_for(uri: str) -> StorageBackend:
 
         return PostgresBackend(dsn=uri)
     if scheme:
+        from m3_core.secret_store import loggable_url  # a URI can carry user:password@
+
         raise ValueError(
-            f"Unrecognized store URI scheme {scheme!r} in {uri!r}. Supported: a "
+            f"Unrecognized store URI scheme {scheme!r} in {loggable_url(uri)!r}. Supported: a "
             "filesystem path (SQLite) or a postgresql:// DSN. Refusing rather "
             "than guessing a backend for an unknown scheme."
         )

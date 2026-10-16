@@ -440,32 +440,97 @@ def _nvidia_driver_present() -> bool:
     return True
 
 
-def _core_imports() -> tuple[bool, str]:
-    """Does the installed m3_core_rs import, with the embedded embedder?
+_CORE_PROBE = "import m3_core_rs; m3_core_rs.EmbeddedEmbedder; print(getattr(m3_core_rs, '__version__', None))"
+
+
+def _core_imports(expected_version: str = M3_CORE_RS_VERSION) -> tuple[bool, str]:
+    """Does the installed m3_core_rs import, with the embedded embedder, AT the
+    expected version?
 
     Checked in a fresh interpreter: this process may already hold the
-    previously installed module. Returns (ok, reason-if-not).
+    previously installed module. The version is checked because pip exiting 0
+    does not mean the module that imports is the one just installed: a sibling
+    backend package owning the same files can leave an older build in place.
+    Returns (ok, reason-if-not).
     """
     try:
         r = subprocess.run(
-            [sys.executable, "-c", "import m3_core_rs; m3_core_rs.EmbeddedEmbedder"],
+            [sys.executable, "-c", _CORE_PROBE],
             capture_output=True,
             text=True,
             timeout=120,
         )
     except (OSError, subprocess.SubprocessError) as e:
         return False, f"{type(e).__name__}: {e}"
-    if r.returncode == 0:
-        return True, ""
-    lines = (r.stderr or r.stdout or "").strip().splitlines()
-    return False, lines[-1] if lines else f"exit {r.returncode}"
+    if r.returncode != 0:
+        lines = (r.stderr or r.stdout or "").strip().splitlines()
+        return False, lines[-1] if lines else f"exit {r.returncode}"
+    out = (r.stdout or "").strip().splitlines()
+    found = out[-1].strip() if out else ""
+    if found != expected_version:
+        return False, (f"m3_core_rs imports as version {found or '(none)'}, expected {expected_version}")
+    return True, ""
+
+
+def _canonical_dist(name: str) -> str:
+    """PEP 503 normalisation, enough for our own project names."""
+    return name.lower().replace("_", "-").replace(".", "-")
+
+
+# Every distribution that installs the `m3_core_rs` module: the 7 prebuilt
+# (os, backend) packages plus the source build's plain `m3-core-rs`. They own
+# the SAME files, so only one may be installed at a time.
+def _core_family() -> set[str]:
+    return {package_name(o, b) for o, b in _VALID} | {"m3-core-rs"}
+
+
+def _installed_core_packages() -> list[str]:
+    """Canonical names of the m3_core_rs distributions installed in this env."""
+    import importlib
+    import importlib.metadata as md
+
+    importlib.invalidate_caches()
+    family = _core_family()
+    found = set()
+    for dist in md.distributions():
+        name = _canonical_dist(str(dist.metadata.get("Name") or ""))
+        if name in family:
+            found.add(name)
+    return sorted(found)
+
+
+def _remove_sibling_core_packages(keep: str) -> bool:
+    """Uninstall every OTHER m3_core_rs distribution before ``keep`` installs.
+
+    ⚠ Must run BEFORE the install, never after: the packages share files, so
+    uninstalling a sibling afterwards deletes the module just installed.
+    Returns False (and says so) when an uninstall failed; the caller proceeds,
+    and the post-install version check catches a stale module.
+    """
+    siblings = [p for p in _installed_core_packages() if p != _canonical_dist(keep)]
+    if not siblings:
+        return True
+    print(f"[speed-up] removing other m3_core_rs backend package(s) before installing {keep}: {', '.join(siblings)}")
+    r = _pip("uninstall", "-y", *siblings)
+    install_log(f"sibling uninstall: keep={keep} removed={','.join(siblings)} rc={r.returncode}")
+    if r.returncode != 0:
+        tail = (r.stderr or r.stdout or "").strip().splitlines()
+        print(
+            f"[speed-up] could not uninstall {', '.join(siblings)} (pip exit {r.returncode}"
+            f"{': ' + tail[-1] if tail else ''}). Remove by hand: "
+            f"{sys.executable} -m pip uninstall -y {' '.join(siblings)}",
+            file=sys.stderr,
+        )
+        return False
+    return True
 
 
 def _reject_unimportable(attempt: BackendChoice, why: str) -> None:
-    """Remove a wheel that installed but cannot import, so the next backend in
-    the chain does not sit beside a broken module of the same name."""
-    print(f"[speed-up] {attempt.package} installed but does not import: {why}", file=sys.stderr)
-    install_log(f"install REJECTED: package={attempt.package} import failed: {why}")
+    """Remove a wheel that installed but cannot import (or imports at the wrong
+    version), so the next backend in the chain does not sit beside a broken
+    module of the same name."""
+    print(f"[speed-up] {attempt.package} installed but failed the import check: {why}", file=sys.stderr)
+    install_log(f"install REJECTED: package={attempt.package} import check failed: {why}")
     _pip("uninstall", "-y", attempt.package)
 
 
@@ -713,6 +778,10 @@ def install_prebuilt(choice: BackendChoice, *, version: str = M3_CORE_RS_VERSION
     """
     spec = f"{choice.package}=={version}"
     print(f"[speed-up] installing prebuilt wheel: {spec}  ({choice.reason})")
+    # Siblings go first (shared files; see _remove_sibling_core_packages). If
+    # pip then fails, the old backend is gone too; the chain moves on to the
+    # next backend, and the HTTP embed path still serves.
+    _remove_sibling_core_packages(choice.package)
     return _pip_install_with_pep668_fallback("install", "--upgrade", "--only-binary=:all:", spec)
 
 
@@ -893,10 +962,9 @@ def _emit_download_progress(downloaded: int, total: int, *, tty: bool) -> None:
 def _install_log_path() -> pathlib.Path | None:
     """Where the rust-core install/upgrade history is appended, or None.
 
-    Same resolution the embed watchdog uses (`m3_embed_watchdog._log_path`):
-    the SDK config root when importable, else the documented
-    M3_CONFIG_ROOT > M3_MEMORY_ROOT/config > ~/.m3/config precedence, with
-    macOS logs under ~/Library/Logs by platform convention.
+    The m3 logs root (M3_LOGS_ROOT > M3_MEMORY_ROOT/logs > ~/.m3/logs), with
+    macOS logs under ~/Library/Logs by platform convention, as the embed
+    watchdog does.
     """
     import pathlib
 
@@ -906,10 +974,12 @@ def _install_log_path() -> pathlib.Path | None:
         # no fallback copy of the precedence.
         from m3_memory import _roots
 
-        config_root = _Path(_roots.config_root())
         if _os_name() == "Darwin":
             return _Path(os.path.expanduser("~/Library/Logs/m3_rust_core_install.log"))
-        return config_root.parent / "logs" / "m3_rust_core_install.log"
+        # The logs root owner, not config_root.parent: a pinned M3_CONFIG_ROOT
+        # or M3_LOGS_ROOT made the parent-relative guess diverge from where
+        # every other m3 log lives.
+        return _Path(_roots.logs_root()) / "m3_rust_core_install.log"
     except Exception:  # noqa: BLE001 - logging must never break an install
         return None
 
@@ -942,13 +1012,20 @@ def install_log(msg: str) -> None:
         pass
 
 
+class DigestManifestError(RuntimeError):
+    """The Release lists a SHA256SUMS asset that cannot be used to verify."""
+
+
 def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] | None:
     """Digests from the Release's ``SHA256SUMS`` asset, or None if absent.
 
     Returns ``{basename: hexdigest}``. None means the manifest is not published
     for this release, which is NOT an error: releases before v2026.9.16 predate
-    it and a rollback to one must still install. The caller warns and continues;
-    only a MISMATCH is fatal.
+    it and a rollback to one must still install. The caller warns and continues.
+
+    A manifest that IS listed but cannot be used (non-https URL, fetch failure,
+    no parseable line) raises ``DigestManifestError``: skipping verification
+    there would let whoever broke the manifest also choose the wheel.
     """
     import urllib.error
     import urllib.request
@@ -959,18 +1036,14 @@ def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] |
     url = str(entry.get("browser_download_url", ""))
     # Same scheme pin as the wheel download: this URL is external data.
     if not url.lower().startswith("https://"):
-        print(f"[speed-up] refusing non-https SHA256SUMS URL ({url!r}); skipping digest verification", file=sys.stderr)
-        return None
+        raise DigestManifestError(f"SHA256SUMS for {git_tag} has a non-https URL ({url!r})")
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:  # nosec B310 - https validated
             text = resp.read().decode("utf-8", "replace")
     except (urllib.error.URLError, OSError, ValueError) as e:
-        print(
-            f"[speed-up] could not fetch SHA256SUMS for {git_tag} "
-            f"({type(e).__name__}: {e}); skipping digest verification",
-            file=sys.stderr,
-        )
-        return None
+        raise DigestManifestError(
+            f"SHA256SUMS for {git_tag} is listed but could not be fetched from {url} ({type(e).__name__}: {e})"
+        ) from e
 
     out: dict[str, str] = {}
     for line in text.splitlines():
@@ -986,7 +1059,9 @@ def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] |
         digest, name = parts[0].lower(), parts[1].lstrip("*").strip()
         if len(digest) == 64 and all(c in "0123456789abcdef" for c in digest):
             out[os.path.basename(name)] = digest
-    return out or None
+    if not out:
+        raise DigestManifestError(f"SHA256SUMS for {git_tag} ({url}) contains no parseable '<sha256> <name>' line")
+    return out
 
 
 def _wheel_hasher():
@@ -1157,7 +1232,17 @@ def install_from_github_release(
         # Digests for this release, if it publishes them. Fetched ONCE, outside
         # the retry loop: a re-download must be checked against the same
         # manifest, or a retry could "pass" against a freshly-fetched bad one.
-        sums = _fetch_release_sha256sums(assets, git_tag=git_tag)
+        try:
+            sums = _fetch_release_sha256sums(assets, git_tag=git_tag)
+        except DigestManifestError as e:
+            print(
+                f"[speed-up] {e}. NOT installing an unverifiable wheel. Retry later, "
+                f"or verify by hand:\n"
+                f"    gh release download {git_tag} --repo {repo} --pattern SHA256SUMS --pattern {wheel_name}",
+                file=sys.stderr,
+            )
+            install_log(f"code=wheel_digest_manifest_unusable wheel={wheel_name} tag={git_tag} error={e}")
+            return 1
         expected = (sums or {}).get(wheel_name)
         if sums is None:
             print(
@@ -1281,6 +1366,9 @@ def install_from_github_release(
             return 1
 
         print(f"[speed-up] downloaded {downloaded / (1024 * 1024):.1f} MiB; installing...")
+        # After the verified download, so a failed fetch never costs the
+        # working sibling backend.
+        _remove_sibling_core_packages(choice.package)
         return _pip_install_with_pep668_fallback(
             "install",
             "--force-reinstall",
@@ -1338,6 +1426,7 @@ def install_from_source(choice: BackendChoice, *, git_tag: str = M3_CORE_RS_GIT_
         # maturin reads build args from --config-settings build-args=...
         args += ["--config-settings", f"build-args=--features {','.join(feats)}"]
     print(f"[speed-up] building from source @ {git_tag} (features={feats or '(none)'}); this needs Rust + a compiler")
+    _remove_sibling_core_packages("m3-core-rs")
     return _pip_install_with_pep668_fallback(*args)
 
 

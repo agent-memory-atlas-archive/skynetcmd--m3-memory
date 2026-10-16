@@ -78,20 +78,22 @@ def record_leaf_hits(
         if not fact_uuids:
             continue
 
-        # Upsert into fact_hit_stats: increment hit_count, set last_hit_at.
-        # Hand-written DO UPDATE (hit_count = hit_count + 1) — on_conflict_update
-        # only does `col = excluded.col`, so the increment stays explicit here; the
-        # ON CONFLICT (...) DO UPDATE spelling is portable across both backends.
+        # Increment through the dialect's add-on-conflict upsert (the existing row
+        # is named unqualified: valid on both backends whatever schema holds it).
+        # It cannot also overwrite a column, so last_hit_at is stamped by one
+        # UPDATE per chunk -- same transaction.
+        stats = files_table("fact_hit_stats")
+        upsert = _d.on_conflict_add("(fact_uuid)", "fact_hit_stats", ["hit_count"])
         for fuuid in fact_uuids:
             conn.execute(
-                f"INSERT INTO {files_table('fact_hit_stats')}(fact_uuid, hit_count, first_hit_at, last_hit_at) "
-                f"VALUES ({_p}, 1, {_p}, {_p}) "
-                f"ON CONFLICT(fact_uuid) DO UPDATE SET "
-                f"  hit_count = fact_hit_stats.hit_count + 1, "
-                f"  last_hit_at = excluded.last_hit_at",
+                f"INSERT INTO {stats}(fact_uuid, hit_count, first_hit_at, last_hit_at) VALUES ({_p}, 1, {_p}, {_p}) {upsert}",
                 (fuuid, now, now),
             )
-            total_touched += 1
+        conn.execute(
+            f"UPDATE {stats} SET last_hit_at = {_p} WHERE fact_uuid IN ({_d.placeholder(len(fact_uuids))})",
+            (now, *fact_uuids),
+        )
+        total_touched += len(fact_uuids)
     return total_touched
 
 

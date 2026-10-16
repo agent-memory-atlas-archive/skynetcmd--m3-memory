@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_memory.py
-sha1: 3c0eb60b3b4d
-mtime_utc: 2026-10-15T16:09:00.157747+00:00
-generated_utc: 2026-10-15T16:09:35.145176+00:00
+sha1: db5d4062d016
+mtime_utc: 2026-10-16T17:41:27.534085+00:00
+generated_utc: 2026-10-16T19:03:59.641936+00:00
 private: false
 ---
 
@@ -20,12 +20,13 @@ Subcommands:
     status                    Show current version and pending migrations
     plan [--to N]             Preview DDL that pending migrations would run (no changes)
     up [--to N] [--dry-run]   Apply pending migrations (prompts for backup + confirmation)
-    down --to N [--dry-run]   Roll back to version N (requires .down.sql files)
+    down --to N --target T [--dry-run]
+                              Roll back ONE store to version N (requires .down.sql files)
     backup [--out PATH]       Take a standalone backup
-    restore <PATH>            Restore the database from a backup file
+    restore <PATH>            Restore the database from a backup file (refused while m3 runs)
 
-All subcommands accept --target {main,chatlog,all} to select which DB(s) to operate on.
-Default is "all" (operates on all configured targets).
+Subcommands accept --target {main,chatlog,dispatch,all} to select which DB(s) to operate
+on. Default is "all", except `down` (--target required, never all) and `restore` (main).
 
 Migration file formats (both supported, sorted by numeric prefix):
     NNN_name.sql            legacy, treated as up-only
@@ -41,7 +42,7 @@ transaction already committed.
 
 ## Entry points
 
-- `def main()` (line 1205)
+- `def main()` (line 1312)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -58,7 +59,7 @@ transaction already committed.
 | `-y`, `--yes` | Skip confirmation prompts | `False` | Prompts user to confirm backup dir and migration execution. | store_true | Auto-selects default backup dir (~/.m3-memory/backups) and confirms migration. |
 | `--dry-run` | Print the plan + DDL without applying anything | `False` | Applies changes. | store_true | Prints the plan without mutating any DB. |
 | `--to` | Roll back to this version | — | Requires explicit version (no default). | int | Reverts migrations above specified version; checks for down files first. |
-| `--target` | _TARGET_HELP | `all` | Prompts for backup dir; rolls back all configured targets. | str | Rolls back only specified target. |
+| `--target` | The ONE store to roll back (required; no 'all': each store has its own version numbers). 'main' = core memories DB, 'chatlog' = chatlog memories DB, 'dispatch' = the agent dispatch store. | — | Prompts for backup dir; rolls back all configured targets. | str | Rolls back only specified target. |
 | `-y`, `--yes` | Skip confirmation prompts | `False` | Prompts user to confirm backup dir and rollback execution. | store_true | Auto-selects default backup dir and confirms rollback. |
 | `--dry-run` | Print the plan + DDL without reverting anything | `False` | Reverts migrations. | store_true | Prints the plan without mutating any DB. |
 | `--to` | Plan up to this version (default: latest) | None | Plans all pending migrations up to latest available version. | int | Plans migrations up to specified version; stops before newer ones. |
@@ -81,7 +82,7 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `chatlog_config (CHATLOG_MIGRATIONS_DIR, chatlog_db_path)`
-- `m3_sdk (get_m3_config_root, get_m3_engine_root)`
+- `m3_halt`
 - `m3_sdk (resolve_db_path)`
 - `sqlite_snapshot (snapshot_sqlite)`
 
@@ -91,14 +92,11 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 150)
-- `sqlite3.connect()  → `f'file:{target.db_path}?mode=ro'`` (line 583)
-- `sqlite3.connect()  → `target.db_path`` (line 1041)
-- `sqlite3.connect()  → `target.db_path`` (line 1085)
-- `sqlite3.connect()  → `target.db_path`` (line 471)
-- `sqlite3.connect()  → `target.db_path`` (line 788)
-- `sqlite3.connect()  → `target.db_path`` (line 888)
-- `sqlite3.connect()  → `target.db_path`` (line 972)
+- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 159)
+- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 653)
+- `sqlite3.connect()  → `target.db_path`` (line 1084)
+- `sqlite3.connect()  → `target.db_path`` (line 533)
+- `sqlite3.connect()  → `target.db_path`` (line 978)
 
 
 ---

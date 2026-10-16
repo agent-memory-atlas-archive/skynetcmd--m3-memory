@@ -90,11 +90,12 @@ def _check_new_file_would_be_private(directory: Path) -> None:
             f"observed: cannot verify who could read a new file in {directory} ({e}); m3_config.toml was NOT written"
         ) from e
     if foreign:
+        from m3_core.win_acl import icacls_user_only
+
         raise ConfigWriteError(
             f"observed: a new file in {directory} could be opened by {', '.join(foreign)} besides you; "
             "m3_config.toml was NOT written. inspect: make the directory user-only "
-            f'(icacls "{directory}" /inheritance:r /grant:r "%USERNAME%:(OI)(CI)F" '
-            '/grant:r "SYSTEM:(OI)(CI)F"), or point M3_CONFIG_ROOT at a user-only directory'
+            f"({icacls_user_only(directory, directory=True)}), or point M3_CONFIG_ROOT at a user-only directory"
         )
 
 

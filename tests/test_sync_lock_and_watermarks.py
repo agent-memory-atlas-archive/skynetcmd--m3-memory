@@ -191,7 +191,8 @@ class TestPortability:
             if isinstance(v, ast.Constant) and isinstance(v.value, str)
         )
         assert "INSERT OR REPLACE" not in sql, "SQLite-only syntax in the lock write"
-        assert "ON CONFLICT" in sql
+        assert "ON CONFLICT" not in sql, "the upsert clause belongs to the dialect, not this call site"
+        assert "on_conflict_update" in inspect.getsource(pg_sync._acquire_sync_lock)
 
     def test_no_literal_placeholder_in_lock_statements(self):
         import inspect

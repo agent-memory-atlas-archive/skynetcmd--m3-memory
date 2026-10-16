@@ -636,6 +636,75 @@ def _link_entity_relationship(
     )
 
 
+# Key an extractor sets on its result when it could not run its configured backend
+# and returned a substitute (rule-based) result. A tagged result is NOT a
+# successful extraction: the drain records it as a failure so the memory is
+# retried, instead of marking it extracted with the substitute's entities.
+EXTRACTOR_FALLBACK_KEY = "fallback"
+
+
+class ExtractorFallbackError(RuntimeError):
+    """The configured extractor failed and only a substitute result exists."""
+
+
+def entity_extraction_terminal_ids_sql(max_attempts: int, *, has_status: bool = True) -> str:
+    """SELECT of memory ids that must NOT be (re)sent to the entity extractor.
+
+    The ONE owner of entity-extraction eligibility (the live drain here and the
+    batch tool ``m3_entities`` both use it). Terminal means:
+      - it has a ``memory_item_entities`` row (extracted), or
+      - its queue row says ``status`` 'done' (processed; a turn that extracts to
+        ZERO entities has no entity row, so without this marker it would be
+        re-sent to the LLM every pass) or 'ctx_error' (the server rejected the
+        context; retrying cannot succeed), or
+      - its queue row exhausted the retry budget (``attempts >= max_attempts``).
+    ``has_status=False`` serves a pre-migration-038 store: entity presence only.
+    Use as ``AND <id col> NOT IN (<this>)``.
+    """
+    if not has_status:
+        return "SELECT memory_id FROM memory_item_entities"
+    return (
+        "SELECT memory_id FROM memory_item_entities"
+        " UNION SELECT memory_id FROM entity_extraction_queue"
+        f" WHERE status IN ('done', 'ctx_error') OR attempts >= {int(max_attempts)}"
+    )
+
+
+def record_entity_queue_status(db, memory_id: str, status: str, error: str | None = None) -> None:
+    """Upsert ``memory_id``'s entity_extraction_queue row: attempts+1, ``status``,
+    ``last_error`` (None clears it), ``last_attempt_at`` = now.
+
+    Statuses: 'done' (processed, empty or not), 'failed' (retry until the budget
+    is spent), 'ctx_error' (terminal). The single writer of the marker that
+    :func:`entity_extraction_terminal_ids_sql` reads. The attempts increment is a
+    correlated subquery (no Dialect primitive combines an add with overwrites), so
+    two concurrent writers on PostgreSQL can lose one increment. Raises on failure;
+    callers decide whether bookkeeping may be best-effort.
+    """
+    from memory.backends import dialect
+
+    _d = dialect()
+    _p = _d.param()
+    _suffix = _d.on_conflict_update(
+        conflict_target="(memory_id)",
+        set_columns=["attempts", "last_error", "last_attempt_at", "status"],
+    )
+    db.execute(
+        f"""
+        INSERT INTO entity_extraction_queue (memory_id, attempts, last_error, last_attempt_at, status)
+        VALUES (
+            {_p},
+            COALESCE((SELECT attempts FROM entity_extraction_queue WHERE memory_id = {_p}), 0) + 1,
+            {_p},
+            {_d.now()},
+            {_p}
+        )
+        {_suffix}
+        """.rstrip(),
+        (memory_id, memory_id, (error[:500] if error else None), status),
+    )
+
+
 def _enqueue_entity_extraction(memory_id: str, db) -> None:
     """INSERT OR IGNORE into entity_extraction_queue."""
     try:
@@ -662,9 +731,18 @@ async def _run_entity_extractor(
     *,
     valid_types: frozenset | None = None,  # None = use VALID_ENTITY_TYPES
     valid_predicates: frozenset | None = None,  # None = use VALID_ENTITY_PREDICATES
-) -> None:
+) -> dict:
     """Background task. Calls extractor, parses result, resolves+writes entities and
     relationships. Releases _ENTITY_EXTRACT_SEM in finally block.
+
+    Returns what was observed: ``{"ok": bool, "error": str | None,
+    "entities_created": N, "entities_linked": N, "relationships_written": N}``.
+    ``ok`` is False when the extractor raised, returned a fallback-tagged result
+    (:data:`EXTRACTOR_FALLBACK_KEY`), or the write failed; the failure is then
+    recorded in the queue (status 'failed', attempts+1) so it is retried.
+    On success the queue row is marked status 'done' (NOT deleted): a memory that
+    extracts to zero entities has no entity row, and without the marker it would
+    be re-selected and re-sent to the extractor forever.
 
     Reliability hardening (Phase E1):
     - Vocabulary validation is centralized here against active_types/active_predicates.
@@ -687,9 +765,20 @@ async def _run_entity_extractor(
 
     _d = dialect()
     p = _d.param()
+    outcome: dict = {
+        "ok": False,
+        "error": None,
+        "entities_created": 0,
+        "entities_linked": 0,
+        "relationships_written": 0,
+    }
 
     try:
         result = await entity_extractor(content)
+        if isinstance(result, dict) and result.get(EXTRACTOR_FALLBACK_KEY):
+            raise ExtractorFallbackError(
+                f"configured extractor failed; substitute result not stored: {result[EXTRACTOR_FALLBACK_KEY]}"
+            )
         entities_raw = result.get("entities", []) if isinstance(result, dict) else []
         relationships_raw = result.get("relationships", []) if isinstance(result, dict) else []
 
@@ -717,12 +806,14 @@ async def _run_entity_extractor(
             cname = (ent.get("canonical_name") or "").strip()
             etype = (ent.get("entity_type") or "").strip()
             # Centralized vocabulary validation — reject unknown entity types.
-            if not cname or etype not in active_types:
-                if not cname or etype:
-                    logger.debug(
-                        f"Entity extractor: rejected entity_type='{etype}' "
-                        f"(not in active vocabulary) for memory {memory_id}"
-                    )
+            if not cname:
+                logger.debug(f"Entity extractor: dropped an entity with no canonical_name for memory {memory_id}")
+                continue
+            if etype not in active_types:
+                logger.debug(
+                    f"Entity extractor: rejected entity_type='{etype}' "
+                    f"(not in active vocabulary) for memory {memory_id}"
+                )
                 continue
             with _db() as rdb:
                 inputs = _resolution_inputs(cname, etype, rdb)
@@ -742,6 +833,7 @@ async def _run_entity_extractor(
                 if entity_id is None:
                     try:
                         entity_id = _create_entity(cname, etype, {}, db)
+                        outcome["entities_created"] += 1
                         # Set valid_from on the newly created entity to inherit from source.
                         if source_valid_from:
                             db.execute(
@@ -774,6 +866,7 @@ async def _run_entity_extractor(
                 try:
                     # _link_memory_to_entity uses INSERT OR IGNORE — idempotent.
                     _link_memory_to_entity(memory_id, entity_id, mention_text, mention_offset, confidence, db)
+                    outcome["entities_linked"] += 1
                 except Exception as e:
                     log_swallowed(logger, e, f"Entity link failed for {memory_id}->{entity_id}: {e}")
 
@@ -816,57 +909,36 @@ async def _run_entity_extractor(
                         f"VALUES ({_d.placeholder(6)})",
                         (from_id, to_id, predicate, confidence, memory_id, rel_valid_from),
                     )
+                    outcome["relationships_written"] += 1
                 except Exception as e:
                     log_swallowed(logger, e, f"Relationship link error for {from_cname}->{to_cname} ({predicate}): {e}")
 
-        # On success, remove any queue entry so the item isn't re-processed.
+        # Mark processed ('done'), never delete: a zero-entity success leaves no
+        # entity row, so a deleted queue row made it eligible again forever.
         try:
             with _db() as db:
-                db.execute(
-                    f"DELETE FROM entity_extraction_queue WHERE memory_id = {p}",
-                    (memory_id,),
-                )
+                record_entity_queue_status(db, memory_id, "done")
         except Exception as db_err:
-            log_swallowed(logger, db_err, f"Failed to remove queue entry for {memory_id} after success: {db_err}")
+            log_swallowed(
+                logger,
+                db_err,
+                f"Entity extraction for {memory_id} succeeded but its 'done' marker was not written "
+                f"(it will be re-selected next pass): {db_err}",
+            )
+        outcome["ok"] = True
 
     except Exception as e:
-        # Record error and bump attempts in queue so the item is retried on next pass.
-        # Items with attempts >= ENTITY_EXTRACT_MAX_ATTEMPTS are excluded from the
-        # eligible set by _select_pending_entity_extraction (poisoned-item guard).
+        # Record the failure (status 'failed', attempts+1): retried until
+        # ENTITY_EXTRACT_MAX_ATTEMPTS, then excluded by entity_extraction_terminal_ids_sql.
+        outcome["error"] = f"{type(e).__name__}: {e}"
         try:
             with _db() as db:
-                # Dedup target is UNIQUE(memory_id) (idx_eeq_memory_id). Verb is
-                # plain "INSERT INTO" on both backends (SQLite accepts ON
-                # CONFLICT DO UPDATE from a bare INSERT). attempts is a
-                # correlated-subquery increment computed pre-insert so it works
-                # identically whether or not the row already exists; last_error
-                # and last_attempt_at are overwritten from the new row on conflict.
-                from memory.backends import dialect
-
-                _d = dialect()
-                _p = _d.param()
-                _suffix = _d.on_conflict_update(
-                    conflict_target="(memory_id)",
-                    set_columns=["attempts", "last_error", "last_attempt_at"],
-                )
-                db.execute(
-                    f"""
-                    INSERT INTO entity_extraction_queue
-                        (memory_id, attempts, last_error, last_attempt_at)
-                    VALUES (
-                        {_p},
-                        COALESCE((SELECT attempts FROM entity_extraction_queue WHERE memory_id={_p}), 0) + 1,
-                        {_p},
-                        {_d.now()}
-                    )
-                    {_suffix}
-                    """.rstrip(),
-                    (memory_id, memory_id, str(e)[:500]),
-                )
+                record_entity_queue_status(db, memory_id, "failed", outcome["error"])
         except Exception as db_err:
             log_swallowed(logger, db_err, f"Failed to record entity extraction error for {memory_id}: {db_err}")
     finally:
         _ENTITY_EXTRACT_SEM.release()
+    return outcome
 
 
 async def _try_extract_or_enqueue(
@@ -935,9 +1007,10 @@ def _select_pending_entity_extraction(
       - COALESCE(is_deleted, 0) = 0  (NB: is_deleted, NOT deleted_at — avoids
         the deleted_at-vs-is_deleted confusion that burned us in fact_enriched)
       - variant IS NULL (or in allowed_variants when provided)
-      - id NOT IN (SELECT memory_id FROM memory_item_entities)  — not already extracted
-      - id NOT IN (SELECT memory_id FROM entity_extraction_queue
-                   WHERE attempts >= ENTITY_EXTRACT_MAX_ATTEMPTS)  — poisoned-item guard
+        — or the row is already queued (it passed the variant gate when enqueued)
+      - not terminal per entity_extraction_terminal_ids_sql (the shared predicate
+        the batch tool m3_entities also uses): no entity row, queue status not
+        'done'/'ctx_error', attempts < ENTITY_EXTRACT_MAX_ATTEMPTS
 
     valid_from is included so callers can inherit bitemporal validity from the source
     memory when creating entities and relationships during extraction.
@@ -945,43 +1018,42 @@ def _select_pending_entity_extraction(
     from memory.backends import dialect
 
     _d = dialect()
-    p = _d.param()
     if allowed_variants:
-        variant_clause = f"AND (mi.variant IS NULL OR mi.variant IN ({_d.placeholder(len(allowed_variants))}))"
+        variant_cond = f"(mi.variant IS NULL OR mi.variant IN ({_d.placeholder(len(allowed_variants))}))"
         variant_params = list(allowed_variants)
     else:
-        variant_clause = "AND mi.variant IS NULL"
+        variant_cond = "mi.variant IS NULL"
         variant_params = []
 
+    # Resolve max-attempts via memory_core for legacy tests that
+    # monkeypatch the value; production reads the registry setting.
+    _max_attempts = _read_gate("ENTITY_EXTRACT_MAX_ATTEMPTS") or ENTITY_EXTRACT_MAX_ATTEMPTS
+    # A queued row passed the variant gate when it was enqueued, so it stays
+    # eligible regardless of allowed_variants (as before); every row, queued or
+    # not, must be live and not terminal per the shared predicate.
     sql = f"""
-    WITH eligible AS (
-        SELECT mi.id, mi.content, mi.valid_from
-        FROM memory_items mi
-        WHERE mi.type != 'fact_enriched'
-          AND COALESCE(mi.is_deleted, 0) = 0
-          {variant_clause}
-          AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)
-    ),
-    queued AS (
-        SELECT mi.id, mi.content, mi.valid_from, q.attempts
-        FROM entity_extraction_queue q
-        JOIN memory_items mi ON mi.id = q.memory_id
-        WHERE q.attempts < {p}
-    )
-    SELECT id, content, valid_from FROM queued
-    UNION
-    SELECT id, content, valid_from FROM eligible
-    WHERE id NOT IN (SELECT memory_id FROM entity_extraction_queue)
-    ORDER BY id
+    SELECT mi.id, mi.content, mi.valid_from
+    FROM memory_items mi
+    WHERE mi.type != 'fact_enriched'
+      AND COALESCE(mi.is_deleted, 0) = 0
+      AND ({variant_cond} OR mi.id IN (SELECT memory_id FROM entity_extraction_queue))
+      AND mi.id NOT IN ({entity_extraction_terminal_ids_sql(_max_attempts)})
+    ORDER BY mi.id
     """
     if limit is not None:
         sql += f" LIMIT {int(limit)}"
 
-    # Resolve max-attempts via memory_core for legacy tests that
-    # monkeypatch the value; production reads the import-time constant.
-    _max_attempts = _read_gate("ENTITY_EXTRACT_MAX_ATTEMPTS") or ENTITY_EXTRACT_MAX_ATTEMPTS
-    params = [*variant_params, _max_attempts]
+    params = list(variant_params)
     return list(db.execute(sql, params).fetchall())
+
+
+def pending_limit(limit: int | None) -> int | None:
+    """Map a drain tool's ``limit`` to a SQL row cap: 0/None/negative = no limit.
+
+    The one owner for enrich_pending and extract_pending (their catalog entries
+    document ``0 = no limit``; a literal ``LIMIT 0`` selects nothing).
+    """
+    return int(limit) if limit and int(limit) > 0 else None
 
 
 async def extract_pending_impl(
@@ -998,36 +1070,40 @@ async def extract_pending_impl(
     - dry_run=True: {"count": N, "est_wall_clock_seconds": F, "sample_ids": [...]}
     - dry_run=False: {"processed": N, "succeeded": N, "failed": N,
                       "errors_summary": str, "entities_created": N,
-                      "relationships_created": N}
+                      "entities_linked": N, "relationships_created": N,
+                      "extractor": str}
+      Counts are what _run_entity_extractor observed: ``succeeded`` excludes a
+      memory whose extractor raised, returned a fallback-tagged result, or whose
+      write failed; ``entities_created`` counts new entity rows,
+      ``entities_linked`` memory-to-entity links, ``relationships_created``
+      relationship rows written.
 
     ETA estimate uses 3.0 sec/item (higher than fact_enriched's 2.0 because
     entity resolution adds DB lookups on top of SLM call).
 
     valid_types / valid_predicates are forwarded to _run_entity_extractor.
     None means use the module-level VALID_ENTITY_TYPES / VALID_ENTITY_PREDICATES constants.
-    Bench harnesses can pass custom frozensets; production callers pass None (default behavior).
-
-    Execute path: placeholder until Wave 3 injects entity_extractor via MCP tool.
+    Execute path uses the configured extractor (extraction.type).
     """
     with _db() as db:
         pending = _select_pending_entity_extraction(
             db,
-            limit=limit or None,
+            limit=pending_limit(limit),
             allowed_variants=allowed_variants,
         )
 
     if not pending:
         if dry_run:
             return {"count": 0, "est_wall_clock_seconds": 0.0, "sample_ids": []}
-        else:
-            return {
-                "processed": 0,
-                "succeeded": 0,
-                "failed": 0,
-                "errors_summary": "No pending items",
-                "entities_created": 0,
-                "relationships_created": 0,
-            }
+        return {
+            "processed": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "errors_summary": "No pending items",
+            "entities_created": 0,
+            "entities_linked": 0,
+            "relationships_created": 0,
+        }
 
     if dry_run:
         # Dry run: report count + ETA estimate (3.0 sec/item)
@@ -1039,44 +1115,43 @@ async def extract_pending_impl(
             "sample_ids": sample_ids,
         }
 
-    # Execute: Drain the queue using the pluggable entity extractor
-    processed = 0
-    succeeded = 0
-    failed = 0
-    errors = []
-
     from .extraction import get_configured_extractor
 
     ext = get_configured_extractor()
     extractor_func = ext.extract
 
-    # We iterate and process each pending item under the semaphore to manage concurrency
-    for memory_id, content, valid_from in pending:
-        await _ENTITY_EXTRACT_SEM.acquire()
-        try:
-            # We run the extractor and write the entities/relationships directly
-            await _run_entity_extractor(
-                memory_id,
-                content,
-                extractor_func,
-                valid_types=valid_types,
-                valid_predicates=valid_predicates,
-            )
+    processed = succeeded = failed = 0
+    created = linked = rels = 0
+    errors: list[str] = []
+    for memory_id, content, _valid_from in pending:
+        await _ENTITY_EXTRACT_SEM.acquire()  # released by _run_entity_extractor
+        out = await _run_entity_extractor(
+            memory_id,
+            content,
+            extractor_func,
+            valid_types=valid_types,
+            valid_predicates=valid_predicates,
+        )
+        processed += 1
+        created += out["entities_created"]
+        linked += out["entities_linked"]
+        rels += out["relationships_written"]
+        if out["ok"]:
             succeeded += 1
-        except Exception as e:
+        else:
             failed += 1
-            errors.append(f"{memory_id}: {e!s}")
-            logger.warning(f"extract_pending_impl: failed to process {memory_id}: {e}")
-        finally:
-            processed += 1
+            errors.append(f"{memory_id}: {out['error']}")
+            logger.warning(f"extract_pending_impl: entity extraction failed for memory {memory_id}: {out['error']}")
 
     return {
         "processed": processed,
         "succeeded": succeeded,
         "failed": failed,
         "errors_summary": "; ".join(errors) if errors else "None",
-        "entities_created": succeeded,  # simple proxy for success count
-        "relationships_created": succeeded,
+        "entities_created": created,
+        "entities_linked": linked,
+        "relationships_created": rels,
+        "extractor": type(ext).__name__,
     }
 
 

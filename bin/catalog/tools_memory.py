@@ -851,7 +851,8 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_delete",
         description=(
-            "Soft-deletes a MemoryItem (kept and recoverable; memory_restore). "
+            "Soft-deletes a MemoryItem: the row stays in the store but leaves search. "
+            "memory_restore does NOT undo it (it only reverses autonomous removals). "
             "Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a "
             "prefix is rejected (full UUID required for mutation safety; "
             "memory_get accepts a prefix, this does not)."
@@ -881,7 +882,7 @@ TOOLS: list[ToolSpec] = [
         name="memory_delete_bulk",
         description=(
             "Soft-deletes a list of MemoryItems in one transaction per chunk "
-            "(kept and recoverable). Use for curation/dedup passes; same semantics "
+            "(rows stay in the store; memory_restore does not undo it). Use for curation passes; same semantics "
             "as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a "
             "structured {succeeded, not_found, mode} dict."
         ),
@@ -964,30 +965,52 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="memory_consolidate",
-        description="Consolidate old memories of the same type into summaries using the local LLM. Reduces clutter while preserving knowledge.",
+        description=(
+            "Roll up one agent's oldest memories of a type into a summary using the local LLM; "
+            "the sources are closed (superseded by the summary, linked via consolidates). "
+            "Previews by default (dry_run=true); dry_run=false writes. agent_filter is required. "
+            "Pinned and protected types are never consolidated."
+        ),
         parameters={
             "type": "object",
             "properties": {
+                "agent_filter": {
+                    "type": "string",
+                    "description": "The agent whose memories are rolled up (required; empty is refused).",
+                    "default": "",
+                },
                 "type_filter": {"type": "string", "description": "Restrict to a memory type.", "default": ""},
-                "agent_filter": {"type": "string", "description": "Restrict to an agent id.", "default": ""},
-                "threshold": {"type": "integer", "description": "Min items to consolidate.", "default": 20},
+                "threshold": {
+                    "type": "integer",
+                    "description": "Groups above this many items consolidate their oldest (count - threshold).",
+                    "default": 20,
+                },
+                "stale_days": {
+                    "type": "integer",
+                    "description": "Only items older than this many days (0 = no age gate).",
+                    "default": 0,
+                },
+                "dry_run": {"type": "boolean", "description": "Preview without writing.", "default": True},
             },
             "required": [],
         },
-        impl=memory_maintenance.memory_consolidate_impl,
+        impl=memory_maintenance.memory_consolidate_tool_impl,
         is_async=True,
         validators=(),
         default_allowed=True,
+        destructive=True,  # dry_run=false closes sources
         inject_agent_id=False,
     ),
     ToolSpec(
         name="memory_dedup",
         description=(
-            "Find (and optionally soft-delete) near-duplicate memory items by "
-            "cosine similarity over embeddings. Returns "
+            "Find (and optionally supersede) near-duplicate memory items by "
+            "cosine similarity over embeddings, within one user/agent/embedding "
+            "model; pinned items are never candidates. Returns "
             "{count, groups: [{a, b, title_a, title_b, score}, ...], threshold, "
-            "scanned, applied}. Use dry_run=True (default) for a preview; "
-            "dry_run=False soft-deletes the second item of each pair."
+            "scanned, scan_limit, partitions, applied, applied_count, not_applied}. "
+            "Use dry_run=True (default) for a preview; dry_run=False supersedes "
+            "the second item of each pair by the first."
         ),
         parameters={
             "type": "object",
@@ -1009,6 +1032,7 @@ TOOLS: list[ToolSpec] = [
         is_async=False,
         validators=(),
         default_allowed=True,
+        destructive=True,  # dry_run=False supersedes
         inject_agent_id=False,
     ),
     ToolSpec(

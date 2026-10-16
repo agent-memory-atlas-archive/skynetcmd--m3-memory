@@ -18,6 +18,15 @@ from dataclasses import dataclass
 
 DEFAULT_PORT = 5432
 
+_LOOPBACK = ("localhost", "127.0.0.1", "::1")
+
+
+def _canonical_host(host: str) -> str:
+    """One spelling per host: lower case, and every way of reaching the local
+    cluster (default socket, a socket directory, loopback) as ``localhost``."""
+    h = host.strip().lower()
+    return "localhost" if not h or h.startswith("/") or h in _LOOPBACK else h
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DsnParts:
@@ -33,8 +42,35 @@ class DsnParts:
     hostaddr: str | None = None
 
     def identity(self) -> tuple[str, int, str]:
-        """``(host, port, dbname)``: which database, whatever the credentials."""
-        return (self.host.lower(), self.port, self.dbname)
+        """``(host, port, dbname)``: which database, whatever the credentials and
+        however it is spelled. Every local-cluster spelling (no host, a socket
+        directory, localhost, 127.0.0.1, ::1) is ``localhost``; a missing dbname
+        is libpq's default, the user name. ``dbname`` is "" only when neither is
+        in the DSN (libpq then uses the OS user, which a DSN cannot tell us):
+        such an identity is partial, see ``may_be_same_database``."""
+        host = ",".join(_canonical_host(h) for h in self.host.split(","))
+        return (host, self.port, self.dbname or (self.user or ""))
+
+    def may_be_same_database(self, other: DsnParts) -> bool:
+        """False only when the two DSNs PROVABLY name different databases.
+
+        For a refusal guard (primary vs warehouse) "cannot prove different" must
+        mean "maybe the same": an unknown dbname matches any dbname on the same
+        host and port, and a host matches when any host OR hostaddr spelling of
+        one equals one of the other (``host=db.lan hostaddr=192.0.2.5`` vs
+        ``host=192.0.2.5``). Two names for one address via DNS are not resolved
+        here and still compare different."""
+        mine, theirs = self.identity(), other.identity()
+        if mine[1] != theirs[1]:
+            return False
+        if mine[2] and theirs[2] and mine[2] != theirs[2]:
+            return False
+        return bool(self._host_spellings() & other._host_spellings())
+
+    def _host_spellings(self) -> set[str]:
+        return {_canonical_host(h) for h in f"{self.host},{self.hostaddr or ''}".split(",") if h.strip()} or {
+            "localhost"
+        }
 
     def dial_hosts(self) -> list[str]:
         """The addresses libpq connects to, in order: hostaddr when set, else host.
@@ -45,8 +81,7 @@ class DsnParts:
         """True when the connection never crosses a network: a Unix socket (no
         host, or a directory path) or the loopback interface. Judged on the
         address dialed, so `host=localhost hostaddr=192.0.2.5` is not local."""
-        hosts = [h.lower() for h in self.dial_hosts()]
-        return all(not h or h.startswith("/") or h in ("localhost", "127.0.0.1", "::1") for h in hosts)
+        return all(_canonical_host(h) == "localhost" for h in self.dial_hosts())
 
 
 def parse_pg_dsn(dsn: str) -> DsnParts | None:

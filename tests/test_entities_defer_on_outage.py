@@ -89,7 +89,7 @@ def _run(h, counters):
 
 
 def _failed_writes(writes):
-    return [w for w in writes if "entity_extraction_queue" in w[0] and "'failed'" in w[0]]
+    return [w for w in writes if "entity_extraction_queue" in w[0] and "failed" in w[1]]
 
 
 def test_outage_defers_every_row_without_charging_an_attempt(harness, monkeypatch):

@@ -24,6 +24,7 @@ a silent fallback to SQLite.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import threading
@@ -55,6 +56,8 @@ from .base import (
 from .dialect import Dialect, ParamStyle
 from .registry import register_backend
 
+logger = logging.getLogger("memory.backends.postgres")
+
 if TYPE_CHECKING:  # avoid importing the driver at module load
     from psycopg2.pool import ThreadedConnectionPool
 
@@ -65,12 +68,15 @@ if TYPE_CHECKING:  # avoid importing the driver at module load
 _DEFAULT_MINCONN = 1
 _DEFAULT_MAXCONN = 16
 
+
 # Rows per multi-row INSERT in bulk_upsert. execute_values loops across pages
 # internally, so this bounds the size of ONE statement rather than the batch:
 # large enough that per-round-trip latency stops dominating, small enough that a
 # single statement stays comfortably parseable and a failure rolls back a
-# bounded amount of work. Overridable for tuning against a slow link.
-_UPSERT_PAGE_SIZE = _m3cfg.setting("db.postgres.upsert_page_size")
+# bounded amount of work. Overridable for tuning against a slow link. Read per
+# call: a value read at import ignored a later --set or config change.
+def _upsert_page_size() -> int:
+    return int(_m3cfg.setting("db.postgres.upsert_page_size"))
 
 
 # The migration that creates the vector copy; ensure_vector_copy re-applies it.
@@ -170,7 +176,7 @@ def insert_embeddings_on(
             f"INSERT INTO {table} ({', '.join(cols)}) VALUES %s {tail}".rstrip(),
             vals,
             template="(" + ", ".join(marks) + ")",
-            page_size=_UPSERT_PAGE_SIZE,
+            page_size=_upsert_page_size(),
         )
     return len(rows)
 
@@ -431,12 +437,19 @@ def _dsn_identity(url: str) -> tuple[str, int, str] | None:
 def _resolve_warehouse_dsn_for_guard() -> str:
     """Resolve the warehouse DSN the same way the warehouse consumers do (the
     secrets chain: file, keyring, vault), so the same-DSN guard sees it wherever
-    it is stored. Best-effort; returns '' on any failure."""
+    it is stored. Returns '' when none is stored, or (with a WARNING) when the
+    lookup itself failed: a primary is not refused over a broken keyring, but the
+    operator is told the same-database guard did not run."""
     try:
         from m3_core.secret_store import PgRole, resolve_pg_dsn
 
         return resolve_pg_dsn(PgRole.WAREHOUSE)
-    except Exception:  # noqa: BLE001 -- best-effort: the guard must not block a valid primary
+    except Exception as e:  # noqa: BLE001 -- reported; the guard is skipped, not the primary
+        logger.warning(
+            f"could not read the warehouse DSN to check that the primary store is not the warehouse "
+            f"({type(e).__name__}: {e}); that check was SKIPPED for this connection. "
+            "inspect: m3 doctor (secrets file / keyring health)"
+        )
         return ""
 
 
@@ -476,9 +489,13 @@ def _reject_same_as_warehouse(primary_url: str) -> None:
     cdw = _resolve_warehouse_dsn_for_guard()
     if not cdw:
         return
-    primary_id = _dsn_identity(primary_url)
-    cdw_id = _dsn_identity(cdw)
-    if primary_id is not None and primary_id == cdw_id:
+    from m3_core.dsn import parse_pg_dsn
+
+    primary_parts, cdw_parts = parse_pg_dsn(primary_url), parse_pg_dsn(cdw)
+    primary_id = primary_parts.identity() if primary_parts else None
+    # "Cannot prove different" is a refusal: a partial identity (no dbname, a
+    # socket vs localhost spelling) used to compare unequal and pass.
+    if primary_parts is not None and cdw_parts is not None and primary_parts.may_be_same_database(cdw_parts):
         # Extract host/port/dbname for observability — safe, no credentials
         p_id = primary_id or ("?", "?", "?")
         raise RuntimeError(
@@ -1111,14 +1128,22 @@ class PostgresBackend:
                 conn.rollback()
                 raise
             finally:
+                unlocked = True
                 if locked:
                     try:
                         conn.rollback()
                         conn.cursor().execute("SELECT pg_advisory_unlock(hashtext(%s))", (_PRIMARY_MIGRATION_LOCK,))
                         conn.commit()
-                    except Exception:  # noqa: BLE001 — the lock ends with the session anyway
-                        pass
-                pool.putconn(conn)
+                    except Exception as e:  # noqa: BLE001 — handled below: the session is closed
+                        unlocked = False
+                        logger.warning(
+                            f"could not release the schema-migration advisory lock on {self.store_identity()} "
+                            f"({type(e).__name__}: {e}); closing that connection so the lock ends with its "
+                            "session instead of staying held by a pooled connection"
+                        )
+                # A pooled session still holding the session lock blocked every
+                # other process's schema check until this pool closed.
+                pool.putconn(conn, close=not unlocked)
         if fill_after:
             # Outside the lock: the thread's own connection() call re-enters
             # ensure_schema, which now returns at once.
@@ -1187,8 +1212,9 @@ class PostgresBackend:
             maxconn = _m3cfg.setting("db.postgres.pool_max") or _DEFAULT_MAXCONN
             if maxconn < minconn:
                 raise ValueError(
-                    f"M3_PG_POOL_MAX ({maxconn}) < M3_PG_POOL_MIN ({minconn}). "
-                    f"observed: max {maxconn}, min {minconn}. inspect: M3_PG_POOL_MAX, M3_PG_POOL_MIN"
+                    f"db.postgres.pool_max ({maxconn}) < db.postgres.pool_min ({minconn}). "
+                    f"observed: max {maxconn}, min {minconn}. fix: `m3 config set db.postgres.pool_max N` "
+                    "(or pool_min); legacy env names M3_PG_POOL_MAX / M3_PG_POOL_MIN"
                 )
             # Pin the CLIENT encoding instead of inheriting the server's.
             # psycopg2 adopts the server encoding, so against a SQL_ASCII
@@ -1359,7 +1385,7 @@ class PostgresBackend:
         if guard_sql:
             sql += f" {guard_sql}"
         cur = conn.cursor()  # type: ignore[attr-defined]
-        execute_values(cur, sql, rows, page_size=_UPSERT_PAGE_SIZE)
+        execute_values(cur, sql, rows, page_size=_upsert_page_size())
         return len(rows)
 
     def bulk_insert_ignore(
@@ -1386,7 +1412,7 @@ class PostgresBackend:
             f"{d.on_conflict_ignore(conflict_target=conflict_target)}"
         )
         cur = conn.cursor()  # type: ignore[attr-defined]
-        execute_values(cur, sql, rows, page_size=_UPSERT_PAGE_SIZE)
+        execute_values(cur, sql, rows, page_size=_upsert_page_size())
         return len(rows)
 
     def insert_embeddings(
@@ -1461,7 +1487,7 @@ class PostgresBackend:
             cur,
             f"UPDATE {table} AS t SET embedding_vec = v.vec::vector FROM (VALUES %s) AS v(id, vec) WHERE t.id = v.id",
             [(r[0], _vector_literal(bytes(r[1]))) for r in rows],
-            page_size=_UPSERT_PAGE_SIZE,
+            page_size=_upsert_page_size(),
         )
         return len(rows)
 
@@ -1579,7 +1605,9 @@ class PostgresBackend:
         """MAX(version) from schema_versions, or None if the table is absent."""
         with self.connection() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT to_regclass('public.schema_versions')")
+            # Unqualified, like the read below: both resolve through the
+            # search_path, so a store in a named schema is not reported absent.
+            cur.execute("SELECT to_regclass('schema_versions')")
             if cur.fetchone()[0] is None:
                 return None
             cur.execute("SELECT MAX(version) FROM schema_versions")

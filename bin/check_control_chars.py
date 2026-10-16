@@ -16,6 +16,10 @@ PowerShell's single-letter escapes — which is why `sqlx`, `sha2`, `proptest`
 and `maturin` all survive untouched in the same document. That selectivity
 makes the damage easy to miss in review: most of the file looks perfect.
 
+What this DETECTS is narrower: `b, `a, `f, `v and `0 (and any other C0 byte).
+`n, `r and `t produce LF, CR and TAB, which are legitimate in text files, so
+those three manglings are not detectable here.
+
 Real incident (2026-07-15, repaired 2026-07-23): a design plan was authored
 through such a string. Six crate names lost their leading letter and the file
 was committed twice with the damage before anyone noticed, because a stray
@@ -30,7 +34,11 @@ Usage:
     python bin/check_control_chars.py [paths...]   # explicit paths
     python bin/check_control_chars.py --staged     # git-staged text files
 
-Exit 0 = clean, 1 = corruption found (prints file:line:col and a repair hint).
+``--staged`` scans the STAGED blob (what the commit will contain), not the
+working-tree file.
+
+Exit 0 = clean, 1 = corruption found (prints file:line:col and a repair hint),
+2 = could not check (git failed, a file could not be read).
 """
 
 from __future__ import annotations
@@ -39,6 +47,7 @@ import argparse
 import os
 import re
 import subprocess
+import sys
 
 # Control bytes that must never appear in a text file. TAB (\x09), LF (\x0a)
 # and CR (\x0d) are legitimate; everything else in the C0 range is not. \x0b
@@ -62,27 +71,43 @@ def _is_text(path: str) -> bool:
     return os.path.splitext(path)[1].lower() in _TEXT_EXT
 
 
+class CheckError(Exception):
+    """The check could not run; never to be read as a clean result."""
+
+
+def _git(args: list[str]) -> bytes:
+    try:
+        r = subprocess.run(["git", *args], capture_output=True, check=False)
+    except FileNotFoundError as e:
+        raise CheckError(f"git not found on PATH ({e})") from e
+    if r.returncode != 0:
+        err = r.stderr.decode("utf-8", "replace").strip()
+        raise CheckError(f"`git {' '.join(args)}` exited {r.returncode}: {err}")
+    return r.stdout
+
+
 def _staged_files() -> list[str]:
     """Text files staged for commit (added/copied/modified/renamed)."""
-    try:
-        out = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
-    return [p for p in out.splitlines() if p and _is_text(p) and os.path.exists(p)]
+    out = _git(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"]).decode("utf-8", "replace")
+    return [p for p in out.split("\0") if p and _is_text(p)]
+
+
+def _staged_blob(path: str) -> bytes:
+    """The staged content of *path* -- what the commit will record."""
+    return _git(["show", f":{path}"])
 
 
 def scan(path: str) -> list[tuple[int, int, int]]:
-    """Return [(line, col, byte)] for every stray control char in *path*."""
-    try:
-        with open(path, "rb") as fh:
-            data = fh.read()
-    except OSError:
-        return []
+    """Return [(line, col, byte)] for every stray control char in *path*.
+
+    Raises OSError when the file cannot be read: an unread file is not clean.
+    """
+    with open(path, "rb") as fh:
+        return scan_bytes(fh.read())
+
+
+def scan_bytes(data: bytes) -> list[tuple[int, int, int]]:
+    """Return [(line, col, byte)] for every stray control char in *data*."""
     hits = []
     for m in _BAD.finditer(data):
         off = m.start()
@@ -112,15 +137,32 @@ def main(argv=None) -> int:
     ap.add_argument("--staged", action="store_true", help="Scan the git-staged text files instead of PATHS.")
     args = ap.parse_args(argv)
 
-    targets = _staged_files() if args.staged else [p for p in args.paths if _is_text(p)]
+    try:
+        targets = _staged_files() if args.staged else [p for p in args.paths if _is_text(p)]
+    except CheckError as e:
+        print(f"[control-chars] cannot list staged files: {e}", file=sys.stderr)
+        return 2
     if not targets:
         return 0
 
     bad = 0
+    unread: list[str] = []
     for path in targets:
-        for line, col, byte in scan(path):
+        try:
+            hits = scan_bytes(_staged_blob(path)) if args.staged else scan(path)
+        except (OSError, CheckError) as e:
+            unread.append(f"{path}: {e}")
+            continue
+        for line, col, byte in hits:
             bad += 1
             print(f"{path}:{line}:{col}: stray control char \\x{byte:02x} — {_hint(byte, path, line)}")
+
+    if unread:
+        print(f"[control-chars] {len(unread)} file(s) could not be read; not checked:", file=sys.stderr)
+        for u in unread:
+            print(f"  {u}", file=sys.stderr)
+        if not bad:
+            return 2
 
     if bad:
         print()

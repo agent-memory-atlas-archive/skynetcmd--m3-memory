@@ -6,9 +6,12 @@ and replaces matches with [REDACTED:<group>]. Disabled by default.
 """
 
 import hashlib
+import logging
 import os
 import re
 import threading
+
+logger = logging.getLogger(__name__)
 
 # ── Project Oxidation: optional Rust compute core ────────────────────────────
 # m3_core_rs is an optional dependency (pip install m3-memory[oxidation]).
@@ -26,6 +29,28 @@ if not _OXIDATION_DISABLED:
         import m3_core_rs  # type: ignore
     except ImportError:
         m3_core_rs = None  # extra not installed — Python path is the default
+
+# Evaluation order: api_keys → bearer_tokens → jwt → aws_keys → github_tokens →
+# custom_regex → pii. Also the set of known `patterns` names. Must match
+# m3-redact's EVALUATION_ORDER (byte-exact parity).
+_EVALUATION_ORDER = (
+    "api_keys",
+    "bearer_tokens",
+    "jwt",
+    "aws_keys",
+    "github_tokens",
+    "custom_regex",
+    "pii",
+)
+
+
+def _rust_debug_str(value: object) -> str:
+    """Render ``value`` the way Rust's `{:?}` renders a &str (double quotes,
+    backslash escapes), so the config-error text is identical on both paths."""
+    import json
+
+    return json.dumps(str(value), ensure_ascii=False)
+
 
 # Module-scope compiled patterns cache
 _COMPILED: dict[str, list[re.Pattern]] = {}
@@ -121,6 +146,18 @@ def compile_patterns(config: dict) -> None:
 
         if not enabled:
             return
+
+        # A `patterns` entry naming no group redacts nothing; silently ignoring
+        # it leaves the secret it was meant to catch in the log. Reported as a
+        # config error, worded exactly as the Rust core (m3-redact) does.
+        for i, name in enumerate(patterns):
+            if name not in _EVALUATION_ORDER:
+                msg = (
+                    f"unknown redaction pattern group {_rust_debug_str(name)} (patterns[{i}]); it redacts "
+                    f"nothing. Known groups: {', '.join(_EVALUATION_ORDER)}"
+                )
+                logger.warning(msg)
+                _COMPILE_ERRORS.append(msg)
 
         # Define all pattern groups
         pattern_groups = {
@@ -226,11 +263,20 @@ def compile_patterns(config: dict) -> None:
         # Compile custom regex patterns
         if "custom_regex" in patterns and custom_regex:
             custom_compiled = []
-            for pattern_str in custom_regex:
+            for i, pattern_str in enumerate(custom_regex):
                 try:
                     custom_compiled.append((pattern_str, re.compile(pattern_str)))
-                except re.error as e:
-                    _COMPILE_ERRORS.append(f"custom_regex compilation error: {pattern_str}: {e}")
+                except (re.error, RecursionError, OverflowError) as e:
+                    # Never the pattern text (nor re.error's message, which
+                    # quotes position context): a custom regex is often the
+                    # secret it is meant to catch. Same wording as m3-redact.
+                    kind = "invalid regex syntax" if isinstance(e, re.error) else "regex error"
+                    msg = (
+                        f"custom_regex compilation error: custom_regex[{i}] ({len(pattern_str)} chars): "
+                        f"{kind}; the entry is skipped"
+                    )
+                    logger.warning(msg)
+                    _COMPILE_ERRORS.append(msg)
             if custom_compiled:
                 _COMPILED["custom_regex"] = custom_compiled
 
@@ -281,18 +327,7 @@ def _scrub_python(content: str, config: dict) -> tuple[str, int, list[str]]:
     with _COMPILE_LOCK:
         compiled = dict(_COMPILED)
 
-    # Evaluation order: api_keys → bearer_tokens → jwt → aws_keys → github_tokens → custom_regex → pii
-    evaluation_order = [
-        "api_keys",
-        "bearer_tokens",
-        "jwt",
-        "aws_keys",
-        "github_tokens",
-        "custom_regex",
-        "pii",
-    ]
-
-    for group_name in evaluation_order:
+    for group_name in _EVALUATION_ORDER:
         if group_name not in compiled:
             continue
 

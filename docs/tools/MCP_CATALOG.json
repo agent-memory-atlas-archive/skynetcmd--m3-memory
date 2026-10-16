@@ -28,7 +28,7 @@
       "destructive": true,
       "domain": "admin",
       "name": "enrich_pending",
-      "summary": "Enrich pending memory items with SLM-distilled facts."
+      "summary": "Report memory items pending SLM fact enrichment (count + ETA)."
     },
     {
       "args": [
@@ -2010,12 +2010,12 @@
     {
       "args": [
         {
-          "name": "type_filter",
+          "name": "agent_filter",
           "required": false,
           "type": "string"
         },
         {
-          "name": "agent_filter",
+          "name": "type_filter",
           "required": false,
           "type": "string"
         },
@@ -2025,15 +2025,25 @@
           "type": "integer"
         },
         {
+          "name": "stale_days",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "name": "dry_run",
+          "required": false,
+          "type": "boolean"
+        },
+        {
           "name": "timeout",
           "required": false,
           "type": "number"
         }
       ],
-      "destructive": false,
+      "destructive": true,
       "domain": "memory",
       "name": "memory_consolidate",
-      "summary": "Consolidate old memories of the same type into summaries using the local LLM."
+      "summary": "Roll up one agent's oldest memories of a type into a summary using the local LLM; the sources are c\u2026"
     },
     {
       "args": [
@@ -2137,10 +2147,10 @@
           "type": "number"
         }
       ],
-      "destructive": false,
+      "destructive": true,
       "domain": "memory",
       "name": "memory_dedup",
-      "summary": "Find (and optionally soft-delete) near-duplicate memory items by cosine similarity over embeddings."
+      "summary": "Find (and optionally supersede) near-duplicate memory items by cosine similarity over embeddings, w\u2026"
     },
     {
       "args": [
@@ -2163,7 +2173,7 @@
       "destructive": true,
       "domain": "memory",
       "name": "memory_delete",
-      "summary": "Soft-deletes a MemoryItem (kept and recoverable; memory_restore)."
+      "summary": "Soft-deletes a MemoryItem: the row stays in the store but leaves search."
     },
     {
       "args": [
@@ -2186,7 +2196,7 @@
       "destructive": true,
       "domain": "memory",
       "name": "memory_delete_bulk",
-      "summary": "Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable)."
+      "summary": "Soft-deletes a list of MemoryItems in one transaction per chunk (rows stay in the store; memory_res\u2026"
     },
     {
       "args": [

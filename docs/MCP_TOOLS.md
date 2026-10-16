@@ -13,8 +13,8 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `curate_memory_apply` | Memory Operations | Deterministically apply a memory.db curator plan in ONE call. No LLM in the loop — the apply phase is a pure function over the structured plan. Replaces the agent-driven APPLY-mode loop. Plan sections: delete (soft, list of UUIDs), delete_hard (also a soft delete, with a notice: hard delete is GDPR-only), link (list of {from_id, to_id, relationship_type}), update (list of {id, importance, metadata, ...}). Any section may be omitted. Returns structured per-section results + summary. |
 | `memory_count_entities` | Memory Operations | Count distinct entities mentioned in a single conversation. Direct-index aggregation — no LLM, no embedding. Use this for 'how many distinct X did I mention' inventory questions where top-k embedding retrieval would miss instances spread thinly across many turns. Returns {count, conversation_id, entity_type, pattern}. |
 | `memory_count_mentions` | Memory Operations | Per-entity mention frequency within a single conversation, sorted DESC by count. Use for 'what are the most-mentioned X' or 'rank entities by frequency.' Returns {total, rows: [{entity_id, canonical_name, entity_type, mention_count}, ...]}. |
-| `memory_delete` | Memory Operations | Soft-deletes a MemoryItem (kept and recoverable; memory_restore). Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). |
-| `memory_delete_bulk` | Memory Operations | Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable). Use for curation/dedup passes; same semantics as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a structured {succeeded, not_found, mode} dict. |
+| `memory_delete` | Memory Operations | Soft-deletes a MemoryItem: the row stays in the store but leaves search. memory_restore does NOT undo it (it only reverses autonomous removals). Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). |
+| `memory_delete_bulk` | Memory Operations | Soft-deletes a list of MemoryItems in one transaction per chunk (rows stay in the store; memory_restore does not undo it). Use for curation passes; same semantics as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a structured {succeeded, not_found, mode} dict. |
 | `memory_feedback` | Memory Operations | Provide feedback on a memory item to improve quality. |
 | `memory_feedback_stats` | Memory Operations | How often graded feedback is landing versus being rejected as stale. The feedback window is deliberately tight, so this makes 'is it too tight for my agents?' a measurement rather than a guess — a high rejection rate means the window needs widening in .governor_config.json, not that the feedback was wrong. |
 | `memory_get` | Memory Operations | Retrieves a full MemoryItem; accepts full UUID or 8-char prefix; ambiguous prefixes return an error. |
@@ -38,7 +38,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `memory_write` | Memory Operations | Creates a MemoryItem and optionally embeds it for semantic search. Contradiction detection is automatic when the write is embedded — if new content closely matches an existing memory of the same type from the same agent (cosine > 0.92 by default; titles need not match) but says something different, the old one is superseded. Use type='auto' to let the LLM decide the best category. |
 | `memory_write_from_file` | Memory Operations | Write a memory whose content is read from a file on disk. Use this when the memory body is large (>1k chars) to avoid the autoregressive decode latency of streaming a multi-thousand-token JSON `input` field through tool_use — write the body with the Write tool first (off the streaming path, fast), then call this tool with just the path + tiny metadata. The MCP server reads the file, writes the row through the same path as memory_write (all gates apply), and by default deletes the source file on success. Path must be absolute on the host running this MCP server. Files >200000 bytes are rejected; underlying content is still capped at 50000 chars by memory_write_impl. |
 | `memory_write_slim` | Memory Operations | Write a memory. Common parameters only; contradiction detection still runs and supersedes a conflicting memory automatically. For metadata, scope, user_id, validity windows, auto-classification or embedding control, call memory_write via m3_call, or load the memory domain with tools_load_domain. |
-| `enrich_pending` | Knowledge Graph | Enrich pending memory items with SLM-distilled facts. Default dry_run=true reports count + ETA; pass dry_run=false to execute. |
+| `enrich_pending` | Knowledge Graph | Report memory items pending SLM fact enrichment (count + ETA). Execution needs a fact enricher passed by a Python caller; m3 has none configurable, so dry_run=false over MCP returns an error and enriches nothing. |
 | `entity_get` | Knowledge Graph | Load a single entity with its full neighborhood: predecessors, successors, and linked memory items. |
 | `entity_mentions` | Knowledge Graph | List memory_ids that mention a specific entity in a single conversation. Pass either entity_id (preferred — exact match) or canonical_name (case-insensitive, optionally disambiguated by entity_type). Returns {entity_id, canonical_name, entity_type, total, memory_ids: [...]}. Caller fetches text via existing read paths (which carry their own authz). Companion to entity_search and entity_get; lives in the 'entity' domain. |
 | `entity_search` | Knowledge Graph | Search entities by canonical_name and optionally by entity_type. Returns list of matching entities with optional neighbor counts. |
@@ -116,8 +116,8 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `m3_call` | Lifecycle & Maintenance | Invoke ANY m3 catalog tool by name without loading its domain — the low-token path to the full tool surface. Single call: pass `tool` (e.g. 'files_stats') and `args` (an object). Batch: pass `batch`, a list of {tool, args} (each isolated — one failure won't abort the rest; capped at 100). Set `dry_run` to validate args + check the destructive gate WITHOUT executing. Returns JSON. Call `m3_index` first if you don't know a tool's args. Destructive tools require M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1. |
 | `m3_help_capabilities` | Lifecycle & Maintenance | Discover m3-memory tool capabilities, parameters, and availability. Allows filtering by a logical domain (memory, chatlog, files, entity, agent, tasks, conversations, admin, diagnostics) or searching by keywords. |
 | `m3_index` | Lifecycle & Maintenance | List m3 catalog tools (optionally one domain) as structured rows: name, domain, one-line summary, destructive flag, and arg specs (name/type/required). Use this to discover the exact args for any tool before calling it via m3_call — cheaper than a failed call. Read-only catalog metadata; never returns tool output. Domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin. |
-| `memory_consolidate` | Lifecycle & Maintenance | Consolidate old memories of the same type into summaries using the local LLM. Reduces clutter while preserving knowledge. |
-| `memory_dedup` | Lifecycle & Maintenance | Find (and optionally soft-delete) near-duplicate memory items by cosine similarity over embeddings. Returns {count, groups: [{a, b, title_a, title_b, score}, ...], threshold, scanned, applied}. Use dry_run=True (default) for a preview; dry_run=False soft-deletes the second item of each pair. |
+| `memory_consolidate` | Lifecycle & Maintenance | Roll up one agent's oldest memories of a type into a summary using the local LLM; the sources are closed (superseded by the summary, linked via consolidates). Previews by default (dry_run=true); dry_run=false writes. agent_filter is required. Pinned and protected types are never consolidated. |
+| `memory_dedup` | Lifecycle & Maintenance | Find (and optionally supersede) near-duplicate memory items by cosine similarity over embeddings, within one user/agent/embedding model; pinned items are never candidates. Returns {count, groups: [{a, b, title_a, title_b, score}, ...], threshold, scanned, scan_limit, partitions, applied, applied_count, not_applied}. Use dry_run=True (default) for a preview; dry_run=False supersedes the second item of each pair by the first. |
 | `memory_maintenance` | Lifecycle & Maintenance | Runs maintenance tasks on the memory store. |
 | `memory_set_retention` | Lifecycle & Maintenance | Set or update per-agent memory retention policy. Controls max memory count, TTL expiry, and auto-archival. |
 | `tools_list_domains` | Lifecycle & Maintenance | List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin) and their tool counts. Call `tools_load_domain` to expose a domain's full tool surface. |
@@ -186,7 +186,7 @@ Per-entity mention frequency within a single conversation, sorted DESC by count.
 
 ### `memory_delete`
 
-Soft-deletes a MemoryItem (kept and recoverable; memory_restore). Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not).
+Soft-deletes a MemoryItem: the row stays in the store but leaves search. memory_restore does NOT undo it (it only reverses autonomous removals). Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not).
 
 **Source:** mcp_tool_catalog.py
 
@@ -202,7 +202,7 @@ Soft-deletes a MemoryItem (kept and recoverable; memory_restore). Hard delete is
 
 ### `memory_delete_bulk`
 
-Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable). Use for curation/dedup passes; same semantics as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a structured {succeeded, not_found, mode} dict.
+Soft-deletes a list of MemoryItems in one transaction per chunk (rows stay in the store; memory_restore does not undo it). Use for curation passes; same semantics as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a structured {succeeded, not_found, mode} dict.
 
 **Source:** mcp_tool_catalog.py
 
@@ -732,7 +732,7 @@ Write a memory. Common parameters only; contradiction detection still runs and s
 
 ### `enrich_pending`
 
-Enrich pending memory items with SLM-distilled facts. Default dry_run=true reports count + ETA; pass dry_run=false to execute.
+Report memory items pending SLM fact enrichment (count + ETA). Execution needs a fact enricher passed by a Python caller; m3 has none configurable, so dry_run=false over MCP returns an error and enriches nothing.
 
 **Source:** mcp_tool_catalog.py
 
@@ -740,7 +740,7 @@ Enrich pending memory items with SLM-distilled facts. Default dry_run=true repor
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `dry_run` | `boolean` | No | If true, report count + ETA without executing; if false, execute enrichment. | `True` |
+| `dry_run` | `boolean` | No | If true, report count + ETA. If false, execute — only possible with a caller-supplied fact enricher; over MCP it returns an error. | `True` |
 | `limit` | `integer` | No | Max items to enrich (0 = no limit). | `0` |
 | `allowed_variants` | `array` | No | Variant names to include in enrichment (if empty, use default). | `[]` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
@@ -2116,7 +2116,7 @@ List m3 catalog tools (optionally one domain) as structured rows: name, domain, 
 
 ### `memory_consolidate`
 
-Consolidate old memories of the same type into summaries using the local LLM. Reduces clutter while preserving knowledge.
+Roll up one agent's oldest memories of a type into a summary using the local LLM; the sources are closed (superseded by the summary, linked via consolidates). Previews by default (dry_run=true); dry_run=false writes. agent_filter is required. Pinned and protected types are never consolidated.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2124,16 +2124,18 @@ Consolidate old memories of the same type into summaries using the local LLM. Re
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
+| `agent_filter` | `string` | No | The agent whose memories are rolled up (required; empty is refused). | `` |
 | `type_filter` | `string` | No | Restrict to a memory type. | `` |
-| `agent_filter` | `string` | No | Restrict to an agent id. | `` |
-| `threshold` | `integer` | No | Min items to consolidate. | `20` |
+| `threshold` | `integer` | No | Groups above this many items consolidate their oldest (count - threshold). | `20` |
+| `stale_days` | `integer` | No | Only items older than this many days (0 = no age gate). | `0` |
+| `dry_run` | `boolean` | No | Preview without writing. | `True` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_dedup`
 
-Find (and optionally soft-delete) near-duplicate memory items by cosine similarity over embeddings. Returns {count, groups: [{a, b, title_a, title_b, score}, ...], threshold, scanned, applied}. Use dry_run=True (default) for a preview; dry_run=False soft-deletes the second item of each pair.
+Find (and optionally supersede) near-duplicate memory items by cosine similarity over embeddings, within one user/agent/embedding model; pinned items are never candidates. Returns {count, groups: [{a, b, title_a, title_b, score}, ...], threshold, scanned, scan_limit, partitions, applied, applied_count, not_applied}. Use dry_run=True (default) for a preview; dry_run=False supersedes the second item of each pair by the first.
 
 **Source:** mcp_tool_catalog.py
 

@@ -9,9 +9,9 @@ Usage:
     python bin/sync_all.py --dry-run   (connectivity check only)
 
 DB list:
-    Repo default: `memory/agent_memory.db`. The agent_memory manifest sweeps
-    both `main` and `chatlog` targets internally, so chatlog data gets synced
-    in the same pass without listing it separately. Bench DBs and other
+    The resolved main store (m3_sdk.resolve_db_path). The agent_memory manifest
+    sweeps both `main` and `chatlog` targets internally, so chatlog data gets
+    synced in the same pass without listing it separately. Bench DBs and other
     custom databases are NOT auto-detected — set M3_SYNC_DBS to include them.
 
     Example self-host override:
@@ -120,15 +120,16 @@ def warehouse_target() -> "tuple[str, int, str] | None":
 log = logging.getLogger("sync_all")
 
 # ── DB list resolution ────────────────────────────────────────────────────────
-# Repo default: sync the production memory DB. The agent_memory.yaml manifest
-# already sweeps BOTH `main` (agent_memory.db) and `chatlog` (agent_chatlog.db)
-# targets in a single pg_sync invocation, so we don't list chatlog separately —
-# doing so would either re-sync the same data or fail on a missing manifest.
-# Anything beyond this (bench DBs, custom layouts) is self-host territory —
-# users wire it up themselves via M3_SYNC_DBS.
-_DEFAULT_DBS = [
-    "memory/agent_memory.db",
-]
+# The resolved main store. The agent_memory.yaml manifest already sweeps BOTH
+# `main` (agent_memory.db) and `chatlog` (agent_chatlog.db) targets in a single
+# pg_sync invocation, so we don't list chatlog separately — doing so would either
+# re-sync the same data or fail on a missing manifest. Anything beyond this
+# (bench DBs, custom layouts) is self-host territory: M3_SYNC_DBS.
+
+# Why this run replicated nothing, one entry per skipped part. A skip is neither
+# success nor failure (EX_TEMPFAIL); main() names every reason instead of one
+# canned cause.
+_SKIP_REASONS: list[str] = []
 
 
 def _resolve_dbs() -> list[pathlib.Path]:
@@ -139,8 +140,8 @@ def _resolve_dbs() -> list[pathlib.Path]:
          OS path separator -- ':' on POSIX, ';' on Windows, where ':' appears in
          every drive-letter path).
       2. m3_sdk.resolve_db_path() — the Homecoming-aware resolver (honours
-         M3_ENGINE_ROOT / M3_MEMORY_ROOT / M3_DATABASE).
-      3. Repo-relative fallback (memory/agent_memory.db) if m3_sdk is not importable.
+         M3_ENGINE_ROOT / M3_MEMORY_ROOT / M3_DATABASE). Its failure propagates:
+         a repo-relative guess synced a store nobody uses.
 
     Bench DBs and any other databases are NOT auto-detected — set M3_SYNC_DBS
     if you self-host a custom layout.
@@ -158,14 +159,9 @@ def _resolve_dbs() -> list[pathlib.Path]:
 
     # No explicit override — use the Homecoming-aware DB resolver so we always
     # sync the live database.
-    try:
-        from m3_sdk import resolve_db_path
+    from m3_sdk import resolve_db_path
 
-        return [pathlib.Path(resolve_db_path()).resolve()]
-    except Exception as exc:
-        log.warning(f"m3_sdk.resolve_db_path() unavailable ({exc}); falling back to repo default")
-        path = BASE / _DEFAULT_DBS[0]
-        return [path.resolve()]
+    return [pathlib.Path(resolve_db_path()).resolve()]
 
 
 # ── Network check ─────────────────────────────────────────────────────────────
@@ -187,10 +183,18 @@ def is_reachable(host: str, port: int = 5432, timeout: float = 3.0) -> bool:
 
 
 def run_pg_sync_for_db(db_path: pathlib.Path, dry_run: bool) -> bool | None:
-    """Run pg_sync.py --db <path> for one database. Returns True on success."""
+    """Run pg_sync.py --db <path> for one database. True on success, False on
+    failure, None when skipped (nothing replicated; the reason is recorded)."""
     if not os.path.exists(db_path):
-        log.info(f"  skipping {db_path} — not present on this peer")
-        return True  # not an error; this peer just doesn't have that DB
+        # A skip, not a success: when this is the resolved main store, its
+        # absence means sync points at the wrong root, not that all is well.
+        reason = f"{db_path} does not exist on this peer"
+        _SKIP_REASONS.append(reason)
+        log.warning(
+            f"  SKIPPED {db_path.stem}: {reason} — nothing replicated for it. "
+            "inspect: m3 doctor (the resolved engine root), M3_SYNC_DBS, or pass --database PATH"
+        )
+        return None
 
     if dry_run:
         log.info(f"[DRY-RUN] Would run pg_sync.py --db {db_path}")
@@ -217,6 +221,7 @@ def run_pg_sync_for_db(db_path: pathlib.Path, dry_run: bool) -> bool | None:
             # local and warehouse stores drifted apart — the exact failure the
             # wrong-backend refusal further down was written to prevent. It is
             # not an ERROR either: the next hourly run picks it up.
+            _SKIP_REASONS.append(f"pg_sync could not take the sync lock for {db_path} (exit {result.returncode})")
             log.warning(
                 f"pg_sync SKIPPED {db_path.stem} — nothing was replicated.\n"
                 f"  observed : pg_sync exited {result.returncode} (EX_TEMPFAIL); "
@@ -266,13 +271,8 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
     Returns True/False on a completed fast-path run, or None to signal "not
     applicable / unavailable — fall back to the generic bridge" (SQLite/MariaDB
     primary, missing extension, unreachable warehouse). Never raises."""
-    try:
-        from memory.backends import active_backend
-
-        if active_backend().name != "postgres":
-            return None  # SQLite/MariaDB primary -> generic bridge
-    except Exception:
-        return None
+    if _local_backend_name() != "postgres":
+        return None  # SQLite/MariaDB primary -> generic bridge
     # Imported OUTSIDE the try below, whose except clause names
     # pg_fdw_sync.FdwUnavailable: a failed import there left the name unbound,
     # and evaluating that clause raised UnboundLocalError, which escaped this
@@ -291,17 +291,10 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
 
         warehouse_dsn = resolve_warehouse_dsn()
         if not warehouse_dsn:
-            # Deliberate skip, not a failure: sync is opt-in, and main() already
-            # exits cleanly when SYNC_TARGET_IP is unset (:390). Returning True
-            # keeps that contract. Worded to say WHY nothing happened, so this
-            # does not read like the silent success the rest of this change
-            # exists to remove — "nothing to sync" implied there was nothing TO
-            # sync, when in fact nothing was CONFIGURED.
-            log.info(
-                "PG primary, but no warehouse DSN is configured "
-                "(M3_CDW_PG_URL / PG_URL) — sync not set up on this peer; skipping."
-            )
-            return True
+            # run_pg_sync() reports "not configured" as a skip before calling
+            # this; reaching here means the DSN vanished between the two reads.
+            _set_fdw_reason("FDW fast-path did not run: no warehouse DSN resolved (M3_CDW_PG_URL)")
+            return None
         # ── The PRIMARY store, not the warehouse ──────────────────────────────
         # `ctx.pg_connection()` is the WAREHOUSE role by contract: it resolves
         # M3_CDW_PG_URL > PG_URL and deliberately does NOT read M3_PG_URL (see
@@ -401,31 +394,55 @@ def _fdw_run(primary_backend, pg_fdw_sync, warehouse_dsn: str, dry_run: bool) ->
                     (direction, ts),
                 )
 
-        res = pg_fdw_sync.sync_pg_to_pg(primary_conn, warehouse_dsn, get_wm, set_wm, dry_run=dry_run)
+        def warehouse_bound():
+            # The warehouse's own clock for pull watermarks (pg_fdw_sync.arrival_bound),
+            # over a short separate connection through the FIPS transport owner.
+            from m3_core.pgconn import pg_connect
+
+            wh = pg_connect(warehouse_dsn, connect_timeout=10)
+            try:
+                with wh.cursor() as c:
+                    return pg_fdw_sync.arrival_bound(c)
+            finally:
+                wh.close()
+
+        res = pg_fdw_sync.sync_pg_to_pg(
+            primary_conn, warehouse_dsn, get_wm, set_wm, dry_run=dry_run, warehouse_bound=warehouse_bound
+        )
         primary_conn.commit()
         log.info(f"PG->PG FDW fast-path completed: {res}")
         return True
 
 
 def _local_backend_name() -> str:
-    """The backend the LOCAL store uses, or 'sqlite' if it cannot be determined.
+    """The CONFIGURED backend of the local store (registry key db.backend) — the
+    one place sync decides which path runs.
 
-    Defaults to sqlite deliberately: that is the historical assumption, so an
-    unresolvable backend keeps existing SQLite deployments working rather than
-    refusing them (§3 — the refusal below must not fire on a healthy user).
+    The setting, not active_backend(): building a PostgreSQL backend with no DSN
+    raises, and reading that as "sqlite" ran the SQLite bridge over a stale
+    agent_memory.db on a PostgreSQL install and reported success. A bad setting
+    raises ValueError, which propagates: a config error is not a backend.
     """
-    try:
-        from memory.backends import active_backend
+    from m3_core.paths import resolve_backend_name
 
-        return active_backend().name
-    except Exception:  # noqa: BLE001 — seam unavailable: assume the legacy shape
-        return "sqlite"
+    return resolve_backend_name()
 
 
 def run_pg_sync(dry_run: bool) -> bool | None:
     """Run the warehouse sync. On a PostgreSQL primary, prefer the postgres_fdw
     fast-path; otherwise (or if it's unavailable) run the generic pg_sync.py
-    bridge for each configured database. Returns True if all succeed."""
+    bridge for each configured database. True if all succeed, False on any
+    failure, None when skipped (reasons in _SKIP_REASONS)."""
+    _SKIP_REASONS.clear()
+    if _local_backend_name() == "postgres":
+        from m3_sdk import resolve_warehouse_dsn
+
+        if not resolve_warehouse_dsn():
+            _SKIP_REASONS.append(
+                "the primary store is PostgreSQL and no warehouse DSN is configured (fix: m3 secret set M3_CDW_PG_URL)"
+            )
+            log.warning(f"sync SKIPPED: {_SKIP_REASONS[-1]}")
+            return None
     fast = _try_pg_fdw_fastpath(dry_run)
     if fast is not None:
         return fast
@@ -454,7 +471,14 @@ def run_pg_sync(dry_run: bool) -> bool | None:
         )
         return False
 
-    dbs = _resolve_dbs()
+    try:
+        dbs = _resolve_dbs()
+    except Exception as e:  # noqa: BLE001 — reported and failed, never guessed
+        log.error(
+            f"could not resolve the database to sync ({type(e).__name__}: {e}); nothing was replicated. "
+            "inspect: m3 doctor, or pin one with --database PATH / M3_SYNC_DBS"
+        )
+        return False
     log.info(f"pg_sync target DBs: {[str(d) for d in dbs]}")
     results = []
     for db in dbs:
@@ -523,11 +547,11 @@ def main():
         # Ran cleanly, replicated nothing. Say that, and exit with the same
         # EX_TEMPFAIL pg_sync used so a wrapping cron/CI step can tell a no-op
         # from a completed sync without parsing the log.
+        reasons = "; ".join(_SKIP_REASONS) or "reason not recorded (see the log above)"
         log.warning(
             "=== sync_all complete: SKIPPED — nothing replicated ===\n"
-            "  observed : the sync lock was unavailable (reason logged above)\n"
-            "  retry    : the next scheduled run; no data is lost\n"
-            "  inspect  : logs/sync_all.log for the store and holder"
+            f"  observed : {reasons}\n"
+            f"  inspect  : {LOG_FILE} for the details of each"
         )
         sys.exit(_EXIT_SKIPPED)
     if pg_ok:

@@ -69,6 +69,37 @@ def load_patterns(path: str) -> list[tuple[int, re.Pattern[str]]]:
     return compiled
 
 
+def scan_lines(
+    lines: list[str],
+    patterns: list[tuple[int, re.Pattern[str]]],
+    placeholder: re.Pattern[str] | None,
+    source: str,
+) -> list[str]:
+    """Return one report line per ADDED diff line that matches a pattern.
+
+    Placeholder identities are blanked out of the line, not used to skip it:
+    skipping let a real credential through whenever the same line also named a
+    placeholder home path.
+    """
+    hits: list[str] = []
+    for line in lines:
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        body = line[1:]
+        if placeholder is not None:
+            body = placeholder.sub(" ", body)
+        for lineno, pat in patterns:
+            m = pat.search(body)
+            if m:
+                # Report WHERE and WHICH RULE, plus the offending diff line (the
+                # author's own content, which they need in order to fix it) --
+                # but never the pattern that matched it.
+                where = f"{source}:{lineno}" if lineno else source
+                hits.append(f"  rule {where} at col {m.start() + 1}: {line}")
+                break
+    return hits
+
+
 def _selftest(patterns_path: str | None) -> int:
     """Prove the gate can still catch something, on this platform.
 
@@ -77,46 +108,71 @@ def _selftest(patterns_path: str | None) -> int:
 
         python3 bin/prepush/scan_diff.py --selftest --patterns <policy>
 
-    It reports per-pattern compilation (a count, never the pattern text) and
-    verifies that a synthetic credential IS caught and an innocuous line is NOT.
-    Exit 0 only if every part holds.
+    It loads the live policy through ``load_patterns`` (a count is reported,
+    never the pattern text), then drives ``scan_lines`` -- the code the hook
+    runs -- with a synthetic diff. Exit 0 only if every part holds.
     """
+    import os
+    import tempfile
+
+    if not patterns_path:
+        print(
+            "[selftest] FAIL no --patterns given: there is no policy to prove alive.\n"
+            "           Run: python bin/prepush/scan_diff.py --selftest --patterns "
+            "<policy file>  (the hook reads M3_PREPUSH_PROHIBITED, default "
+            "~/.m3-private/m3_PrePush_Prohibited.txt)",
+            file=sys.stderr,
+        )
+        return 2
+
     ok = True
-
-    if patterns_path:
-        try:
-            pats = load_patterns(patterns_path)
-        except SystemExit as e:
-            print(f"[selftest] FAIL policy does not load:\n{e}")
-            return 1
-        print(f"[selftest] ok   {len(pats)} pattern(s) compiled from {patterns_path}")
-    else:
-        print("[selftest] note no --patterns given; checking the engine only")
-        pats = []
-
-    # Does the engine catch and reject correctly? Uses its own pattern so the
-    # answer does not depend on what the live policy happens to contain.
-    probe = re.compile("sk-" + "ant-" + r"[a-z0-9]{20,}", re.IGNORECASE)
-    hit_line = '+KEY = "' + "sk-" + "ant-" + 'abcdefghij0123456789xyz"'
-    if probe.search(hit_line[1:]):
-        print("[selftest] ok   a credential-shaped added line matches")
-    else:
-        print("[selftest] FAIL a credential-shaped added line did NOT match")
-        ok = False
-    if not probe.search("nothing interesting here"):
-        print("[selftest] ok   an innocuous line does not match")
-    else:
-        print("[selftest] FAIL an innocuous line matched")
-        ok = False
-
-    # An uncompilable pattern must be refused rather than skipped.
     try:
-        re.compile("foo(")
-    except re.error:
-        print("[selftest] ok   an uncompilable pattern raises (so load_patterns blocks)")
-    else:
-        print("[selftest] FAIL an uncompilable pattern did not raise")
+        pats = load_patterns(patterns_path)
+    except SystemExit as e:
+        print(f"[selftest] FAIL policy does not load:\n{e}")
+        return 1
+    print(f"[selftest] ok   {len(pats)} pattern(s) compiled from {patterns_path}")
+
+    # A live pattern that matches an innocuous line blocks every push.
+    innocuous = ["+++ b/x.py", "+nothing interesting here"]
+    broad = scan_lines(innocuous, pats, None, patterns_path)
+    if broad:
+        print(f"[selftest] FAIL a live pattern matches an innocuous line: {broad[0].split(' at col')[0].strip()}")
         ok = False
+    else:
+        print("[selftest] ok   no live pattern matches an innocuous line")
+
+    # The scanner itself, with its own probe so the answer does not depend on
+    # what the live policy happens to contain.
+    probe = [(1, re.compile("sk-" + "ant-" + r"[a-z0-9]{20,}", re.IGNORECASE))]
+    key = "sk-" + "ant-" + "abcdefghij0123456789xyz"
+    allow = re.compile(r"/home/(alice)([\\/]|$)", re.IGNORECASE)
+    checks = [
+        ("a credential-shaped added line is caught", [f'+KEY = "{key}"'], True),
+        ("an innocuous added line is not caught", ["+nothing interesting here"], False),
+        ("a removed line is not caught", [f'-KEY = "{key}"'], False),
+        ("a +++ header is not caught", [f"+++ b/{key}.py"], False),
+        ("a placeholder on the same line does not hide a credential", [f'+p = "/home/alice/x" KEY = "{key}"'], True),
+    ]
+    for label, lines, want in checks:
+        got = bool(scan_lines(lines, probe, allow, "<selftest>"))
+        print(f"[selftest] {'ok  ' if got == want else 'FAIL'} {label}")
+        ok = ok and got == want
+
+    # An uncompilable policy must be refused by load_patterns, not skipped.
+    fd, bad = tempfile.mkstemp(suffix=".txt")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("foo(\n")
+        try:
+            load_patterns(bad)
+        except SystemExit:
+            print("[selftest] ok   an uncompilable policy is refused by load_patterns")
+        else:
+            print("[selftest] FAIL an uncompilable policy was accepted by load_patterns")
+            ok = False
+    finally:
+        os.unlink(bad)
 
     print(f"[selftest] {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1
@@ -173,22 +229,7 @@ def main(argv: list[str]) -> int:
                 "reported as leaks, so the scan is not run."
             ) from e
 
-    hits: list[str] = []
-    for line in sys.stdin.buffer.read().decode("utf-8", "replace").splitlines():
-        if not line.startswith("+") or line.startswith("+++"):
-            continue
-        body = line[1:]
-        if placeholder is not None and placeholder.search(body):
-            continue
-        for lineno, pat in patterns:
-            m = pat.search(body)
-            if m:
-                # Report WHERE and WHICH RULE, plus the offending diff line (the
-                # author's own content, which they need in order to fix it) --
-                # but never the pattern that matched it.
-                where = f"{source}:{lineno}" if lineno else source
-                hits.append(f"  rule {where} at col {m.start() + 1}: {line}")
-                break
+    hits = scan_lines(sys.stdin.buffer.read().decode("utf-8", "replace").splitlines(), patterns, placeholder, source)
 
     if hits:
         print(

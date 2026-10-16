@@ -7,13 +7,13 @@ Agent through the same MemoryProvider ABC the mem0 plugin uses.
 Patterned on plugins/memory/mem0/__init__.py (threaded prefetch, circuit
 breaker, three tools, register(ctx) entrypoint).
 
-Config via environment variables:
-  M3_USER_ID    — user identifier (default: hermes-user)
-  M3_AGENT_ID   — agent identifier (default: hermes)
-Or via $HERMES_HOME/m3.json.
+Config: the m3 settings integrations.hermes.user_id / agent_id (default
+hermes-user / hermes), overridden by $HERMES_HOME/m3.json.
 
-Requires m3-memory's bin/ on PYTHONPATH so `import mcp_tool_catalog` resolves
-(see m3client.py). No m3 server/proxy needed — calls run in-process.
+Install: m3-memory installed into Hermes' own Python environment (>= 3.12)
+registers this provider through the ``hermes_agent.memory_providers`` entry
+point; select it with ``memory.provider: m3``. Calls run in-process through the
+shared integration client (m3_memory.integrations._client); no server or proxy.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from typing import Any, cast
@@ -28,9 +29,14 @@ from typing import Any, cast
 from agent.memory_provider import MemoryProvider
 from tools.registry import tool_error
 
-from m3_memory import _config as _m3config
-
 logger = logging.getLogger(__name__)
+
+# The host_agent m3's chatlog records for turns Hermes hands over (a library
+# host: no hook, no transcript; see chatlog_config.LIBRARY_HOST_AGENTS).
+_HOST_AGENT = "hermes"
+# Hermes passes agent_context="cron" / "subagent" for scheduled jobs and
+# delegated subagents, and its contract is that providers skip writes there.
+_WRITE_CONTEXTS = frozenset({"primary"})
 
 # Circuit breaker — same policy as the mem0 provider.
 _BREAKER_THRESHOLD = 5
@@ -46,6 +52,8 @@ def _load_config() -> dict:
     """Env vars with $HERMES_HOME/m3.json overrides (mem0 pattern)."""
     from hermes_constants import get_hermes_home
 
+    from m3_memory import _config as _m3config
+
     config = {
         "user_id": _m3config.setting("integrations.hermes.user_id"),
         "agent_id": _m3config.setting("integrations.hermes.agent_id"),
@@ -56,8 +64,15 @@ def _load_config() -> dict:
         try:
             file_cfg = json.loads(config_path.read_text(encoding="utf-8"))
             config.update({k: v for k, v in file_cfg.items() if v is not None and v != ""})
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            logger.warning(
+                "m3: %s is unreadable (%s: %s); using user_id=%r agent_id=%r. fix: repair or delete the file",
+                config_path,
+                type(e).__name__,
+                e,
+                config["user_id"],
+                config["agent_id"],
+            )
 
     return config
 
@@ -112,6 +127,18 @@ CONCLUDE_SCHEMA = {
 # ---------------------------------------------------------------------------
 
 
+_warned_unavailable: set[str] = set()
+
+
+def _warn_unavailable_once(cause: str) -> None:
+    """Log why m3 is unusable, once per distinct cause per process: Hermes calls
+    is_available() at every startup and on each status check, and would otherwise
+    say only "not available"."""
+    if cause not in _warned_unavailable:
+        _warned_unavailable.add(cause)
+        logger.warning("m3 memory provider unavailable: %s", cause)
+
+
 class M3MemoryProvider(MemoryProvider):
     """m3-memory: async extraction (Observer/Reflector), hybrid recall, KG
     supersession, exposed through the MemoryProvider ABC."""
@@ -122,6 +149,8 @@ class M3MemoryProvider(MemoryProvider):
         self._client_lock = threading.Lock()
         self._user_id = "hermes-user"
         self._agent_id = "hermes"
+        self._session_id = ""
+        self._writes = True
         self._prefetch_result = ""
         self._prefetch_lock = threading.Lock()
         self._prefetch_thread = None
@@ -135,18 +164,58 @@ class M3MemoryProvider(MemoryProvider):
         return "m3"
 
     def is_available(self) -> bool:
-        # Available iff the m3 catalog module is on the path. Use find_spec, NOT
-        # `import mcp_tool_catalog`: discovery runs is_available() for every
-        # provider at startup, and actually importing the catalog pulls in
-        # memory_core + the embedder load path (slow, and historically a WMI
-        # stall on Py3.14/Windows). find_spec only resolves the module location
-        # — no execution, no side effects, instant.
-        import importlib.util
+        # Hermes activates a provider only when this is True, and runs it for
+        # every provider at startup, so it must stay cheap: it locates m3's
+        # payload (m3_memory._bin) and never imports the catalog (that pulls
+        # memory_core and the embedder load path). A pip install keeps m3's bin/
+        # off sys.path until the client puts it there, so probing for
+        # `mcp_tool_catalog` on the path reported a working install unavailable.
+        cause = self._unavailable_cause()
+        if cause:
+            _warn_unavailable_once(cause)
+        return cause is None
 
+    def unavailable_reason(self) -> str:
+        """Why Hermes cannot use m3 here, with the fix ("" when available)."""
+        return self._unavailable_cause() or ""
+
+    def get_status_config(self, provider_config):
+        """What `hermes memory status` prints under "m3 config". Hermes 0.22 shows
+        only "not available" for a provider and never asks why, so the reason
+        and its fix ride along here."""
+        shown = dict(provider_config) if isinstance(provider_config, dict) else {}
+        cause = self._unavailable_cause()
+        if cause:
+            shown["unavailable"] = cause
+        return shown
+
+    @staticmethod
+    def _unavailable_cause() -> str | None:
+        install = f'"{sys.executable}" -m pip install m3-memory'
         try:
-            return importlib.util.find_spec("mcp_tool_catalog") is not None
-        except (ImportError, ValueError):
-            return False
+            from m3_memory import _bin
+        except Exception as e:  # noqa: BLE001 — any failure here means "not usable", said with its cause
+            return (
+                f"m3-memory is not importable in Hermes' Python ({sys.executable}, Python "
+                f"{sys.version.split()[0]}): {type(e).__name__}: {e}. m3 needs Python 3.12 or newer. "
+                f"fix: {install}"
+            )
+        found = _bin.bin_dir()
+        if found is None or not os.path.isfile(os.path.join(str(found), "mcp_tool_catalog.py")):
+            return (
+                f"m3-memory is installed in {sys.executable} but its payload (bin/mcp_tool_catalog.py) "
+                f"was not found (looked at: {found}). fix: {install} --force-reinstall, or set M3_PATH_BIN"
+            )
+        from m3_memory.integrations._client import shadowing_memory_package
+
+        shadow = shadowing_memory_package()
+        if shadow:
+            return (
+                f"another top-level 'memory' package ({shadow}) shadows m3's, so m3 cannot import "
+                "(Hermes Agent before 0.22 put its plugins/ folder on the path). fix: upgrade Hermes "
+                "Agent to 0.22 or newer"
+            )
+        return None
 
     def save_config(self, values, hermes_home):
         import json as _json
@@ -155,17 +224,22 @@ class M3MemoryProvider(MemoryProvider):
         config_path = Path(hermes_home) / "m3.json"
         existing = {}
         if os.path.exists(config_path):
+            # A file that does not parse is refused, not replaced: merging into
+            # {} would silently drop every setting it held.
             try:
-                existing = _json.loads(config_path.read_text())
-            except Exception:
-                pass
+                existing = _json.loads(config_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as e:
+                raise RuntimeError(
+                    f"m3: {config_path} is unreadable ({type(e).__name__}: {e}); not overwriting it. "
+                    "fix: repair or delete the file, then rerun `hermes memory setup`"
+                ) from e
         existing.update(values)
         try:
-            from utils import atomic_json_write
-
+            from utils import atomic_json_write  # Hermes' own writer
+        except ImportError:
+            config_path.write_text(_json.dumps(existing, indent=2), encoding="utf-8")
+        else:
             atomic_json_write(config_path, existing, mode=0o600)
-        except Exception:
-            config_path.write_text(_json.dumps(existing, indent=2))
 
     def get_config_schema(self):
         return [
@@ -178,14 +252,11 @@ class M3MemoryProvider(MemoryProvider):
         with self._client_lock:
             if self._client is not None:
                 return self._client
-            try:
-                from .m3client import M3Client
-            except Exception as e:
-                # Widened from ImportError: a slow/partial import of the m3
-                # catalog under threaded tool execution can surface as other
-                # exception types. Report the concrete error rather than a
-                # generic "PYTHONPATH?" guess.
-                raise RuntimeError(f"m3 client unavailable: {type(e).__name__}: {e}") from e
+            cause = self._unavailable_cause()
+            if cause:
+                raise RuntimeError(cause)
+            from m3_memory.integrations._client import M3Client
+
             self._client = M3Client(agent_id=self._agent_id)
             return self._client
 
@@ -211,11 +282,36 @@ class M3MemoryProvider(MemoryProvider):
                 _BREAKER_COOLDOWN_SECS,
             )
 
+    # ── m3 operations (structured rows, through the shared client) ─────────────
+    def _search(self, query: str, top_k: int) -> list[dict]:
+        """Hybrid recall in this user's scope → [{"content", "score"}]."""
+        rows = self._get_client()._tool(
+            "memory_search_scored", query=query, user_id=self._user_id, k=top_k, scope="user"
+        )
+        return [{"content": it.get("content", ""), "score": s} for s, it in rows or []]
+
+    def _profile(self) -> list[str]:
+        """This user's stable facts: the documented filter-only listing (query="")."""
+        rows = self._get_client()._tool(
+            "memory_search_scored", query="", user_id=self._user_id, type_filter="user_fact", k=200, scope="user"
+        )
+        return [it.get("content", "") for _s, it in rows or [] if it.get("content")]
+
+    def _conclude(self, content: str) -> None:
+        # Scope + type match what _search/_profile read, or the fact is stored
+        # where recall never looks ("Fact stored", then nothing found).
+        self._get_client()._tool("memory_write", content=content, user_id=self._user_id, type="user_fact", scope="user")
+
     def initialize(self, session_id: str, **kwargs) -> None:
         self._config = _load_config()
         # gateway-provided user_id wins for per-user scoping (mem0 behavior)
         self._user_id = kwargs.get("user_id") or self._config.get("user_id", "hermes-user")
         self._agent_id = self._config.get("agent_id", "hermes")
+        self._session_id = session_id
+        context = kwargs.get("agent_context") or "primary"
+        self._writes = context in _WRITE_CONTEXTS
+        if not self._writes:
+            logger.info("m3: agent_context=%r: recall only, no memory or turn writes (Hermes contract)", context)
 
     def system_prompt_block(self) -> str:
         return (
@@ -241,18 +337,20 @@ class M3MemoryProvider(MemoryProvider):
 
         def _run():
             try:
-                client = self._get_client()
-                results = client.search(query=query, user_id=self._user_id, top_k=5)
+                results = self._search(query, 5)
                 if results:
                     lines = [r.get("content", "") for r in results if r.get("content")]
                     with self._prefetch_lock:
                         self._prefetch_result = "\n".join(f"- {ln}" for ln in lines)
                 self._record_success()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — recall must never break a turn; said, and counted by the breaker
                 self._record_failure()
-                from m3_core.errors import log_swallowed
-
-                log_swallowed(logger, e, "m3 prefetch failed: %s", e)
+                logger.warning(
+                    "m3 prefetch failed (%d consecutive): %s: %s; this turn has no m3 context",
+                    self._consecutive_failures,
+                    type(e).__name__,
+                    e,
+                )
 
         self._prefetch_thread = threading.Thread(target=_run, daemon=True, name="m3-prefetch")
         self._prefetch_thread.start()
@@ -267,22 +365,28 @@ class M3MemoryProvider(MemoryProvider):
     ) -> None:
         """Enqueue the turn into m3's chatlog; Observer/Reflector extract +
         supersede async (cheaper per-turn than mem0's synchronous add())."""
-        if self._is_breaker_open():
+        if not self._writes or self._is_breaker_open():
             return
+        conversation_id = session_id or self._session_id
 
         def _sync():
             try:
-                client = self._get_client()
-                client.chatlog_write(
+                self._get_client().write_turns(
+                    [("user", user_content), ("assistant", assistant_content)],
+                    conversation_id=conversation_id,
+                    host_agent=_HOST_AGENT,
                     user_id=self._user_id,
-                    session_id=session_id,
-                    user_content=user_content,
-                    assistant_content=assistant_content,
                 )
                 self._record_success()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — a capture failure must not break the turn; said with its cause
                 self._record_failure()
-                logger.warning("m3 sync failed: %s", e)
+                logger.warning(
+                    "m3 did not capture a turn of conversation %s (%d consecutive failures): %s: %s",
+                    conversation_id,
+                    self._consecutive_failures,
+                    type(e).__name__,
+                    e,
+                )
 
         if self._sync_thread and self._sync_thread.is_alive():
             self._sync_thread.join(timeout=5.0)
@@ -300,17 +404,16 @@ class M3MemoryProvider(MemoryProvider):
             )
 
         try:
-            client = self._get_client()
-        except Exception as e:
+            self._get_client()
+        except Exception as e:  # noqa: BLE001 — returned to the model as the tool's error
             return cast("str", tool_error(str(e)))
 
         if tool_name == "m3_profile":
             try:
-                memories = client.get_all(user_id=self._user_id, type="user_fact")
+                lines = self._profile()
                 self._record_success()
-                if not memories:
+                if not lines:
                     return json.dumps({"result": "No memories stored yet."})
-                lines = [m.get("content", "") for m in memories if m.get("content")]
                 return json.dumps({"result": "\n".join(lines), "count": len(lines)})
             except Exception as e:
                 self._record_failure()
@@ -322,7 +425,7 @@ class M3MemoryProvider(MemoryProvider):
                 return cast("str", tool_error("Missing required parameter: query"))
             top_k = min(int(args.get("top_k", 10)), 50)
             try:
-                results = client.search(query=query, user_id=self._user_id, top_k=top_k)
+                results = self._search(query, top_k)
                 self._record_success()
                 if not results:
                     return json.dumps({"result": "No relevant memories found."})
@@ -336,8 +439,10 @@ class M3MemoryProvider(MemoryProvider):
             conclusion = args.get("conclusion", "")
             if not conclusion:
                 return cast("str", tool_error("Missing required parameter: conclusion"))
+            if not self._writes:
+                return json.dumps({"result": "Not stored: this Hermes context (cron or subagent) is recall-only."})
             try:
-                client.conclude(content=conclusion, user_id=self._user_id)
+                self._conclude(conclusion)
                 self._record_success()
                 return json.dumps({"result": "Fact stored."})
             except Exception as e:

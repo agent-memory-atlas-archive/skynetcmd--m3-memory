@@ -37,7 +37,7 @@ def test_delete_marks_the_chatlog_row_deleted(monkeypatch, tmp_path, each_backen
             model_id="test",
         )
         await chatlog_core._flush_once()
-        n = await M3Client._delete_chatlog_rows_async(None, [rid])
+        n = await M3Client._delete_chatlog_rows_async(M3Client.__new__(M3Client), [rid])
         return rid, n
 
     rid, n = asyncio.run(_go())

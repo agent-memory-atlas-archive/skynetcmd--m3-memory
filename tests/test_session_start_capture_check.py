@@ -92,9 +92,48 @@ def test_a_recent_write_reads_as_working_and_an_old_one_as_not(monkeypatch, tmp_
     mod = _load_hook()
     _state(monkeypatch, tmp_path, _iso(3))
     assert "WORKING" in mod._state_verdict()
+    # A between-sessions gap is idle, not down: same lull predicate as status.
     _state(monkeypatch, tmp_path, _iso(90))
     said = mod._state_verdict()
-    assert "NOT writing" in said and "90 min ago" in said, said
+    assert "idle" in said and "90 min ago" in said and "NOT writing" not in said, said
+    import chatlog_status
+
+    beyond = chatlog_status._LULL_GRACE_MIN + 30
+    _state(monkeypatch, tmp_path, _iso(beyond))
+    said = mod._state_verdict()
+    assert "NOT writing" in said and f"{beyond} min ago" in said, said
+
+
+def test_hook_and_status_share_one_lull_predicate(monkeypatch):
+    """The hook must not carry its own grace constant: patching the owner moves both."""
+    import chatlog_status
+
+    mod = _load_hook()
+    monkeypatch.setattr(chatlog_status, "_LULL_GRACE_MIN", 60)
+    assert "NOT writing" in mod._verdict_for_age(90, _iso(90))
+    monkeypatch.setattr(chatlog_status, "_LULL_GRACE_MIN", 120)
+    assert "idle" in mod._verdict_for_age(90, _iso(90))
+
+
+def test_file_count_path_uses_the_newest_row_age(monkeypatch, tmp_path, capsys):
+    """SQLite with no state file: 0 rows in 15 min but a row 90 min old is idle."""
+    import sqlite3
+
+    mod = _load_hook()
+    _state(monkeypatch, tmp_path, None)
+    db = tmp_path / "chat.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE memory_items (type TEXT, created_at TEXT)")
+    conn.execute(
+        "INSERT INTO memory_items VALUES ('chat_log', ?)",
+        (_iso(90).replace("+00:00", "Z"),),
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(mod, "_candidate_dbs", lambda: [str(db)])
+    mod.main()
+    out = capsys.readouterr().out
+    assert "idle" in out and "NOT writing" not in out, out
 
 
 def test_on_postgres_no_sqlite_file_is_opened_or_created(monkeypatch, tmp_path, capsys):

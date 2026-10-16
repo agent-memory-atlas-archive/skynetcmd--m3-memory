@@ -1,8 +1,8 @@
 ---
 tool: bin/deep_sync.py
-sha1: fb5870443d0e
-mtime_utc: 2026-10-10T21:05:17.248881+00:00
-generated_utc: 2026-10-10T21:05:29.482911+00:00
+sha1: b8861652d84f
+mtime_utc: 2026-10-16T17:39:41.153264+00:00
+generated_utc: 2026-10-16T19:03:59.215096+00:00
 private: false
 ---
 
@@ -10,19 +10,36 @@ private: false
 
 ## Purpose
 
-_(no module docstring — update the source file.)_
+deep_sync.py — commit and push an EXPLICIT list of paths in this checkout.
+
+Housekeeping (bin/cleanup_logs.sh when present), then stage only the paths
+named on the command line, commit them if anything changed, and push to the
+remote and branch named on the command line. There are no defaults for any of
+the three: the old form ran ``git add .`` over the whole payload and pushed to
+``origin main``, and in an m3-memory checkout ``origin`` is the PUBLIC repo.
+
+Exit codes: 0 committed and pushed, or nothing changed in the named paths;
+1 any git step failed (its stderr is logged).
+
+Usage:
+    python bin/deep_sync.py --remote private --branch main reports/ notes.md
 
 ---
 
 ## Entry points
 
+- `def main()` (line 97)
 - `if __name__ == "__main__"` guard
 
 ---
 
 ## CLI flags / arguments
 
-_(no argparse arguments detected)_
+| Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
+|---|---|---|---|---|---|
+| `paths` | paths to stage (relative to the checkout); nothing else is staged | — |  | str |  |
+| `--remote` | remote to push to (check it is the one you mean) | — |  | str |  |
+| `--branch` | remote branch to push HEAD to | — |  | str |  |
 
 ---
 
@@ -42,15 +59,15 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.check_call()  → `['git', '-C', WORKSPACE, *args]`` (line 18)
-- `subprocess.run()  → `[cleanup_script]`` (line 31)
+- `subprocess.run()  → `['git', '-C', WORKSPACE, *args]`` (line 46)
+- `subprocess.run()  → `[cleanup_script]`` (line 65)
 
 
 ---
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (hidden_window_kwargs)`
 
 ---
 

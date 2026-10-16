@@ -28,13 +28,13 @@ import time
 import uuid
 from datetime import UTC, datetime
 from glob import glob
-from typing import cast
 
 # Setup path so we can import bin/ modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import chatlog_config
 from m3_core.config import settings as _m3cfg
+from m3_core.runtime import utc_iso
 
 logger = logging.getLogger("chatlog_embed_sweeper")
 
@@ -45,7 +45,7 @@ logger = logging.getLogger("chatlog_embed_sweeper")
 # forever: measured at 312,684 passes / ~1,230 MB/s / a 720 MB log, which
 # stalled the desktop UI. Count consecutive failures per file and, past the
 # budget, move it aside. MOVE, never delete — the turns must survive (§3).
-_QUARANTINE_DIRNAME = "quarantine"
+_QUARANTINE_DIRNAME = chatlog_config.QUARANTINE_DIRNAME
 _SPILL_CFG_TTL = 5.0
 _spill_cfg_cache: dict = {"ts": 0.0, "mtime": None, "max_attempts": None}
 
@@ -134,7 +134,7 @@ def _record_attempt(spill_path: str, ok: bool, reason: str = "") -> int:
                 {
                     "consecutive_failures": n,
                     "last_error": reason[:500],
-                    "last_attempt": datetime.now(UTC).isoformat(),
+                    "last_attempt": utc_iso(),
                 },
                 fh,
             )
@@ -148,27 +148,42 @@ def _quarantine_spill(spill_path: str, reason: str, attempts: int) -> bool:
     """Move an undrainable spill file out of the hot path. True if moved.
 
     The turns are NOT lost (§3): they sit in <spill_dir>/quarantine/ and drain
-    again if moved back once the target store exists.
+    again if moved back once the target store exists. The reason is kept in a
+    ``<file>.reason.json`` sidecar so status can say why without the log.
     """
     try:
         qdir = os.path.join(os.path.dirname(spill_path), _QUARANTINE_DIRNAME)
         os.makedirs(qdir, exist_ok=True)
         dest = os.path.join(qdir, os.path.basename(spill_path))
         if os.path.exists(dest):  # keep both rather than clobber
-            dest = f"{dest}.{datetime.now(UTC):%Y%m%dT%H%M%S}"
+            stem, ext = os.path.splitext(dest)
+            dest = f"{stem}.{datetime.now(UTC):%Y%m%dT%H%M%S}{ext}"
         os.replace(spill_path, dest)
         try:
             os.remove(_attempts_path(spill_path))
         except OSError:
             pass
+        try:
+            from m3_core.atomic_io import atomic_write
+
+            atomic_write(
+                dest + chatlog_config.QUARANTINE_REASON_SUFFIX,
+                json.dumps(
+                    {"source": spill_path, "reason": reason[:500], "attempts": attempts, "quarantined_at": utc_iso()}
+                ),
+            )
+        except OSError as e:
+            logger.warning("Could not write the quarantine reason for %s: %s", dest, e)
         logger.error(
             "QUARANTINED undrainable spill %s -> %s after %d consecutive failures "
-            "(%s). Turns are PRESERVED, not deleted — move the file back once the "
-            "target store exists. Raise max_drain_attempts in %s to retry longer.",
+            "(%s). Turns are PRESERVED, not deleted — move the file back into %s once "
+            "the cause is fixed; the next drain pass retries it. Raise "
+            "max_drain_attempts in %s to retry longer.",
             spill_path,
             dest,
             attempts,
             reason,
+            os.path.dirname(spill_path),
             _spill_config_path(),
         )
         return True
@@ -177,222 +192,327 @@ def _quarantine_spill(spill_path: str, reason: str, attempts: int) -> bool:
         return False
 
 
+def _claim_spill_file(spill_path: str) -> str | None:
+    """Rename a live day file to a draining name the writer never appends to.
+
+    The writer appends to ``YYYYMMDD.jsonl`` under the spill lock; renaming under
+    the same lock means every line in the claimed file was written before the
+    claim, so reading then deleting it cannot drop a late append. A file that is
+    already a draining file (a previous pass failed or died) is returned as is.
+    None when the file cannot be claimed this pass (gone, or held open).
+    """
+    base = os.path.basename(spill_path)
+    if chatlog_config.DRAINING_MARKER in base:
+        return spill_path
+    stem = base[: -len(".jsonl")]
+    tag = f"{os.getpid()}-{datetime.now(UTC):%Y%m%dT%H%M%S%f}"
+    dest = os.path.join(os.path.dirname(spill_path), f"{stem}{chatlog_config.DRAINING_MARKER}{tag}.jsonl")
+    try:
+        with chatlog_config.locked(chatlog_config.spill_lock_path(), purpose="chatlog spill"):
+            os.replace(spill_path, dest)
+    except FileNotFoundError:
+        return None  # another drainer claimed it first
+    except OSError as e:
+        logger.warning("Could not claim spill file %s for draining (%s); retrying next pass", spill_path, e)
+        return None
+    if os.path.exists(_attempts_path(spill_path)):
+        try:
+            os.replace(_attempts_path(spill_path), _attempts_path(dest))
+        except OSError:
+            pass
+    return dest
+
+
+def _is_under(path: str, root: str) -> bool:
+    try:
+        p = os.path.normcase(os.path.realpath(path))
+        r = os.path.normcase(os.path.realpath(root))
+        return os.path.commonpath([p, r]) == r
+    except ValueError:  # different drives on Windows
+        return False
+
+
+def _foreign_target_reason(db_path: str | None, backend_name: str) -> str | None:
+    """Why a spilled line's captured SQLite target is not a store to drain into.
+
+    Foreign: its directory no longer exists (a reaped test tree, an old engine
+    root — draining would create an orphan store nobody reads), or it lies under
+    the temp dir and is neither this install's chatlog store nor under its engine
+    root (a test/scratch store). None means "drain it". SQLite only: on a pooled
+    backend ``_db_path`` is a label, not a location (§10).
+    """
+    if not db_path or backend_name != "sqlite":
+        return None
+    import tempfile
+
+    from m3_core.paths import get_m3_engine_root
+
+    target = os.path.abspath(db_path)
+    own = os.path.abspath(chatlog_config.chatlog_db_path())
+    if os.path.normcase(target) == os.path.normcase(own):
+        return None
+    if not os.path.isdir(os.path.dirname(target)):
+        return "target directory no longer exists"
+    if _is_under(target, get_m3_engine_root()):
+        return None
+    if _is_under(target, tempfile.gettempdir()):
+        return "target is a temp-dir store, not this install's chatlog store"
+    return None
+
+
+def _park_lines(name: str, raw_lines: list[str], spill_dir: str) -> str:
+    """Append raw spill lines to <spill_dir>/quarantine/<name>; return the path.
+    Raises OSError if they did not reach disk (the caller then keeps them)."""
+    qdir = os.path.join(spill_dir, _QUARANTINE_DIRNAME)
+    os.makedirs(qdir, exist_ok=True)
+    dest = os.path.join(qdir, name)
+    with open(dest, "a", encoding="utf-8", newline="\n") as fh:
+        fh.writelines(line if line.endswith("\n") else line + "\n" for line in raw_lines)
+        fh.flush()
+        os.fsync(fh.fileno())
+    return dest
+
+
+def _normalise_spilled(doc: dict) -> dict:
+    """Default the private keys of a legacy/hand-written spill line.
+
+    A spill line is the QUEUED item verbatim (`{**item, "_id", "_title",
+    "_content", "_metadata_json", "_created_at", "_db_path"}`), so every field
+    the live write path uses is already there.
+    """
+    host_agent = doc.get("host_agent", "unknown")
+    doc.setdefault("_id", str(uuid.uuid4()))
+    doc.setdefault("_content", doc.get("content", ""))
+    doc.setdefault("_title", "")
+    doc.setdefault("_created_at", doc.get("timestamp") or utc_iso())
+    doc.setdefault("conversation_id", "")
+    doc.setdefault("model_id", doc.get("model_id", "unknown"))
+    if not doc.get("agent_id"):
+        doc["agent_id"] = f"{host_agent}:spill"
+    if not doc.get("_metadata_json"):
+        doc["_metadata_json"] = json.dumps(
+            {
+                "role": doc.get("role", "unknown"),
+                "provider": doc.get("provider", "unknown"),
+                "model_id": doc.get("model_id", "unknown"),
+                "host_agent": host_agent,
+                "spill_source": True,
+            }
+        )
+    return doc
+
+
+async def _drain_one(spill_path: str, backend_name: str, max_attempts: int) -> int:
+    """Drain one CLAIMED spill file. Returns rows landed.
+
+    Every line ends in exactly one place: the store, quarantine/ (malformed →
+    ``<file>.bad``, foreign target → ``foreign-<file>``), or the rewritten
+    spill file (its target failed; retried next pass). The file is rewritten
+    WITHOUT the groups that landed, so a retry does not re-insert them.
+    """
+    from m3_core.paths import _db_is_populated
+
+    spill_dir = os.path.dirname(spill_path)
+    base = os.path.basename(spill_path)
+    per_db: dict[str | None, list[tuple[str, dict]]] = {}
+    bad_lines: list[str] = []
+    total_lines = 0
+    with open(spill_path, encoding="utf-8") as f:  # noqa: ASYNC230 — callers in a live loop run this on a worker thread (m3_cognitive_loop)
+        for raw in f:
+            if not raw.strip():
+                continue
+            total_lines += 1
+            try:
+                doc = json.loads(raw)
+                if not isinstance(doc, dict):
+                    raise ValueError(f"line is a JSON {type(doc).__name__}, not an object")
+            except (json.JSONDecodeError, ValueError):
+                bad_lines.append(raw)
+                continue
+            doc = _normalise_spilled(doc)
+            per_db.setdefault(doc.get("_db_path"), []).append((raw, doc))
+
+    landed = 0
+    keep: list[str] = []  # lines whose target failed this pass
+    last_error = ""
+    foreign: dict[str, tuple[str, list[str]]] = {}
+    for db_path, entries in per_db.items():
+        raws = [r for r, _ in entries]
+        rows = [d for _, d in entries]
+        why = _foreign_target_reason(db_path, backend_name)
+        if why:
+            foreign[str(db_path)] = (why, raws)
+            continue
+        # A 0-table SQLite stub passes the directory check but would die in the
+        # writer with "no such table" — the same orphan-store hazard. Keep and
+        # retry: a not-yet-migrated engine root can become valid.
+        if db_path and backend_name == "sqlite" and not _db_is_populated(db_path):
+            logger.error(
+                "Spill target %s exists but carries no chatlog schema — refusing to "
+                "write %d line(s) into it. Keeping them in %s; run `m3 doctor --fix` "
+                "if it is this install's store.",
+                db_path,
+                len(rows),
+                spill_path,
+            )
+            keep.extend(raws)
+            last_error = f"target {db_path} has no chatlog schema"
+            continue
+        # The CANONICAL writer (§10a), with conflicts ignored: a crash between
+        # commit and rewrite must not make the next pass fail on the primary key.
+        try:
+            from chatlog_core import _executemany_insert
+
+            written = await asyncio.to_thread(_executemany_insert, rows, ignore_conflicts=True)
+            landed += written
+            logger.info("Drained %d rows from %s -> %s", written, spill_path, db_path or "<live resolver>")
+        except Exception as e:  # noqa: BLE001 — per-target isolation; sqlite3/psycopg errors are unrelated types
+            logger.error(
+                "Failed to insert %d drained row(s) from %s into %s: %s: %s",
+                len(rows),
+                spill_path,
+                db_path or "<live resolver>",
+                type(e).__name__,
+                e,
+            )
+            keep.extend(raws)
+            last_error = f"{type(e).__name__}: {e}"
+
+    # Park malformed and foreign lines BEFORE the source is rewritten or removed;
+    # if parking fails they stay in the source file.
+    if bad_lines:
+        try:
+            dest = _park_lines(f"{base}.bad", bad_lines, spill_dir)
+            logger.warning(
+                "Moved %d malformed line(s) from %s to %s (not JSON objects; kept for inspection)",
+                len(bad_lines),
+                spill_path,
+                dest,
+            )
+        except OSError as e:
+            logger.error("Could not park %d malformed line(s) from %s: %s; keeping them", len(bad_lines), spill_path, e)
+            keep.extend(bad_lines)
+            last_error = last_error or f"cannot park malformed lines: {e}"
+    for target, (why, raws) in foreign.items():
+        try:
+            dest = _park_lines(f"foreign-{base}", raws, spill_dir)
+            logger.warning(
+                "Moved %d spilled line(s) for foreign target %s (%s) from %s to %s. "
+                "Turns are preserved; move them back into %s only if that store should receive them.",
+                len(raws),
+                target,
+                why,
+                spill_path,
+                dest,
+                spill_dir,
+            )
+        except OSError as e:
+            logger.error(
+                "Could not park %d foreign line(s) for %s from %s: %s; keeping them", len(raws), target, spill_path, e
+            )
+            keep.extend(raws)
+            last_error = last_error or f"cannot park foreign lines: {e}"
+
+    if not keep:
+        _record_attempt(spill_path, ok=True)
+        try:
+            os.remove(spill_path)
+            logger.info("Deleted spill file: %s", spill_path)
+        except FileNotFoundError:
+            pass  # a concurrent drainer finished it; its rows were insert-or-ignored
+        except OSError as e:
+            # Every line is accounted for; a retry re-inserts nothing (ignore).
+            logger.warning("Failed to delete drained spill file %s: %s", spill_path, e)
+        return landed
+
+    if len(keep) < total_lines:
+        from m3_core.atomic_io import atomic_write
+
+        try:
+            atomic_write(spill_path, "".join(line if line.endswith("\n") else line + "\n" for line in keep))
+        except OSError as e:
+            # Landed groups stay in the file; insert-or-ignore makes the retry safe.
+            logger.warning("Could not rewrite %s without its landed lines: %s", spill_path, e)
+    n = _record_attempt(spill_path, ok=False, reason=last_error)
+    if n >= max_attempts:
+        _quarantine_spill(spill_path, last_error or "repeated drain failure", n)
+    else:
+        logger.warning(
+            "Spill %s did not fully drain (attempt %d/%d): %d of %d line(s) kept; %s",
+            spill_path,
+            n,
+            max_attempts,
+            len(keep),
+            total_lines,
+            last_error or "unknown",
+        )
+    return landed
+
+
 async def drain_spill(conn=None) -> int:
     """
-    Drain spill JSONL files back into the chat log store(s).
+    Drain spill JSONL files back into the chat log store(s). An async coroutine:
+    run it with ``asyncio.run(drain_spill())`` on a thread with no running loop.
 
-    Spilled items written after the DB-parameter refactor carry the target
-    path they were enqueued against (``_db_path``). We honor that per-item
-    so rows from a session that pointed at a dedicated test/benchmark DB
-    don't silently land in the live store. Legacy spill items without
-    ``_db_path`` fall back to the live resolver.
+    Each item carries the target it was enqueued against (``_db_path``) and lands
+    there, so turns from a session pointed at a dedicated DB don't land in the
+    live store; items without it use the live resolver. Reinsertion goes through
+    ``chatlog_core._executemany_insert`` — the writer the live path uses (§10a)
+    — so all 22 columns (tenancy, content_hash, origin_device) survive on either
+    backend.
 
-    Reinsertion delegates to ``chatlog_core._executemany_insert`` — the SAME
-    writer the live chatlog path uses — rather than a second INSERT maintained
-    here (§10a: duplicated SQL is the defect; copies drift). That gets backend
-    portability for free (``memory_items``/``?`` on SQLite, ``chat_log_items``/
-    ``%s`` on PostgreSQL) and, critically, writes ALL 22 columns. A spill line is
-    the queued item verbatim, so ``user_id``/``scope`` (tenancy — see
-    ``Dialect.scope_predicates``), ``content_hash`` (dedup) and ``origin_device``
-    survive the round-trip.
+    Spill is NOT a SQLite-only concern: ``chatlog_core._spill_batch`` fires on
+    ANY flush exception and on queue-full backpressure, and a PG outage is
+    precisely when spill accumulates.
 
-    Spill is NOT a SQLite-only concern — ``chatlog_core._spill_batch`` fires on
-    ANY flush exception and on queue-full backpressure, regardless of backend,
-    and a PG outage is precisely when spill accumulates.
+    Concurrent drainers (the sweeper task and the cognitive loop) are safe: a
+    day file is claimed by rename, and reinsertion ignores ids already present.
 
     ``conn`` is accepted for backwards compatibility and ignored.
 
     Returns count of rows inserted across all target stores.
     """
-    from m3_core.paths import _db_is_populated
     from memory.backends import active_backend
 
-    spill_dir = chatlog_config.SPILL_DIR
-    if not os.path.exists(spill_dir):
+    spill_dir = chatlog_config.spill_dir()
+    if not os.path.isdir(spill_dir):
         return 0
-
-    spill_files = glob(os.path.join(spill_dir, "*.jsonl"))
+    spill_files = sorted(glob(os.path.join(spill_dir, "*.jsonl")))
     if not spill_files:
         return 0
 
-    _backend = active_backend()
-
+    backend_name = active_backend().name
     total_drained = 0
     _max_attempts = _spill_max_attempts()
     for spill_path in spill_files:
+        claimed = _claim_spill_file(spill_path)
+        if claimed is None:
+            continue
         # §4: a file that has already spent its retry budget is quarantined
-        # WITHOUT reopening/reparsing it — one os.stat, not a full drain pass.
-        # This is what stops a permanently-undrainable spill costing anything.
-        _prior = _read_attempts(spill_path)
+        # WITHOUT reopening/reparsing it.
+        _prior = _read_attempts(claimed)
         if _prior >= _max_attempts:
-            _quarantine_spill(spill_path, "exceeded retry budget", _prior)
+            _quarantine_spill(claimed, "exceeded retry budget", _prior)
             continue
         try:
-            # Group rows by their captured target DB. Legacy spills (no
-            # _db_path) land on the sweeper's connection under the None key.
-            per_db: dict = {}
-            with open(spill_path, encoding="utf-8") as f:  # noqa: ASYNC230 — callers in a live loop run this on a worker thread (m3_cognitive_loop)
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        doc = json.loads(line)
-                    except json.JSONDecodeError as e:
-                        logger.warning("Skipping malformed JSON in %s: %s", spill_path, e)
-                        continue
+            total_drained += await _drain_one(claimed, backend_name, _max_attempts)
+        except Exception as e:  # noqa: BLE001 — one file must not stop the rest
+            n = _record_attempt(claimed, ok=False, reason=f"{type(e).__name__}: {e}")
+            logger.error(
+                "Error processing spill file %s (attempt %d/%d; file kept): %s: %s",
+                claimed,
+                n,
+                _max_attempts,
+                type(e).__name__,
+                e,
+            )
+            if n >= _max_attempts:
+                _quarantine_spill(claimed, f"{type(e).__name__}: {e}", n)
 
-                    # Normalise a spilled doc back into the shape the canonical
-                    # writer expects. A spill line is the QUEUED item verbatim
-                    # (`{**item, "_id", "_title", "_content", "_metadata_json",
-                    # "_created_at", "_db_path"}`), so every field the live write
-                    # path uses — user_id, scope, origin_device, valid_from, … —
-                    # is already here; only the private keys need defaulting for
-                    # legacy/hand-written lines.
-                    host_agent = doc.get("host_agent", "unknown")
-                    doc.setdefault("_id", str(uuid.uuid4()))
-                    doc.setdefault("_content", doc.get("content", ""))
-                    doc.setdefault("_title", "")
-                    doc.setdefault("_created_at", doc.get("timestamp") or datetime.now(UTC).isoformat())
-                    doc.setdefault("conversation_id", "")
-                    doc.setdefault("model_id", doc.get("model_id", "unknown"))
-                    if not doc.get("agent_id"):
-                        doc["agent_id"] = f"{host_agent}:spill"
-                    if not doc.get("_metadata_json"):
-                        doc["_metadata_json"] = json.dumps(
-                            {
-                                "role": doc.get("role", "unknown"),
-                                "provider": doc.get("provider", "unknown"),
-                                "model_id": doc.get("model_id", "unknown"),
-                                "host_agent": host_agent,
-                                "spill_source": True,
-                            }
-                        )
-
-                    per_db.setdefault(doc.get("_db_path"), []).append(doc)
-
-            file_drained = 0
-            had_error = False
-            last_error = ""
-            for db_path, rows in per_db.items():
-                if not rows:
-                    continue
-                # A captured _db_path whose PARENT DIRECTORY is gone is a stale
-                # target — a deleted benchmark tree, an old engine root. Opening
-                # it would silently CREATE the directory and an empty database,
-                # write the turns into that orphan store, and then delete the
-                # spill file: the rows are "drained" into a DB nobody reads.
-                # Refuse, keep the spill file, and say so (§3 — fail loud, and
-                # never discard the only copy of a turn).
-                #
-                # SQLite ONLY, gated on capability, never on `!= postgres` (§10a).
-                # On a pooled backend `_db_path` is a LABEL, not a location
-                # (§10) — a filesystem check on it is meaningless and, worse,
-                # non-deterministic: os.path.abspath() resolves a bare label
-                # against the CWD, so the same spill row drains from one working
-                # directory and is refused from another. A DSN-shaped label
-                # ("postgresql://host/db") fails the check outright and would
-                # strand PG spill permanently. The orphan-store hazard is
-                # inherently SQLite's — a server backend cannot be conjured by
-                # connecting to it.
-                if (
-                    db_path
-                    and _backend.name == "sqlite"
-                    and not os.path.isdir(os.path.dirname(os.path.abspath(db_path)))
-                ):
-                    logger.error(
-                        "Spill target %s is stale (parent directory missing) — "
-                        "refusing to create an orphan store. Keeping %s; "
-                        "re-point or remove the stale rows to drain it.",
-                        db_path,
-                        spill_path,
-                    )
-                    had_error = True
-                    last_error = f"stale target {db_path} (parent directory missing)"
-                    continue
-
-                # The directory check above is necessary but NOT sufficient: a
-                # target can exist as a 0-table SQLite stub (test scaffolding
-                # left in %TEMP%, or a not-yet-migrated engine root). That passes
-                # the directory check, then dies inside the writer with
-                # "no such table: memory_items" — a confusing error for what is
-                # really the SAME orphan-store hazard. Reuse the existing
-                # `_db_is_populated` seam rather than hand-rolling the probe
-                # (§10a): it already answers "does this file carry the schema".
-                if db_path and _backend.name == "sqlite" and not _db_is_populated(db_path):
-                    logger.error(
-                        "Spill target %s exists but carries no chatlog schema "
-                        "(empty/foreign SQLite file) — refusing to write into it. "
-                        "Keeping %s; re-point or remove the stale rows to drain it.",
-                        db_path,
-                        spill_path,
-                    )
-                    had_error = True
-                    last_error = f"target {db_path} has no chatlog schema"
-                    continue
-
-                # Reuse the CANONICAL chatlog writer rather than a second INSERT
-                # here (§10a — duplicated SQL is the defect; copies drift). It
-                # already groups by `_db_path`, activates it, routes through
-                # M3Context.get_chatlog_conn(), and writes all 22 columns via
-                # the seam on either backend.
-                #
-                # This is not a style preference: the hand-rolled INSERT this
-                # replaces wrote only 10 columns, silently dropping user_id and
-                # scope (both NULL-defaulted) — so a drained turn carried NO
-                # tenancy and became invisible to, or leaked across,
-                # Dialect.scope_predicates filtering (§7). It also dropped
-                # content_hash (breaking dedup) and origin_device (whose column
-                # default is the literal 'macbook', mislabelling every drained
-                # row on a Windows or Linux host). The spill file carried all of
-                # it; only the reinsertion threw it away.
-                try:
-                    from chatlog_core import _executemany_insert
-
-                    written = await asyncio.to_thread(_executemany_insert, rows)
-                    file_drained += written
-                    logger.info("Drained %d rows from %s -> %s", written, spill_path, db_path or "<live resolver>")
-                except Exception as e:  # noqa: BLE001 — per-target isolation
-                    # Backend-agnostic: sqlite3.Error and psycopg2.Error are
-                    # unrelated types, so catch broadly and keep the spill file.
-                    logger.error(
-                        "Failed to insert drained rows from %s into %s: %s: %s",
-                        spill_path,
-                        db_path,
-                        type(e).__name__,
-                        e,
-                    )
-                    had_error = True
-                    last_error = f"{type(e).__name__}: {e}"
-
-            total_drained += file_drained
-
-            # Delete the spill file only if every group landed successfully.
-            if not had_error:
-                _record_attempt(spill_path, ok=True)
-                try:
-                    os.remove(spill_path)
-                    logger.info("Deleted spill file: %s", spill_path)
-                except OSError as e:
-                    logger.warning("Failed to delete spill file %s: %s", spill_path, e)
-            else:
-                # Something in this file refused to drain. Count it; once the
-                # budget is spent, move it aside so the loop stops spinning.
-                n = _record_attempt(spill_path, ok=False, reason=last_error)
-                if n >= _max_attempts:
-                    _quarantine_spill(spill_path, last_error or "repeated drain failure", n)
-                else:
-                    logger.warning(
-                        "Spill %s did not fully drain (attempt %d/%d): %s",
-                        spill_path,
-                        n,
-                        _max_attempts,
-                        last_error or "unknown",
-                    )
-
-        except Exception as e:
-            logger.error("Error processing spill file %s: %s", spill_path, e)
-
+    try:
+        chatlog_config.record_spill_state()
+    except Exception as e:  # noqa: BLE001 — bookkeeping only; the drain's work stands
+        logger.warning("Spill state not recorded in %s: %s: %s", chatlog_config.STATE_FILE, type(e).__name__, e)
     return total_drained
 
 
@@ -458,8 +578,11 @@ def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
         return False
 
 
-async def get_unembed_count(conn: sqlite3.Connection) -> int:
-    """Count rows needing embeddings."""
+async def get_unembed_count(conn: sqlite3.Connection) -> int | None:
+    """Count rows needing embeddings; None when the count could not be taken.
+
+    None, not 0: a failed query reported as 0 read as "nothing to do".
+    """
     if not table_exists(conn, "memory_items") or not table_exists(conn, "memory_embeddings"):
         return 0
 
@@ -475,45 +598,24 @@ async def get_unembed_count(conn: sqlite3.Connection) -> int:
         ).fetchone()
         return row["cnt"] if row else 0
     except sqlite3.Error as e:
-        logger.error("Failed to count unembedded rows: %s", e)
-        return 0
+        logger.error("Failed to count unembedded rows (backlog unknown): %s", e)
+        return None
 
 
-def load_state() -> dict:
-    """Load state file, or return defaults."""
-    state_path = chatlog_config.STATE_FILE
-    if not os.path.exists(state_path):
-        return {
-            "embed_backlog": 0,
-            "last_sweeper_run_at": None,
-            "last_sweeper_rows_embedded": 0,
-            "last_sweeper_spill_drained": 0,
-            "queue_depth": 0,
-        }
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            return cast("dict", json.load(f))
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to load state file: %s", e)
-        return {
-            "embed_backlog": 0,
-            "last_sweeper_run_at": None,
-            "last_sweeper_rows_embedded": 0,
-            "last_sweeper_spill_drained": 0,
-            "queue_depth": 0,
-        }
+def record_sweep_state(backlog: int | None, rows_embedded: int, spill_drained: int) -> None:
+    """Locked merge of this run's results into the shared state file (the
+    writer and status update other keys of the same file concurrently)."""
 
-
-def save_state(state: dict) -> None:
-    """Save state atomically with rename."""
-    state_dir = os.path.dirname(chatlog_config.STATE_FILE)
-    os.makedirs(state_dir, exist_ok=True)
-    from m3_core.atomic_io import atomic_write
+    def _mutate(state: dict) -> None:
+        state["embed_backlog"] = backlog
+        state["last_sweeper_run_at"] = utc_iso()
+        state["last_sweeper_rows_embedded"] = rows_embedded
+        state["last_sweeper_spill_drained"] = spill_drained
 
     try:
-        atomic_write(chatlog_config.STATE_FILE, json.dumps(state, indent=2))
-    except OSError as e:
-        logger.error("Failed to save state: %s", e)
+        chatlog_config.update_state(_mutate)
+    except Exception as e:  # noqa: BLE001 — the run's work stands; say the bookkeeping did not
+        logger.error("Failed to save sweeper state to %s: %s: %s", chatlog_config.STATE_FILE, type(e).__name__, e)
 
 
 async def main() -> int:
@@ -586,7 +688,7 @@ async def main() -> int:
     # local .db file made it a silent no-op on PostgreSQL, stranding spilled
     # turns on disk with only a log line. drain_spill() routes through the seam.
     early_spill_drained = 0
-    if args.drain_spill or os.path.exists(chatlog_config.SPILL_DIR):
+    if args.drain_spill or os.path.exists(chatlog_config.spill_dir()):
         early_spill_drained = await drain_spill()
         if early_spill_drained > 0:
             logger.info("Drained %d rows from spill", early_spill_drained)
@@ -654,6 +756,7 @@ async def main() -> int:
         )
 
         counters = _Counters()
+        fetch_errors: list[str] = []
 
         # Fetch callback: pulls (after_id, limit) -> rows. Only chat_log
         # rows still missing an embedding row.
@@ -676,7 +779,10 @@ async def main() -> int:
             try:
                 return conn.execute(sql, params).fetchall()
             except sqlite3.Error as e:
-                logger.error("Failed to query unembedded rows: %s", e)
+                # [] ends the loop like "no more rows"; the flag is what tells
+                # the two apart below.
+                fetch_errors.append(f"{type(e).__name__}: {e}")
+                logger.error("Failed to query unembedded rows from %s: %s", db_path, e)
                 return []
 
         # Write callback: persists one embedding row. Chatlog DB has the
@@ -737,26 +843,35 @@ async def main() -> int:
 
         # Get remaining backlog count
         backlog = await get_unembed_count(conn)
-
-        # Update state
-        state = load_state()
-        state["embed_backlog"] = backlog
-        state["last_sweeper_run_at"] = datetime.now(UTC).isoformat()
-        state["last_sweeper_rows_embedded"] = rows_embedded
-        state["last_sweeper_spill_drained"] = spill_drained
-        save_state(state)
+        record_sweep_state(backlog, rows_embedded, spill_drained)
 
         elapsed = asyncio.get_running_loop().time() - start_time
+        backlog_txt = "unknown (count failed)" if backlog is None else str(backlog)
 
+        if fetch_errors:
+            logger.error(
+                "Embed sweep stopped early: the candidate query failed (%s) on %s. "
+                "Embedded %d rows before it; spill drained: %d; backlog: %s. "
+                "inspect: m3 chatlog doctor",
+                fetch_errors[-1],
+                db_path,
+                rows_embedded,
+                spill_drained,
+                backlog_txt,
+            )
+            return 1
         if rows_embedded > 0 or spill_drained > 0:
             logger.info(
-                "Embedded %d rows in %d batches (%.1fs), spill drained: %d, backlog remaining: %d",
+                "Embedded %d rows in %d batches (%.1fs), spill drained: %d, backlog remaining: %s",
                 rows_embedded,
                 batches_processed,
                 elapsed,
                 spill_drained,
-                backlog,
+                backlog_txt,
             )
+        elif backlog is None:
+            logger.error("Embedded 0 rows; the backlog count failed, so 'nothing to do' is unverified (%s)", db_path)
+            return 1
         else:
             logger.info("Nothing to do (backlog: %d)", backlog)
 

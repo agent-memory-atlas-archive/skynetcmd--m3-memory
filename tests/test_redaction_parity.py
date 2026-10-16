@@ -276,3 +276,15 @@ def test_missing_config_keys():
     assert_parity(ANTH, {"enabled": True, "patterns": ["api_keys"]})
     assert_parity(ANTH, {"enabled": True})
     assert_parity(ANTH, {})
+
+
+def test_config_errors_are_identical_and_never_echo_the_pattern():
+    """Unknown groups and bad custom regexes are reported with the same text on
+    both paths, and neither echoes the pattern (it may be the secret)."""
+    c = cfg(patterns=["custom_regex", "api_kyes"], custom=["[TOPSECRET", r"GOOD_\d+", "(also(bad"])
+    rs_scrub("x", c)
+    rs = list(m3_core_rs.redaction_compile_errors())
+    py_scrub("x", c)
+    py = _clr_py.get_compile_errors()
+    assert rs == py
+    assert len(py) == 3 and not any("TOPSECRET" in e for e in py)

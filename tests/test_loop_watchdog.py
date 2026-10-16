@@ -315,10 +315,113 @@ def test_a_stale_heartbeat_does_not_kill_a_loop_that_just_started(monkeypatch, l
 
     monkeypatch.setattr(wd, "halt_active", lambda: False)
     monkeypatch.setattr(wd, "_tick_embed_watchdog", lambda: None)
-    monkeypatch.setattr(wd, "heartbeat_age", lambda: (2505.0, 300))
+    monkeypatch.setattr(wd, "read_heartbeat", lambda: _hb(age=2505.0))
     monkeypatch.setattr(wd, "newest_loop_age", lambda: loop_age)
     restarts = []
     monkeypatch.setattr(wd, "restart", lambda reason: restarts.append(reason) or 0)
     monkeypatch.setattr(wd, "log", lambda msg: None)
     assert wd.main() == 0
     assert bool(restarts) is expect_restart
+
+
+def _hb(age=None, interval=300, state="running", reason=None, error=None, mtime_age=None):
+    return {"age": age, "interval": interval, "state": state, "reason": reason, "error": error, "mtime_age": mtime_age}
+
+
+def _drive_main(monkeypatch, hb):
+    import m3_loop_watchdog as wd
+
+    monkeypatch.setattr(wd, "halt_active", lambda: False)
+    monkeypatch.setattr(wd, "_tick_embed_watchdog", lambda: None)
+    monkeypatch.setattr(wd, "read_heartbeat", lambda: hb)
+    monkeypatch.setattr(wd, "newest_loop_age", lambda: None)
+    monkeypatch.setattr(wd, "loop_process_is_registered", lambda: True)
+    restarts, logs = [], []
+    monkeypatch.setattr(wd, "restart", lambda reason: restarts.append(reason) or 0)
+    monkeypatch.setattr(wd, "log", logs.append)
+    rc = wd.main()
+    return rc, restarts, logs
+
+
+def test_a_paused_loop_beat_is_progress(monkeypatch):
+    """Governor/thermal/HALT pauses beat with state=paused; the watchdog must
+    not restart a healthy paused loop, and says it is paused."""
+    rc, restarts, logs = _drive_main(monkeypatch, _hb(age=30.0, state="paused", reason="governor-halted"))
+    assert rc == 0 and restarts == []
+    assert any("paused (governor-halted)" in m for m in logs)
+
+
+def test_unreadable_heartbeat_with_old_mtime_is_stale(monkeypatch):
+    _rc, restarts, _ = _drive_main(monkeypatch, _hb(error="malformed (ValueError: x)", mtime_age=5000.0))
+    assert len(restarts) == 1
+    assert "unreadable" in restarts[0] and "5000s" in restarts[0]
+
+
+def test_unreadable_heartbeat_with_fresh_mtime_is_degraded_not_restarted(monkeypatch):
+    rc, restarts, logs = _drive_main(monkeypatch, _hb(error="malformed (ValueError: x)", mtime_age=20.0))
+    assert rc == 0 and restarts == []
+    assert any("OK (degraded)" in m and "unreadable" in m for m in logs)
+
+
+def test_read_heartbeat_reports_a_corrupt_file_with_its_mtime(tmp_path, monkeypatch):
+    import m3_loop_watchdog as wd
+
+    hb = tmp_path / "hb.json"
+    hb.write_text("{not json", encoding="utf-8")
+    old = __import__("time").time() - 4000
+    os.utime(hb, (old, old))
+    monkeypatch.setattr(wd, "HEARTBEAT", hb)
+    got = wd.read_heartbeat()
+    assert got["age"] is None and got["error"].startswith("malformed")
+    assert got["mtime_age"] is not None and got["mtime_age"] > 3900
+
+
+def test_read_heartbeat_parses_utc_z_and_state(tmp_path, monkeypatch):
+    import m3_loop_watchdog as wd
+    from m3_core.runtime import utc_iso
+
+    hb = tmp_path / "hb.json"
+    hb.write_text(
+        json.dumps({"ts": utc_iso(), "interval_s": 60, "state": "paused", "reason": "thermal"}), encoding="utf-8"
+    )
+    monkeypatch.setattr(wd, "HEARTBEAT", hb)
+    got = wd.read_heartbeat()
+    assert got["age"] is not None and got["age"] < 60
+    assert (got["state"], got["reason"], got["interval"]) == ("paused", "thermal", 60)
+
+
+class _R:
+    def __init__(self, rc, err=""):
+        self.returncode, self.stderr, self.stdout = rc, err, ""
+
+
+@pytest.mark.parametrize(
+    "rcs,expect_rc,expect_word",
+    [
+        ((1, 0), 0, "restart requested"),  # /End on a stopped task fails; /Run starts it
+        ((0, 1), 1, "restart FAILED"),  # the start command failed
+    ],
+)
+def test_restart_reports_the_start_commands_outcome(tmp_path, monkeypatch, rcs, expect_rc, expect_word):
+    import m3_loop_watchdog as wd
+
+    monkeypatch.setattr(wd, "STATE", tmp_path / "state.json")
+    monkeypatch.setattr(wd, "_os_name", lambda: "Windows")
+    results = iter([_R(rcs[0], "stop-noise"), _R(rcs[1], "ERROR: The system cannot find the file specified.")])
+    monkeypatch.setattr(wd.subprocess, "run", lambda *a, **k: next(results))
+    logs = []
+    monkeypatch.setattr(wd, "log", logs.append)
+    assert wd.restart("test") == expect_rc
+    assert any(expect_word in m for m in logs), logs
+    state = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+    assert state["ok"] is (expect_rc == 0)
+    if expect_rc:
+        assert any("/Run" in m and "exit=1" in m and "cannot find" in m for m in logs)
+
+
+def test_watchdog_log_honours_the_logs_root(tmp_path, monkeypatch):
+    import m3_loop_watchdog as wd
+    from m3_core.seams import roots
+
+    monkeypatch.setattr(roots, "logs_root", lambda: str(tmp_path / "logs"))
+    assert wd._log_path() == tmp_path / "logs" / "m3_loop_watchdog.log"

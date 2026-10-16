@@ -802,6 +802,23 @@ def _notification_sources() -> list[tuple[str | None, str]]:
     a name comparison like ``!= "postgres"`` -- a future MariaDB must not
     silently take the PostgreSQL path (§10a).
     """
+    return _notification_sources_checked()[0]
+
+
+# Messages already logged by _notification_sources_checked: it runs on every
+# poll (a supervised waiter polls once a second), so an unchanged dispatch-config
+# failure is reported once per process, not once per tick.
+_DISPATCH_CONFIG_REPORTED: set[str] = set()
+
+
+def _notification_sources_checked() -> tuple[list[tuple[str | None, str]], str | None]:
+    """``(sources, error)``: :func:`_notification_sources` plus why the dispatch
+    source is missing (``None`` when the list is complete).
+
+    A broken dispatch config must not hide the main store, so the main source is
+    always returned -- but a caller that treats the result as the WHOLE inbox
+    has to know it is not (§3: a partial read must not look complete).
+    """
     sources: list[tuple[str | None, str]] = [(None, "notifications")]
     try:
         from m3_core.paths import (
@@ -819,13 +836,32 @@ def _notification_sources() -> list[tuple[str | None, str]]:
         else:
             schema = dispatch_pg_schema()
             sources.append((None, f'"{schema}".notification_dispatch'))
-    except Exception:  # noqa: BLE001 -- a broken dispatch config must never
-        # hide the main store from a caller that only needs its mail.
-        pass
-    return sources
+    except Exception as exc:  # noqa: BLE001 -- a broken dispatch config must never
+        # hide the main store from a caller that only needs its mail; it is
+        # reported (once per distinct cause) and surfaced to the caller instead.
+        error = f"{type(exc).__name__}: {exc}"
+        if error not in _DISPATCH_CONFIG_REPORTED:
+            _DISPATCH_CONFIG_REPORTED.add(error)
+            logger.warning(
+                "dispatch notification store not resolved; reading the main store only, so "
+                "dispatched mail is NOT seen until this is fixed. "
+                f"observed: {error}. "
+                "inspect: M3_DISPATCH_MODE and m3_core.paths.resolve_dispatch_db / "
+                "dispatch_pg_schema"
+            )
+        return sources, error
+    return sources, None
 
 
 def read_across_notification_stores(sql_template: str, params: tuple) -> list:
+    """Rows from every notification store; see :func:`read_across_notification_stores_checked`,
+    which also says which stores were skipped. Kept for callers that only render."""
+    return read_across_notification_stores_checked(sql_template, params)[0]
+
+
+def read_across_notification_stores_checked(
+    sql_template: str, params: tuple, *, agent_id: str | None = None
+) -> tuple[list, list[str]]:
     """Run one read against EVERY store a notification can live in.
 
     THE PRIMITIVE DOWNSTREAM CALLERS SHOULD USE. ``sql_template`` carries a
@@ -852,9 +888,18 @@ def read_across_notification_stores(sql_template: str, params: tuple) -> list:
     nothing would read as "no mail", which is the §3 false negative this whole
     subsystem exists to remove. An agent that trusts an empty inbox drops work
     addressed to it.
+
+    Returns ``(rows, skipped)``. ``skipped`` names every store that was not
+    read (unresolvable dispatch config, or a read that raised); a non-empty list
+    means ``rows`` is PARTIAL, and a caller diffing reads (the waiter's baseline)
+    must not treat the missing rows as gone.
     """
     rows: list = []
-    for store, table in _notification_sources():
+    skipped: list[str] = []
+    sources, src_error = _notification_sources_checked()
+    if src_error is not None:
+        skipped.append(f"dispatch store (unresolved: {src_error})")
+    for store, table in sources:
         try:
             if store is None:
                 with _db() as db:
@@ -865,32 +910,45 @@ def read_across_notification_stores(sql_template: str, params: tuple) -> list:
                 with active_backend().open_readonly(store) as conn:
                     got = conn.execute(sql_template.format(table=table), params).fetchall()
         except Exception as exc:  # noqa: BLE001 -- see the warning above
+            label = f"store={store or '(active)'} table={table}"
             logger.warning(
-                "notification store skipped. "
-                f"observed: store={store or '(active)'} table={table} "
+                "notification store skipped; this read is PARTIAL. "
+                f"observed: {label} agent_id={agent_id or '(n/a)'} "
                 f"{type(exc).__name__}: {exc}. "
                 "possible: the store has not been bootstrapped yet, or another "
                 "writer holds it. "
                 "inspect: memory/dispatch_migrations/001_bootstrap.up.sql"
             )
+            skipped.append(label)
             continue
         rows.extend(got)
-    return rows
+    return rows, skipped
 
 
 def notifications_unread_ids_impl(agent_id: str) -> list[int]:
     """
     Returns a list of unread notification IDs for the given agent.
     Returns structured data rather than prose, strictly conforming to DESIGN_PHILOSOPHIES.md (3).
+    A skipped store is logged; use :func:`notifications_unread_ids_checked` to know about it.
+    """
+    return notifications_unread_ids_checked(agent_id)[0]
+
+
+def notifications_unread_ids_checked(agent_id: str) -> tuple[list[int], list[str]]:
+    """``(ids, skipped_stores)`` -- unread ids, and which stores could not be read.
+
+    A non-empty ``skipped_stores`` means ``ids`` is partial: an id absent from it
+    may still be unread in a store that was not read.
     """
     require_agent_id(agent_id, "notifications_unread_ids")
     p = dialect().param()
     pred, params = _addressing_predicate(agent_id, p)
-    rows = read_across_notification_stores(
+    rows, skipped = read_across_notification_stores_checked(
         f"SELECT id FROM {{table}} WHERE {pred} AND {inbox_membership_sql()} ORDER BY id ASC",
         params,
+        agent_id=agent_id,
     )
-    return [row[0] for row in rows]
+    return [row[0] for row in rows], skipped
 
 
 def _decode_payload_json(rows) -> list[dict]:
@@ -1193,18 +1251,31 @@ def notifications_mark_received_impl(agent_id: str) -> str:
     the most recent poll -- which is the number a receipt SLA is measured
     against.
     """
+    rowcount, skipped = notifications_mark_received_checked(agent_id)
+    note = f"; NOT stamped in: {', '.join(skipped)}" if skipped else ""
+    return f"Marked {rowcount} notifications received for {agent_id}{note}"
+
+
+def notifications_mark_received_checked(agent_id: str) -> tuple[int, list[str]]:
+    """``(rows_stamped, skipped_stores)`` -- the structured form of
+    :func:`notifications_mark_received_impl`, for callers that must report
+    receipt only after checking it. A non-empty ``skipped_stores`` means the
+    count is partial: rows in those stores were not stamped.
+    """
     require_agent_id(agent_id, "notifications_mark_received")
     now = datetime.now(UTC).isoformat()
 
     p = dialect().param()
     pred, addr = _addressing_predicate(agent_id, p)
     rowcount = 0
+    sources, src_error = _notification_sources_checked()
+    skipped: list[str] = [f"dispatch store (unresolved: {src_error})"] if src_error else []
 
     # Receipt must reach EVERY store. It is the timestamp the <30s SLA is
     # measured against, so stamping only the legacy table would mean a
     # dispatched message is detected, delivered, and never recorded as
     # received -- the SLA would under-report without a single error.
-    for _store, _tbl in _notification_sources():
+    for _store, _tbl in sources:
         try:
             if _store is None:
                 with _db() as db:
@@ -1223,12 +1294,13 @@ def notifications_mark_received_impl(agent_id: str) -> str:
             # not lose the receipts the others recorded.
             logger.warning(
                 "notification store skipped while stamping receipt. "
-                f"observed: table={_tbl} {type(exc).__name__}: {exc}. "
+                f"observed: table={_tbl} agent_id={agent_id} {type(exc).__name__}: {exc}. "
                 "possible: the store has not been bootstrapped yet. "
                 "inspect: memory/dispatch_migrations/001_bootstrap.up.sql"
             )
+            skipped.append(f"table={_tbl}")
 
-    return f"Marked {rowcount} notifications received for {agent_id}"
+    return rowcount, skipped
 
 
 def notifications_ack_impl(notification_id: int) -> str:

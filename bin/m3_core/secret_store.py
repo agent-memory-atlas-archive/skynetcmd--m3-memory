@@ -85,7 +85,9 @@ def _check_private_windows(p: Path, *, what: str, fix: str) -> None:
 
 def _check_private(p: Path) -> None:
     if is_windows():
-        _check_private_windows(p, what=str(p), fix=f'icacls "{p}" /inheritance:r /grant:r "%USERNAME%:F"')
+        from m3_core.win_acl import icacls_user_only
+
+        _check_private_windows(p, what=str(p), fix=icacls_user_only(p))
         return
     st = p.stat()
     mode = st.st_mode & 0o777
@@ -213,14 +215,22 @@ def _check_names(p: Path, table: dict) -> None:
     )
 
 
-# userinfo form: scheme://user[:password]@host...
-_DSN_PASSWORD = re.compile(r"(://[^:/@]+:)[^@/]+(@)")
+# URI userinfo: scheme://[user]:password@host. The password runs to the LAST '@'
+# before whitespace: users paste unencoded '/', ':' and '@' into it, and a match
+# stopping at the first '/' left the rest of the password in the line. Hazard of
+# the greedy span: a later '@' in the same token masks the host too (safe side).
+_DSN_URI_PASSWORD = re.compile(r"(://[^:/@\s]*:)[^\s]+(@)")
+# keyword/value form (`password=p`, `password = 'p w'`) and a URI query
+# parameter (`?password=p&sslmode=...`): libpq accepts the credential in both.
+_DSN_KEYWORD_PASSWORD = re.compile(r"(?i)(?<![A-Za-z0-9_])(password\s*=\s*)('(?:[^'\\]|\\.)*'|[^\s&'\"]+)")
 
 
 def mask_dsn_passwords(text: str) -> str:
-    """``text`` with the password of every DSN in it replaced by ``***``; text
-    with no DSN credential is returned as it is. Safe for an error line."""
-    return _DSN_PASSWORD.sub(r"\1***\2", text)
+    """``text`` with the password of every DSN in it replaced by ``***``, in
+    either libpq form (URI userinfo or query, keyword/value); text with no DSN
+    credential is returned as it is. Safe for an error line."""
+    text = _DSN_URI_PASSWORD.sub(r"\1***\2", text)
+    return _DSN_KEYWORD_PASSWORD.sub(r"\1***", text)
 
 
 def loggable_url(url: object, *, path: bool = True) -> str:
@@ -237,7 +247,11 @@ def loggable_url(url: object, *, path: bool = True) -> str:
         port = parts.port
     except ValueError:
         return mask_dsn_passwords(text.split("?", 1)[0])
-    if not parts.scheme or not host:
+    # urlsplit ends the netloc at the first '/', so a password with an unencoded
+    # '/' put its tail and the real host into the path ('u:12/pw@h' parsed as
+    # host 'u', port 12, path '/pw@h'). An '@' past the netloc is that ambiguity:
+    # return the masked text rather than a host that may be wrong.
+    if not parts.scheme or not host or "@" in parts.path:
         return mask_dsn_passwords(text.split("?", 1)[0])
     if ":" in host:
         host = f"[{host}]"
@@ -571,16 +585,13 @@ def _check_new_file_would_be_private(directory: Path) -> None:
     """Windows: a new file takes its directory's inheritable ACL, and atomic_write's
     0600 means nothing there. So learn what a file in ``directory`` inherits from an
     EMPTY probe, and refuse before the plaintext is written."""
-    from m3_core.win_acl import probe_new_file
+    from m3_core.win_acl import icacls_user_only, probe_new_file
 
     with probe_new_file(directory) as probe:
         _check_private_windows(
             Path(probe),
             what=f"a new file in {directory} (the secrets file was NOT written)",
-            fix=(
-                f'icacls "{directory}" /inheritance:r /grant:r "%USERNAME%:(OI)(CI)F" '
-                '/grant:r "SYSTEM:(OI)(CI)F", or point M3_CONFIG_ROOT at a user-only directory'
-            ),
+            fix=f"{icacls_user_only(directory, directory=True)}, or point M3_CONFIG_ROOT at a user-only directory",
         )
 
 

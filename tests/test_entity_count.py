@@ -16,6 +16,7 @@ schema the impls require (entities, memory_item_entities, memory_items).
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -69,6 +70,13 @@ CREATE TABLE IF NOT EXISTS memory_item_entities (
 );
 CREATE INDEX IF NOT EXISTS idx_mie_entity ON memory_item_entities(entity_id);
 """
+
+
+@pytest.fixture(autouse=True)
+def _skip_migrator(monkeypatch):
+    """_SCHEMA_SQL is a deliberately partial schema the migrator cannot upgrade,
+    and a failed lazy migration now raises: these tests read it as built."""
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
 
 
 def _make_db(db_path):

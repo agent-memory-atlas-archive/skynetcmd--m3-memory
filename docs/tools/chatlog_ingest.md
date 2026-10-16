@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: c4696ba02785
-mtime_utc: 2026-10-14T15:50:54.665173+00:00
-generated_utc: 2026-10-14T15:51:12.515006+00:00
+sha1: bedcefebc34c
+mtime_utc: 2026-10-16T17:45:13.558280+00:00
+generated_utc: 2026-10-16T19:03:59.062854+00:00
 private: false
 ---
 
@@ -25,13 +25,18 @@ CLI:
 
 A per-session cursor at <engine_root>/.chatlog_ingest_cursor.json records which
 message ids / indices have been ingested so re-invoking on the same transcript
-(e.g. Stop hook every turn) stays idempotent.
+(e.g. Stop hook every turn) stays idempotent. It advances only for rows that
+are durable (in the DB or a spill file) after the write queue is drained, under
+a file lock shared by concurrent hook fires.
+
+Output: one JSON object on stdout (written = landed in the DB, spilled, pending,
+skipped, failed, error). Exit code is non-zero when capture is incomplete.
 
 ---
 
 ## Entry points
 
-- `async def main()` (line 876)
+- `async def main()` (line 1023)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -77,7 +82,7 @@ message ids / indices have been ingested so re-invoking on the same transcript
 
 **sqlite**
 
-- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 649)
+- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 711)
 
 
 ---
@@ -86,6 +91,7 @@ message ids / indices have been ingested so re-invoking on the same transcript
 
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.config (settings)`
+- `m3_core.locking (file_lock)`
 - `m3_core.paths (pin_chatlog_db, pin_database)`
 - `m3_core.runtime (utc_iso)`
 - `m3_core.seams (is_windows)`

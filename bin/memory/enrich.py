@@ -42,6 +42,7 @@ def _read_gate(name: str):
 
 from .db import _db
 from .embed import _content_hash, _get_embed_client
+from .entity import pending_limit
 
 logger = logging.getLogger("memory.enrich")
 
@@ -367,20 +368,34 @@ def _enqueue_fact_enrichment(memory_id: str, db) -> None:
         log_swallowed(logger, e, f"Failed to enqueue fact enrichment for {memory_id}: {e}")
 
 
-async def _run_fact_enricher(memory_id: str, content: str, fact_enricher, sem: asyncio.Semaphore | None = None) -> None:
+async def _run_fact_enricher(memory_id: str, content: str, fact_enricher, sem: asyncio.Semaphore | None = None) -> dict:
     """Run the actual fact extractor with error handling and retries.
 
     `sem` is the semaphore that was acquired in the caller; we release
     the same instance here. None falls back to the module-level
     `_FACT_ENRICH_SEM` (legacy behavior).
+
+    Returns what was observed: ``{"ok": bool, "facts_returned": N,
+    "facts_written": N, "error": str | None}``. A run whose facts all failed to
+    write is a failure (queued for retry like an enricher exception); a run that
+    wrote facts clears the memory's queue row.
     """
     if sem is None:
         sem = _FACT_ENRICH_SEM
+    outcome: dict = {"ok": False, "facts_returned": 0, "facts_written": 0, "error": None}
     try:
         facts = await fact_enricher(content)
         if facts:
-            await _write_fact_rows(memory_id, facts)
+            outcome["facts_returned"] = len(facts)
+            written, attempted = await _write_fact_rows(memory_id, facts)
+            outcome["facts_written"] = written
+            if attempted and not written:
+                raise RuntimeError(f"0 of {attempted} fact rows written for memory {memory_id}")
+            if written:
+                _clear_fact_queue_row(memory_id)
+        outcome["ok"] = True
     except Exception as e:
+        outcome["error"] = f"{type(e).__name__}: {e}"
         # Record error and bump attempts in queue
         try:
             with _db() as db:
@@ -411,16 +426,62 @@ async def _run_fact_enricher(memory_id: str, content: str, fact_enricher, sem: a
             log_swallowed(logger, db_err, f"Failed to record enrichment error for {memory_id}: {db_err}")
     finally:
         sem.release()
+    return outcome
 
 
-async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
-    """Write one fact_enriched row per fact, with references edge and metadata."""
-    for fact_dict in facts:
-        fact_text = fact_dict.get("text", "").strip()
+def _clear_fact_queue_row(memory_id: str) -> None:
+    """Drop a memory's fact_enrichment_queue row once facts were written: the
+    queued branch of the selection does not check for fact children, so a stale
+    row would be re-enriched until it hit the attempts cap."""
+    from memory.backends import dialect
+
+    try:
+        with _db() as db:
+            db.execute(f"DELETE FROM fact_enrichment_queue WHERE memory_id = {dialect().param()}", (memory_id,))
+    except Exception as e:
+        log_swallowed(
+            logger, e, f"Facts written for {memory_id} but its fact_enrichment_queue row was not cleared: {e}"
+        )
+
+
+async def _write_fact_rows(memory_id: str, facts: list[dict]) -> tuple[int, int]:
+    """Write one fact_enriched row per fact, with references edge and metadata.
+
+    A fact row inherits the source memory's ``user_id``, ``agent_id`` and
+    ``scope``: a derived copy must stay inside the source's tenancy and be
+    reachable by gdpr_forget for that user. Returns ``(written, attempted)``;
+    a source that no longer exists writes nothing.
+    """
+    from memory.backends import dialect
+
+    _d = dialect()
+    texts = [(fd.get("text") or "").strip() for fd in facts]
+    attempted = sum(1 for t in texts if t)
+    if not attempted:
+        return 0, 0
+    with _db() as db:
+        src = db.execute(
+            f"SELECT user_id, agent_id, scope FROM memory_items WHERE id = {_d.param()}",
+            (memory_id,),
+        ).fetchone()
+    if src is None:
+        logger.warning(
+            f"Fact enrichment: source memory {memory_id} not found; 0 of {attempted} fact rows written "
+            "(deleted or erased while enrichment ran)"
+        )
+        return 0, attempted
+    src_user, src_agent, src_scope = src[0], src[1], src[2] or "agent"
+
+    written = 0
+    errors: list[str] = []
+    for fact_dict, fact_text in zip(facts, texts, strict=True):
         if not fact_text:
             continue
 
-        confidence = float(fact_dict.get("confidence", 0.5))
+        try:
+            confidence = float(fact_dict.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
         fact_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
 
@@ -431,14 +492,12 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
         }
 
         try:
-            from memory.backends import dialect
-
-            _d = dialect()
             with _db() as db:
                 # Insert the fact row
                 db.execute(
-                    "INSERT INTO memory_items (id, type, title, content, metadata_json, change_agent, source, origin_device, scope, created_at, content_hash) "
-                    f"VALUES ({_d.placeholder(11)})",
+                    "INSERT INTO memory_items (id, type, title, content, metadata_json, change_agent, source, "
+                    "origin_device, scope, user_id, agent_id, created_at, content_hash) "
+                    f"VALUES ({_d.placeholder(13)})",
                     (
                         fact_id,
                         "fact_enriched",
@@ -448,7 +507,9 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
                         "fact_enricher",
                         "fact_enricher",
                         ORIGIN_DEVICE,
-                        "agent",
+                        src_scope,
+                        src_user,
+                        src_agent,
                         now,
                         _sha256_hex(fact_text.encode("utf-8")),
                     ),
@@ -465,8 +526,15 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
                     ),
                 )
                 _record_history(fact_id, "create", None, fact_text, "content", "fact_enricher", db=db)
+            written += 1
         except Exception as e:
-            log_swallowed(logger, e, f"Failed to write fact row for {memory_id}: {e}")
+            errors.append(f"{type(e).__name__}: {e}")
+    if errors:
+        logger.warning(
+            f"Fact enrichment for memory {memory_id}: {written} of {attempted} fact rows written; "
+            f"{len(errors)} failed, first error: {errors[0]}"
+        )
+    return written, attempted
 
 
 def _select_pending_fact_enrichment(
@@ -526,21 +594,47 @@ def _select_pending_fact_enrichment(
     return list(db.execute(sql, params).fetchall())
 
 
-async def enrich_pending_impl(dry_run: bool = True, limit: int = 0, allowed_variants: list[str] | None = None) -> dict:
+async def enrich_pending_impl(
+    dry_run: bool = True,
+    limit: int = 0,
+    allowed_variants: list[str] | None = None,
+    *,
+    fact_enricher=None,
+) -> dict:
     """Enrich pending memory items. Dry-run reports count + ETA; execute drains queue.
+
+    Execution needs a fact enricher: an async ``callable(content) -> [{"text",
+    "confidence"}]`` passed by a Python caller. No enricher is configurable in
+    m3 settings, so the MCP tool (which cannot pass one) can only dry-run; with
+    dry_run=False and no enricher this returns an ``error`` instead of claiming
+    a drain that did not happen.
 
     Returns:
     - dry_run=True: {"count": N, "est_wall_clock_seconds": F, "sample_ids": [...]}
-    - dry_run=False: {"processed": N, "succeeded": N, "failed": N, "errors_summary": str}
+    - dry_run=False: {"processed": N, "succeeded": N, "failed": N,
+      "facts_written": N, "errors_summary": str} — counts as observed per item.
     """
     with _db() as db:
-        pending = _select_pending_fact_enrichment(db, limit=limit, allowed_variants=allowed_variants)
+        pending = _select_pending_fact_enrichment(db, limit=pending_limit(limit), allowed_variants=allowed_variants)
+
+    if not dry_run and fact_enricher is None:
+        return {
+            "error": (
+                "enrich_pending cannot execute: no fact enricher is available (m3 has no configured "
+                "fact enricher; one must be passed by a Python caller as fact_enricher=). "
+                f"Nothing was enriched; {len(pending)} item(s) pending. "
+                "Run with dry_run=true to inspect the backlog."
+            ),
+            "processed": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "pending": len(pending),
+        }
 
     if not pending:
         if dry_run:
             return {"count": 0, "est_wall_clock_seconds": 0.0, "sample_ids": []}
-        else:
-            return {"processed": 0, "succeeded": 0, "failed": 0, "errors_summary": "No pending items"}
+        return {"processed": 0, "succeeded": 0, "failed": 0, "facts_written": 0, "errors_summary": "No pending items"}
 
     if dry_run:
         # Dry run: report count + ETA estimate (2.0 sec/item conservative default)
@@ -552,15 +646,25 @@ async def enrich_pending_impl(dry_run: bool = True, limit: int = 0, allowed_vari
             "sample_ids": sample_ids,
         }
 
-    # Execute: drain the queue using the semaphore
-    # For execution, we'd need to have a fact_enricher available. Since this is the
-    # core implementation and the enricher is passed at write time, we can't execute
-    # here without the enricher. This function is typically called as an MCP tool
-    # with an enricher injected. For now, return a placeholder indicating execution mode.
-    # In Wave 3 (MCP tool), the caller will provide the enricher.
+    processed = succeeded = failed = facts_written = 0
+    errors: list[str] = []
+    # Sequential drain: a local semaphore satisfies _run_fact_enricher's
+    # release contract without contending with (or binding) the live-write one.
+    drain_sem = asyncio.Semaphore(1)
+    for memory_id, content in pending:
+        await drain_sem.acquire()  # released by _run_fact_enricher
+        out = await _run_fact_enricher(memory_id, content, fact_enricher, sem=drain_sem)
+        processed += 1
+        facts_written += out["facts_written"]
+        if out["ok"]:
+            succeeded += 1
+        else:
+            failed += 1
+            errors.append(f"{memory_id}: {out['error']}")
     return {
-        "processed": 0,
-        "succeeded": 0,
-        "failed": 0,
-        "errors_summary": "Execution requires enricher (Wave 3 MCP tool)",
+        "processed": processed,
+        "succeeded": succeeded,
+        "failed": failed,
+        "facts_written": facts_written,
+        "errors_summary": "; ".join(errors) if errors else "None",
     }

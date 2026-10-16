@@ -84,7 +84,7 @@ def main() -> int:
     if proc.returncode not in (0, 3):  # 3 = findings; anything else is vulture failing
         print(
             f"check_unreferenced: observed: vulture exited {proc.returncode}: "
-            f"{proc.stderr.strip()[:500]} inspect: run the command above by hand",
+            f"{proc.stderr.strip()[:500]} inspect: run by hand: {' '.join(proc.args)}",
             file=sys.stderr,
         )
         return proc.returncode or 1

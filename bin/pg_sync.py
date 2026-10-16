@@ -78,14 +78,20 @@ from typing import Any, cast, override
 
 import yaml
 from m3_sdk import M3Context, resolve_db_path
+from pg_fdw_sync import arrival_bound, lww_guard, version_guard
 
-# Python 3.12+ sqlite3 datetime adapter deprecation fix
+# Python 3.12+ sqlite3 datetime adapter deprecation fix. Process-wide on purpose:
+# in-process callers of the sync_* functions hand PG datetimes to SQLite too.
 sqlite3.register_adapter(datetime, lambda val: val.isoformat())
 
 logger = logging.getLogger("pg_sync")
 
-# Initialize SDK context
-ctx = M3Context.for_db(None)
+
+def _ctx() -> M3Context:
+    """The SDK context, built on first use: built at import, it resolved the store
+    (and the backend setting) before a caller or test could choose them."""
+    return M3Context.for_db(None)
+
 
 BATCH_SIZE = 100  # commit every N rows
 
@@ -156,7 +162,7 @@ def _get_watermark(sl_cur, direction: str, target_name: str) -> str | None:
         # Narrow by MEANING, not by exception class: sqlite3.OperationalError and
         # psycopg2's UndefinedTable are unrelated types for the same condition,
         # and a third backend brings a third. The seam classifies it.
-        if not _local_dialect().is_undefined_object_error(exc):
+        if not _dialect_of(sl_cur).is_undefined_object_error(exc):
             raise
         # The table is ensured before sync, so this is unexpected — surface it
         # rather than silently forcing a full reconcile every run.
@@ -171,11 +177,11 @@ def _set_watermark(sl_cur, direction: str, ts: str, target_name: str) -> None:
         sl_cur.execute(
             f"INSERT INTO sync_watermarks (direction, last_synced_at) "
             f"VALUES ({_param_of(sl_cur)}, {_param_of(sl_cur)}) "
-            f"{_local_dialect().on_conflict_update('(direction)', ['last_synced_at'])}",
+            f"{_dialect_of(sl_cur).on_conflict_update('(direction)', ['last_synced_at'])}",
             (prefixed_direction, ts),
         )
     except Exception as exc:
-        if not _local_dialect().is_undefined_object_error(exc):
+        if not _dialect_of(sl_cur).is_undefined_object_error(exc):
             raise
         # Never swallow silently: an unwritten watermark means the next run
         # re-reconciles the whole table. Ensure the table exists up front.
@@ -211,6 +217,58 @@ def _direction_failed(target_name: str, direction: str, exc: BaseException, done
     )
 
 
+# Push watermarks waiting for the WAREHOUSE commit, as (target, direction, ts).
+# ⚠ A push watermark written before pg_conn.commit() survives a failed commit or
+# a savepoint rollback while the pushed rows do not: the next run asks only for
+# newer rows and those are never sent again. So pushes only queue their mark;
+# main() writes a target's marks after the warehouse commit succeeds, and a
+# rolled-back step or failed target discards its own. (Pull marks need no
+# deferral: pulled rows are committed locally before their mark.)
+_PENDING_PUSH_WATERMARKS: list[tuple[str, str, str]] = []
+
+
+def _defer_push_watermark(direction: str, ts: str, target_name: str) -> None:
+    _PENDING_PUSH_WATERMARKS.append((target_name, direction, ts))
+
+
+def _discard_push_watermarks(target_name: str) -> None:
+    _PENDING_PUSH_WATERMARKS[:] = [p for p in _PENDING_PUSH_WATERMARKS if p[0] != target_name]
+
+
+def _commit_push_watermarks(sl_cur, sl_conn, target_name: str) -> int:
+    """Write and commit ``target_name``'s queued push watermarks. Call ONLY after
+    the warehouse commit succeeded. Returns how many were written."""
+    mine = [p for p in _PENDING_PUSH_WATERMARKS if p[0] == target_name]
+    for _target, direction, ts in mine:
+        _set_watermark(sl_cur, direction, ts, target_name)
+    sl_conn.commit()
+    _discard_push_watermarks(target_name)
+    return len(mine)
+
+
+def _run_step(pg_cur, savepoint: str, target_name: str, label: str, fn, *args) -> bool:
+    """Run one sync step inside a warehouse SAVEPOINT. On failure: roll the step
+    back in the warehouse, drop the push watermarks it queued, and record it in
+    _FAILED_DIRECTIONS so the run exits 1. Returns True when the step completed."""
+    mark = len(_PENDING_PUSH_WATERMARKS)
+    pg_cur.execute(f"SAVEPOINT {savepoint}")
+    try:
+        fn(*args)
+        pg_cur.execute(f"RELEASE SAVEPOINT {savepoint}")
+        return True
+    except Exception as e:
+        del _PENDING_PUSH_WATERMARKS[mark:]
+        _FAILED_DIRECTIONS.append(f"{target_name}/{label}")
+        logger.error(
+            f"[{target_name}] {label} sync FAILED: {type(e).__name__}: {e}. observed: its warehouse writes "
+            f"were rolled back to savepoint {savepoint} and its push watermarks were NOT advanced, so the "
+            "next run retries them. inspect: the error above"
+        )
+        # Raises if the connection itself is gone; main() then fails the target.
+        pg_cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        return False
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -223,7 +281,7 @@ def _table_exists(sl_cur, table_name: str) -> bool:
     would silently be treated as absent and skipped. Silent skip is the worst
     shape for a sync.
     """
-    sql, params = _local_dialect().table_exists(table_name)
+    sql, params = _dialect_of(sl_cur).table_exists(table_name)
     sl_cur.execute(sql, params)
     return sl_cur.fetchone() is not None
 
@@ -255,19 +313,27 @@ def _kind_filter(kind: str | None, p: str, type_col: str = "type") -> tuple[str,
     return "", ()
 
 
-def _arrival_watermark(pg_cur) -> str | None:
-    """Where the next pull starts: the warehouse clock, held back to the start of
-    the oldest transaction still open. A push that commits after this pull's read
-    stamped its rows (wh_arrived_at, pg_002) after its own transaction began, so
-    they are at or after this bound and the next pull reads them."""
+def _arrival_watermark(pg_cur, target_name: str = "", direction: str = "pull") -> str | None:
+    """Where the next pull starts: pg_fdw_sync.arrival_bound (the warehouse clock,
+    held back to its oldest open transaction), read BEFORE the pull. None when it
+    cannot be read: the caller then leaves the pull watermark where it was, so the
+    next run re-reads from the last good one. Inside a savepoint so a failed probe
+    does not abort the step's transaction."""
     try:
-        pg_cur.execute(
-            "SELECT LEAST(NOW(), COALESCE((SELECT min(xact_start) FROM pg_stat_activity "
-            "WHERE xact_start IS NOT NULL AND pid <> pg_backend_pid()), NOW()))"
+        pg_cur.execute("SAVEPOINT arrival_bound")
+        bound = arrival_bound(pg_cur)
+        pg_cur.execute("RELEASE SAVEPOINT arrival_bound")
+        return bound
+    except Exception as exc:  # noqa: BLE001 — degrade to "do not advance", reported
+        logger.warning(
+            f"[{target_name}] could not read the warehouse clock for the {direction} watermark "
+            f"({type(exc).__name__}: {exc}); it is NOT advanced this run, so the next run re-reads from the "
+            "last good one. inspect: that the warehouse role can read pg_stat_activity"
         )
-        row = pg_cur.fetchone()
-        return row[0].isoformat() if row and row[0] else None
-    except Exception:  # noqa: BLE001 -- no bound: the next pull reads everything again
+        try:
+            pg_cur.execute("ROLLBACK TO SAVEPOINT arrival_bound")
+        except Exception:  # noqa: BLE001 — the step's own error handling reports a dead connection
+            pass
         return None
 
 
@@ -339,8 +405,11 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
     # corrupt cell can't block the whole sync. Positions match the SELECT column
     # order above: expires_at(12), created_at(14), updated_at(15), valid_from(18),
     # valid_to(19). A dropped bad timestamp is the least-bad outcome — the row
-    # still syncs; the garbage value was never a usable date anyway.
+    # still syncs; the garbage value was never a usable date anyway — but it is
+    # counted and reported, never dropped silently.
     _TS_POS = (12, 14, 15, 18, 19)
+    _TS_NAMES = {12: "expires_at", 14: "created_at", 15: "updated_at", 18: "valid_from", 19: "valid_to"}
+    nulled: list[str] = []
 
     def _valid_ts(v):
         """True if v parses as a real date/time PG will accept. Cheap: validate
@@ -362,10 +431,21 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
         r = list(row)
         for p in _TS_POS:
             if p < len(r) and not _valid_ts(r[p]):
+                # '' is how a SQLite column default spells "unset" (valid_from,
+                # valid_to): NULL is its meaning, not a loss. Anything else is a
+                # real malformed value and is reported.
+                if r[p] != "":
+                    nulled.append(f"{r[0]}.{_TS_NAMES[p]}={r[p]!r}")
                 r[p] = None
         return tuple(r)
 
     local_rows = [_norm_ts(r) for r in local_rows]
+    if nulled:
+        logger.warning(
+            f"[{target_name}] pushed {len(nulled)} unparseable timestamp value(s) as NULL (the warehouse "
+            f"rejects them; the local rows keep theirs). sample: {', '.join(nulled[:5])}. "
+            "inspect: those memory ids locally"
+        )
 
     # Batch UPSERT using execute_values or manual batching for PostgreSQL
     from psycopg2.extras import execute_values
@@ -373,7 +453,7 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
     if local_rows:
         try:
             # PostgreSQL upsert logic for memory_items
-            upsert_query = """
+            upsert_query = f"""
                 INSERT INTO memory_items (
                     id, type, title, content, metadata_json, agent_id, model_id,
                     change_agent, importance, source, origin_device, is_deleted,
@@ -392,11 +472,7 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
                     valid_from = EXCLUDED.valid_from,
                     valid_to = EXCLUDED.valid_to,
                     content_hash = EXCLUDED.content_hash
-                WHERE (memory_items.updated_at IS NULL OR EXCLUDED.updated_at > memory_items.updated_at)
-                  AND (
-                      (memory_items.change_agent NOT IN ('manual', 'system'))
-                      OR (EXCLUDED.change_agent = 'manual')
-                  )
+                {lww_guard("memory_items", protect_curation=True)}
             """
             # Process in batches
             for chunk in batched(local_rows, BATCH_SIZE):
@@ -407,8 +483,7 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
             _direction_failed(target_name, "pg_push", exc, push_count, len(local_rows))
 
     if not push_errors:
-        _set_watermark(sl_cur, "pg_push", now, target_name)
-    sl_conn.commit()
+        _defer_push_watermark("pg_push", now, target_name)
     logger.info(f"[{target_name}] Pushed {push_count} local memory items ({push_errors} errors).")
 
     # 2. PULL: Remote to Local — rows that ARRIVED in the warehouse since the last
@@ -416,7 +491,7 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
     # come from the writing machine's clock and precede its push, so a row pushed
     # after another machine's pull was older than that machine's next watermark.
     watermark = _get_watermark(sl_cur, "pg_pull_arrival", target_name)
-    pull_watermark = _arrival_watermark(pg_cur)
+    pull_watermark = _arrival_watermark(pg_cur, target_name, "pg_pull")
     kind_sql, kind_params = _kind_filter(kind, _param_of(pg_cur))
     select = """
             SELECT id, type, title, content, metadata_json, agent_id, model_id,
@@ -479,14 +554,9 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
             ]
             # Last-write-wins, plus the manual/system protection: a locally
             # curated row is not overwritten by an automated remote one, but a
-            # remote MANUAL edit still wins. Passed through verbatim — the text is
-            # valid on both backends (excluded/EXCLUDED are interchangeable).
-            guard = (
-                "WHERE (memory_items.updated_at IS NULL "
-                "OR excluded.updated_at > memory_items.updated_at) "
-                "AND ((memory_items.change_agent NOT IN ('manual', 'system')) "
-                "OR (excluded.change_agent = 'manual'))"
-            )
+            # remote MANUAL edit still wins. The shared definition (the push
+            # above and the FDW path use the same one).
+            guard = lww_guard("memory_items", protect_curation=True)
             for chunk in batched(remote_rows, BATCH_SIZE):
                 batch = []
                 for row in chunk:
@@ -511,7 +581,10 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | Non
 
     if not pull_errors and pull_watermark:
         _set_watermark(sl_cur, "pg_pull_arrival", pull_watermark, target_name)
-    logger.info(f"[{target_name}] Pulled {pull_count} remote memory items ({pull_errors} errors).")
+    logger.info(
+        f"[{target_name}] Sent {pull_count} remote memory items to the local store; the merge guard keeps "
+        f"newer or curated local rows ({pull_errors} errors)."
+    )
 
 
 def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str, kind: str | None = None):
@@ -548,15 +621,14 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str, kind: s
             _direction_failed(target_name, "rel_push", exc, push_count, len(local_rows))
 
     if not push_failed:
-        _set_watermark(sl_cur, "rel_push", now, target_name)
-    sl_conn.commit()
+        _defer_push_watermark("rel_push", now, target_name)
     logger.info(f"[{target_name}] Pushed {push_count} relationships to warehouse.")
 
     # 2. PULL: Remote to Local, by arrival time (see sync_memory_items). An edge
     # whose memories this store does not hold yet waits for them instead of failing
     # the batch on the foreign key; the watermark stops just before it.
     watermark = _get_watermark(sl_cur, "rel_pull_arrival", target_name)
-    pull_watermark = _arrival_watermark(pg_cur)
+    pull_watermark = _arrival_watermark(pg_cur, target_name, "rel_pull")
     kind_sql, kind_params = _kind_filter(kind, _param_of(pg_cur), "mi.type")
     select = (
         "SELECT r.id, r.from_id, r.to_id, r.relationship_type, r.created_at, r.wh_arrived_at "
@@ -598,7 +670,7 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str, kind: s
     if not pull_failed and pull_watermark:
         _set_watermark(sl_cur, "rel_pull_arrival", pull_watermark, target_name)
     sl_conn.commit()
-    logger.info(f"[{target_name}] Pulled {pull_count} relationships from warehouse.")
+    logger.info(f"[{target_name}] Sent {pull_count} warehouse relationships to the local store (existing ones kept).")
 
 
 def sync_secrets(sl_cur, pg_cur, target_name: str):
@@ -613,7 +685,7 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
         try:
             execute_values(
                 pg_cur,
-                """
+                f"""
                 INSERT INTO synchronized_secrets (service_name, encrypted_value, version, origin_device, updated_at)
                 VALUES %s
                 ON CONFLICT (service_name) DO UPDATE SET
@@ -621,8 +693,7 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
                     version = EXCLUDED.version,
                     origin_device = EXCLUDED.origin_device,
                     updated_at = EXCLUDED.updated_at
-                WHERE EXCLUDED.version > synchronized_secrets.version
-                   OR (EXCLUDED.version = synchronized_secrets.version AND EXCLUDED.updated_at > synchronized_secrets.updated_at)
+                {version_guard("synchronized_secrets")}
             """,
                 local_rows,
             )
@@ -644,11 +715,7 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
             # mis-merge the highest-value rows in the store — which is exactly
             # why bulk_upsert takes guard_sql as a pass-through fragment rather
             # than an LWW-shaped parameter.
-            guard = (
-                "WHERE excluded.version > synchronized_secrets.version "
-                "OR (excluded.version = synchronized_secrets.version "
-                "AND excluded.updated_at > synchronized_secrets.updated_at)"
-            )
+            guard = version_guard("synchronized_secrets")
             pull_count = _local_backend().bulk_upsert(
                 sl_cur.connection,
                 "synchronized_secrets",
@@ -661,7 +728,9 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
         except Exception as exc:
             _direction_failed(target_name, "secrets_pull", exc, pull_count, len(remote_rows))
 
-    logger.info(f"[{target_name}] Pulled {pull_count} remote secrets from the warehouse.")
+    logger.info(
+        f"[{target_name}] Sent {pull_count} warehouse secrets to the local store (the version guard keeps newer local ones)."
+    )
     if pull_count:
         from m3_core.secret_store import bump_secret_generation
 
@@ -717,7 +786,7 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
                     updated_at       = EXCLUDED.updated_at,
                     completed_at     = EXCLUDED.completed_at,
                     deleted_at       = EXCLUDED.deleted_at
-                WHERE tasks.updated_at IS NULL OR EXCLUDED.updated_at > tasks.updated_at
+                {lww_guard("tasks")}
             """
             for chunk in batched(local_rows, BATCH_SIZE):
                 batch = [tuple(r) for r in chunk]
@@ -728,12 +797,18 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
             _direction_failed(target_name, "tasks_push", exc, push_count, len(local_rows))
 
     if not tasks_push_failed:
-        _set_watermark(sl_cur, "tasks_push", now, target_name)
-    sl_conn.commit()
+        _defer_push_watermark("tasks_push", now, target_name)
     logger.info(f"[{target_name}] Pushed {push_count} tasks to warehouse.")
 
-    # 2. PULL: remote → local (delta on updated_at)
+    # 2. PULL: remote → local (delta on updated_at). The new mark is the WAREHOUSE
+    # clock read before the read (pg_fdw_sync.arrival_bound), not this host's,
+    # which is skewed against the writers' stamps. ⚠ Still compared with writer-
+    # clock updated_at: a task written before this pull but pushed after it is
+    # older than the mark and skipped until edited again. The cure is a warehouse
+    # arrival column on tasks (as pg_002 gave memory_items), which this module
+    # does not own.
     watermark = _get_watermark(sl_cur, "tasks_pull", target_name)
+    pull_watermark = _arrival_watermark(pg_cur, target_name, "tasks_pull")
     if watermark:
         pg_cur.execute(
             f"SELECT {task_cols} FROM tasks WHERE updated_at > %s OR (updated_at IS NULL AND created_at > %s)",
@@ -763,7 +838,7 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
                 "completed_at",
                 "deleted_at",
             ]
-            guard = "WHERE tasks.updated_at IS NULL OR excluded.updated_at > tasks.updated_at"
+            guard = lww_guard("tasks")
             cols = [c.strip() for c in task_cols.split(",")]
             for chunk in batched(remote_rows, BATCH_SIZE):
                 batch = [tuple(r) for r in chunk]
@@ -781,10 +856,10 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
             tasks_pull_failed = True
             _direction_failed(target_name, "tasks_pull", exc, pull_count, len(remote_rows))
 
-    if not tasks_pull_failed:
-        _set_watermark(sl_cur, "tasks_pull", now, target_name)
+    if not tasks_pull_failed and pull_watermark:
+        _set_watermark(sl_cur, "tasks_pull", pull_watermark, target_name)
     sl_conn.commit()
-    logger.info(f"[{target_name}] Pulled {pull_count} tasks from warehouse.")
+    logger.info(f"[{target_name}] Sent {pull_count} warehouse tasks to the local store (newer local ones kept).")
 
 
 def _embed_families(cur) -> set:
@@ -894,8 +969,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str, kind: str 
             _direction_failed(target_name, "emb_push", exc, push_count, len(filtered_rows))
 
     if not push_errors:
-        _set_watermark(sl_cur, "emb_push", now, target_name)
-    sl_conn.commit()
+        _defer_push_watermark("emb_push", now, target_name)
     logger.info(
         f"[{target_name}] Pushed {push_count} embeddings to warehouse "
         f"({push_errors} errors, {skipped_fk} deferred for missing parent)."
@@ -904,7 +978,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str, kind: str 
     # 2. PULL: Remote to Local, by arrival time (see sync_memory_items). An
     # embedding whose memory this store does not hold yet waits for it.
     watermark = _get_watermark(sl_cur, "emb_pull_arrival", target_name)
-    pull_watermark = _arrival_watermark(pg_cur)
+    pull_watermark = _arrival_watermark(pg_cur, target_name, "emb_pull")
     kind_sql, kind_params = _kind_filter(kind, _param_of(pg_cur), "mi.type")
     select = (
         "SELECT me.id, me.memory_id, me.embedding, me.embed_model, me.dim, me.wh_arrived_at "
@@ -961,7 +1035,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str, kind: str 
     if not pull_errors and pull_watermark:
         _set_watermark(sl_cur, "emb_pull_arrival", pull_watermark, target_name)
     sl_conn.commit()
-    logger.info(f"[{target_name}] Pulled {pull_count} embeddings from warehouse ({pull_errors} errors).")
+    logger.info(f"[{target_name}] Sent {pull_count} warehouse embeddings to the local store ({pull_errors} errors).")
 
 
 # ── Sync lock ─────────────────────────────────────────────────────────────────
@@ -1156,6 +1230,18 @@ def _local_param() -> str:
         return "?"
 
 
+def _dialect_of(cur):
+    """The dialect of the CONNECTION or cursor we were handed (see _param_of) —
+    never the process-wide setting, which names the wrong store whenever sync
+    holds a SQLite store while PostgreSQL is configured, or the reverse."""
+    try:
+        from memory.backends.dialect import dialect_for_connection
+
+        return dialect_for_connection(cur)
+    except ImportError:  # bootstrap: seam not importable yet
+        return _local_dialect()
+
+
 def _param_of(cur) -> str:
     """The placeholder for the CONNECTION we were handed — not for a global.
 
@@ -1298,22 +1384,17 @@ def _acquire_sync_lock(sl_cur) -> bool:
             _LOCK_SKIP_REASON = f"a live sync holds the lock (holder={row[0]!r})"
             return False
 
-        # Upsert rather than INSERT OR REPLACE: the latter is SQLite-only syntax.
-        # ON CONFLICT ... DO UPDATE is spelled identically on both current
-        # backends, so this one statement serves either local store.
+        # The upsert clause comes from the dialect of the connection we hold.
         now_iso = datetime.now(UTC).isoformat()
+        d = _dialect_of(sl_cur)
         sl_cur.execute(
             f"INSERT INTO sync_locks (lock_name, holder, acquired_at) "
-            f"VALUES ({_param_of(sl_cur)}, {_param_of(sl_cur)}, {_param_of(sl_cur)}) "
-            f"ON CONFLICT (lock_name) DO UPDATE SET "
-            f"holder = excluded.holder, acquired_at = excluded.acquired_at",
+            f"VALUES ({d.placeholder(3)}) {d.on_conflict_update('(lock_name)', ['holder', 'acquired_at'])}",
             (_SYNC_LOCK_NAME, _lock_value(now_iso), now_iso),
         )
         return True
     except Exception as e:
-        from memory.backends import dialect
-
-        if dialect().is_undefined_object_error(e):
+        if _dialect_of(sl_cur).is_undefined_object_error(e):
             # Fail OPEN: a rare concurrent double-sync is far less harmful than a
             # permanent no-sync. Loud, because it means migrations did not run.
             logger.warning(
@@ -1395,7 +1476,7 @@ def _sync_table_generic(
         # a table this store does not have. Anything else — a locked database, a
         # corrupt page, a type error — must propagate, or a real fault is logged
         # as a skipped table and the sync reports success having moved nothing.
-        if not _local_dialect().is_undefined_object_error(exc):
+        if not _dialect_of(sl_cur).is_undefined_object_error(exc):
             raise
         logger.warning(f"[{target_name}] [{name}] Table/column missing locally: {exc}")
         return
@@ -1416,7 +1497,6 @@ def _sync_table_generic(
 
             from psycopg2.extras import execute_values
 
-            placeholders = ", ".join(["%s"] * len(col_names))
             col_list = ", ".join(col_names)
 
             upsert_pg = f"""
@@ -1426,7 +1506,7 @@ def _sync_table_generic(
             """
             # Add timestamp guard if we have a ts_col
             if ts_col and ts_col in col_names:
-                upsert_pg += f" WHERE {name}.{ts_col} IS NULL OR EXCLUDED.{ts_col} > {name}.{ts_col}"
+                upsert_pg += " " + lww_guard(name, ts_col)
 
             push_count = 0
             for chunk in batched(local_rows, BATCH_SIZE):
@@ -1439,8 +1519,7 @@ def _sync_table_generic(
             _direction_failed(target_name, f"{name} push", exc, push_count, len(local_rows))
 
     if not dry_run and not generic_push_failed:
-        _set_watermark(sl_cur, push_key, now, target_name)
-        sl_conn.commit()
+        _defer_push_watermark(push_key, now, target_name)
 
     # ── PULL: PG → SQLite ────────────────────────────────────────────────────
     watermark = _get_watermark(sl_cur, pull_key, target_name)
@@ -1451,18 +1530,11 @@ def _sync_table_generic(
         logger.info(f"[{target_name}] [{name}] [DRY-RUN] Would pull rows from PG (watermark={watermark})")
     else:
         try:
-            # Capture the PG SERVER clock BEFORE the pull, and use it (not the
-            # local host clock) as the new pull watermark. The delta compares the
-            # watermark against PG-side timestamps written by other peers' clocks;
-            # a local `now` under clock skew can advance past rows PG hasn't caught
-            # up to and silently drop them. Capturing NOW() *before* the pull also
-            # avoids missing rows committed during the pull window.
-            try:
-                pg_cur.execute("SELECT NOW()")
-                _pg_now_row = pg_cur.fetchone()
-                pull_watermark = _pg_now_row[0].isoformat() if _pg_now_row else now
-            except Exception:
-                pull_watermark = now  # fall back to local clock if SELECT NOW() fails
+            # The WAREHOUSE clock read BEFORE the pull (the shared arrival bound),
+            # never this host's: the delta compares against timestamps written by
+            # other peers' clocks, and a skewed local `now` skips their rows. If
+            # it cannot be read the watermark stays put (re-read, never skip).
+            pull_watermark = _arrival_watermark(pg_cur, target_name, f"{name} pull")
             if ts_col and watermark:
                 # Retain NULL-ts rows (see push side): otherwise they're never
                 # pulled after the first full pull. Idempotent via the upsert guard.
@@ -1482,29 +1554,25 @@ def _sync_table_generic(
                 col_names = [d[0] for d in pg_cur.description]
                 conflict_clause = _build_conflict_clause(pk_columns)
                 non_pk_cols = [c for c in col_names if c not in pk_columns]
-                set_clause = (
-                    ", ".join(f"{c} = excluded.{c}" for c in non_pk_cols) if non_pk_cols else "id = excluded.id"
-                )
-                placeholders = _local_dialect().placeholder(len(col_names))
-                col_list = ", ".join(col_names)
-
-                upsert_sl = f"""
-                    INSERT INTO {name} ({col_list})
-                    VALUES ({placeholders})
-                    ON CONFLICT {conflict_clause} DO UPDATE SET
-                        {set_clause}
-                """
-                if ts_col and ts_col in col_names:
-                    upsert_sl += f" WHERE {name}.{ts_col} IS NULL OR excluded.{ts_col} > {name}.{ts_col}"
-
+                # Through the seam primitive: the local store's upsert spelling
+                # belongs to its backend, not to this call site.
+                guard = lww_guard(name, ts_col) if ts_col and ts_col in col_names else ""
                 for chunk in batched(remote_rows, BATCH_SIZE):
                     batch = [tuple(r) for r in chunk]
-                    sl_cur.executemany(upsert_sl, batch)
-                    pull_count += len(batch)
+                    pull_count += _local_backend().bulk_upsert(
+                        sl_conn,
+                        name,
+                        col_names,
+                        batch,
+                        conflict_target=conflict_clause,
+                        update_columns=non_pk_cols or pk_columns[:1],
+                        guard_sql=guard,
+                    )
                     sl_conn.commit()
 
-            logger.info(f"[{target_name}] [{name}] Pulled {pull_count} rows from PG")
-            _set_watermark(sl_cur, pull_key, pull_watermark, target_name)
+            logger.info(f"[{target_name}] [{name}] Sent {pull_count} warehouse rows to the local store")
+            if pull_watermark:
+                _set_watermark(sl_cur, pull_key, pull_watermark, target_name)
             sl_conn.commit()
 
         except Exception as exc:
@@ -1530,53 +1598,34 @@ def _sync_agent_memory_db(
         )
         return
 
-    # Step 1: Memory Items
-    try:
-        pg_cur.execute("SAVEPOINT items")
-        sync_memory_items(sl_cur, pg_cur, sl_conn, target_name, kind)
-        pg_cur.execute("RELEASE SAVEPOINT items")
-    except Exception as e:
-        pg_cur.execute("ROLLBACK TO SAVEPOINT items")
-        logger.error(f"[{target_name}] Memory items sync failed: {e}")
+    # Each step in its own warehouse SAVEPOINT (_run_step): a failure rolls back
+    # that step only, drops its queued push watermarks, and fails the run.
+    _run_step(
+        pg_cur, "items", target_name, "memory_items", sync_memory_items, sl_cur, pg_cur, sl_conn, target_name, kind
+    )
 
     # (The warehouse's tables come from its migration chain: _prepare_warehouse.)
 
-    # Step 3: Relationships
     if _table_exists(sl_cur, "memory_relationships"):
-        try:
-            pg_cur.execute("SAVEPOINT rels")
-            sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name, kind)
-            pg_cur.execute("RELEASE SAVEPOINT rels")
-        except Exception as e:
-            pg_cur.execute("ROLLBACK TO SAVEPOINT rels")
-            logger.error(f"[{target_name}] Relationships sync failed: {e}")
+        _run_step(
+            pg_cur, "rels", target_name, "memory_relationships",
+            sync_memory_relationships, sl_cur, pg_cur, sl_conn, target_name, kind,
+        )  # fmt: skip
 
-    # Step 4: Embeddings
     if _table_exists(sl_cur, "memory_embeddings"):
-        try:
-            pg_cur.execute("SAVEPOINT embs")
-            sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name, kind)
-            pg_cur.execute("RELEASE SAVEPOINT embs")
-        except Exception as e:
-            pg_cur.execute("ROLLBACK TO SAVEPOINT embs")
-            logger.error(f"[{target_name}] Embeddings sync failed: {e}")
+        _run_step(
+            pg_cur, "embs", target_name, "memory_embeddings",
+            sync_memory_embeddings, sl_cur, pg_cur, sl_conn, target_name, kind,
+        )  # fmt: skip
 
-    # Step 5: Tasks (If exists)
     if _table_exists(sl_cur, "tasks"):
-        try:
-            pg_cur.execute("SAVEPOINT tasks")
-            sync_tasks(sl_cur, pg_cur, sl_conn, target_name)
-            pg_cur.execute("RELEASE SAVEPOINT tasks")
-        except Exception as e:
-            pg_cur.execute("ROLLBACK TO SAVEPOINT tasks")
-            logger.error(f"[{target_name}] Tasks sync failed: {e}")
+        _run_step(pg_cur, "tasks", target_name, "tasks", sync_tasks, sl_cur, pg_cur, sl_conn, target_name)
 
-    # Step 6: Secrets (If exists)
+    # Secrets too: without a savepoint, a failed secrets statement aborted the
+    # whole warehouse transaction and the target's commit rolled back every
+    # step above while the run reported success.
     if _table_exists(sl_cur, "synchronized_secrets"):
-        try:
-            sync_secrets(sl_cur, pg_cur, target_name)
-        except Exception as e:
-            logger.warning(f"[{target_name}] Secrets sync failed: {e}")
+        _run_step(pg_cur, "secrets", target_name, "synchronized_secrets", sync_secrets, sl_cur, pg_cur, target_name)
 
 
 def _sync_generic_db(
@@ -1600,16 +1649,17 @@ def _sync_generic_db(
             logger.info(f"[{target_name}] Table {table_name} not present in SQLite DB — skipping")
             continue
 
-        try:
-            if not dry_run:
-                pg_cur.execute(f"SAVEPOINT tbl_{table_name}")
-            _sync_table_generic(sl_cur, pg_cur, sl_conn, target_name, table_cfg, dry_run=dry_run)
-            if not dry_run:
-                pg_cur.execute(f"RELEASE SAVEPOINT tbl_{table_name}")
-        except Exception as e:
-            if not dry_run:
-                pg_cur.execute(f"ROLLBACK TO SAVEPOINT tbl_{table_name}")
-            logger.error(f"[{target_name}] Table {table_name} sync failed: {e}")
+        if dry_run:
+            try:
+                _sync_table_generic(sl_cur, pg_cur, sl_conn, target_name, table_cfg, dry_run=True)
+            except Exception as e:
+                _FAILED_DIRECTIONS.append(f"{target_name}/{table_name}")
+                logger.error(f"[{target_name}] [DRY-RUN] {table_name} FAILED: {type(e).__name__}: {e}")
+            continue
+        _run_step(
+            pg_cur, f"tbl_{table_name}", target_name, table_name,
+            _sync_table_generic, sl_cur, pg_cur, sl_conn, target_name, table_cfg,
+        )  # fmt: skip
 
 
 # ── Sync targets ──────────────────────────────────────────────────────────────
@@ -1777,6 +1827,7 @@ def main():
     # (every `m3 memory` command printed each HTTP request).
     logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
     _FAILED_DIRECTIONS.clear()  # one run's failures; an in-process caller may run main() again
+    _PENDING_PUSH_WATERMARKS.clear()
     parser = argparse.ArgumentParser(
         description="Bidirectional SQLite ↔ PostgreSQL sync with per-DB manifests.",
     )
@@ -1854,7 +1905,7 @@ def main():
                     )
                 return None
 
-            with ctx.pg_connection() as pg_conn:
+            with _ctx().pg_connection() as pg_conn:
                 pg_conn.autocommit = False
                 _prepare_warehouse(pg_conn)
 
@@ -1865,6 +1916,7 @@ def main():
                             if sl_conn is None:
                                 continue  # store absent; _open_local_store said why
 
+                            locked = False
                             if target.name == "main":
                                 if not _acquire_sync_lock(sl_cur):
                                     # ⚠ EVERYTHING NEEDED TO DIAGNOSE, HERE. The
@@ -1897,22 +1949,58 @@ def main():
                                     # as "all systems synced".
                                     return _EXIT_SKIPPED
                                 sl_conn.commit()
+                                locked = True
 
-                            with pg_conn.cursor() as pg_cur:
-                                _sync_agent_memory_db(
-                                    sl_cur, pg_cur, sl_conn, target.name, dry_run=False, kind=target.kind
-                                )
+                            try:
+                                with pg_conn.cursor() as pg_cur:
+                                    _sync_agent_memory_db(
+                                        sl_cur, pg_cur, sl_conn, target.name, dry_run=False, kind=target.kind
+                                    )
 
-                            pg_conn.commit()
-                            sl_conn.commit()
-                            logger.info(f"Target '{target.name}' synchronization completed.")
-
-                            if target.name == "main":
-                                _release_sync_lock(sl_cur)
+                                pg_conn.commit()
+                                # Only now: the pushed rows are durable in the warehouse.
+                                _commit_push_watermarks(sl_cur, sl_conn, target.name)
                                 sl_conn.commit()
+                                failed_here = [f for f in _FAILED_DIRECTIONS if f.startswith(f"{target.name}/")]
+                                if failed_here:
+                                    logger.error(
+                                        f"Target '{target.name}' finished WITH FAILURES: {', '.join(failed_here)} "
+                                        "(the rest was committed)."
+                                    )
+                                else:
+                                    logger.info(f"Target '{target.name}' synchronization completed.")
+                            except BaseException:
+                                try:
+                                    sl_conn.rollback()
+                                except Exception:  # noqa: BLE001 — the original error is the one to report
+                                    pass
+                                raise
+                            finally:
+                                # Released on EVERY exit: a lock left behind by a
+                                # failed run blocked the next runs until it aged out.
+                                if locked:
+                                    _release_sync_lock(sl_cur)
+                                    try:
+                                        sl_conn.commit()
+                                    except Exception as rel_exc:  # noqa: BLE001 — reported; the PID check reclaims it
+                                        logger.warning(
+                                            f"[{target.name}] sync lock release did not commit "
+                                            f"({type(rel_exc).__name__}: {rel_exc}); the next run reclaims it "
+                                            "once this process has exited"
+                                        )
                     except Exception as e:
+                        # Nothing of this target is durable: drop its queued push
+                        # watermarks and its open warehouse work.
+                        _discard_push_watermarks(target.name)
+                        try:
+                            pg_conn.rollback()
+                        except Exception:  # noqa: BLE001 — a dead connection fails the next target loudly
+                            pass
                         _FAILED_DIRECTIONS.append(f"{target.name}/target")
-                        logger.error(f"Failed during sync of target {target.name}: {e.__class__.__name__}: {e}")
+                        logger.error(
+                            f"Failed during sync of target {target.name}: {e.__class__.__name__}: {e}. observed: its "
+                            "warehouse transaction was rolled back and its push watermarks were NOT advanced"
+                        )
 
         else:
             # Generic manifest-driven path for bench DBs and future additions
@@ -1956,16 +2044,21 @@ def main():
                 sys.exit(1)
 
             try:
-                with ctx.pg_connection() as pg_conn:
+                with _ctx().pg_connection() as pg_conn:
                     pg_conn.autocommit = False
                     _prepare_warehouse(pg_conn)
                     with pg_conn.cursor() as pg_cur:
                         _sync_generic_db(sl_cur, pg_cur, sl_conn, manifest, target_name, dry_run=False)
                     pg_conn.commit()
+                    # Only after the warehouse commit (see _PENDING_PUSH_WATERMARKS).
+                    _commit_push_watermarks(sl_cur, sl_conn, target_name)
                 sl_conn.commit()
-                logger.info(f"Manifest-driven sync for {db_stem} completed.")
+                logger.info(f"Manifest-driven sync for {db_stem} finished.")
             except Exception as e:
-                logger.error(f"Sync failed for {db_stem}: {type(e).__name__}: {e}")
+                _discard_push_watermarks(target_name)
+                logger.error(
+                    f"Sync failed for {db_stem}: {type(e).__name__}: {e}. observed: push watermarks were NOT advanced"
+                )
                 sys.exit(1)
             finally:
                 # Exit the store context manager rather than close() the

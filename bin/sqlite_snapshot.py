@@ -20,9 +20,11 @@ HOW:
      row count must equal step 2. Only then is it renamed from ``.partial`` to
      its final name. Any failure removes the partial and raises.
 
-Stdlib only, so bootstrap and migration tools (``migrate_memory``,
-``homecoming``) can use it without importing the ``memory`` package. Callers
-inside the storage seam reach it through ``SqliteBackend.snapshot``.
+Stdlib plus one lazy import: identifier quoting comes from the SQLite dialect
+(``memory.backends.dialect``), loaded on the first row count. Bootstrap and
+migration tools (``migrate_memory``, ``homecoming``) therefore need ``bin/`` on
+the path with the ``memory`` package importable. Callers inside the storage
+seam reach it through ``SqliteBackend.snapshot``.
 """
 
 from __future__ import annotations
@@ -65,7 +67,17 @@ def row_counts(conn: sqlite3.Connection, tables: list[str]) -> dict[str, int]:
     return out
 
 
-def _ro_uri(path: str) -> str:
+def file_row_counts(path: str, *, timeout: float = 60.0) -> dict[str, int]:
+    """Every user table's row count in the SQLite file at ``path``, opened
+    read-only (never created). Raises sqlite3.Error when it cannot be read."""
+    conn = sqlite3.connect(ro_uri(path), uri=True, timeout=timeout)
+    try:
+        return row_counts(conn, user_tables(conn))
+    finally:
+        conn.close()
+
+
+def ro_uri(path: str) -> str:
     # as_uri() percent-encodes spaces, '?', '#' and '%', which a hand-built
     # "file:{path}?mode=ro" would let SQLite misparse as URI syntax.
     return Path(path).resolve().as_uri() + "?mode=ro"
@@ -107,7 +119,7 @@ def snapshot_sqlite(
 
     own_conn = src_conn is None
     try:
-        conn = src_conn if src_conn is not None else sqlite3.connect(_ro_uri(src), uri=True, timeout=timeout)
+        conn = src_conn if src_conn is not None else sqlite3.connect(ro_uri(src), uri=True, timeout=timeout)
     except sqlite3.Error as e:
         raise SqliteSnapshotError(f"cannot open {src} read-only: {e}") from e
 
@@ -135,7 +147,7 @@ def snapshot_sqlite(
         raise SqliteSnapshotError(f"backup of {src} failed: {e}") from e
 
     try:
-        check = sqlite3.connect(_ro_uri(partial), uri=True)
+        check = sqlite3.connect(ro_uri(partial), uri=True)
         try:
             qc = check.execute("PRAGMA quick_check").fetchone()[0]
             got = row_counts(check, user_tables(check))

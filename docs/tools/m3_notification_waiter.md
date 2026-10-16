@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: cdcfd392f700
-mtime_utc: 2026-10-16T04:12:50.996404+00:00
-generated_utc: 2026-10-16T04:12:51.913602+00:00
+sha1: d495605d5929
+mtime_utc: 2026-10-16T17:35:06.525714+00:00
+generated_utc: 2026-10-16T19:03:59.496562+00:00
 private: false
 ---
 
@@ -33,7 +33,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 ## Entry points
 
-- `def main()` (line 564)
+- `def main()` (line 645)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -71,9 +71,9 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 407)
-- `subprocess.Popen()  → `cmd`` (line 819)
-- `subprocess.run()` (line 238)
+- `subprocess.Popen()  → `cmd`` (line 484)
+- `subprocess.Popen()  → `cmd`` (line 901)
+- `subprocess.run()` (line 257)
 
 
 ---
@@ -92,8 +92,9 @@ _(none detected)_
 - `memory (db)`
 - `memory.backends (dialect)`
 - `memory.orchestration (agent_list_impl)`
-- `memory.orchestration (notifications_ack_all_impl, notifications_mark_received_impl, notifications_unread_ids_impl)`
-- `memory.orchestration (notifications_unread_ids_impl)`
+- `memory.orchestration (notifications_ack_all_impl, notifications_unread_ids_checked)`
+- `memory.orchestration (notifications_mark_received_checked)`
+- `memory.orchestration (notifications_unread_ids_checked)`
 
 ---
 

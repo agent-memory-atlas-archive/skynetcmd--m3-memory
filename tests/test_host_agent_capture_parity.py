@@ -658,4 +658,10 @@ def test_the_hooks_do_not_derive_their_own_opencode_path():
         assert ".local/share" not in body and ".local\\share" not in body, (
             f"{name} hardcodes the XDG path again — that is one OS's convention baked into a hook that runs on three"
         )
-        assert "--transcript-path auto" in body, f"{name} no longer defers store discovery to chatlog_ingest"
+        # The wrappers hand off to the .py hook (which owns failure handling);
+        # it is the one that asks chatlog_ingest for "auto".
+        assert "opencode_session_end.py" in body, f"{name} no longer hands off to the .py hook"
+    with open(os.path.join(_HOOKS, "opencode_session_end.py"), encoding="utf-8") as fh:
+        py = fh.read()
+    assert 'transcript = "auto"' in py, "opencode_session_end.py no longer defers store discovery to chatlog_ingest"
+    assert ".local/share" not in py

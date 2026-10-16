@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: 5d38dfbcb3ff
-mtime_utc: 2026-10-15T14:40:57.284164+00:00
-generated_utc: 2026-10-15T14:45:59.988283+00:00
+sha1: 008e0cbcfb75
+mtime_utc: 2026-10-16T17:36:26.358946+00:00
+generated_utc: 2026-10-16T19:03:59.513601+00:00
 private: false
 ---
 
@@ -59,8 +59,8 @@ is stopped or replaced.
 
 ## Entry points
 
-- `def run()` (line 580)
-- `def main()` (line 800)
+- `def run()` (line 622)
+- `def main()` (line 870)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -97,14 +97,14 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 533)
-- `subprocess.Popen()  → `cmd`` (line 589)
+- `subprocess.Popen()  → `cmd`` (line 575)
+- `subprocess.Popen()  → `cmd`` (line 631)
 - `subprocess.run()  → `[exe, '--version']`` (line 111)
 - `subprocess.run()  → `[sys.executable, '-c', code]`` (line 190)
-- `subprocess.run()  → `cmd`` (line 606)
-- `subprocess.run()  → `cmd`` (line 626)
+- `subprocess.run()  → `cmd`` (line 648)
+- `subprocess.run()  → `cmd`` (line 668)
 - `subprocess.run()` (line 136)
-- `subprocess.run()` (line 681)
+- `subprocess.run()` (line 718)
 
 
 ---
@@ -116,6 +116,7 @@ _(none detected)_
 - `m3_core.config.env (secret_env_names)`
 - `m3_core.seams (childenv)`
 - `m3_core.seams (is_windows)`
+- `packaging.version (InvalidVersion, Version)`
 - `psutil`
 - `site`
 

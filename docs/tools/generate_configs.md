@@ -1,8 +1,8 @@
 ---
 tool: bin/generate_configs.py
-sha1: 479230cf17c8
-mtime_utc: 2026-10-12T13:10:14.294569+00:00
-generated_utc: 2026-10-12T13:12:28.705079+00:00
+sha1: d74cd9713dd5
+mtime_utc: 2026-10-16T18:05:28.845266+00:00
+generated_utc: 2026-10-16T19:03:59.289956+00:00
 private: false
 ---
 
@@ -58,10 +58,13 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.atomic_io (GuardedRewrite, atomic_write)`
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.config (settings)`
+- `m3_core.config.claude_settings (PLUGIN_SERVER_IDS)`
+- `m3_core.config.claude_settings (read_json_object)`
 - `m3_core.paths (get_m3_models_root)`
 - `m3_core.seams (roots)`
 - `ntpath`
 - `posixpath`
+- `shlex`
 
 ---
 

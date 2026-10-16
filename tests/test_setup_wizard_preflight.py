@@ -385,11 +385,13 @@ def test_wire_opencode_writes_json(monkeypatch, tmp_path):
 
 
 def test_wire_hermes_plugin_copy(monkeypatch, tmp_path):
-    """_wire_hermes copies the bundled Hermes provider files to the plugin destination."""
+    """_wire_hermes copies the delegating stub (not the provider source) and the
+    manifest: a full copy would shadow the installed provider and go stale."""
     src_dir = tmp_path / "src"
-    src_dir.mkdir()
-    for fname in ["__init__.py", "m3client.py", "plugin.yaml"]:
-        (src_dir / fname).write_text(f"content of {fname}", encoding="utf-8")
+    (src_dir / "folder_plugin").mkdir(parents=True)
+    (src_dir / "__init__.py").write_text("THE PROVIDER SOURCE", encoding="utf-8")
+    for fname in setup_wizard._HERMES_PLUGIN_FILES:
+        setup_wizard._hermes_plugin_file(src_dir, fname).write_text(f"content of {fname}", encoding="utf-8")
 
     dst_parent = tmp_path / "dst" / "plugins" / "memory"
     dst_parent.mkdir(parents=True)
@@ -403,9 +405,10 @@ def test_wire_hermes_plugin_copy(monkeypatch, tmp_path):
 
     dst_m3 = dst_parent / "m3"
     assert dst_m3.is_dir()
-    for fname in ["__init__.py", "m3client.py", "plugin.yaml"]:
-        assert (dst_m3 / fname).is_file()
+    for fname in setup_wizard._HERMES_PLUGIN_FILES:
         assert (dst_m3 / fname).read_text(encoding="utf-8") == f"content of {fname}"
+    assert "THE PROVIDER SOURCE" not in (dst_m3 / "__init__.py").read_text(encoding="utf-8")
+    assert sorted(p.name for p in dst_m3.iterdir()) == sorted(setup_wizard._HERMES_PLUGIN_FILES)
 
 
 def test_gather_plan_non_interactive_decouple_and_fips(monkeypatch):
@@ -534,7 +537,7 @@ def test_present_payload_still_reregisters_the_loop(monkeypatch, platform, enabl
 
     calls = []
     monkeypatch.setattr(installer, "find_bridge", lambda: "/payload/bin/memory_bridge.py")
-    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda: calls.append(1) or True)
+    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda *a, **k: calls.append(1) or True)
     monkeypatch.setattr(sys, "platform", platform)
     plan = setup_wizard.SetupPlan()
     plan.cognitive_loop = enabled
@@ -653,9 +656,9 @@ def _hermes_dirs(tmp_path, plugin_content="SRC"):
     """Build a vendored src/ (with all plugin files) + an empty hermes plugins/
     dir. Returns (src, plugins)."""
     src = tmp_path / "src"
-    src.mkdir()
+    (src / "folder_plugin").mkdir(parents=True)
     for fname in setup_wizard._HERMES_PLUGIN_FILES:
-        (src / fname).write_text(plugin_content)
+        setup_wizard._hermes_plugin_file(src, fname).write_text(plugin_content)
     plugins = tmp_path / "hermes" / "plugins" / "memory"
     plugins.mkdir(parents=True)
     return src, plugins

@@ -265,6 +265,49 @@ def _config_args_placeholder(template_path: str) -> tuple[str, str]:
     return " [M3_CONFIG_ARGS]", "".join(f' "{a}"' if " " in a else f" {a}" for a in args)
 
 
+def _launchd_load_verified(dest: str, label: str) -> tuple[bool, str]:
+    """unload + load ``dest``, then confirm launchd holds ``label``.
+
+    Hazard: `launchctl load` exits 0 while printing "Load failed: ..." on
+    stderr. Disposition: the outcome is `launchctl list <label>`; stderr is
+    reported whenever present. Returns (ok, detail)."""
+    _run(["launchctl", "unload", dest], capture_output=True)
+    r = _run(["launchctl", "load", dest], capture_output=True, text=True)
+    err = (r.stderr or "").strip()
+    if r.returncode != 0:
+        return False, f"launchctl load {dest} exit={r.returncode}: {err or '(no stderr)'}"
+    probe = _run(["launchctl", "list", label], capture_output=True, text=True)
+    if probe.returncode != 0:
+        return False, (
+            f"launchctl load {dest} exited 0 but `launchctl list {label}` exit={probe.returncode}: "
+            f"not loaded. stderr: {err or '(none)'}"
+        )
+    if err:
+        return True, (
+            f"loaded, but launchctl load printed {err!r}; launchd may still hold the PREVIOUS "
+            f"definition. fix: launchctl bootout gui/$(id -u)/{label}; launchctl bootstrap gui/$(id -u) {dest}"
+        )
+    return True, ""
+
+
+def _systemd_enable_verified(unit: str, settle_s: float = 1.0) -> tuple[bool, str]:
+    """`systemctl --user enable --now unit`, then confirm it is active.
+
+    Hazard: enable --now exits 0 for a unit whose process dies at once
+    (Restart= then shows it "activating"). Returns (ok, detail)."""
+    r = _run(["systemctl", "--user", "enable", "--now", unit], capture_output=True, text=True)
+    if r.returncode != 0:
+        return False, f"systemctl --user enable --now {unit} exit={r.returncode}: {(r.stderr or '').strip()}"
+    time.sleep(settle_s)
+    st = _run(["systemctl", "--user", "is-active", unit], capture_output=True, text=True)
+    state = (st.stdout or "").strip() or f"unknown (is-active exit={st.returncode})"
+    if state != "active":
+        return False, (
+            f"enabled, but `systemctl --user is-active {unit}` = {state!r}. inspect: journalctl --user -u {unit} -n 50"
+        )
+    return True, ""
+
+
 def install_unix_dashboard(m3_memory_root, port: int = 8088):
     """Install the web dashboard as a native user service (launchd on macOS,
     systemd --user on Linux) so it auto-starts at login on the given ``port``.
@@ -289,12 +332,13 @@ def install_unix_dashboard(m3_memory_root, port: int = 8088):
         dest = os.path.join(dest_dir, "com.m3memory.dashboard.plist")
         with open(dest, "w", encoding="utf-8") as f:
             f.write(_render_template(template, m3_memory_root, python_exe, port))
-        _run(["launchctl", "unload", dest], capture_output=True)
-        r = _run(["launchctl", "load", dest], capture_output=True, text=True)
-        if r.returncode == 0:
+        ok_l, detail_l = _launchd_load_verified(dest, "com.m3memory.dashboard")
+        if ok_l:
             _safe_print(f"{OK} Installed + loaded launchd agent (dashboard :{port}): {dest}")
+            if detail_l:
+                _safe_print(f"{WARN} {detail_l}")
         else:
-            _safe_print(f"{FAIL} launchctl load failed: {r.stderr.strip()}")
+            _safe_print(f"{FAIL} dashboard launchd agent not loaded: {detail_l}")
 
     elif os_name == "Linux":
         template = os.path.join(bin_dir, "m3-dashboard.service")
@@ -307,15 +351,11 @@ def install_unix_dashboard(m3_memory_root, port: int = 8088):
         with open(dest, "w", encoding="utf-8") as f:
             f.write(_render_template(template, m3_memory_root, python_exe, port))
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
-        r = _run(
-            ["systemctl", "--user", "enable", "--now", "m3-dashboard.service"],
-            capture_output=True,
-            text=True,
-        )
-        if r.returncode == 0:
+        ok_u, detail_u = _systemd_enable_verified("m3-dashboard.service")
+        if ok_u:
             _safe_print(f"{OK} Installed + started systemd --user unit (dashboard :{port}): {dest}")
         else:
-            _safe_print(f"{FAIL} systemctl enable --now failed: {r.stderr.strip()}")
+            _safe_print(f"{FAIL} m3-dashboard.service not running: {detail_u}")
     else:
         _safe_print(f"{WARN} install_unix_dashboard: unsupported OS {os_name}")
 
@@ -406,13 +446,14 @@ def install_macos_periodic(m3_memory_root) -> bool:
             _safe_print(f"  saved the previous {os.path.basename(dest)} as {guard.bak} (history: {guard.history})")
         else:
             atomic_write(dest, plistlib.dumps(want))
-        _run(["launchctl", "unload", dest], capture_output=True)
-        r = _run(["launchctl", "load", dest], capture_output=True, text=True)
-        if r.returncode == 0:
+        ok_l, detail_l = _launchd_load_verified(dest, want["Label"])
+        if ok_l:
             _safe_print(f"{OK} {spec['name']}: installed launchd agent {want['Label']}")
+            if detail_l:
+                _safe_print(f"{WARN} {spec['name']}: {detail_l}")
         else:
             ok = False
-            _safe_print(f"{FAIL} {spec['name']}: launchctl load failed: {r.stderr.strip()}")
+            _safe_print(f"{FAIL} {spec['name']}: {detail_l}")
     return ok
 
 
@@ -514,12 +555,13 @@ def install_unix_cognitive_loop(m3_memory_root):
         with open(dest, "w", encoding="utf-8") as f:
             f.write(_render_template(template, m3_memory_root, python_exe))
         # unload first (ignore failure if not loaded), then load.
-        _run(["launchctl", "unload", dest], capture_output=True)
-        r = _run(["launchctl", "load", dest], capture_output=True, text=True)
-        if r.returncode == 0:
+        ok_l, detail_l = _launchd_load_verified(dest, "com.m3memory.cognitiveloop")
+        if ok_l:
             _safe_print(f"{OK} Installed + loaded launchd agent: {dest}")
+            if detail_l:
+                _safe_print(f"{WARN} {detail_l}")
         else:
-            _safe_print(f"{FAIL} launchctl load failed: {r.stderr.strip()}")
+            _safe_print(f"{FAIL} cognitive-loop launchd agent not loaded: {detail_l}")
 
         _install_macos_loop_watchdog(m3_memory_root, python_exe)
         _install_embed_server_or_report(m3_memory_root, python_exe)
@@ -536,15 +578,11 @@ def install_unix_cognitive_loop(m3_memory_root):
         with open(dest, "w", encoding="utf-8") as f:
             f.write(_render_template(template, m3_memory_root, python_exe))
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
-        r = _run(
-            ["systemctl", "--user", "enable", "--now", "m3-cognitive-loop.service"],
-            capture_output=True,
-            text=True,
-        )
-        if r.returncode == 0:
+        ok_u, detail_u = _systemd_enable_verified("m3-cognitive-loop.service")
+        if ok_u:
             _safe_print(f"{OK} Installed + started systemd --user unit: {dest}")
         else:
-            _safe_print(f"{FAIL} systemctl enable --now failed: {r.stderr.strip()}")
+            _safe_print(f"{FAIL} m3-cognitive-loop.service not running: {detail_u}")
 
         _install_linux_loop_watchdog(m3_memory_root, python_exe)
         _install_embed_server_or_report(m3_memory_root, python_exe)
@@ -831,12 +869,13 @@ def install_unix_embed_server(m3_memory_root: str, python_exe: "str | None" = No
             dest = os.path.join(dest_dir, "com.m3memory.embedserver.plist")
             with open(dest, "w", encoding="utf-8") as f:
                 f.write(_render_template(template, m3_memory_root, python_exe))
-            _run(["launchctl", "unload", dest], capture_output=True)
-            r = _run(["launchctl", "load", dest], capture_output=True, text=True)
-            if r.returncode == 0:
+            ok_l, detail_l = _launchd_load_verified(dest, "com.m3memory.embedserver")
+            if ok_l:
                 _safe_print(f"{OK} Installed + loaded launchd agent (embed server :8082): {dest}")
+                if detail_l:
+                    _safe_print(f"{WARN} {detail_l}")
             else:
-                _safe_print(f"{FAIL} launchctl load failed: {r.stderr.strip()}")
+                _safe_print(f"{FAIL} embed-server launchd agent not loaded: {detail_l}")
             return
 
         template = os.path.join(bin_dir, "m3-embed-server.service")
@@ -849,15 +888,11 @@ def install_unix_embed_server(m3_memory_root: str, python_exe: "str | None" = No
         with open(dest, "w", encoding="utf-8") as f:
             f.write(_render_template(template, m3_memory_root, python_exe))
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
-        r = _run(
-            ["systemctl", "--user", "enable", "--now", "m3-embed-server.service"],
-            capture_output=True,
-            text=True,
-        )
-        if r.returncode == 0:
+        ok_u, detail_u = _systemd_enable_verified("m3-embed-server.service")
+        if ok_u:
             _safe_print(f"{OK} Installed + started systemd --user unit (embed server :8082): {dest}")
         else:
-            _safe_print(f"{FAIL} systemctl enable --now failed: {r.stderr.strip()}")
+            _safe_print(f"{FAIL} m3-embed-server.service not running: {detail_u}")
     except Exception as e:  # noqa: BLE001 — never break the installer
         _safe_print(f"{WARN} install_unix_embed_server skipped: {type(e).__name__}: {e}")
 
@@ -884,15 +919,11 @@ def _install_linux_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
         # Enable the TIMER, not the service: the service is oneshot and is meant
         # to be triggered, never enabled on its own.
-        r = _run(
-            ["systemctl", "--user", "enable", "--now", "m3-loop-watchdog.timer"],
-            capture_output=True,
-            text=True,
-        )
-        if r.returncode == 0:
+        ok_u, detail_u = _systemd_enable_verified("m3-loop-watchdog.timer")
+        if ok_u:
             _safe_print(f"{OK} Installed + started loop watchdog timer: {dest_dir}/m3-loop-watchdog.timer")
         else:
-            _safe_print(f"{WARN} watchdog timer enable failed: {(r.stderr or '').strip()}")
+            _safe_print(f"{WARN} m3-loop-watchdog.timer not running: {detail_u}")
     except (OSError, subprocess.SubprocessError) as e:
         _safe_print(f"{WARN} could not install loop watchdog: {e}")
 
@@ -939,12 +970,13 @@ def _install_unix_notification_waiter(m3_memory_root: str, python_exe: str) -> N
             dest = os.path.join(dest_dir, "com.m3memory.notificationwaiter.plist")
             with open(dest, "w", encoding="utf-8") as f:
                 f.write(_render_template(template, m3_memory_root, python_exe))
-            _run(["launchctl", "unload", dest], capture_output=True)
-            r = _run(["launchctl", "load", dest], capture_output=True, text=True)
-            if r.returncode == 0:
+            ok_l, detail_l = _launchd_load_verified(dest, "com.m3memory.notificationwaiter")
+            if ok_l:
                 _safe_print(f"{OK} Installed + loaded launchd agent: {dest}")
+                if detail_l:
+                    _safe_print(f"{WARN} {detail_l}")
             else:
-                _safe_print(f"{WARN} launchctl load failed for the notification waiter: {(r.stderr or '').strip()}")
+                _safe_print(f"{WARN} notification-waiter launchd agent not loaded: {detail_l}")
 
         elif osn == "Linux":
             template = os.path.join(bin_dir, "m3-notification-waiter.service")
@@ -957,17 +989,11 @@ def _install_unix_notification_waiter(m3_memory_root: str, python_exe: str) -> N
             with open(dest, "w", encoding="utf-8") as f:
                 f.write(_render_template(template, m3_memory_root, python_exe))
             _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
-            r = _run(
-                ["systemctl", "--user", "enable", "--now", "m3-notification-waiter.service"],
-                capture_output=True,
-                text=True,
-            )
-            if r.returncode == 0:
+            ok_u, detail_u = _systemd_enable_verified("m3-notification-waiter.service")
+            if ok_u:
                 _safe_print(f"{OK} Installed + started systemd --user unit: {dest}")
             else:
-                _safe_print(
-                    f"{WARN} systemctl enable --now failed for the notification waiter: {(r.stderr or '').strip()}"
-                )
+                _safe_print(f"{WARN} m3-notification-waiter.service not running: {detail_u}")
             # A user unit stops at logout unless lingering is enabled, which
             # would silently end the receipt SLA on a headless box.
             lg = _run(
@@ -1012,12 +1038,13 @@ def _install_macos_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
         dest = os.path.join(dest_dir, "com.m3memory.loopwatchdog.plist")
         with open(dest, "w", encoding="utf-8") as f:
             f.write(_render_template(template, m3_memory_root, python_exe))
-        _run(["launchctl", "unload", dest], capture_output=True)
-        r = _run(["launchctl", "load", dest], capture_output=True, text=True)
-        if r.returncode == 0:
+        ok_l, detail_l = _launchd_load_verified(dest, "com.m3memory.loopwatchdog")
+        if ok_l:
             _safe_print(f"{OK} Installed + loaded loop watchdog: {dest}")
+            if detail_l:
+                _safe_print(f"{WARN} {detail_l}")
         else:
-            _safe_print(f"{WARN} watchdog launchctl load failed: {r.stderr.strip()}")
+            _safe_print(f"{WARN} loop-watchdog launchd agent not loaded: {detail_l}")
     except (OSError, subprocess.SubprocessError) as e:
         _safe_print(f"{WARN} could not install loop watchdog: {e}")
 
@@ -1259,19 +1286,22 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
         },
         {
             "name": "AgentOS_CognitiveLoop",
-            # --background re-execs under pythonw.exe (no console at all) on
-            # Windows. macOS/Linux use a launchd/systemd service instead.
+            # Runs in the FOREGROUND of the task: the action is already
+            # pythonw.exe (no console), so the task's process IS the loop. Hazard
+            # with --background: the task "finished" at once and its re-exec'd
+            # child was invisible to Task Scheduler, so the watchdog's /End+/Run
+            # could not stop a wedged loop. macOS/Linux use a launchd/systemd
+            # service instead.
             # --interval 60: on an idle host the loop re-ticks fast to drain a
             # backlog (backlog-aware wait in the loop), so 60s is the ceiling
             # between passes, not a fixed trickle. --limit-per-pass inherits the
-            # loop's default (2): a short GPU burst per pass, shrunk to 1 under
-            # THROTTLED load. (Previously --interval 300 with the old default-1
+            # loop's default (setting loop.limit_per_pass, 4): a short GPU
+            # burst per pass, shrunk to 1 under THROTTLED load. (Previously --interval 300 with the old default-1
             # ceiling drained ~1 item / 5 min even while idle.)
             "args": [
                 _script("m3_cognitive_loop.py"),
                 "--interval",
                 "60",
-                "--background",
                 "--log-file",
                 _log("cognitive_loop.log"),
             ],
@@ -1443,7 +1473,9 @@ def _xml_escape(text: str) -> str:
 # The repetition re-fires the trigger indefinitely (no duration); MultipleInstances
 # =IgnoreNew makes a re-fire while the process is still alive a harmless no-op, so
 # the net effect is "restart it if and only if it has died."
-#   - AgentOS_CognitiveLoop: PT30M — a stalled heartbeat is tolerable for ~30 min.
+#   - AgentOS_CognitiveLoop: PT30M — re-launches a loop that died. The task runs
+#     the loop in the foreground, so IgnoreNew sees it as running; a wedged-but-
+#     alive loop is AgentOS_LoopWatchdog's job (heartbeat, /End + /Run).
 #   - AgentOS_EmbedServer:    PT5M  — this is the SOLE embedder for the whole fleet
 #     (clients disable their own tier-1 via .embed_config.json), so its death is a
 #     fleet-wide embedding outage. A 5-min heal bounds that outage to ~5 min.
@@ -2009,6 +2041,45 @@ def _service_exists(name: str) -> bool:
     return cast("bool", probe.stdout.strip() != "not-found")
 
 
+def _supervisor_running(name: str, deadline_s: float = 10.0) -> tuple[bool | None, str]:
+    """Poll the service manager until it reports ``name`` running.
+
+    (True, state) when running; (False, state) when it reports a definite
+    not-running state at the deadline; (None, why) when it cannot tell (probe
+    failed, or a localized schtasks status this code cannot read)."""
+    key = _platform_key()
+    deadline = time.time() + deadline_s
+    last: tuple[bool | None, str] = (None, "no probe ran")
+    while True:
+        try:
+            if key == "linux":
+                r = _run(["systemctl", "--user", "is-active", name], capture_output=True, text=True)
+                state = (r.stdout or "").strip() or f"is-active exit={r.returncode}"
+                last = (state == "active", f"is-active={state}")
+            elif key == "darwin":
+                r = _run(["launchctl", "list", name], capture_output=True, text=True)
+                if r.returncode != 0:
+                    last = (False, f"launchctl list {name} exit={r.returncode} (not loaded)")
+                else:
+                    has_pid = '"PID" = ' in (r.stdout or "")
+                    last = (has_pid, "running (has PID)" if has_pid else "loaded, no PID")
+            else:
+                r = _run(["schtasks", "/Query", "/TN", name, "/FO", "CSV", "/NH"], capture_output=True, text=True)
+                out = (r.stdout or "").strip()
+                if r.returncode != 0:
+                    last = (False, f"schtasks /Query exit={r.returncode}")
+                elif '"Running"' in out:
+                    last = (True, "Running")
+                else:
+                    status = out.rsplit(",", 1)[-1].strip('"') if out else "?"
+                    last = (None, f"task status {status!r}")
+        except Exception as e:  # noqa: BLE001 — a failed probe is "cannot tell", never a pass
+            last = (None, f"probe failed: {type(e).__name__}: {e}")
+        if last[0] or time.time() >= deadline:
+            return last
+        time.sleep(1.0)
+
+
 def _restart_command(name: str) -> list:
     """The per-platform command that starts an already-registered service."""
     key = _platform_key()
@@ -2083,7 +2154,15 @@ def restart_reaped_services(covered: set) -> None:
         if detail is True:
             _safe_print(f"{OK} Restarted {name} (serving)")
         elif detail is None:
-            _safe_print(f"{OK} Restarted {name}")
+            # No health endpoint: ask the service manager instead of assuming.
+            running, state = _supervisor_running(name)
+            if running:
+                _safe_print(f"{OK} Restarted {name} (service manager: {state})")
+            elif running is None:
+                _safe_print(f"{WARN} Start requested for {name}; not verified ({state})")
+            else:
+                _safe_print(f"{WARN} Start requested for {name} but the service manager reports {state}")
+                _safe_print(f"        start it with: {' '.join(cmd)}")
         else:
             _safe_print(f"{WARN} Restarted {name} but it is NOT serving: {detail}")
 
@@ -2449,7 +2528,8 @@ def install_windows_tasks(m3_memory_root, selector: str | None = None, dashboard
                 _safe_print(f"{FAIL} schtasks reported success for {task['name']} but verification failed: {problem}")
                 success = False
                 continue
-            note = " (+30-min self-heal repetition)" if task["name"] in _SELF_HEAL_TASKS else ""
+            rep = _SELF_HEAL_TASKS.get(task["name"])
+            note = f" (+{rep} self-heal repetition)" if rep else ""
             _safe_print(f"{OK} Created Windows Task: {task['name']}{note}")
         else:
             # Fail loud (§3): print the real schtasks error, don't swallow it.

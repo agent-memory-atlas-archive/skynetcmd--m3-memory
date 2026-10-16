@@ -157,6 +157,7 @@ def _which_all(name: str) -> list[str]:
     losers too, since a shadowed install is precisely "more than one exists".
     """
     found: list[str] = []
+    seen: set[str] = set()  # one file listed twice on PATH (case, trailing slash, symlink) is not a shadow
     exts = [""]
     if is_windows():
         exts = [e for e in os.environ.get("PATHEXT", ".EXE").split(os.pathsep) if e]
@@ -165,7 +166,11 @@ def _which_all(name: str) -> list[str]:
             continue
         for ext in exts:
             candidate = os.path.join(directory, name + ext)
-            if os.path.isfile(candidate) and candidate not in found:
+            if not os.path.isfile(candidate):
+                continue
+            key = os.path.normcase(os.path.realpath(candidate))
+            if key not in seen:
+                seen.add(key)
                 found.append(candidate)
     return found
 
@@ -305,7 +310,9 @@ def run(brief: bool = False) -> int:
     print("      fix:")
     if "broken" in kinds:
         print("        orphaned launcher (package gone, script left behind) —")
-        print("        remove it, then reinstall:  pipx install --force m3-memory")
+        print("        remove it, then reinstall: `m3 upgrade` if `m3` itself still runs;")
+        print("        otherwise with the installer that put it there, e.g.")
+        print("        `pipx install --force m3-memory` or `python -m pip install --force-reinstall m3-memory`")
     if "stale" in kinds or "shadowed" in kinds:
         print("        a different copy wins on PATH. Remove the stale launcher")
         print("        (`pip uninstall m3-memory` for a pip --user copy), or put")

@@ -177,20 +177,53 @@ def _state_verdict() -> str | None:
             f"\U0001f6a8 m3 chatlog capture has recorded no write yet ({chatlog_config.STATE_FILE} has no "
             "last_write_at) — capture status UNKNOWN. Run `m3 chatlog doctor`."
         )
-    from datetime import UTC, datetime
-
-    try:
-        age_min = (datetime.now(UTC) - datetime.fromisoformat(str(last))).total_seconds() / 60
-    except ValueError:
+    age_min = _age_minutes(str(last))
+    if age_min is None:
         return f"\U0001f6a8 m3 chatlog state holds an unreadable last_write_at ({last!r}) — capture status UNKNOWN."
+    return _verdict_for_age(age_min, str(last))
+
+
+def _idle_minutes(last_write_at: str) -> float | None:
+    """The shared lull predicate (chatlog_status owns it). If the payload cannot
+    supply it, None: the plain 15-minute alarm applies (fail toward loud)."""
+    try:
+        from chatlog_status import capture_idle_minutes
+
+        return capture_idle_minutes(last_write_at)
+    except Exception:  # noqa: BLE001 -- a SessionStart check must still answer
+        return None
+
+
+def _verdict_for_age(age_min: float, last: str) -> str:
+    """WORKING / idle / NOT writing from the age of the last landed write.
+
+    A quiet gap is not an outage: at session start the previous session's last
+    turn is minutes-to-hours old while capture is healthy. Only an age beyond
+    the shared lull grace is the alarm (the 15-min cut-off alone cried wolf).
+    """
     if age_min <= WINDOW_MIN:
         return f"✅ m3 chatlog capture: WORKING (last write {age_min:.0f} min ago)"
+    if _idle_minutes(last) is not None:
+        return f"✅ m3 chatlog capture: last write {age_min:.0f} min ago (idle; no turns since, not an outage)"
     return (
         f"\U0001f6a8 WARNING: m3 chatlog capture NOT writing (last write {age_min:.0f} min ago, "
         f"at {last}). Turns from this session are NOT being preserved. Run `m3 chatlog doctor` "
         "before continuing substantive work. (Note: an MCP disconnect does NOT cause this — "
         "capture writes to the DB directly, independent of that connection.)"
     )
+
+
+def _age_minutes(iso_ts: str) -> float | None:
+    """Minutes since an ISO-8601 stamp (naive = UTC, as rows are written); None if unparseable."""
+    from datetime import UTC, datetime
+
+    try:
+        dt = datetime.fromisoformat(iso_ts)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - dt).total_seconds() / 60
 
 
 def _primary_is_sqlite() -> bool:
@@ -211,6 +244,7 @@ def main() -> None:
     try:
         _sql, _params = _recent_window_sql()
         count = 0
+        newest = ""
         errors = []
         for db in dbs:
             try:
@@ -218,6 +252,10 @@ def main() -> None:
                 try:
                     (n,) = conn.execute(_sql, _params).fetchone()
                     count += n
+                    (latest,) = conn.execute(
+                        "SELECT MAX(created_at) FROM memory_items WHERE type = 'chat_log'"
+                    ).fetchone()
+                    newest = max(newest, latest or "")
                 finally:
                     conn.close()
             except Exception as e:  # noqa: BLE001 — a missing store is not fatal
@@ -234,8 +272,11 @@ def main() -> None:
         print(json.dumps({"systemMessage": msg}))
         return
 
+    age = _age_minutes(newest) if count == 0 else None
     if count > 0:
         msg = f"✅ m3 chatlog capture: WORKING ({count} rows/{WINDOW_MIN}min)"
+    elif age is not None:
+        msg = _verdict_for_age(age, newest)
     else:
         msg = (
             f"\U0001f6a8 WARNING: m3 chatlog capture NOT writing "

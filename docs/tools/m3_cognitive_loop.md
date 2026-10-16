@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_cognitive_loop.py
-sha1: 46e51456aa73
-mtime_utc: 2026-10-16T14:50:15.816969+00:00
-generated_utc: 2026-10-16T15:27:52.670638+00:00
+sha1: 9e12b0ae1a49
+mtime_utc: 2026-10-16T17:58:23.240122+00:00
+generated_utc: 2026-10-16T19:03:59.405087+00:00
 private: false
 ---
 
@@ -30,7 +30,7 @@ for m3_enrich and m3_entities.
 
 ## Entry points
 
-- `def main()` (line 2157)
+- `def main()` (line 2277)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -43,7 +43,7 @@ for m3_enrich and m3_entities.
 | `--background` | Run in background (fire and forget) | `False` |  | store_true |  |
 | `--log-file` | Append logging to this file (scheduled-task / service mode). Survives the Windows pythonw re-exec. | None |  | str |  |
 | `--concurrency` | SLM concurrency (default: 2) | `2` |  | int |  |
-| `--limit-per-pass` | Max groups/rows per heavy-LLM pass (entity extraction, enrichment, observation drain). Default 4 (override with the M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large catch-up backlog faster on an idle box, WITHOUT editing the flag in a scheduled task). Small enough that one pass is a few-second GPU burst (the governor is only re-checked BETWEEN passes, not within a batch — a 50-item pass once pinned the GPU for ~17 min, so 4 stays ~10x under that). Under THROTTLED load this is shrunk to M3_GOVERNOR_THROTTLED_LIMIT (default 1); when idle the loop also re-ticks immediately if a backlog remains (see the backlog-aware wait below) rather than sleeping the full --interval. Embedding is a separate scheduled task (ChatlogEmbedSweep) and is unaffected. | `max(1, _m3cfg.setting('loop.limit_per_pass'))` |  | int |  |
+| `--limit-per-pass` | Max groups/rows per batched pass (entities, enrich, files extract, embed, classify). Default: the `loop.limit_per_pass` setting (4). A scheduled task or service does not see your shell's environment, so change it with `m3 config set loop.limit_per_pass N` rather than an env var. Small enough that one pass is a few-second GPU burst (the governor is only re-checked BETWEEN passes, not within a batch — a 50-item pass once pinned the GPU for ~17 min). Under THROTTLED load it is shrunk to the throttled limit (default 1); when idle the loop re-ticks immediately while a backlog remains rather than sleeping the full --interval. | `max(1, _m3cfg.setting('loop.limit_per_pass'))` |  | int |  |
 | `--database` | Core Memory DB path | None |  | str |  |
 | `--chatlog-db` | Chatlog DB path (default: db_path in .chatlog_config.json) | None |  | str |  |
 | `--profile-entities` | Profile for entities | `entities_local_qwen` |  | str |  |
@@ -113,11 +113,11 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `argv`` (line 198)
+- `subprocess.Popen()  → `argv`` (line 258)
 
 **sqlite**
 
-- `sqlite3.connect()  → `path`` (line 1139)
+- `sqlite3.connect()  → `path`` (line 1265)
 
 
 ---
@@ -136,6 +136,7 @@ _(none detected)_
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (configured_main_db, pin_chatlog_db, pin_database)`
+- `m3_core.runtime (utc_iso)`
 - `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`
 - `memory.backends (active_backend, chatlog_table)`

@@ -14,12 +14,33 @@ def _mark(validated) -> str:
     return {True: "validated", False: "not validated", None: "operator attests"}[validated]
 
 
+def _configured_fips_tier() -> str | None:
+    """crypto.fips_strict / crypto.fips_mode from settings (env or config), read
+    without crypto_provider. None when settings cannot be read."""
+    try:
+        from m3_core.config import settings as cfg
+
+        if cfg.setting("crypto.fips_strict"):
+            return "strict"
+        return "mode" if cfg.setting("crypto.fips_mode") else "off"
+    except Exception:  # noqa: BLE001 -- caller treats unknown as a failure
+        return None
+
+
 def run(brief: bool = False) -> int:
     try:
         from crypto_provider import crypto_paths_report
     except Exception as e:  # noqa: BLE001 — report what blocked the probe, never crash the doctor
-        print(f"fips: report unavailable ({type(e).__name__}: {e})")
-        return 0
+        # Under a FIPS tier an unloadable crypto provider means every crypto path
+        # fails at runtime: a failure, not a note. Unknown tier fails closed.
+        tier = _configured_fips_tier()
+        print(f"fips: report unavailable ({type(e).__name__}: {e}); configured tier: {tier or 'unknown'}")
+        if tier == "off":
+            return 0
+        print(
+            "  fix: resolve the import error above (wolfSSL is installed by `m3 setup`); docs/FIPS_MODULE_BOUNDARY.md"
+        )
+        return 1
     report = crypto_paths_report()
     tier = report["tier"]
     refused = [r for r in report["rows"] if not r["ok"]]

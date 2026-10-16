@@ -10,6 +10,7 @@ Network is mocked via httpx.MockTransport. We assert:
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import sqlite3
 import sys
@@ -34,6 +35,9 @@ def bench_db(tmp_path, monkeypatch):
     Observer write path.
     """
     db_path = tmp_path / "test.db"
+    # Hand-built subset schema: the migration chain cannot run over it, and a
+    # failed migration raises, so skip its lazy migration.
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     pin_database(str(db_path))
     conn = sqlite3.connect(str(db_path))
     conn.executescript("""

@@ -75,6 +75,7 @@ def _db(*args, **kwargs):
 from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
+from . import tokens as _tokens
 from .embed import (
     _DENSE_ERR_RE,
     _EMBED_GGUF_MODEL_TAG,
@@ -93,8 +94,8 @@ from .emitters import _maybe_emit_event_rows, _maybe_emit_gist_row, _maybe_emit_
 from .enrich import _auto_classify, _ingest_llm_enabled, _maybe_auto_entities, _maybe_auto_title, _try_enrich_or_enqueue
 from .entity import _try_extract_or_enqueue
 from .fts import _augment_title_with_role
-from .tokens import TOKEN_BUDGET, estimate_tokens
-from .util import _batch_cosine, _check_content_safety
+from .tokens import estimate_tokens
+from .util import _check_content_safety
 from .util import sha256_hex as _sha256_hex
 
 logger = logging.getLogger("memory.write")
@@ -270,6 +271,26 @@ def memory_link_impl(from_id: str, to_id: str, relationship_type: str = "related
     return f"Linked: {from_id} --[{relationship_type}]--> {to_id} (id: {rid})"
 
 
+def content_gate_error(content: str, title: str = "", metadata: str = "") -> str | None:
+    """The write boundary's size + safety gate, one owner for write and update.
+    Returns an ``"Error: ..."`` string, or None when the fields may be stored."""
+    # Defense-in-depth content size check (primary validation is in memory_bridge.py)
+    if content and len(content) > 50_000:
+        return f"Error: content too large ({len(content)} chars, max 50000)"
+    safety_err = _check_content_safety(content)
+    if safety_err:
+        return safety_err
+    # The same XSS / injection / prompt-injection payloads are dangerous in
+    # `title` (rendered in UIs, read by enrichment LLMs) and `metadata` (stored
+    # verbatim), so they are scanned too.
+    for _fname, _fval in (("title", title), ("metadata", metadata)):
+        if _fval and isinstance(_fval, str):
+            _ferr = _check_content_safety(_fval)
+            if _ferr:
+                return _ferr.replace("content rejected", f"{_fname} rejected")
+    return None
+
+
 async def memory_write_impl(
     type,
     content,
@@ -366,23 +387,14 @@ async def memory_write_impl(
             "(rejected to prevent core-memory leak; see task #189)."
         )
 
-    # Defense-in-depth content size check (primary validation is in memory_bridge.py)
-    if content and len(content) > 50_000:
-        return f"Error: content too large ({len(content)} chars, max 50000)"
-    safety_err = _check_content_safety(content)
-    if safety_err:
-        return safety_err
-    # Extend the write-boundary safety gate beyond `content` (§6): the same XSS /
-    # injection / prompt-injection payloads are dangerous in `title` (rendered in
-    # UIs, read by downstream enrichment LLMs) and `metadata` (stored verbatim).
-    # Previously only `content` was scanned, so a payload in title/metadata was
-    # stored unfiltered while the identical string in content was rejected.
-    for _fname, _fval in (("title", title), ("metadata", metadata)):
-        if _fval and isinstance(_fval, str):
-            _ferr = _check_content_safety(_fval)
-            if _ferr:
-                return _ferr.replace("content rejected", f"{_fname} rejected")
+    gate_err = content_gate_error(content, title, metadata)
+    if gate_err:
+        return gate_err
     if scope not in VALID_SCOPES:
+        if scope:
+            logger.warning(
+                f"memory_write: scope {scope!r} is not one of {sorted(VALID_SCOPES)}; written as 'agent' (private to agent {agent_id!r})"
+            )
         scope = "agent"
     item_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
@@ -475,7 +487,7 @@ async def memory_write_impl(
         # a content_hash-only UPDATE — ABSENCE-TOLERANT, core INSERT never at risk.
         # NULL confidence reads as "fall back to importance" everywhere, so
         # flag-off behavior is unchanged.
-        _chash = _sha256_hex((content or "").encode("utf-8"))
+        _chash = _content_hash(content)
         _conf = _derive_confidence(source=source, change_agent=agent, metadata=metadata, explicit=confidence)
         _p1 = _d1.param()
         try:
@@ -628,7 +640,7 @@ async def _embed_windows(item_id: str, embed_text: str) -> list[tuple[str, str, 
     """
     # Exact windows are asked for only when the estimate says the text needs more
     # than one: a short memory costs no extra request.
-    cuts = await _exact_windows(embed_text) if estimate_tokens(embed_text) > TOKEN_BUDGET else None
+    cuts = await _exact_windows(embed_text) if estimate_tokens(embed_text) > _tokens.TOKEN_BUDGET else None
     chunks = _chunk_for_sliding_window(embed_text, cuts)
 
     # Dense-content recovery uses the in-process Rust embedder directly
@@ -906,6 +918,19 @@ async def _contradiction_pass(
     return cast("list[str]", superseded_ids)
 
 
+def _primary_vector_row(db, item_id: str):
+    """The memory's contradiction-check vector: the 'default' kind first (a
+    memory can carry several vector kinds). None when it has no vector."""
+    from memory.backends import dialect
+
+    p = dialect().param()
+    return db.execute(
+        f"SELECT embedding FROM memory_embeddings WHERE memory_id = {p} "
+        "ORDER BY CASE WHEN vector_kind = 'default' THEN 0 ELSE 1 END LIMIT 1",
+        (item_id,),
+    ).fetchone()
+
+
 async def run_deferred_contradiction_check(item_id: str) -> list[str] | None:
     """Run the contradiction check a write deferred, now that the row has a vector.
 
@@ -925,11 +950,7 @@ async def run_deferred_contradiction_check(item_id: str) -> list[str] | None:
         ).fetchone()
         if row is None or not contradiction_check_owed(row["metadata_json"]):
             return None
-        vrow = db.execute(
-            f"SELECT embedding FROM memory_embeddings WHERE memory_id = {p} "
-            "ORDER BY CASE WHEN vector_kind = 'default' THEN 0 ELSE 1 END LIMIT 1",
-            (item_id,),
-        ).fetchone()
+        vrow = _primary_vector_row(db, item_id)
     if row["is_deleted"]:
         _set_check_flag(item_id, False)
         return None
@@ -1029,6 +1050,9 @@ def _mark_superseded(
         f"VALUES ({_d.placeholder(5)}) {_suffix}".rstrip(),
         (str(uuid.uuid4()), new_id, old_id, "supersedes", now_iso),
     )
+    # Callers outside the write impls (maintenance, reflector) reach here before
+    # any impl has bound the memory_core callbacks; bind on demand.
+    _resolve_mc_callbacks()
     _record_history(old_id, "supersede", prev_value, new_id, "content", actor_id, db=db)
     return True
 
@@ -1104,7 +1128,7 @@ async def memory_supersede_impl(
     _psup = _dsup.param()
     with _db() as db:
         row = db.execute(
-            f"SELECT type, title, importance, scope, is_deleted FROM memory_items WHERE id = {_psup}",
+            f"SELECT type, title, importance, scope, user_id, agent_id, is_deleted FROM memory_items WHERE id = {_psup}",
             (old_id,),
         ).fetchone()
     if row is None:
@@ -1127,6 +1151,10 @@ async def memory_supersede_impl(
     new_title = title or (row["title"] or "")
     new_importance = importance if importance >= 0 else row["importance"]
     new_scope = scope or (row["scope"] or "agent")
+    # Ownership is inherited too: a replacement written without the old row's
+    # user_id/agent_id escapes gdpr_forget(user_id) and tenancy-scoped reads.
+    new_user_id = user_id or (row["user_id"] or "")
+    new_agent_id = agent_id or (row["agent_id"] or "")
 
     # 3. Create the replacement via memory_write_impl — reuses embedding,
     #    history, enrichment, and the size/safety gates. Done BEFORE touching
@@ -1136,13 +1164,13 @@ async def memory_supersede_impl(
         content=content,
         title=new_title,
         metadata=metadata,
-        agent_id=agent_id,
+        agent_id=new_agent_id,
         model_id=model_id,
         change_agent=change_agent,
         importance=new_importance,
         source=source,
         embed=embed,
-        user_id=user_id,
+        user_id=new_user_id,
         scope=new_scope,
         valid_from=valid_from,
         variant=variant,
@@ -1317,6 +1345,7 @@ async def memory_write_bulk_impl(
 
     now = datetime.now(UTC).isoformat()
     prepared: list[dict] = []
+    bad_scopes: dict[str, int] = {}
     for it in items:
         mid = it.get("id") or str(uuid.uuid4())
         meta = it.get("metadata", "{}")
@@ -1324,6 +1353,8 @@ async def memory_write_bulk_impl(
             meta = json.dumps(meta)
         scope = it.get("scope", "agent")
         if scope not in VALID_SCOPES:
+            if scope:
+                bad_scopes[str(scope)] = bad_scopes.get(str(scope), 0) + 1
             scope = "agent"
         content = it.get("content") or ""
         title = it.get("title") or ""
@@ -1393,6 +1424,11 @@ async def memory_write_bulk_impl(
                 "embed_text": None,  # Will be set after enrichment
                 "variant": eff_variant,
             }
+        )
+    if bad_scopes:
+        logger.warning(
+            f"memory_write_bulk: {sum(bad_scopes.values())} of {len(items)} item(s) had a scope not in "
+            f"{sorted(VALID_SCOPES)} ({bad_scopes}); written as 'agent' (private to their agent_id)"
         )
 
     # Pre-enrichment phase: auto-title, auto-entities, augment embed_text.
@@ -1658,14 +1694,8 @@ async def memory_write_bulk_impl(
         async def check_one(p: dict) -> tuple[str, list[str]]:
             async with sem:
                 # Only check if we have an embedding and type is not conversation/message
-                vec_row = None
                 with _db() as db:
-                    r = db.execute(
-                        f"SELECT embedding FROM memory_embeddings WHERE memory_id = {_db_bulk.param()} LIMIT 1",
-                        (p["id"],),
-                    ).fetchone()
-                    if r:
-                        vec_row = r
+                    vec_row = _primary_vector_row(db, p["id"])
 
                 if not vec_row or p["type"] in CONTRADICTION_TYPE_EXCLUSIONS:
                     return p["id"], []
@@ -1685,9 +1715,12 @@ async def memory_write_bulk_impl(
                 return p["id"], superseded_ids
 
         results = await asyncio.gather(*[check_one(p) for p in prepared], return_exceptions=True)
-        for result in results:
-            if isinstance(result, Exception):
-                logger.debug(f"Contradiction check in bulk failed: {result}")
+        failed = [(p["id"], r) for p, r in zip(prepared, results, strict=True) if isinstance(r, Exception)]
+        for mid, err in failed[:5]:
+            logger.warning(
+                f"bulk contradiction check failed for memory {mid} ({err.__class__.__name__}: {err}); "
+                f"it was written but not checked ({len(failed)} of {len(prepared)} failed)"
+            )
 
     # Phase 4: Conversation emitters (event rows, window chunks, gist rows).
     # Default behavior: emit if conversation_id is present and type==message (mirror single path).
@@ -1742,6 +1775,10 @@ async def memory_write_bulk_impl(
     return [p["id"] for p in prepared]
 
 
+# Memories (not embedding rows) compared per contradiction check.
+_CONTRADICTION_SCAN_MEMORIES = 200
+
+
 async def _check_contradictions(
     item_id: str,
     content: str,
@@ -1753,7 +1790,6 @@ async def _check_contradictions(
     variant: str | None = None,
     user_id: str = "",
 ) -> tuple[list[str], list[tuple[str, float]]]:
-    _resolve_mc_callbacks()
     """
     Detects contradictions with existing memories of the same type.
     Returns (superseded_ids, related_candidates) where related_candidates
@@ -1762,7 +1798,11 @@ async def _check_contradictions(
     When `variant` is non-None and `AUTO_RELATED_LINK_SCOPE_BY_VARIANT` is on
     (default), candidate scan is restricted to memories of the same variant.
     This prevents cross-variant contamination during obs INSERT.
+
+    Auto-supersede needs an owner: a write with neither ``user_id`` nor
+    ``agent_id`` only relates/corroborates, never retires another row.
     """
+    _resolve_mc_callbacks()
     superseded: list[str] = []
     related: list[tuple[str, float]] = []
     corroborated: list[str] = []
@@ -1783,18 +1823,14 @@ async def _check_contradictions(
             # different tenant's memory — the read path filters user_id, the
             # supersede path must too. Empty user_id passes through unchanged
             # (single-tenant / legacy shared-agent rows).
-            from memory.backends import dialect
+            from memory.backends import active_backend
 
-            p = dialect().param()
-            where = f"mi.is_deleted = 0 AND mi.type = {p} AND mi.id != {p}"
-            params = [type_, item_id]
-            if user_id:
-                where += f" AND mi.user_id = {p}"
-                params.append(user_id)
+            from .embed import _compatible_model_names
+
+            _backend = active_backend()
+            d = _backend.dialect()
+            p = d.param()
             _agent_scoped = bool(agent_id) and not _wcfg.CORROBORATION
-            if _agent_scoped:
-                where += f" AND mi.agent_id = {p}"
-                params.append(agent_id)
             # Resolve scope gate at call time so tests that monkeypatch
             # memory_core.AUTO_RELATED_LINK_SCOPE_BY_VARIANT take effect.
             _scope_on = AUTO_RELATED_LINK_SCOPE_BY_VARIANT
@@ -1805,20 +1841,67 @@ async def _check_contradictions(
                     _scope_on = _mc.AUTO_RELATED_LINK_SCOPE_BY_VARIANT
             except ImportError:
                 pass
-            if variant is not None and _scope_on:
-                where += f" AND mi.variant = {p}"
-                params.append(variant)
-            rows = db.execute(
-                f"SELECT mi.id, mi.title, mi.content, mi.agent_id, me.embedding FROM memory_items mi "
-                f"JOIN memory_embeddings me ON mi.id = me.memory_id WHERE {where} LIMIT 200",
-                params,
-            ).fetchall()
+            scope_sql, scope_params = d.scope_predicates(
+                user_id=user_id,
+                agent_filter=f'"{agent_id}"' if _agent_scoped else "",
+                variant=(variant or "") if (variant is not None and _scope_on) else "",
+            )
+            tenancy_sql = f" AND mi.type = {p} AND mi.id != {p}{scope_sql}"
+            tenancy_params = (type_, item_id, *scope_params)
+            # Nearest neighbours through the backend seam: every in-scope vector
+            # of a compatible model and this dim is scored, then the best kept.
+            # (A bare LIMIT over the join took an arbitrary 200 embedding rows,
+            # several per memory, so the true nearest were often never compared.)
+            # Compare within the new vector's embed space only: its own model
+            # tag(s), widened to the configured compatible set when it is one of
+            # them; the compatible set when the row has no stored vector yet.
+            own = {
+                r[0]
+                for r in db.execute(
+                    f"SELECT DISTINCT embed_model FROM memory_embeddings WHERE memory_id = {p}", (item_id,)
+                ).fetchall()
+                if r[0]
+            }
+            compat = set(_compatible_model_names())
+            space = (own | compat) if (not own or own & compat) else own
+            hits = _backend.vector_search(
+                db,
+                vec,
+                limit=_CONTRADICTION_SCAN_MEMORIES * 4,
+                dim=len(vec),
+                embed_models=tuple(sorted(space)),
+                tenancy_sql=tenancy_sql,
+                tenancy_params=tenancy_params,
+            )
+            # One score per memory (its best vector), highest first; ties by id
+            # so the scan is deterministic.
+            best: dict[str, float] = {}
+            for h in hits:
+                if h.memory_id not in best or h.score > best[h.memory_id]:
+                    best[h.memory_id] = h.score
+            ranked = sorted(best.items(), key=lambda kv: (-kv[1], kv[0]))[:_CONTRADICTION_SCAN_MEMORIES]
+            rows = []
+            if ranked:
+                by_id = {
+                    r["id"]: r
+                    for r in db.execute(
+                        f"SELECT mi.id, mi.title, mi.content, mi.agent_id FROM memory_items mi "
+                        f"WHERE mi.id IN ({d.placeholder(len(ranked))})",
+                        [mid for mid, _s in ranked],
+                    ).fetchall()
+                }
+                rows = [by_id[mid] for mid, _s in ranked if mid in by_id]
+            scores = [best[r["id"]] for r in rows]
 
         if not rows:
             return superseded, related
 
-        embeddings = [_unpack(r["embedding"]) for r in rows]
-        scores = _batch_cosine(vec, embeddings)
+        # Auto-supersede retires another row; an unscoped write (no user_id and
+        # no agent_id) has no owner to confine that to, so it may only relate
+        # or corroborate.
+        may_supersede = bool(user_id or agent_id)
+        if not may_supersede:
+            logger.debug(f"contradiction check for {item_id}: unscoped write, auto-supersede skipped")
 
         for i, row in enumerate(rows):
             score = scores[i]
@@ -1856,6 +1939,8 @@ async def _check_contradictions(
                 # agent's OWN prior memory is superseded as a contradiction.
                 if fires and agent_id and not _agent_scoped:
                     fires = (row["agent_id"] or "") == agent_id
+                if fires and not may_supersede:
+                    fires = False
 
                 if fires:
                     # Contradiction detected — supersede old memory via the
@@ -1864,9 +1949,6 @@ async def _check_contradictions(
                     # the new memory's valid_from, falling back to now() when the
                     # caller supplied none — so `as_of`-filtered retrieval still
                     # sees the older fact valid before the supersession point.
-                    # require_active=False: the candidate query above already
-                    # filtered is_deleted=0 and we hold the writer, so the close
-                    # is unconditional.
                     _close_at = new_valid_from or datetime.now(UTC).isoformat()
                     with _db() as db:
                         # require_active=True (CAS): under a single-writer SQLite

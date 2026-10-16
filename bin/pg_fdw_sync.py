@@ -6,8 +6,9 @@ SQLite<->PG bridge (pg_sync.py) is the wrong tool: it opens the local side as
 sqlite3 and UPSERTs one row at a time in Python. This module uses postgres_fdw to
 make the warehouse a set of foreign tables in the primary, so each table's delta
 sync is a single server-side ``INSERT INTO <target> SELECT <cols> FROM <source>
-WHERE updated_at > :wm ON CONFLICT (id) DO UPDATE ... WHERE target.updated_at <
-EXCLUDED.updated_at`` — bulk, streaming, no Python row loop, last-writer-wins.
+WHERE <delta col> > :wm ON CONFLICT (id) DO UPDATE ... <merge guard>`` — bulk,
+streaming, no Python row loop. The merge guards are the ones pg_sync uses
+(lww_guard / version_guard below).
 
 Directionality: both PUSH (primary -> warehouse) and PULL (warehouse -> primary)
 run from the PRIMARY side (which hosts the FDW foreign tables). Push writes the
@@ -25,7 +26,7 @@ Requires on the WAREHOUSE: the sync role has USAGE + DML on m3_warehouse.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from collections.abc import Callable
 from typing import cast
 
 logger = logging.getLogger("pg_fdw_sync")
@@ -35,6 +36,60 @@ logger = logging.getLogger("pg_fdw_sync")
 FDW_SCHEMA = "cdw_fdw"
 FDW_SERVER = "cdw_wh"
 WAREHOUSE_SCHEMA = "m3_warehouse"
+
+
+# ── Merge rules and pull bounds: the ONE definition both sync paths use ──────
+# pg_sync (the SQLite<->PG bridge) and this fast path apply the same merges; a
+# copy here drifted once (no NULL arm, no curation protection), so a PG primary
+# overwrote manual edits the bridge protected. Kept in this module because it
+# imports nothing heavy; pg_sync imports these. The text is valid on SQLite and
+# PostgreSQL alike (EXCLUDED is case-insensitive on both).
+
+
+def lww_guard(target: str, ts_col: str = "updated_at", *, protect_curation: bool = False) -> str:
+    """ON CONFLICT ... DO UPDATE's WHERE: the incoming row wins when the stored one
+    has no timestamp or an older one. With ``protect_curation`` a stored manual or
+    system row yields only to an incoming manual one. ``target`` is the (possibly
+    schema-qualified) target table, or ``"{target}"`` for a spec template."""
+    guard = f"WHERE ({target}.{ts_col} IS NULL OR EXCLUDED.{ts_col} > {target}.{ts_col})"
+    if protect_curation:
+        guard += f" AND (({target}.change_agent NOT IN ('manual', 'system')) OR (EXCLUDED.change_agent = 'manual'))"
+    return guard
+
+
+def version_guard(target: str) -> str:
+    """synchronized_secrets' merge: VERSION precedence, the timestamp breaks ties
+    within one version only. Not last-write-wins — reshaping it into one would
+    mis-merge the highest-value rows in the store."""
+    return (
+        f"WHERE EXCLUDED.version > {target}.version "
+        f"OR (EXCLUDED.version = {target}.version AND EXCLUDED.updated_at > {target}.updated_at)"
+    )
+
+
+# Where a pull that reads by warehouse ARRIVAL time (wh_arrived_at, pg_002)
+# resumes: the warehouse clock, held back to the start of its oldest open
+# transaction. A push still in flight stamps its rows after its own transaction
+# began, so they land at or after this bound and the next pull reads them. Run on
+# a connection to the WAREHOUSE, before the pull's read.
+ARRIVAL_BOUND_SQL = (
+    "SELECT LEAST(NOW(), COALESCE((SELECT min(xact_start) FROM pg_stat_activity "
+    "WHERE xact_start IS NOT NULL AND pid <> pg_backend_pid() AND datname = current_database()), NOW()))"
+)
+
+
+def arrival_bound(cur) -> str | None:
+    """The pull bound (ISO) from ``cur``'s server via ARRIVAL_BOUND_SQL; raises on
+    a database error — the caller decides how to degrade."""
+    cur.execute(ARRIVAL_BOUND_SQL)
+    row = cur.fetchone()
+    return row[0].isoformat() if row and row[0] else None
+
+
+# Warehouse tables a pull reads by arrival time. Embeddings and relationships
+# carry wh_arrived_at too, but this path reads them in full every run (no delta),
+# which is already loss-free.
+_ARRIVAL_PULL_TABLES = frozenset({"memory_items"})
 
 # The synced column contract per table — the WAREHOUSE column set (a subset of the
 # primary's; belief/KG columns stay local, matching the SQLite bridge). Keeping it
@@ -83,7 +138,7 @@ _MEMORY_ITEMS_COLS = [
 # Annotated so mypy sees the per-position types instead of collapsing the
 # tuple into `str | list[str]`, which made every _upsert() arg look wrong.
 _TABLE_SPECS: list[tuple[str, list[str], str, str | None] | tuple[str, list[str], str, str | None, str]] = [
-    ("memory_items", _MEMORY_ITEMS_COLS, "id", "updated_at"),
+    ("memory_items", _MEMORY_ITEMS_COLS, "id", "updated_at", lww_guard("{target}", protect_curation=True)),
     (
         "memory_embeddings",
         ["id", "memory_id", "embedding", "embed_model", "dim", "created_at", "content_hash", "vector_kind"],
@@ -128,9 +183,7 @@ _TABLE_SPECS: list[tuple[str, list[str], str, str | None] | tuple[str, list[str]
         ["service_name", "encrypted_value", "version", "origin_device", "updated_at"],
         "service_name",
         None,
-        "WHERE EXCLUDED.version > {target}.version "
-        "OR (EXCLUDED.version = {target}.version "
-        "AND EXCLUDED.updated_at > {target}.updated_at)",
+        version_guard("{target}"),
     ),
 ]
 
@@ -245,9 +298,12 @@ def _upsert(
     ts_col: str | None,
     watermark: str | None,
     guard: str | None = None,
+    delta_col: str | None = None,
 ) -> int:
     """One set-based delta upsert. target/source are schema-qualified table names.
-    Returns rows affected. Last-writer-wins on ts_col unless `guard` overrides it.
+    Returns rows affected. Last-writer-wins on ts_col (lww_guard) unless `guard`
+    overrides it; `delta_col` (default ts_col) is the SOURCE column the watermark
+    filters on — wh_arrived_at for a pull that reads by warehouse arrival time.
 
     `guard` exists because not every table resolves conflicts by timestamp.
     `synchronized_secrets` uses VERSION precedence — the version number is
@@ -261,14 +317,15 @@ def _upsert(
     set_clause = ", ".join(f"{c}=EXCLUDED.{c}" for c in non_pk)
     where_delta = ""
     params: list = []
-    if ts_col and watermark:
-        where_delta = f" WHERE {ts_col} > %s"
+    delta_col = delta_col or ts_col
+    if delta_col and watermark:
+        where_delta = f" WHERE {delta_col} > %s"
         params.append(watermark)
     if guard:
         conflict_guard = " " + guard.format(target=target_qual)
     else:
         # Last-writer-wins guard only when we have a timestamp to compare.
-        conflict_guard = f" WHERE {target_qual}.{ts_col} < EXCLUDED.{ts_col}" if ts_col else ""
+        conflict_guard = " " + lww_guard(target_qual, ts_col) if ts_col else ""
     sql = (
         f"INSERT INTO {target_qual} ({collist}) "
         f"SELECT {collist} FROM {source_qual}{where_delta} "
@@ -278,14 +335,27 @@ def _upsert(
     return cast("int", pg_cur.rowcount)
 
 
-def sync_pg_to_pg(primary_conn, warehouse_dsn: str, get_wm, set_wm, dry_run: bool = False) -> dict:
+def sync_pg_to_pg(
+    primary_conn,
+    warehouse_dsn: str,
+    get_wm,
+    set_wm,
+    dry_run: bool = False,
+    warehouse_bound: Callable[[], str | None] | None = None,
+) -> dict:
     """Bidirectional PG<->PG warehouse sync via FDW, driven from the primary.
 
-    primary_conn: an open psycopg connection to the PRIMARY (public.* store).
+    primary_conn: an open psycopg connection to the PRIMARY store.
     warehouse_dsn: the CDW DSN (M3_CDW_PG_URL) — used for the foreign server.
     get_wm(direction) -> iso str | None ; set_wm(direction, iso) : watermark I/O
       (direction e.g. 'fdw_memory_items_push'). Reuse the caller's sync_watermarks.
-    Returns {table: {push: n, pull: n}}. Raises FdwUnavailable -> caller falls back.
+    warehouse_bound() -> iso | None: arrival_bound() run on a WAREHOUSE
+      connection. Pull watermarks come from it; without one (None, or it fails)
+      pull watermarks are not advanced, so the next run re-reads from the last good
+      one instead of skipping rows.
+    Watermarks are written in primary_conn's transaction, so they commit with the
+    rows or not at all. Returns {table: {push: n, pull: n}}. Raises FdwUnavailable
+    -> caller falls back.
     """
     results: dict = {}
     with primary_conn.cursor() as cur:
@@ -293,21 +363,53 @@ def sync_pg_to_pg(primary_conn, warehouse_dsn: str, get_wm, set_wm, dry_run: boo
         if dry_run:
             primary_conn.rollback()
             return {"dry_run": True, "tables": [t[0] for t in _TABLE_SPECS]}
-        now = datetime.now(UTC).isoformat()
+        # Both bounds are taken BEFORE any read, from the clock of the server
+        # whose rows they are compared with — never this host's clock, which is
+        # skewed against peers' timestamps and silently skips their rows.
+        push_bound = arrival_bound(cur)
+        cur.execute("SELECT current_schema()")
+        row = cur.fetchone()
+        local_schema = row[0] if row and row[0] else None
+        if not local_schema:
+            raise RuntimeError(
+                "observed: current_schema() is NULL on the primary (no schema on its search_path exists). "
+                "inspect: the primary role's search_path"
+            )
+        pull_bound: str | None = None
+        if warehouse_bound is not None:
+            try:
+                pull_bound = warehouse_bound()
+            except Exception as e:  # noqa: BLE001 — degrade to "do not advance", reported
+                logger.warning(
+                    "[fdw] could not read the warehouse clock (%s: %s); pull watermarks are NOT advanced "
+                    "this run (the next run re-reads from the last good one). inspect: the warehouse DSN "
+                    "(M3_CDW_PG_URL) and that its role can read pg_stat_activity",
+                    type(e).__name__,
+                    e,
+                )
+        else:
+            logger.warning("[fdw] no warehouse clock supplied; pull watermarks are NOT advanced this run")
         for spec in _TABLE_SPECS:
             # 4- or 5-tuple: the optional 5th element is an explicit conflict
-            # guard for tables that do not merge by timestamp.
+            # guard for tables that do not merge by plain timestamp LWW.
             table, cols, pk, ts_col = spec[:4]
             guard = spec[4] if len(spec) > 4 else None
-            local = f"public.{table}"
+            local = f'"{local_schema}".{table}'
             foreign = f"{FDW_SCHEMA}.{table}"
             push_key, pull_key = f"fdw_{table}_push", f"fdw_{table}_pull"
+            pull_delta = None
+            if table in _ARRIVAL_PULL_TABLES:
+                # A new key: the old one held this host's clock, compared with
+                # writer clocks; the first run on it reads everything once.
+                pull_key, pull_delta = f"fdw_{table}_pull_arrival", "wh_arrived_at"
             # PUSH: primary -> warehouse (write the foreign table)
             n_push = _upsert(cur, foreign, local, cols, pk, ts_col, get_wm(push_key), guard)
             # PULL: warehouse -> primary (read the foreign table)
-            n_pull = _upsert(cur, local, foreign, cols, pk, ts_col, get_wm(pull_key), guard)
-            set_wm(push_key, now)
-            set_wm(pull_key, now)
+            n_pull = _upsert(cur, local, foreign, cols, pk, ts_col, get_wm(pull_key), guard, pull_delta)
+            if push_bound:
+                set_wm(push_key, push_bound)
+            if pull_bound:
+                set_wm(pull_key, pull_bound)
             results[table] = {"push": n_push, "pull": n_pull}
             logger.info("[fdw] %s: pushed=%d pulled=%d", table, n_push, n_pull)
         primary_conn.commit()

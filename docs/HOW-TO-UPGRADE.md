@@ -474,7 +474,7 @@ If the upgrade left things in a worse state:
 ### Roll back the DB
 
 ```bash
-python3 bin/migrate_memory.py down --to <previous_version> --yes
+python3 bin/migrate_memory.py down --target main --to <previous_version> --yes
 # or restore from the pre-upgrade backup
 python3 bin/migrate_memory.py restore ~/.m3/engine/backups/main/agent_memory.v<NNN>.pre-up.<timestamp>.db --yes
 ```

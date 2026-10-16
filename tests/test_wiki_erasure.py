@@ -27,6 +27,9 @@ class _Dialect:
     def param(self):
         return "?"
 
+    def live_predicate(self, table_alias="mi"):
+        return f"{table_alias}.is_deleted = 0"
+
     def json_column_to_dict(self, value):
         if value is None:
             return {}
@@ -41,17 +44,20 @@ class _Dialect:
 def _db():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE memory_items (id TEXT PRIMARY KEY, type TEXT, valid_to TEXT, metadata_json TEXT)")
+    conn.execute(
+        "CREATE TABLE memory_items (id TEXT PRIMARY KEY, type TEXT, valid_to TEXT, metadata_json TEXT, "
+        "is_deleted INTEGER DEFAULT 0)"
+    )
     conn.execute("CREATE TABLE memory_relationships (from_id TEXT, to_id TEXT, relationship_type TEXT)")
     return conn
 
 
 def _add_syn(db, sid, meta=None):
-    db.execute("INSERT INTO memory_items VALUES (?,?,?,?)", (sid, "synthesis", None, json.dumps(meta or {})))
+    db.execute("INSERT INTO memory_items VALUES (?,?,?,?,0)", (sid, "synthesis", None, json.dumps(meta or {})))
 
 
 def _add_member(db, mid):
-    db.execute("INSERT INTO memory_items VALUES (?,?,?,?)", (mid, "belief", None, "{}"))
+    db.execute("INSERT INTO memory_items VALUES (?,?,?,?,0)", (mid, "belief", None, "{}"))
 
 
 def _consolidates(db, sid, mid):
@@ -75,7 +81,7 @@ def test_find_derived_syntheses():
 def test_find_ignores_non_synthesis_and_superseded():
     db, d = _db(), _Dialect()
     # a superseded synthesis must not be restricted (already out of the vault)
-    db.execute("INSERT INTO memory_items VALUES ('syn-old','synthesis','2026-01-01','{}')")
+    db.execute("INSERT INTO memory_items VALUES ('syn-old','synthesis','2026-01-01','{}',1)")
     _add_member(db, "m-a")
     _consolidates(db, "syn-old", "m-a")
     assert E.find_derived_syntheses(db, d, ["m-a"]) == []

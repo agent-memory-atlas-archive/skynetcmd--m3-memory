@@ -200,3 +200,15 @@ def test_safe_copy_sqlite_falls_back_for_non_db(isolated_roots, tmp_path):
     dst = tmp_path / "out.db"
     installer._safe_copy_sqlite(src, dst)
     assert dst.exists()
+
+
+def test_safe_copy_sqlite_warns_when_it_falls_back_to_a_byte_copy(isolated_roots, tmp_path, capsys):
+    """A failed backup is not silent: the path and the SQLite error are named."""
+    _, installer = isolated_roots
+    src = tmp_path / "garbage.db"
+    src.write_bytes(b"not a sqlite database " * 64)
+    dst = tmp_path / "out.db"
+    installer._safe_copy_sqlite(src, dst)
+    assert dst.read_bytes() == src.read_bytes()
+    err = capsys.readouterr().err
+    assert str(src) in err and "byte copy" in err

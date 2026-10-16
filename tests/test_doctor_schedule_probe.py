@@ -115,22 +115,24 @@ def test_win_query_error_recorded_not_raised(monkeypatch):
 # ===========================================================================
 
 
-def _write_plist(path, interpreter, script):
+def _write_plist(path, interpreter, script, label="com.m3memory.cognitiveloop"):
     import plistlib
 
     with open(path, "wb") as f:
         plistlib.dump(
             {
-                "Label": "com.m3memory.cognitiveloop",
+                "Label": label,
                 "ProgramArguments": [interpreter, script, "--interval", "300"],
             },
             f,
         )
 
 
-def _darwin_env(monkeypatch, plist_path):
+def _darwin_env(monkeypatch, agents_dir):
+    from doctor import job_inventory as ji
+
     simulate_os(monkeypatch, "Darwin")
-    monkeypatch.setattr(schedule_probe, "_LAUNCHD_PLIST", plist_path)
+    monkeypatch.setattr(ji, "_LAUNCH_AGENTS", str(agents_dir))
     monkeypatch.setattr(schedule_probe, "_read_crontab", lambda: None)  # isolate plist
 
 
@@ -139,25 +141,34 @@ def test_darwin_healthy(tmp_path, monkeypatch):
     interp.write_text("")
     script = tmp_path / "loop.py"
     script.write_text("")
-    plist = tmp_path / "agent.plist"
-    _write_plist(plist, str(interp), str(script))
-    _darwin_env(monkeypatch, str(plist))
+    _write_plist(tmp_path / "com.m3memory.cognitiveloop.plist", str(interp), str(script))
+    _darwin_env(monkeypatch, tmp_path)
     assert schedule_probe.find_dangling("root") == []
 
 
 def test_darwin_flags_missing_interpreter(tmp_path, monkeypatch):
-    script = tmp_path / "loop.py"
+    script = tmp_path / "m3_cognitive_loop.py"
     script.write_text("")
-    plist = tmp_path / "agent.plist"
-    _write_plist(plist, str(tmp_path / "deleted-venv" / "python3"), str(script))
-    _darwin_env(monkeypatch, str(plist))
+    _write_plist(tmp_path / "com.m3memory.cognitiveloop.plist", str(tmp_path / "deleted-venv" / "python3"), str(script))
+    _darwin_env(monkeypatch, tmp_path)
     d = schedule_probe.find_dangling("root")
     assert d[0]["job"] == "launchd:com.m3memory.cognitiveloop"
     assert d[0]["missing"] == ["interpreter"]
 
 
+def test_darwin_checks_every_m3_agent_not_only_the_loop(tmp_path, monkeypatch):
+    """Each com.m3memory.* agent is checked; a foreign agent is not."""
+    script = tmp_path / "dashboard_server.py"
+    script.write_text("")
+    gone = str(tmp_path / "deleted-venv" / "python3")
+    _write_plist(tmp_path / "com.m3memory.dashboard.plist", gone, str(script), "com.m3memory.dashboard")
+    _write_plist(tmp_path / "com.example.other.plist", gone, str(tmp_path / "other.py"), "com.example.other")
+    _darwin_env(monkeypatch, tmp_path)
+    assert [d["job"] for d in schedule_probe.find_dangling("root")] == ["launchd:com.m3memory.dashboard"]
+
+
 def test_darwin_no_plist_is_not_dangling(tmp_path, monkeypatch):
-    _darwin_env(monkeypatch, str(tmp_path / "nonexistent.plist"))
+    _darwin_env(monkeypatch, tmp_path)
     assert schedule_probe.find_dangling("root") == []
 
 
@@ -168,18 +179,22 @@ def test_darwin_no_plist_is_not_dangling(tmp_path, monkeypatch):
 _UNIT_TMPL = "[Service]\nType=simple\nExecStart={interp} {script} --interval 300 --log-file /x/y.log\nRestart=always\n"
 
 
-def _linux_env(monkeypatch, unit_path):
+def _linux_env(monkeypatch, units_dir):
+    from doctor import job_inventory as ji
+
     simulate_os(monkeypatch, "Linux")
-    monkeypatch.setattr(schedule_probe, "_SYSTEMD_UNIT", unit_path)
+    monkeypatch.setattr(ji, "_SYSTEMD_USER", str(units_dir))
     monkeypatch.setattr(schedule_probe, "_read_crontab", lambda: None)  # isolate unit
 
 
-def test_linux_parse_execstart_strips_prefix():
-    interp, script = schedule_probe._parse_execstart(
-        "[Service]\nExecStart=-/opt/venv/bin/python /opt/m3/bin/loop.py --interval 300\n"
-    )
-    assert interp == "/opt/venv/bin/python"  # leading '-' prefix stripped
-    assert script == "/opt/m3/bin/loop.py"
+def test_linux_execstart_prefix_is_stripped(tmp_path, monkeypatch):
+    interp = tmp_path / "python"
+    interp.write_text("")
+    script = tmp_path / "m3_cognitive_loop.py"
+    script.write_text("")
+    (tmp_path / "m3-cognitive-loop.service").write_text(f"[Service]\nExecStart=-{interp} {script} --interval 300\n")
+    _linux_env(monkeypatch, tmp_path)
+    assert schedule_probe.find_dangling("root") == []  # '-' prefix not read as part of the path
 
 
 def test_linux_healthy(tmp_path, monkeypatch):
@@ -187,25 +202,33 @@ def test_linux_healthy(tmp_path, monkeypatch):
     interp.write_text("")
     script = tmp_path / "loop.py"
     script.write_text("")
-    unit = tmp_path / "m3.service"
-    unit.write_text(_UNIT_TMPL.format(interp=interp, script=script))
-    _linux_env(monkeypatch, str(unit))
+    (tmp_path / "m3-cognitive-loop.service").write_text(_UNIT_TMPL.format(interp=interp, script=script))
+    _linux_env(monkeypatch, tmp_path)
     assert schedule_probe.find_dangling("root") == []
 
 
 def test_linux_flags_missing_script(tmp_path, monkeypatch):
     interp = tmp_path / "python"
     interp.write_text("")
-    unit = tmp_path / "m3.service"
-    unit.write_text(_UNIT_TMPL.format(interp=interp, script=tmp_path / "moved" / "loop.py"))
-    _linux_env(monkeypatch, str(unit))
+    (tmp_path / "m3-cognitive-loop.service").write_text(
+        _UNIT_TMPL.format(interp=interp, script=tmp_path / "moved" / "loop.py")
+    )
+    _linux_env(monkeypatch, tmp_path)
     d = schedule_probe.find_dangling("root")
     assert d[0]["job"] == "systemd:m3-cognitive-loop.service"
     assert d[0]["missing"] == ["script"]
 
 
+def test_linux_checks_every_m3_unit(tmp_path, monkeypatch):
+    gone = tmp_path / "gone" / "python"
+    (tmp_path / "m3-embed-server.service").write_text(f"[Service]\nExecStart={gone}\n")
+    (tmp_path / "nginx.service").write_text("[Service]\nExecStart=/nonexistent/nginx\n")
+    _linux_env(monkeypatch, tmp_path)
+    assert [d["job"] for d in schedule_probe.find_dangling("root")] == ["systemd:m3-embed-server.service"]
+
+
 def test_linux_no_unit_is_not_dangling(tmp_path, monkeypatch):
-    _linux_env(monkeypatch, str(tmp_path / "nonexistent.service"))
+    _linux_env(monkeypatch, tmp_path)
     assert schedule_probe.find_dangling("root") == []
 
 
@@ -239,6 +262,35 @@ def test_crontab_healthy_when_paths_exist(monkeypatch):
     )
     monkeypatch.setattr(schedule_probe.os.path, "exists", lambda p: True)
     assert schedule_probe._dangling_crontab() == []
+
+
+def test_crontab_flags_a_dangling_pipx_launcher(monkeypatch):
+    """A pipx venv has no .venv segment; job_inventory still recognises its launcher."""
+    cron = "@reboot /home/u/.local/pipx/venvs/m3-memory/bin/m3-embed-server --port 9\n"
+    monkeypatch.setattr(schedule_probe, "_read_crontab", lambda: cron)
+    monkeypatch.setattr(schedule_probe.os.path, "exists", lambda p: False)
+    d = schedule_probe._dangling_crontab()
+    assert [r["job"] for r in d] == ["crontab:line-1"]
+    assert d[0]["interpreter"].endswith("/m3-embed-server")
+
+
+def test_win_access_denied_is_a_query_error_not_absent(monkeypatch):
+    class _P:
+        returncode, stdout, stderr = 1, "", "ERROR: Access is denied."
+
+    monkeypatch.setattr(schedule_probe.subprocess, "run", lambda *a, **k: _P())
+    import pytest
+
+    with pytest.raises(RuntimeError, match="Access is denied"):
+        schedule_probe._query_task_xml("AgentOS_CognitiveLoop")
+
+
+def test_win_missing_task_is_absent(monkeypatch):
+    class _P:
+        returncode, stdout, stderr = 1, "", "ERROR: The system cannot find the file specified."
+
+    monkeypatch.setattr(schedule_probe.subprocess, "run", lambda *a, **k: _P())
+    assert schedule_probe._query_task_xml("AgentOS_CognitiveLoop") is None
 
 
 def test_crontab_none_when_no_crontab(monkeypatch):

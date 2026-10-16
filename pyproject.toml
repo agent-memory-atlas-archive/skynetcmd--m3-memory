@@ -433,6 +433,12 @@ m3-sync = "m3_memory.jobs:run_script"
 m3-secret-rotator = "m3_memory.jobs:run_script"
 m3-chatlog-embed-sweep = "m3_memory.jobs:run_script"
 
+# Hermes Agent (>= 0.22) discovers memory providers from this group, so
+# installing m3-memory into Hermes' environment registers `m3` with no plugin
+# copy and no PYTHONPATH. The module's register(ctx) hands Hermes the provider.
+[project.entry-points."hermes_agent.memory_providers"]
+m3 = "m3_memory.integrations.hermes"
+
 [project.urls]
 Homepage = "https://github.com/skynetcmd/m3-memory"
 Repository = "https://github.com/skynetcmd/m3-memory"

@@ -132,10 +132,66 @@ _HALT_ROLE = "cognitive-loop"
 _INSTANCE_LOCK = None
 
 
+def _early_warn(msg: str) -> None:
+    """Best-effort stderr line before logging exists. Under pythonw there may be
+    no stderr at all; nothing here may raise."""
+    stream = sys.__stderr__ or sys.stderr
+    if stream is None:
+        return
+    try:
+        print(f"[m3] {msg}", file=stream, flush=True)
+    except Exception:  # noqa: BLE001 — a dead handle must not block startup/exit
+        pass
+
+
+def _windowless_interpreter() -> str:
+    """pythonw.exe beside the running interpreter, else the interpreter itself.
+
+    Matches the file name case-insensitively (Windows paths are); a missing
+    pythonw sibling falls back to sys.executable — CREATE_NO_WINDOW still keeps
+    the child off the desktop — and says so."""
+    exe_dir, exe_name = os.path.split(sys.executable)
+    if exe_name.lower() == "pythonw.exe":
+        return sys.executable
+    candidate = os.path.join(exe_dir, "pythonw.exe")
+    if os.path.exists(candidate):
+        return candidate
+    _early_warn(f"no pythonw.exe beside {sys.executable}; re-exec'ing with it (CREATE_NO_WINDOW)")
+    return sys.executable
+
+
+def _bind_headless_streams(log_file: str | None) -> None:
+    """Give a windowless foreground launch (pythonw, no --background) real std streams.
+
+    Hazard: under pythonw sys.stdout/sys.stderr are None, so the root
+    StreamHandler drops every record and any `.flush()` raises. Disposition: bind
+    the missing streams to --log-file (else devnull) and re-point stream handlers
+    that hold no stream. No-op when both streams exist."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    target = None
+    if log_file:
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(log_file)), exist_ok=True)
+            _rotate_task_log(log_file)
+            target = open(log_file, "a", encoding="utf-8", buffering=1)  # noqa: SIM115 — process-lifetime stream
+        except OSError:
+            target = None
+    if target is None:
+        target = open(os.devnull, "a", encoding="utf-8")  # noqa: SIM115 — process-lifetime stream
+    if sys.stdout is None:
+        sys.stdout = target
+    if sys.stderr is None:
+        sys.stderr = target
+    for h in logging.getLogger().handlers:
+        if type(h) is logging.StreamHandler and getattr(h, "stream", None) is None:
+            h.setStream(sys.stdout)
+
+
 def daemonize_windows(args):
     """Restart this process using pythonw.exe to detach from console."""
     # Build the same argument list but remove --background
-    argv = [sys.executable.replace("python.exe", "pythonw.exe")]
+    argv = [_windowless_interpreter()]
     argv.append(os.path.abspath(__file__))
     for arg in sys.argv[1:]:
         if arg != "--background":
@@ -168,7 +224,11 @@ def daemonize_windows(args):
             # zero-fills the gap back to full size on Windows.
             _rotate_task_log(args.log_file)
             child_out = open(args.log_file, "a", encoding="utf-8")  # noqa: SIM115 — see the NOTE below
-        except OSError:
+        except OSError as e:
+            _early_warn(
+                f"cannot open --log-file {args.log_file} ({type(e).__name__}: {e}); "
+                "the background loop's output goes to devnull"
+            )
             child_out = open(os.devnull, "a")  # noqa: SIM115 — see the NOTE below
     else:
         child_out = open(os.devnull, "a")  # noqa: SIM115 — see the NOTE below
@@ -213,10 +273,20 @@ def daemonize_windows(args):
             stdout=child_out,
             stderr=subprocess.STDOUT,
         )
-    except Exception:  # noqa: BLE001 — see below: nothing may block the exit
+    except Exception as e:  # noqa: BLE001 — see below: nothing may block the exit
         # If the spawn itself failed there is no child, and continuing would
         # leave this process running the loop from a console-less pythonw with
-        # dead std handles. Exiting non-zero lets the supervisor retry.
+        # dead std handles. Exiting non-zero lets the supervisor retry; the
+        # cause goes to the log file (stderr is usually absent here).
+        msg = f"cognitive-loop: background re-exec failed: {argv[0]} ({type(e).__name__}: {e}); exit 1"
+        _early_warn(msg)
+        try:
+            from m3_core.runtime import utc_iso
+
+            child_out.write(f"{utc_iso()} [ERROR] {msg}\n")
+            child_out.flush()
+        except Exception:  # noqa: BLE001 — nothing may block the exit
+            pass
         os._exit(1)
     # CRITICAL: the parent MUST hard-exit now, or we get TWO live loops (the
     # detached child worker + this parent). The status print() is best-effort and
@@ -271,8 +341,10 @@ def acquire_lock():
     Delegates to m3_halt.acquire_or_exit, which holds an OS ADVISORY lock (fcntl/
     msvcrt) at the ENGINE root — the OS releases it automatically on death, so
     there are no stale locks or dead-PID ambiguity. If a LIVE peer holds it we
-    exit EXIT_ALREADY_RUNNING (4) — a non-zero 'you lost' signal the supervisors
-    treat as a clean no-op (they do NOT respawn on it). A degraded handle (config/
+    exit EXIT_ALREADY_RUNNING (4) — a non-zero 'you lost' signal. systemd does
+    not respawn on it (SuccessExitStatus=4 + RestartPreventExitStatus=4);
+    launchd KeepAlive=true relaunches after ThrottleInterval and the relaunch
+    exits 4 again; the Windows task simply ends. A degraded handle (config/
     lock error) still lets us run best-effort per §3 fail-safe. This replaced the
     old bespoke PID-file lock that lived under the CODE dir (wiped on pipx
     upgrade)."""
@@ -558,7 +630,12 @@ def _loop_heartbeat_path() -> str:
     return os.path.join(get_m3_config_root(), ".loop_heartbeat.json")
 
 
-def _write_heartbeat(cycle: int, interval: int) -> None:
+# Monotonic time of the last heartbeat-failure WARNING; 0 = none yet.
+_HB_WARNED_AT = 0.0
+_HB_WARN_EVERY_S = 900.0
+
+
+def _write_heartbeat(cycle: int, interval: int, state: str = "running", reason: str | None = None) -> None:
     """Stamp a liveness beat at each cycle boundary.
 
     KeepAlive only resurrects a process that DIED. A loop that is alive but
@@ -566,26 +643,46 @@ def _write_heartbeat(cycle: int, interval: int) -> None:
     perfectly healthy to launchd, so an external watchdog needs a signal that
     means "still making forward progress", not just "pid exists". `interval` is
     published so the watchdog derives its own staleness threshold instead of
-    hard-coding one that drifts when --interval changes. Best-effort: a failed
-    beat must never take the loop down."""
+    hard-coding one that drifts when --interval changes.
+
+    `state` is "running" (a full cycle completed) or "paused" (governor HALTED,
+    thermal, or HALT_m3 quiesce — alive and deliberately idle, `reason` says
+    which), so the watchdog does not restart a healthy paused loop.
+
+    A failed beat never takes the loop down, but it is not silent: a loop that
+    cannot beat looks wedged to the watchdog and gets restarted, so the cause is
+    logged at WARNING (rate-limited) with the path and errno."""
+    global _HB_WARNED_AT
+    path = "?"
     try:
         path = _loop_heartbeat_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         from m3_core.atomic_io import atomic_write
+        from m3_core.runtime import utc_iso
 
-        atomic_write(
-            path,
-            json.dumps(
-                {
-                    "ts": datetime.now(UTC).isoformat(),
-                    "pid": os.getpid(),
-                    "cycle": cycle,
-                    "interval_s": interval,
-                }
-            ),
-        )
+        beat: dict[str, object] = {
+            "ts": utc_iso(),
+            "pid": os.getpid(),
+            "cycle": cycle,
+            "interval_s": interval,
+            "state": state,
+        }
+        if reason:
+            beat["reason"] = reason
+        atomic_write(path, json.dumps(beat))
     except OSError as e:
-        logger.debug("Could not write heartbeat: %s", e)
+        now = time.monotonic()
+        if not _HB_WARNED_AT or now - _HB_WARNED_AT >= _HB_WARN_EVERY_S:
+            _HB_WARNED_AT = now
+            logger.warning(
+                "Heartbeat write failed: %s (errno=%s %s). The loop watchdog will read the "
+                "beat as stale and restart this loop; inspect the config root's permissions/disk. "
+                "Repeats suppressed for %.0fs.",
+                path,
+                e.errno,
+                e.strerror or type(e).__name__,
+                _HB_WARN_EVERY_S,
+            )
 
 
 def _read_pass_runs() -> dict:
@@ -1006,17 +1103,46 @@ def has_spill_work() -> bool:
     unbounded data at risk until drained. This is a cheap filesystem check (one
     glob), deliberately independent of any DB, so a spill backlog schedules the
     embed pass even when every store's embedding backlog is empty.
+
+    Quarantined spill is not drain work (the drain parked it after repeated
+    failures), but it is turns in no store, so it is reported here at WARNING,
+    rate-limited, with the directory and the recovery step.
     """
     try:
         import chatlog_config
 
-        spill_dir = chatlog_config.SPILL_DIR
-        if not spill_dir or not os.path.isdir(spill_dir):
-            return False
-        return any(f.endswith(".jsonl") for f in os.listdir(spill_dir))
+        inv = chatlog_config.spill_inventory()
+        _warn_quarantined_spill(inv)
+        return bool(inv["pending_files"])
     except Exception as e:
         log_swallowed(logger, e, f"Spill work check failed (non-fatal): {e}")
         return False  # conservative: mirrors has_embed_work's contract
+
+
+# Monotonic time of the last quarantined-spill WARNING; 0 = none yet.
+_QUARANTINE_WARNED_AT = 0.0
+_QUARANTINE_WARN_EVERY_S = 3600.0
+
+
+def _warn_quarantined_spill(inv: dict) -> None:
+    global _QUARANTINE_WARNED_AT
+    n = inv.get("quarantine_files") or 0
+    if not n:
+        return
+    now = time.monotonic()
+    if _QUARANTINE_WARNED_AT and now - _QUARANTINE_WARNED_AT < _QUARANTINE_WARN_EVERY_S:
+        return
+    _QUARANTINE_WARNED_AT = now
+    logger.warning(
+        "%d quarantined chatlog spill file(s) (%s bytes) in %s: turns preserved on disk but in no store. "
+        "Read each *.reason.json sidecar for the cause; once fixed, move the file back into %s and the "
+        "next embed pass drains it. Repeats suppressed for %.0fs.",
+        n,
+        inv.get("quarantine_bytes") or 0,
+        inv.get("quarantine_dir"),
+        inv.get("spill_dir"),
+        _QUARANTINE_WARN_EVERY_S,
+    )
 
 
 # Vector copies filled per embed pass. Filling needs no model (it decodes stored
@@ -1176,28 +1302,18 @@ async def _drain_chatlog_spill() -> int:
     try:
         import chatlog_config
 
-        spill_dir = chatlog_config.SPILL_DIR
-        if not spill_dir or not os.path.isdir(spill_dir):
+        spill_dir = chatlog_config.spill_dir()
+        if not os.path.isdir(spill_dir):
             return 0
 
         import chatlog_embed_sweeper
 
-        # drain_spill is declared `async` but contains no await — it is blocking
-        # file+DB work. Run it on a worker thread so it cannot stall the loop's
-        # event loop, and drive its coroutine to completion there.
+        # drain_spill does blocking file+DB work and awaits asyncio.to_thread.
+        # Hazard: driving it with coro.send(None) raised on that await, and each
+        # failure counted toward quarantine. Disposition: run it to completion
+        # on its own event loop in a worker thread, so it cannot stall ours.
         def _drain_sync() -> int:
-            coro = chatlog_embed_sweeper.drain_spill()
-            try:
-                coro.send(None)  # no awaits inside => completes now
-            except StopIteration as done:
-                return int(done.value or 0)
-            # Defensive: a future edit adding a real await would land here
-            # rather than silently half-draining.
-            coro.close()
-            raise RuntimeError(
-                "drain_spill suspended on an await; it can no longer be "
-                "driven synchronously — run it on its own event loop."
-            )
+            return int(asyncio.run(chatlog_embed_sweeper.drain_spill()) or 0)
 
         drained = await asyncio.to_thread(_drain_sync)
         if drained:
@@ -1229,12 +1345,10 @@ async def run_embed_pass(args):
     # Draining first means rows recovered this cycle are candidates for the very
     # same embed sweep below, instead of waiting a full cycle.
     #
-    # This is the half of AgentOS_ChatlogEmbedSweep the loop was missing. The
-    # governor migration retires that scheduled task on the premise that this
-    # pass runs its work; before this, the pass ran only embed_backfill and
-    # nothing anywhere drained spill, so `governor migrate` silently orphaned
-    # spilled turns (observed 2026-08-09: spill from 2026-07-14/17 undrained,
-    # last_sweeper_run_at frozen at 2026-07-31).
+    # The loop drains spill in-pass; AgentOS_ChatlogEmbedSweep stays scheduled as
+    # a load-independent floor (governor_migration.KEEP_SCHEDULED_FLOOR), because
+    # the governor HALTs this pass under sustained load and a spilled turn is in
+    # no store until drained.
     #
     # Non-fatal by construction (§3): spill drainage must never abort the embed
     # sweep. A wedged/locked spill target is exactly when the embedding backlog
@@ -1844,7 +1958,11 @@ async def main_loop(args):
             _checkpoint_wal(args.database)
             m3_halt.deregister(_HALT_ROLE)
             try:
+                beat_at = 0.0
                 while m3_halt.halt_is_active(role=_HALT_ROLE) and not _STOP_EVENT.is_set():
+                    if time.monotonic() - beat_at >= min(args.interval, 60):
+                        _write_heartbeat(_cycle, args.interval, state="paused", reason="HALT_m3")
+                        beat_at = time.monotonic()
                     await asyncio.sleep(2.0)
             finally:
                 # Re-register on resume (or on stop, so a clean exit still
@@ -1872,6 +1990,7 @@ async def main_loop(args):
             pacing_cpu_ram = get_governor_pacing({**telemetry, "gpu_total": 0.0})
             if telemetry.get("thermal") in ("Serious", "Critical"):
                 logger.info("Thermal load serious. Pausing cognitive loop for 10s...")
+                _write_heartbeat(_cycle, args.interval, state="paused", reason="thermal")
                 await asyncio.sleep(10.0)
                 continue
             # If CPU/RAM alone halts, NOTHING should run — even cloud/SQL contend
@@ -1882,6 +2001,7 @@ async def main_loop(args):
                     telemetry.get("cpu_total", 0.0),
                     telemetry.get("ram_total", 0.0),
                 )
+                _write_heartbeat(_cycle, args.interval, state="paused", reason="governor-halted")
                 await asyncio.sleep(5.0)
                 continue
         except Exception as e:
@@ -2169,19 +2289,16 @@ def main():
         "--limit-per-pass",
         type=int,
         default=max(1, _m3cfg.setting("loop.limit_per_pass")),
-        help="Max groups/rows per heavy-LLM pass (entity extraction, "
-        "enrichment, observation drain). Default 4 (override with the "
-        "M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large "
-        "catch-up backlog faster on an idle box, WITHOUT editing the flag "
-        "in a scheduled task). Small enough that one pass is a few-second "
+        help="Max groups/rows per batched pass (entities, enrich, files "
+        "extract, embed, classify). Default: the `loop.limit_per_pass` "
+        "setting (4). A scheduled task or service does not see your shell's "
+        "environment, so change it with `m3 config set loop.limit_per_pass N` "
+        "rather than an env var. Small enough that one pass is a few-second "
         "GPU burst (the governor is only re-checked BETWEEN passes, not "
-        "within a batch — a 50-item pass once pinned the GPU for ~17 min, "
-        "so 4 stays ~10x under that). Under THROTTLED load this is shrunk to "
-        "M3_GOVERNOR_THROTTLED_LIMIT (default 1); when idle the loop "
-        "also re-ticks immediately if a backlog remains (see the "
-        "backlog-aware wait below) rather than sleeping the full "
-        "--interval. Embedding is a separate scheduled task "
-        "(ChatlogEmbedSweep) and is unaffected.",
+        "within a batch — a 50-item pass once pinned the GPU for ~17 min). "
+        "Under THROTTLED load it is shrunk to the throttled limit (default "
+        "1); when idle the loop re-ticks immediately while a backlog "
+        "remains rather than sleeping the full --interval.",
     )
 
     # Database knobs
@@ -2307,6 +2424,10 @@ def main():
 
     add_config_arg(parser)  # pinned already (pin_from_argv); declared for --help
     args = parser.parse_args()
+
+    if not args.background:
+        # The Windows task runs the loop in the foreground under pythonw.
+        _bind_headless_streams(args.log_file)
 
     if args.background:
         if is_windows():

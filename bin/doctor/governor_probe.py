@@ -29,7 +29,7 @@ def run(brief: bool = False) -> int:
 
     Always returns 0 (report-only). Prints a nag + fix command when legacy
     schedules are found that the governor should own. brief=True prints a
-    single line for `m3 doctor --brief`.
+    single line for `m3 doctor`'s compact default (no --brief flag exists).
     """
     if not brief:
         print()

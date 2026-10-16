@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_sync.py
-sha1: 14120b8911b3
-mtime_utc: 2026-10-15T13:23:40.513890+00:00
-generated_utc: 2026-10-15T13:23:50.915240+00:00
+sha1: ce5274194c0c
+mtime_utc: 2026-10-16T17:53:07.282256+00:00
+generated_utc: 2026-10-16T19:03:59.691834+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 1774)
+- `def main()` (line 1824)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -45,6 +45,7 @@ _(none detected)_
 - `m3_sdk (resolve_warehouse_dsn)`
 - `migrate_memory`
 - `migrate_pg`
+- `pg_fdw_sync (arrival_bound, lww_guard, version_guard)`
 
 ---
 

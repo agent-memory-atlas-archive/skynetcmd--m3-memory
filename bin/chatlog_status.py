@@ -340,6 +340,17 @@ def _recent_write_count(config: chatlog_config.ChatlogConfig, window_min: int = 
 _LULL_GRACE_MIN = 360  # 6h — comfortably longer than any between-turns gap
 
 
+def capture_idle_minutes(last_write_at: str | None) -> float | None:
+    """THE lull predicate: minutes since the last landed write when that is
+    within _LULL_GRACE_MIN (capture idle, not down); None when the last write is
+    older, missing or unparseable (a real alarm). Single owner, shared by this
+    status and the SessionStart hook so the two cannot disagree."""
+    mins = _minutes_since(last_write_at)
+    if mins is not None and mins <= _LULL_GRACE_MIN:
+        return mins
+    return None
+
+
 def _minutes_since(iso_ts: str | None) -> float | None:
     """Minutes between `iso_ts` (an ISO-8601 UTC stamp) and now, or None if the
     stamp is missing/unparseable. Tolerant of a trailing 'Z' and of fractional
@@ -353,6 +364,17 @@ def _minutes_since(iso_ts: str | None) -> float | None:
         return (datetime.now(UTC) - dt).total_seconds() / 60.0
     except (ValueError, TypeError):
         return None
+
+
+def _sweeper_cmd() -> str:
+    """Absolute interpreter + script, so the repair line runs from any directory."""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chatlog_embed_sweeper.py")
+    return f'"{sys.executable}" "{script}"'
+
+
+def _ms_since(iso_ts: str | None) -> int | None:
+    mins = _minutes_since(iso_ts)
+    return None if mins is None else int(mins * 60_000)
 
 
 def _config_drift(config: chatlog_config.ChatlogConfig) -> list[tuple[str, Any, Any]]:
@@ -404,6 +426,7 @@ def _compute_warnings(
     row_counts: dict[str, Any],
     recent_writes: int = -1,
     recent_window_min: int = 15,
+    spill: dict[str, Any] | None = None,
 ) -> list[str]:
     warnings = []
 
@@ -426,8 +449,8 @@ def _compute_warnings(
         # the age of the LAST write (see _LULL_GRACE_MIN). A recent last-write
         # means the hook just hasn't fired this window yet — benign; anything
         # older (or unknown) keeps the real "capture may be down" alarm.
-        mins_since_last = _minutes_since(state.get("last_write_at"))
-        if mins_since_last is not None and mins_since_last <= _LULL_GRACE_MIN:
+        mins_since_last = capture_idle_minutes(state.get("last_write_at"))
+        if mins_since_last is not None:
             warnings.append(
                 f"no chatlog writes in last {recent_window_min}min "
                 f"(last write {int(mins_since_last)}min ago — "
@@ -487,24 +510,43 @@ def _compute_warnings(
             "(a rescrub now would use the stale settings)"
         )
 
-    spill = state.get("spill", {})
-    if spill.get("bytes", 0) > 0:
-        oldest_ms = spill.get("oldest_ms_ago", 0)
-        if oldest_ms > 3_600_000:
-            warnings.append(
-                "spill files older than 1h"
-                " -> fix: m3 chat chatlog_status (drains spill), or run "
-                "bin/chatlog_embed_sweeper.py --drain-spill"
-            )
-
-    queue_state = state.get("queue", {})
-    depth = queue_state.get("depth", 0)
-    max_depth = queue_state.get("max", config.queue_max_depth)
-    if max_depth > 0 and depth / max_depth > 0.8:
+    # Spill: prefer the live measurement; fall back to the state snapshot.
+    if spill is None:
+        spill = state.get("spill") or {}
+    pending_bytes = spill.get("pending_bytes", spill.get("bytes", 0)) or 0
+    oldest_ms = spill.get("oldest_ms_ago") or 0
+    spill_dir = spill.get("spill_dir") or chatlog_config.spill_dir()
+    if pending_bytes > 0 and oldest_ms > 3_600_000:
         warnings.append(
-            f"queue at {depth}/{max_depth}"
-            " -> writes are backing up; check the embedder with "
-            "m3 diagnostics embedder_status"
+            f"spill files older than 1h in {spill_dir} ({pending_bytes} bytes): turns "
+            "not yet in any store (the DB write failed or the queue was full) -> drain "
+            f"now: {_sweeper_cmd()} --drain-spill ; the cognitive loop's embed pass "
+            "also drains it"
+        )
+    q_files = spill.get("quarantine_files") or 0
+    if q_files:
+        q_dir = spill.get("quarantine_dir") or chatlog_config.quarantine_dir()
+        warnings.append(
+            f"{q_files} quarantined spill file(s) ({spill.get('quarantine_bytes') or 0} "
+            f"bytes) in {q_dir}: turns preserved on disk but NOT in any store "
+            "(drain failed repeatedly, malformed lines (*.bad), or a foreign/stale "
+            "target (foreign-*)) -> read the *.reason.json sidecar and the sweeper "
+            f"log for the cause; once fixed, move a file back into {spill_dir} and "
+            "the next drain retries it"
+        )
+    if spill.get("error"):
+        warnings.append(f"spill dir could not be measured: {spill['error']}")
+
+    # The writer records its in-memory queue depth after each successful flush
+    # (state["queue_depth"]); it is a snapshot from that process, not live.
+    depth = state.get("queue_depth")
+    max_depth = config.queue_max_depth
+    if isinstance(depth, int) and max_depth > 0 and depth / max_depth > 0.8:
+        warnings.append(
+            f"chatlog write queue at {depth}/{max_depth} (as of the flush at "
+            f"{state.get('last_flush_at') or 'unknown'}): rows are arriving faster than "
+            f"they commit to {config.db_path}; a full queue spills to {spill_dir} -> "
+            "inspect: m3 chatlog doctor (DB locks, disk)"
         )
 
     hooks = config.host_agents
@@ -531,9 +573,8 @@ def _compute_warnings(
             # (fixed in m3_cognitive_loop._embed_target_dbs). If a backlog
             # persists on a current build, the loop is not running at all --
             # check AgentOS_CognitiveLoop, which owns the 'embed' pass.
-            # (The legacy AgentOS_ChatlogEmbedSweep task is retired BY DESIGN
-            # once the loop owns that pass -- see governor_migration
-            # GOVERNOR_ELIGIBLE -- so its absence is not the fault.)
+            # AgentOS_ChatlogEmbedSweep is NOT retired: governor_migration keeps
+            # it as a scheduled floor (KEEP_SCHEDULED_FLOOR) beside the loop.
             warnings.append(
                 f"embed backlog {embed_backlog} rows unembedded "
                 "(searchable via FTS, but NOT via semantic/vector search)"
@@ -556,6 +597,7 @@ def chatlog_status_impl() -> str:
 
     main_db = os.path.abspath(resolve_db_path(None))
     chatlog_db = os.path.abspath(config.db_path)
+    spill_inv = chatlog_config.spill_inventory()
 
     # Resolve Files store location. On PG there is no sidecar file — the files
     # store is the `files` schema of the primary database — so report that, not a
@@ -563,7 +605,7 @@ def chatlog_status_impl() -> str:
     files_db = _resolve_files_location()
 
     result = {
-        "unified": chatlog_db == main_db,
+        "unified": not chatlog_config.chatlog_is_separate(config.db_path),
         "db_paths": {
             "main": main_db,
             "chatlog": chatlog_db,
@@ -571,16 +613,20 @@ def chatlog_status_impl() -> str:
         },
         "row_counts": row_counts,
         "queue": {
-            "depth": state.get("queue", {}).get("depth", 0),
-            "max": state.get("queue", {}).get("max", config.queue_max_depth),
-            "last_flush_ms_ago": state.get("queue", {}).get("last_flush_ms_ago"),
+            "depth": state.get("queue_depth", 0),
+            "max": config.queue_max_depth,
+            "last_flush_ms_ago": _ms_since(state.get("last_flush_at")),
+            "as_of": state.get("last_flush_at"),
         },
         "spill": {
-            "files": len([f for f in os.listdir(chatlog_config.SPILL_DIR) if f.endswith(".jsonl")])
-            if os.path.exists(chatlog_config.SPILL_DIR)
-            else 0,
-            "bytes": state.get("spill", {}).get("bytes", 0),
-            "oldest_ms_ago": state.get("spill", {}).get("oldest_ms_ago"),
+            "files": spill_inv["pending_files"],
+            "bytes": spill_inv["pending_bytes"],
+            "oldest_ms_ago": spill_inv["oldest_ms_ago"],
+            "dir": spill_inv["spill_dir"],
+            "quarantine_files": spill_inv["quarantine_files"],
+            "quarantine_bytes": spill_inv["quarantine_bytes"],
+            "quarantine_dir": spill_inv["quarantine_dir"],
+            "error": spill_inv["error"],
         },
         # TRUE capture-health signal — reflects actual recent writes to the DB,
         # not whether a per-turn shell hook was wired. Consumers (CLAUDE.md
@@ -621,7 +667,7 @@ def chatlog_status_impl() -> str:
             "regex_errors": state.get("redaction", {}).get("regex_errors", []),
         },
         "last_write_at": state.get("last_write_at"),
-        "warnings": _compute_warnings(state, config, row_counts, recent_writes, recent_window_min),
+        "warnings": _compute_warnings(state, config, row_counts, recent_writes, recent_window_min, spill=spill_inv),
     }
 
     return json.dumps(result, indent=2)
@@ -891,14 +937,11 @@ def run_live_tui(interval: float = 5.0):
         lines.append("├────────────────────────────────────────────────────────────────────────────┤")
         lines.append(_make_line(" QUEUE DEPTHS & SPILL MONITOR"))
 
-        depth = state.get("queue", {}).get("depth", 0)
-        max_depth = state.get("queue", {}).get("max", config.queue_max_depth)
-        spill_files = (
-            len([f for f in os.listdir(chatlog_config.SPILL_DIR) if f.endswith(".jsonl")])
-            if os.path.exists(chatlog_config.SPILL_DIR)
-            else 0
-        )
-        spill_bytes = state.get("spill", {}).get("bytes", 0)
+        depth = state.get("queue_depth", 0)
+        max_depth = config.queue_max_depth
+        _inv = chatlog_config.spill_inventory()
+        spill_files = _inv["pending_files"]
+        spill_bytes = _inv["pending_bytes"]
 
         files_leaves = row_counts.get("files_leaves", 0)
         files_unembedded = row_counts.get("files_unembedded", 0)
@@ -1049,7 +1092,14 @@ def _format_table(data: dict[str, Any]) -> str:
             else "(no flush yet)"
         )
     )
-    lines.append(f"Spill: {data['spill']['files']} files, {data['spill']['bytes']} bytes")
+    lines.append(
+        f"Spill: {data['spill']['files']} files, {data['spill']['bytes']} bytes"
+        + (
+            f"; QUARANTINED {data['spill'].get('quarantine_files')} files in {data['spill'].get('quarantine_dir')}"
+            if data["spill"].get("quarantine_files")
+            else ""
+        )
+    )
     lines.append(f"Last write: {data['last_write_at']}")
     if data["warnings"]:
         lines.append("Warnings:")

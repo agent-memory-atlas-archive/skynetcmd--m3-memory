@@ -12,8 +12,8 @@ Documentation=https://github.com/skynetcmd/m3-memory
 # while the machine was off is recovered promptly.
 OnStartupSec=2min
 OnUnitActiveSec=5min
-# Survive a missed window (laptop suspended) instead of silently skipping it.
-Persistent=true
+# No Persistent=: it applies only to OnCalendar= timers. After a suspend the
+# monotonic OnUnitActiveSec= timer fires as soon as its elapsed time is due.
 Unit=m3-loop-watchdog.service
 
 [Install]

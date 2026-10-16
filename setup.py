@@ -214,6 +214,9 @@ _code_data = {
         "integrations/hermes/*.py",
         "integrations/hermes/*.yaml",
         "integrations/hermes/*.md",
+        # The delegating stub + manifest the wizard copies, and the catalog's subdir.
+        "integrations/hermes/folder_plugin/*.py",
+        "integrations/hermes/folder_plugin/*.yaml",
     ],
     # The crewai integration ships as an importable subpackage (auto-discovered by
     # find_packages); its README is data, included so `pip install`ed users get it.

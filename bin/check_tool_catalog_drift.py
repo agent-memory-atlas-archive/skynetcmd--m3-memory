@@ -61,7 +61,14 @@ _GENERATED_PATHS = [
 _DRIFT_TESTS = [
     "tests/test_tool_count_drift.py",
     "tests/test_mcp_catalog_manifest_fresh.py",
+    # Covers gen_tool_inventory's per-script pages (hash-stamped), which the two
+    # above do not; ~2 s.
+    "tests/test_generated_docs_fresh.py",
 ]
+
+
+class GitError(Exception):
+    """git could not answer; drift is unknown, never zero."""
 
 
 def _run(cmd: list[str]) -> int:
@@ -79,14 +86,19 @@ def _regenerate() -> bool:
 
 
 def _git_drift() -> list[str]:
-    """Return the list of generated paths that git reports as modified."""
-    out = subprocess.run(
-        ["git", "diff", "--name-only", "--", *_GENERATED_PATHS],
-        cwd=_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    return [p for p in out.stdout.splitlines() if p.strip()]
+    """Generated paths git reports as modified, deleted or UNTRACKED.
+
+    `git diff` alone misses a page a generator newly created (untracked), so
+    this reads `git status --porcelain`. Raises GitError when git fails.
+    """
+    cmd = ["git", "status", "--porcelain", "--untracked-files=all", "--", *_GENERATED_PATHS]
+    try:
+        out = subprocess.run(cmd, cwd=_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except FileNotFoundError as e:
+        raise GitError(f"git not found on PATH ({e})") from e
+    if out.returncode != 0:
+        raise GitError(f"`{' '.join(cmd)}` exited {out.returncode}: {out.stderr.strip()}")
+    return [line[3:] for line in out.stdout.splitlines() if line.strip()]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -101,7 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     if not _regenerate():
         return 2
 
-    drift = _git_drift()
+    try:
+        drift = _git_drift()
+    except GitError as e:
+        print(f"[drift] cannot measure drift: {e}", file=sys.stderr)
+        return 2
     if drift and not args.fix:
         print("[drift] generated artifacts are STALE vs bin/mcp_tool_catalog.py:", file=sys.stderr)
         for p in drift:
@@ -129,8 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     ).returncode
     if rc != 0:
         print(
-            "[drift] drift tests failed — a hardcoded 'N tools' count or the "
-            "committed manifest is out of sync. Fix and re-run.",
+            f"[drift] drift tests failed (pytest exit {rc}) — a hardcoded 'N tools' "
+            "count, the committed manifest, or a docs/tools/ page is out of sync. "
+            "Regenerate with: python bin/check_tool_catalog_drift.py --fix, update "
+            "the counts the test names, commit, and re-run.",
             file=sys.stderr,
         )
         return 1

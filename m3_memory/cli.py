@@ -602,8 +602,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
 def _cmd_uninstall(args: argparse.Namespace) -> int:
     from m3_memory.installer import uninstall_m3
 
-    uninstall_m3(yes=args.yes)
-    return 0
+    return uninstall_m3(yes=args.yes)
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
@@ -639,7 +638,9 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
             rest.append("--fix-hooks")
         if verbose:
             print("\n--- Project Payload Diagnostics ---")
-        return _run_bin_script("memory_doctor.py", rest)
+        # Both doctors render a verdict; the worse one is the exit code, so
+        # "[X] m3 broken" above can't be masked by a green payload doctor.
+        return max(code, _run_bin_script("memory_doctor.py", rest))
 
     return code
 
@@ -647,7 +648,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 def _cmd_governor(args: argparse.Namespace) -> int:
     """Dispatch `m3 governor <status|migrate>` to bin/governor_cli.py."""
     if not _resolve_bin_script("governor_cli.py"):
-        print("governor command requires the project payload (run `m3 install`).")
+        print("governor command requires the project payload, which was not found (run `m3 install-m3`).")
         return 1
     sub = getattr(args, "governor_cmd", None) or "status"
     argv = [sub]
@@ -926,7 +927,7 @@ def _cmd_secret(args: argparse.Namespace) -> int:
 def _cmd_config(args: argparse.Namespace) -> int:
     """Dispatch `m3 config show|get|set|unset` to bin/config_cli.py (always starts)."""
     if not _resolve_bin_script("config_cli.py"):
-        print("config command requires the project payload (run `m3 install`).")
+        print("config command requires the project payload, which was not found (run `m3 install-m3`).")
         return 1
     argv = [getattr(args, "config_cmd", None) or "show"]
     argv += [v for v in (getattr(args, "key", None), getattr(args, "value", None)) if v is not None]
@@ -948,7 +949,7 @@ def _cmd_schedules(args: argparse.Namespace) -> int:
     drifted schedule survived an upgrade because nothing surfaced it).
     """
     if not _resolve_bin_script("install_schedules.py"):
-        print("schedules command requires the project payload (run `m3 install`).")
+        print("schedules command requires the project payload, which was not found (run `m3 install-m3`).")
         return 1
     sub = getattr(args, "schedules_cmd", None) or "verify"
     name = getattr(args, "name", None)
@@ -1043,7 +1044,7 @@ def _elevate_schedules_windows(script: str, argv: list, sub: str) -> bool:
 def _cmd_wiki(args: argparse.Namespace) -> int:
     """Dispatch `m3 wiki <generate|compile|status>` to bin/gen_wiki.py."""
     if not _resolve_bin_script("gen_wiki.py"):
-        print("wiki command requires the project payload (run `m3 install`).")
+        print("wiki command requires the project payload, which was not found (run `m3 install-m3`).")
         return 1
     sub = getattr(args, "wiki_cmd", None) or "generate"
     argv = [sub]
@@ -1087,7 +1088,7 @@ def _cmd_fips(args: argparse.Namespace) -> int:
     sub = getattr(args, "fips_cmd", None)
     if sub == "install-wolfssl":
         if not _resolve_bin_script("install_wolfssl.py"):
-            print("fips install-wolfssl requires the project payload (run `m3 install`).")
+            print("fips install-wolfssl requires the project payload, which was not found (run `m3 install-m3`).")
             return 1
         argv: list = []
         if getattr(args, "ref", None):
@@ -1318,7 +1319,7 @@ def _cmd_dashboard(args: argparse.Namespace) -> int:
 
     if not _resolve_bin_script("dashboard_server.py"):
         print(
-            "dashboard requires the project payload (run `m3 install`).",
+            "dashboard requires the project payload, which was not found (run `m3 install-m3`).",
             file=sys.stderr,
         )
         return 1
@@ -1574,22 +1575,34 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
     if sub == "status":
         return _run_bin_script("chatlog_status.py", args.rest)
     if sub == "hook-path":
-        # Print the absolute path to the chatlog hook script for the current OS.
-        # Used by the Claude Code plugin's hooks/hooks.json so plugin hooks
-        # don't need to hardcode an install location.
+        # Print the absolute path of the chatlog hook for the plugin's
+        # hooks/hooks.json, which runs it as `/bin/sh "<path>"` on EVERY OS
+        # (Claude Code runs plugin hooks through a POSIX shell, Git Bash on
+        # Windows). So this is always the .sh launcher: it probes for an
+        # interpreter with m3's deps (pythonw first on Windows) and execs the
+        # .py hook, which owns failure handling. The .ps1 this printed on
+        # Windows was fed to /bin/sh and could never run.
+        # The contract stays "one path" because hooks.json is served from main
+        # to every installed plugin, independent of the installed m3 version.
         from m3_memory.installer import find_bridge
 
         bridge = find_bridge()
         if bridge is None:
-            print(file=sys.stdout)  # empty — caller should treat as no-op
+            print(
+                "m3 chatlog hook-path: no m3 payload bin/ found (checked $M3_PATH_BIN, the installed "
+                "package, a dev checkout); chatlog capture cannot run. Repair: m3 install-m3",
+                file=sys.stderr,
+            )
             return 1
-        if is_windows():
-            script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.ps1"
-        else:
-            script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.sh"
+        script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.sh"
         if not os.path.isfile(script):
+            print(
+                f"m3 chatlog hook-path: hook launcher missing at {script}; chatlog capture cannot run. "
+                "Repair: m3 install-m3",
+                file=sys.stderr,
+            )
             return 1
-        print(str(script))
+        print(script.as_posix())
         return 0
 
     if sub == "doctor":

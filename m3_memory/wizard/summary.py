@@ -7,7 +7,7 @@ functions, so it's safe to live in a submodule.
 
 from __future__ import annotations
 
-from m3_memory._platform import is_macos, is_windows
+from m3_memory._platform import is_windows, os_name
 
 from .ui import _ok, _warn
 
@@ -73,9 +73,8 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
     _custom_root = plan.decouple_roots and _custom_config_root(plan.config_root)
     if _custom_root:
         import os as _os
-        import sys as _sys
 
-        _is_win = _sys.platform == "win32"
+        _is_win = is_windows()
 
         # Emit COPY-PASTE-USABLE commands for the actual shell: `setx` (persists
         # to the user environment) on Windows, `export` on POSIX. And show NATIVE
@@ -173,10 +172,5 @@ def _brief_summary(plan, governor_result: dict | None, verified: bool) -> None:
 
 
 def _os_name_for_summary() -> str:
-    """Thin OS branch for summary phrasing (avoids importing governor_migration
-    just for the OS check)."""
-    if is_windows():
-        return "Windows"
-    if is_macos():
-        return "Darwin"
-    return "Linux"
+    """OS name for summary phrasing — the OS seam's own answer (one owner)."""
+    return os_name()

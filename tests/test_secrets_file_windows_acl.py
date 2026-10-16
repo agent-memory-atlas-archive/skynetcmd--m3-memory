@@ -79,3 +79,15 @@ def test_a_file_others_can_open_is_refused_on_read(monkeypatch, tmp_path):
     _grant_users_read(p)
     with pytest.raises(secret_store.SecretsFileError, match=r"Users.*icacls"):
         secret_store.read_secrets()
+
+
+def test_fix_hint_names_the_user_not_a_cmd_variable(monkeypatch):
+    """%USERNAME% expands in cmd.exe only; pasted into PowerShell it grants a
+    principal that does not exist. Every icacls hint comes from one owner."""
+    import getpass
+
+    from m3_core.win_acl import icacls_user_only
+
+    monkeypatch.setattr(getpass, "getuser", lambda: "alex")
+    assert icacls_user_only("C:/x/f") == 'icacls "C:/x/f" /inheritance:r /grant:r "alex:F" /grant:r "SYSTEM:F"'
+    assert '"alex:(OI)(CI)F"' in icacls_user_only("C:/x", directory=True)

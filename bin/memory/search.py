@@ -43,19 +43,10 @@ from . import graph as _graph_mod
 # via `globals()["_embed"]` etc. (the floor-binding pattern in
 # memory_search_scored_impl) so a test that monkeypatches memory_core can be
 # picked up. They have no static call site, hence the F401 suppression.
-from .config import (
-    DEFAULT_RERANK_MODEL,
-    EMBED_DIM,
-    IMPORTANCE_WEIGHT,
-    INTENT_PROCEDURAL_BOOST,
-    INTENT_ROUTING,
-    INTENT_USER_FACT_BOOST,
-    SEARCH_ROW_CAP,
-    SHORT_TURN_THRESHOLD,
-    SUPERSEDES_PENALTY,
-    TITLE_MATCH_BOOST,
-    m3_core_rs,
-)
+# Settings (EMBED_DIM, SEARCH_ROW_CAP, the boosts...) are read as `config.X`
+# at call time: `from .config import X` froze the value at import, so a daemon
+# never saw a changed setting and a test's m3_settings did not reach search.
+from .config import m3_core_rs
 from .db import _db, _enqueue_access_stamps, record_reads
 from .embed import _embed  # noqa: F401 — runtime globals() lookup
 
@@ -603,6 +594,25 @@ def _resolve_extra_columns(
     return [c for c in cols if c in _ALLOWED_EXTRA and c not in _BASE_COLS]
 
 
+def _is_fts_query_error(exc: BaseException, fts_query: str) -> bool:
+    """True when SQLite rejected the FTS MATCH expression itself (user input).
+
+    FTS5 prefixes its parse errors with ``fts5:``; an unbalanced quote reads
+    ``unterminated string``; a ``word:`` column filter naming no FTS column
+    reads ``no such column: word``. Only that last one is ambiguous with a
+    schema defect, so it counts only when the column is a bare token of the
+    query sent to MATCH (a schema defect names ``mi.col`` or a real column).
+    """
+    msg = str(exc)
+    low = msg.lower()
+    if low.startswith("fts5:") or low == "unterminated string":
+        return True
+    if low.startswith("no such column:"):
+        col = msg.split(":", 1)[1].strip()
+        return bool(col) and "." not in col and f"{col}:" in fts_query
+    return False
+
+
 def _best_by_score(ids, scores, n: int) -> list[int]:
     """Indexes of the ``n`` highest scores, best first; ties broken by id.
 
@@ -641,6 +651,48 @@ def _stamp_retrieved(hits) -> None:
     # The read-access audit log: one row per hit, under the hit's data subject.
     for user in {r.get("user_id") for r in rows}:
         record_reads([r["id"] for r in rows if r.get("user_id") == user], "search_hit", user_id=user)
+
+
+def _filter_only_listing(row_filter: dict, k: int, extra_columns, *, apply_decay=True, recency_bias=0.0, explain=False):
+    """Rows matching ``row_filter`` with no query: importance, then recency.
+
+    The ``memory_search_scored`` contract for ``query=""``. Uses the search's own
+    ``live_predicate`` + ``scope_predicates`` (same tenancy, same liveness), and
+    returns the ranked shape ``[(score, item)]`` with score = importance (the
+    undecayed baseline when ``apply_decay`` is off), falling back to 1.0 when the
+    row has none. Not a degrade path: a store error propagates.
+    """
+    from memory.backends import active_backend as _ab
+
+    _d = _ab().dialect()
+    safe_extra = _resolve_extra_columns(
+        extra_columns,
+        apply_decay=apply_decay,
+        recency_bias=recency_bias,
+        confidence_ranking=_scfg.CONFIDENCE_RANKING,
+        explain=explain,
+    )
+    cols = ", ".join(f"mi.{c}" for c in [*_BASE_COLS, *safe_extra])
+    scope_sql, scope_params = _d.scope_predicates(**row_filter)
+    live = _d.live_predicate("mi", row_filter.get("as_of", ""))
+    p = _d.param()
+    with _db() as conn:
+        rows = conn.execute(
+            f"SELECT {cols} FROM memory_items mi WHERE {live}{scope_sql} "
+            f"ORDER BY mi.importance DESC, mi.created_at DESC, mi.id LIMIT {p}",
+            (*scope_params, max(int(k), 0)),
+        ).fetchall()
+    hits = []
+    for row in rows:
+        item = dict(row)
+        imp = _ranking_importance(item, apply_decay) if item.get("importance") is not None else None
+        hits.append((imp if imp is not None else 1.0, item))
+    if not apply_decay:
+        # SQL ordered on the decayed column; rank the forensic read on the baseline.
+        hits.sort(key=lambda h: -h[0])
+    _explain_unscored(hits, explain, "filter-only listing (empty query: importance, then recency)")
+    _stamp_retrieved(hits)
+    return hits
 
 
 def _ranking_importance(row, apply_decay: bool) -> float:
@@ -823,6 +875,18 @@ async def memory_search_scored_impl(
     if _depth > 1:
         return []
 
+    # Documented filter-only listing: an empty (or "*") query has nothing to
+    # rank, so the ranked paths returned []. List by the same row filter.
+    if not (query or "").strip() or query.strip() == "*":
+        return _filter_only_listing(
+            _row_filter,
+            k,
+            extra_columns,
+            apply_decay=apply_decay,
+            recency_bias=recency_bias,
+            explain=explain,
+        )
+
     # Auto-classify the query's intent when the caller supplied none, IFF the
     # SLM classifier gate is on (M3_SLM_CLASSIFIER). classify_intent() returns
     # None when the gate is off, so this is strictly additive — gate-off ⇒ no
@@ -943,9 +1007,10 @@ async def memory_search_scored_impl(
                     if query_lower in content_lower or query_lower in title_lower:
                         exact_hits.append((1.0, hit))
                 if len(exact_hits) >= k:
+                    # Query text is memory content's mirror: length only at INFO.
                     logger.info(
-                        "FTS Short-Circuit early exit for query %r: %d exact match(es)",
-                        query,
+                        "FTS Short-Circuit early exit (query of %d chars): %d exact match(es)",
+                        len(query),
                         len(exact_hits),
                     )
                     # bm25 order preserved (rows came back ORDER BY _bm25 ASC);
@@ -981,10 +1046,10 @@ async def memory_search_scored_impl(
                     )
                     _sc_exact = exact_hits
                     logger.info(
-                        "FTS Short-Circuit found %d exact match(es) for %r, "
+                        "FTS Short-Circuit found %d exact match(es) (query of %d chars), "
                         "fewer than k=%d: filling from the ranked path",
                         len(exact_hits),
-                        query,
+                        len(query),
                         k,
                     )
         except Exception as exc:
@@ -1048,7 +1113,9 @@ async def memory_search_scored_impl(
             row_filter=_row_filter,
         )
         if fts_fallback:
-            logger.info("FTS-only fallback (no query vector) for %r: %d match(es)", query, len(fts_fallback))
+            logger.info(
+                "FTS-only fallback (no query vector; query of %d chars): %d match(es)", len(query), len(fts_fallback)
+            )
         # Third early return, same reason as the short-circuit above: this path
         # answers in full when the embedder is down, so without stamping here a
         # degraded-mode search would return memories that can never be graded.
@@ -1173,11 +1240,11 @@ async def memory_search_scored_impl(
             _FALLBACK_QVEC.reset(_tok)
 
     # When strategy="max" the memory_embeddings join returns one row per
-    # (memory_id, vector_kind) pair, so a straight LIMIT 1000 would see
-    # each item N times (N = distinct kinds stored) and the effective
-    # unique-item pool would shrink to 1000/N. Double the SQL-level cap
-    # for max-kind so the unique pool stays near 1000. Strategy="default"
-    # pins to a single kind, so the base cap already counts unique items.
+    # (memory_id, vector_kind) pair, so a cap of 2000 rows would see each item
+    # N times (N = distinct kinds stored) and hold only 2000/N unique items.
+    # Max-kind gets 5000 rows (2.5x) to keep the unique pool near 2000 for up
+    # to ~2.5 kinds per item. Strategy="default" pins to a single kind, so the
+    # base cap already counts unique items.
     sql_row_limit = 5000 if vector_kind_strategy == "max" else 2000
     has_vec = False
 
@@ -1223,6 +1290,7 @@ async def memory_search_scored_impl(
                         as_of=as_of,
                         row_limit=sql_row_limit,
                         extra_columns=list(extra_columns),
+                        vector_kind="default" if vector_kind_strategy == "default" else None,
                     )
             except Exception as exc:  # noqa: BLE001 — falls back to the next tier; a defect is reported
                 log_swallowed(logger, exc, "PG candidate fetch failed (%s); falling back", exc)
@@ -1237,6 +1305,7 @@ async def memory_search_scored_impl(
                 "only sqlite (fused FTS5/sqlite-vec) and postgres (search_pg) have a "
                 "candidate-fetch path. Add one for this backend or route through the seam."
             )
+        _fts_sent: list[str] = []  # the FTS query, once one reaches MATCH
         try:
             with _db() as db:
                 _has_vec = _detect_sqlite_vec(db)
@@ -1250,7 +1319,7 @@ async def memory_search_scored_impl(
                     if not _has_vec and vector_index.available():
                         _keys = vector_index.nearest(
                             db,
-                            dim=EMBED_DIM,
+                            dim=config.EMBED_DIM,
                             where_sql=where_sql,
                             params=params,
                             q_vec=q_vec,
@@ -1286,6 +1355,7 @@ async def memory_search_scored_impl(
                 fts_query, ok = _compile_fts_query(query, search_mode)
                 if not ok:
                     return (_RECURSE if search_mode != "fts5" else _EMPTY), _has_vec
+                _fts_sent.append(fts_query)
 
                 sql = build_candidate_sql(
                     search_mode=search_mode,
@@ -1295,26 +1365,39 @@ async def memory_search_scored_impl(
                     row_limit=sql_row_limit,
                 )
                 _m3env.debug(f"SQL (hybrid {'sqlite-vec' if _has_vec else 'standard'}):\n{sql}")
-                # Parameter ORDER follows the SQL, and the hybrid SQL now
-                # opens with a `WITH ranked AS (... MATCH ?)` pre-filter, so the
-                # FTS query binds FIRST -- ahead of the vector blob and the
-                # tenancy params, which are consumed by the outer SELECT/WHERE.
-                # Getting this order wrong does not raise; it silently binds the
-                # wrong value to MATCH.
+                # Parameter ORDER follows the SQL (build_candidate_sql docstring):
+                # the CTE takes MATCH then the scope params; the outer query takes
+                # the vector blob then the scope params again. A wrong order does
+                # not raise; it silently binds the wrong value to MATCH.
                 if _has_vec:
                     import struct
 
                     q_blob = struct.pack(f"{len(q_vec)}f", *q_vec)
-                    _rows = db.execute(sql, (fts_query, q_blob, *params)).fetchall()
+                    _rows = db.execute(sql, (fts_query, *params, q_blob, *params)).fetchall()
                 else:
-                    _rows = db.execute(sql, (fts_query, *params)).fetchall()
+                    _rows = db.execute(sql, (fts_query, *params, *params)).fetchall()
 
                 _m3env.debug(f"SQL HITS (hybrid): {len(_rows)}")
                 if not _rows and search_mode != "fts5":
                     return _RECURSE, _has_vec
                 return _rows, _has_vec
         except sqlite3.OperationalError as e:
-            _m3env.debug(f"SQL ERROR: {e}")
+            # A query the FTS parser rejects is the user's input, and the
+            # semantic fallback is the answer: DEBUG. Anything else (locked,
+            # malformed, missing table) is the store failing, and the fallback
+            # hides it -- so say so.
+            if _fts_sent and _is_fts_query_error(e, _fts_sent[-1]):
+                _m3env.debug(f"FTS query rejected ({e}); falling back")
+            else:
+                logger.warning(
+                    "candidate fetch failed on the SQLite store (%s; search_mode=%s, %s): %s. "
+                    "Falling back to %s; check the store with `m3 doctor`.",
+                    type(e).__name__,
+                    search_mode,
+                    "FTS stage" if _fts_sent else "before FTS",
+                    e,
+                    "an empty result" if search_mode == "fts5" else "a semantic search",
+                )
             return (_RECURSE if search_mode != "fts5" else _EMPTY), False
 
     rows, has_vec = await asyncio.to_thread(_fetch_candidates)
@@ -1340,8 +1423,8 @@ async def memory_search_scored_impl(
     # arrive UNRANKED, so they are scored first and the best kept (below);
     # trimming them here would keep an arbitrary slice.
     _rank_after_scoring = search_mode == "semantic" and not has_vec
-    if vector_kind_strategy != "max" and len(rows) > SEARCH_ROW_CAP and not _rank_after_scoring:
-        rows = rows[:SEARCH_ROW_CAP]
+    if vector_kind_strategy != "max" and len(rows) > config.SEARCH_ROW_CAP and not _rank_after_scoring:
+        rows = rows[: config.SEARCH_ROW_CAP]
 
     # Batched vector scoring: pass raw blobs straight to the Rust packed-cosine
     # primitive (single FFI hop, rayon-parallel) or the numpy fallback. This
@@ -1352,7 +1435,7 @@ async def memory_search_scored_impl(
     if has_vec:
         page_scores = [float(row["vec_score"]) for row in rows]
     else:
-        page_scores = _cosine_batch_packed(q_vec, page_blobs, EMBED_DIM)
+        page_scores = _cosine_batch_packed(q_vec, page_blobs, config.EMBED_DIM)
     if _rank_after_scoring and len(rows) > sql_row_limit:
         _best = _best_by_score([r["id"] for r in rows], page_scores, sql_row_limit)
         rows = [rows[i] for i in _best]
@@ -1375,10 +1458,10 @@ async def memory_search_scored_impl(
         page_scores = [page_scores[i] for i in keep_idx]
         page_blobs = [page_blobs[i] for i in keep_idx]
         # Now trim to the cap — count unique items, not kind-duplicated rows.
-        if len(rows) > SEARCH_ROW_CAP:
-            rows = rows[:SEARCH_ROW_CAP]
-            page_scores = page_scores[:SEARCH_ROW_CAP]
-            page_blobs = page_blobs[:SEARCH_ROW_CAP]
+        if len(rows) > config.SEARCH_ROW_CAP:
+            rows = rows[: config.SEARCH_ROW_CAP]
+            page_scores = page_scores[: config.SEARCH_ROW_CAP]
+            page_blobs = page_blobs[: config.SEARCH_ROW_CAP]
 
     if _capture_dict is not None:
         _capture_dict["pre_seen_content_filter_rows"] = len(rows)
@@ -1392,9 +1475,9 @@ async def memory_search_scored_impl(
     importances: list = []
     title_overlaps: list = []
     q_title_set = _query_title_token_set(query)
-    title_boost_const = TITLE_MATCH_BOOST
-    importance_w = IMPORTANCE_WEIGHT
-    short_turn_t = SHORT_TURN_THRESHOLD
+    title_boost_const = config.TITLE_MATCH_BOOST
+    importance_w = config.IMPORTANCE_WEIGHT
+    short_turn_t = config.SHORT_TURN_THRESHOLD
     for row in rows:
         bm25_arr.append(row["bm25_score"])
         content_lens.append(len(row["content"] or ""))
@@ -1413,7 +1496,7 @@ async def memory_search_scored_impl(
         short_turn_threshold=short_turn_t,
     )
 
-    intent_user_fact_active = INTENT_ROUTING and intent_hint == "user-fact"
+    intent_user_fact_active = config.INTENT_ROUTING and intent_hint == "user-fact"
     role_boosts: list[float] = [0.0] * len(rows)
     if intent_user_fact_active:
         # metadata_json is str on SQLite but an already-parsed dict on PG/JSONB.
@@ -1431,18 +1514,18 @@ async def memory_search_scored_impl(
             if not meta_raw:
                 continue
             if _d.json_column_to_dict(meta_raw).get("role") == "user":
-                role_boosts[i] = INTENT_USER_FACT_BOOST
+                role_boosts[i] = config.INTENT_USER_FACT_BOOST
 
     # Procedural ranking: on a 'procedural' intent ("how do I X"), surface the
     # reusable `procedure`-type memories. Additive term keyed on the single head
     # type — exactly like role_boosts — so intent!='procedural' (or routing off)
     # ⇒ byte-identical ranking. `type` is a base column, so this is backend-blind.
-    intent_procedural_active = INTENT_ROUTING and intent_hint == "procedural"
+    intent_procedural_active = config.INTENT_ROUTING and intent_hint == "procedural"
     procedure_boosts: list[float] = [0.0] * len(rows)
     if intent_procedural_active:
         for i, row in enumerate(rows):
             if row["type"] == "procedure":
-                procedure_boosts[i] = INTENT_PROCEDURAL_BOOST
+                procedure_boosts[i] = config.INTENT_PROCEDURAL_BOOST
 
     # Confidence ranking (knowledge-maintenance Phase 5, flag-gated, default off).
     # Additive term — exactly like role_boosts — so flag-off ranking is byte-
@@ -1472,12 +1555,12 @@ async def memory_search_scored_impl(
             for s, b, c, p in zip(final_scores, role_boosts, confidence_boosts, procedure_boosts, strict=True)
         ]
         contents = [(r["content"] or "") for r in rows]
-        _bytes_per_row = EMBED_DIM * 4
+        _bytes_per_row = config.EMBED_DIM * 4
         if all(isinstance(b, (bytes, bytearray)) and len(b) == _bytes_per_row for b in page_blobs):
             ordered_flat = b"".join(bytes(b) if isinstance(b, bytearray) else b for b in page_blobs)
             try:
                 top_indices = m3_core_rs.rank_hybrid_packed(
-                    relevance, contents, ordered_flat, EMBED_DIM, _MMR_LAMBDA, k
+                    relevance, contents, ordered_flat, config.EMBED_DIM, _MMR_LAMBDA, k
                 )
                 ranked = []
                 for idx in top_indices:
@@ -1529,7 +1612,7 @@ async def memory_search_scored_impl(
             scored = _apply_temporal_boost(scored, query, explain=explain)
         if recency_bias > 0 and scored:
             scored = _apply_recency_bonus(scored, recency_bias, explain=explain)
-        if INTENT_ROUTING and intent_hint == "user-fact" and _depth == 0 and scored:
+        if config.INTENT_ROUTING and intent_hint == "user-fact" and _depth == 0 and scored:
             _pull_predecessor_turns(scored, user_id=user_id, scope=scope, requesting_agent=_req_agent, as_of=as_of)
 
         pre_ranked_all = sorted(scored, key=lambda x: x[0], reverse=True)
@@ -1562,7 +1645,9 @@ async def memory_search_scored_impl(
             if _packed_ok:
                 relevance = [float(s) for s, _ in pre_ranked]
                 ordered_flat = b"".join(bytes(page_blobs[idx]) for idx in _packed_blob_indices)
-                sel_idx = m3_core_rs.mmr_rerank_scored_packed(relevance, ordered_flat, EMBED_DIM, _MMR_LAMBDA, k, True)
+                sel_idx = m3_core_rs.mmr_rerank_scored_packed(
+                    relevance, ordered_flat, config.EMBED_DIM, _MMR_LAMBDA, k, True
+                )
                 ranked = [pre_ranked[i] for i in sel_idx]
             else:
                 # Python MMR fallback. Fires when (a) m3_core_rs is None,
@@ -1589,7 +1674,8 @@ async def memory_search_scored_impl(
                     else:
                         try:
                             _cand_vecs.append(_unpack(bytes(page_blobs[idx])))
-                        except Exception:
+                        except Exception as exc:  # noqa: BLE001 — row ranks without diversity; reported
+                            log_swallowed(logger, exc, "MMR: embedding of %s did not unpack (%s)", it["id"], exc)
                             _cand_vecs.append(None)
 
                 selected_indices: list[int] = [0]
@@ -2319,7 +2405,7 @@ async def memory_search_routed_impl(
     # expanded + sharp-trimmed result set, including entity-graph neighbors.
     # CONTRACT: rerank=False → byte-identical to pre-feature behavior.
     if rerank:
-        _model = rerank_model or DEFAULT_RERANK_MODEL
+        _model = rerank_model or config.DEFAULT_RERANK_MODEL
         _pool = rerank_pool_k if rerank_pool_k > 0 else (3 * k)
         _final_n = len(final_hits)
         # _apply_rerank runs CrossEncoder torch inference (and a first-call model
@@ -2349,7 +2435,7 @@ async def memory_search_routed_impl(
     # edge (i.e. an older version exists) get score * SUPERSEDES_PENALTY.
     # Default 0.5x: demote but keep retrievable for "what did I previously
     # say?" queries. Set SUPERSEDES_PENALTY=0 to exclude entirely.
-    if final_hits and SUPERSEDES_PENALTY < 1.0:
+    if final_hits and config.SUPERSEDES_PENALTY < 1.0:
         hit_ids = [item.get("id") for _, item in final_hits if isinstance(item, dict) and item.get("id")]
         if hit_ids:
             try:
@@ -2367,7 +2453,7 @@ async def memory_search_routed_impl(
                 if superseded_ids:
                     final_hits = [
                         (
-                            (s * SUPERSEDES_PENALTY)
+                            (s * config.SUPERSEDES_PENALTY)
                             if isinstance(item, dict) and item.get("id") in superseded_ids
                             else s,
                             item,
@@ -2588,8 +2674,8 @@ async def _maybe_expand_routed(
                         if r["id"] not in extra_rows:
                             extra_rows[r["id"]] = dict(r)
                             extra_row_source[r["id"]] = "entity_graph"
-        except Exception:  # noqa: BLE001
-            pass  # entity_graph expansion is best-effort; never crash the primary path
+        except Exception as exc:  # noqa: BLE001 — best-effort expansion; a defect is reported
+            log_swallowed(logger, exc, "entity_graph expansion failed (%s); results carry no entity-graph rows", exc)
 
     if not extra_rows:
         # Tag primary hits as "primary" and return unchanged.

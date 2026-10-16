@@ -109,8 +109,19 @@ def _check_content_safety(content: str) -> str | None:
                 if expression:
                     for node in expression.walk():
                         node_name = type(node).__name__.lower()
-                        if any(x in node_name for x in ("drop", "delete", "alter")):
-                            return f"Error: content rejected — matches safety pattern: SQL AST {type(node).__name__}"
+                        hit = next((x for x in ("drop", "delete", "alter") if x in node_name), None)
+                        if hit:
+                            # Locate the keyword without echoing the content.
+                            km = re.search(rf"\b{hit}\b", content, re.IGNORECASE)
+                            where = (
+                                f"; keyword at offset {km.start()} (line {content.count(chr(10), 0, km.start()) + 1})"
+                                if km
+                                else ""
+                            )
+                            return (
+                                f"Error: content rejected — parses as a SQL {type(node).__name__} statement"
+                                f"{where} of {len(content)} chars"
+                            )
         except SqlglotError:
             # Content is not parseable as SQL — that includes ParseError AND
             # TokenError. TokenError (NOT a subclass of ParseError) fires during
@@ -120,9 +131,26 @@ def _check_content_safety(content: str) -> str | None:
             # executable SQL statement, so treat it as safe and fall through.
             pass
     except ImportError:
-        pass
+        _note_sql_guard_unavailable()
 
     return None
+
+
+_SQL_GUARD_NOTED = False
+
+
+def _note_sql_guard_unavailable() -> None:
+    """Say once that the SQL AST guard is off: without sqlglot, content that
+    parses as DROP/DELETE/ALTER is accepted, and nothing else would say so."""
+    global _SQL_GUARD_NOTED
+    if _SQL_GUARD_NOTED:
+        return
+    _SQL_GUARD_NOTED = True
+    logger.warning(
+        "content safety: sqlglot is not installed, so the SQL AST guard (rejects content that "
+        "parses as DROP/DELETE/ALTER) is OFF; the regex patterns still apply. "
+        "Install it with `pip install sqlglot` in m3's environment."
+    )
 
 
 def sha256_hex(data: bytes) -> str:

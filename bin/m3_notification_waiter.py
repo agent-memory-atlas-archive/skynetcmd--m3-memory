@@ -42,6 +42,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import time
@@ -145,8 +146,12 @@ def _no_window() -> dict:
     child's INHERITED stdout as well as the window, so a failing subprocess
     reports nothing at all. SW_HIDE hides the window and keeps the pipes.
     Single owner so the three call sites below cannot drift apart.
+
+    Gated on the capability (STARTUPINFO exists only where there is a console
+    window to hide), not on the platform name: this supervisor stays stdlib-only
+    at import time, so it does not reach for the OS seam.
     """
-    if sys.platform != "win32":
+    if not hasattr(subprocess, "STARTUPINFO"):
         return {}
     si = subprocess.STARTUPINFO()
     si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -214,8 +219,20 @@ def _warn(msg: str) -> None:
         pass
 
 
+# The result line each admin tool prints on success (stdout is the JSON-encoded
+# string the impl returns). Anything else -- including rc 0 with no such line --
+# is a failure: the tool did not report doing what was asked.
+_ADMIN_RESULT = {
+    "notifications_mark_received": re.compile(r"^Marked (\d+) notifications received for "),
+    "notifications_ack_all": re.compile(r"^Acked (\d+) notifications for "),
+}
+# notifications_mark_received_impl appends this when a store was not stamped.
+_PARTIAL_MARK = "; NOT stamped in: "
+
+
 def _m3_admin(tool: str, agent_id: str) -> bool:
-    """Run one `m3 admin <tool> --agent_id <id> --yes`. True iff it succeeded.
+    """Run one `m3 admin <tool> --agent_id <id> --yes`. True iff it succeeded
+    completely (reported its result line, and no store was skipped).
 
     Single owner for the three things every one of these calls must get right,
     each of which was wrong somewhere in this file on 2026-09-12:
@@ -230,9 +247,11 @@ def _m3_admin(tool: str, agent_id: str) -> bool:
     * FAILING LOUD. `received[a] = (r.returncode == 0)` recorded a clean False
       for an hour while nothing worked.
 
-    rc 0 is necessary but NOT sufficient, hence the stderr check: the wrong-root
-    case above exits 0 having done something entirely different from what was
-    asked.
+    rc 0 is necessary but NOT sufficient, so the tool's own result line is
+    required as well (``_ADMIN_RESULT``), and a partial stamp (a store skipped)
+    is reported and counted as failure. The wrong-root case above is closed by
+    ``sys.executable`` plus the inherited environment, not detected here: its
+    output would look like success.
     """
     try:
         r = subprocess.run(  # nosec B603 - argv list, no shell
@@ -251,24 +270,83 @@ def _m3_admin(tool: str, agent_id: str) -> bool:
             f"{sys.executable!r}. stderr: {(r.stderr or '').strip()[:400]}"
         )
         return False
+    try:
+        text = json.loads(r.stdout or "")
+    except ValueError:
+        text = None
+    pattern = _ADMIN_RESULT.get(tool)
+    if not isinstance(text, str) or (pattern is not None and not pattern.match(text)):
+        _warn(
+            f"{tool} for {agent_id!r} exited 0 but did not report its result using "
+            f"{sys.executable!r}, so it is NOT counted as done. "
+            f"stdout: {(r.stdout or '').strip()[:400]!r} stderr: {(r.stderr or '').strip()[:400]!r}"
+        )
+        return False
+    if _PARTIAL_MARK in text:
+        _warn(f"{tool} for {agent_id!r} was PARTIAL: {text[:400]}. inspect: the store named above")
+        return False
     return True
 
 
-def unread_ids(agent_id: str) -> set:
-    """Ask m3 what is actually unread. Uses structured impl to avoid Phantom-ID bug."""
+def unread_ids(agent_id: str) -> tuple[set[str], bool] | None:
+    """``(unread ids, partial)`` from m3's structured read, or None when the read failed.
+
+    None is NOT an empty inbox: a failed read used to return ``set()``, which
+    emptied the baseline so the next good read reported every unread message as
+    new (and ``--ack`` then marked them read). ``partial`` is True when a store
+    was skipped -- see ``_advance``.
+    """
     try:
-        from memory.orchestration import notifications_unread_ids_impl
+        from memory.orchestration import notifications_unread_ids_checked
 
-        return {str(x) for x in notifications_unread_ids_impl(agent_id)}
-    except Exception as exc:
-        import sys
-
+        ids, skipped = notifications_unread_ids_checked(agent_id)
+    except Exception as exc:  # noqa: BLE001 -- reported; the caller keeps its baseline
         _warn(
-            f"notifications_unread_ids_impl for {agent_id!r} exited "
-            f"using {sys.executable!r} -- detection is BLIND for this agent. "
-            f"stderr: {exc!r}"
+            f"could not read {agent_id!r}'s inbox using {sys.executable!r} -- detection is BLIND for "
+            f"this agent until a read succeeds; the previous baseline is kept. "
+            f"observed: {type(exc).__name__}: {exc}. "
+            f"inspect: memory.orchestration.notifications_unread_ids_checked"
         )
-        return set()
+        return None
+    return {str(x) for x in ids}, bool(skipped)
+
+
+def _advance(baseline: set[str] | None, read: tuple[set[str], bool] | None) -> tuple[set[str], set[str] | None]:
+    """``(gained, next_baseline)`` for one inbox read. The single owner of the
+    baseline rule, shared by every detection path so they cannot drift.
+
+    * failed read (None): nothing gained, baseline kept.
+    * no baseline yet (the first read failed): this read becomes the baseline,
+      nothing is reported -- reporting it would flag the whole inbox as new.
+    * partial read (a store skipped): ids from the unread store are absent but
+      not gone, so the baseline keeps them (union); otherwise they would be
+      reported as new when the store comes back.
+    """
+    if read is None:
+        return set(), baseline
+    now, partial = read
+    if baseline is None:
+        return set(), now
+    return now - baseline, (now | baseline) if partial else now
+
+
+def _stamp_receipt(agent_id: str) -> bool:
+    """Stamp receipt in-process; True only when it was checked to be complete.
+
+    Rows stamped may be 0 without failure: another watcher of the same inbox (a
+    bare type and its instance) can stamp first, and the stamp is idempotent.
+    """
+    try:
+        from memory.orchestration import notifications_mark_received_checked
+
+        _n, skipped = notifications_mark_received_checked(agent_id)
+    except Exception as exc:  # noqa: BLE001 -- reported; receipt is then recorded as not stamped
+        _warn(f"receipt for {agent_id!r} NOT stamped. observed: {type(exc).__name__}: {exc}")
+        return False
+    if skipped:
+        _warn(f"receipt for {agent_id!r} PARTIAL: not stamped in {', '.join(skipped)}")
+        return False
+    return True
 
 
 def pg_child_loop(args) -> int:
@@ -296,8 +374,7 @@ def pg_child_loop(args) -> int:
         from memory.backends import dialect
         from memory.orchestration import (
             notifications_ack_all_impl,
-            notifications_mark_received_impl,
-            notifications_unread_ids_impl,
+            notifications_unread_ids_checked,
         )
 
         from memory import db
@@ -305,21 +382,19 @@ def pg_child_loop(args) -> int:
         _warn(f"ImportError in child: {e}")
         return 1
 
-    baselines = {}
+    baselines: dict[str, set[str] | None] = {}
     try:
         for a in args.agent_ids:
             # Startup sweep: stamp receipt on anything that arrived while
             # this child was down, BEFORE the baseline below decides what
-            # counts as "already seen". Failure here is reported, not
-            # swallowed -- a silent sweep failure leaves stranded
-            # notifications looking delivered.
-            try:
-                notifications_mark_received_impl(a)
-            except Exception as exc:
-                _warn(f"startup sweep for {a!r} failed: {exc!r}")
-            baselines[a] = {str(x) for x in notifications_unread_ids_impl(a)}
+            # counts as "already seen". _stamp_receipt reports a failure --
+            # a silent sweep failure leaves stranded notifications looking
+            # delivered.
+            _stamp_receipt(a)
+            ids, _skipped = notifications_unread_ids_checked(a)
+            baselines[a] = {str(x) for x in ids}
     except Exception as e:
-        _warn(f"Failed to fetch baseline: {e}")
+        _warn(f"could not read the baseline inboxes {args.agent_ids!r}: {type(e).__name__}: {e}")
         return 1
 
     deadline = time.time() + args.timeout
@@ -347,11 +422,10 @@ def pg_child_loop(args) -> int:
                     _warn(f"set_statement_timeout failed: {exc!r}")
 
                 for a in args.agent_ids:
-                    now_ids = {str(x) for x in notifications_unread_ids_impl(a)}
-                    gained = now_ids - baselines[a]
+                    ids, skipped = notifications_unread_ids_checked(a)
+                    gained, baselines[a] = _advance(baselines.get(a), ({str(x) for x in ids}, bool(skipped)))
                     if gained:
                         hits[a] = sorted(gained)
-                    baselines[a] = now_ids
 
             # Receipt goes through the SINGLE OWNER, not hand-written SQL.
             #
@@ -361,9 +435,9 @@ def pg_child_loop(args) -> int:
             # already owns (10a: "duplicated predicate logic is the defect,
             # independent of correctness"), and `now()` is PostgreSQL-only --
             # SQLite raises "no such function: now", so the SQLite path would
-            # have failed at runtime.
-            for a in hits:
-                notifications_mark_received_impl(a)
+            # have failed at runtime. "received" reports what was CHECKED to
+            # be stamped, not what was attempted.
+            received = {a: _stamp_receipt(a) for a in hits}
 
             if hits:
                 acked = {}
@@ -371,7 +445,10 @@ def pg_child_loop(args) -> int:
                     for a in hits:
                         notifications_ack_all_impl(a)
                         acked[a] = hits[a]
-                print(json.dumps({"t": "hit", "new_notifications": hits, "received": hits, "acked": acked}), flush=True)
+                print(
+                    json.dumps({"t": "hit", "new_notifications": hits, "received": received, "acked": acked}),
+                    flush=True,
+                )
                 return 0
         except Exception as e:
             _warn(f"PG poll error: {e}")
@@ -447,6 +524,10 @@ def _supervise_postgres(args) -> int:
                     case "hb":
                         last_hb = time.time()
                     case "hit":
+                        # Forward the detection: the child's stdout is a pipe,
+                        # so without this the runtime woken by our exit never
+                        # learns which notifications arrived.
+                        print(json.dumps({k: v for k, v in msg.items() if k != "t"}), flush=True)
                         p.wait(timeout=2.0)
                         return 0
                     case "timeout":
@@ -637,6 +718,9 @@ def main() -> int:
     if not _has_change_signal(notification_stores(args.engine_root)[0]):
         if args.supervise:
             while True:
+                # Same re-read as the file-signal lane below: a long-lived
+                # supervisor outlives the install that chose its agent list.
+                args.agent_ids = refresh_agent_ids(args.agent_ids)
                 rc = _supervise_postgres(args)
                 if rc not in (0, 2):
                     return rc
@@ -706,8 +790,7 @@ def _confirm(args) -> int:
     try:
         from memory.orchestration import (
             notifications_ack_all_impl,
-            notifications_mark_received_impl,
-            notifications_unread_ids_impl,
+            notifications_unread_ids_checked,
         )
     except ImportError as e:
         _warn(f"--confirm cannot import m3's store: {e}")
@@ -725,12 +808,12 @@ def _confirm(args) -> int:
         # Not unread_ids(): it answers an empty set on a failed read, which here
         # would be saved as the baseline and re-report the whole inbox later.
         try:
-            now = {str(x) for x in notifications_unread_ids_impl(a)}
+            ids, skipped = notifications_unread_ids_checked(a)
         except Exception as exc:  # noqa: BLE001 -- reported; the baseline is left as it was
             _warn(f"--confirm could not read {a!r}'s inbox: {exc!r}")
             return 1
-        now_all[a] = sorted(now)
-        gained = now - set(saved.get(a, []))
+        gained, nxt = _advance(set(saved.get(a, [])), ({str(x) for x in ids}, bool(skipped)))
+        now_all[a] = sorted(nxt or ())
         if gained:
             hits[a] = sorted(gained)
     from m3_core.atomic_io import atomic_write
@@ -739,14 +822,13 @@ def _confirm(args) -> int:
     atomic_write(path, json.dumps(now_all))
     if not hits:
         return _KEEP_WAITING
-    for a in hits:
-        notifications_mark_received_impl(a)
+    received = {a: _stamp_receipt(a) for a in hits}
     acked = {}
     if args.ack:
         for a in hits:
             notifications_ack_all_impl(a)
             acked[a] = hits[a]
-    print(json.dumps({"new_notifications": hits, "received": dict.fromkeys(hits, True), "acked": acked}), flush=True)
+    print(json.dumps({"new_notifications": hits, "received": received, "acked": acked}), flush=True)
     return 0
 
 
@@ -854,7 +936,9 @@ def _wait_once(args) -> int:
     for _a in args.agent_ids:
         _m3_admin("notifications_mark_received", _a)
 
-    baselines = {a: unread_ids(a) for a in args.agent_ids}
+    # A failed first read leaves that agent unbaselined (None): _advance then
+    # takes its first good read as the baseline instead of reporting it all.
+    baselines = {a: (None if (r := unread_ids(a)) is None else r[0]) for a in args.agent_ids}
     try:
         fp = change_token(stores)
     except Exception as exc:  # noqa: BLE001 -- reported, then a real failure rc
@@ -882,11 +966,9 @@ def _wait_once(args) -> int:
             fp = cur_fp
         hits = {}
         for a in args.agent_ids:
-            now = unread_ids(a)
-            gained = now - baselines[a]
+            gained, baselines[a] = _advance(baselines.get(a), unread_ids(a))
             if gained:
                 hits[a] = sorted(gained)
-            baselines[a] = now
         if hits:
             # RECEIPT vs READING -- the distinction this whole waiter turns on.
             #

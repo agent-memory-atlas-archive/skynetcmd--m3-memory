@@ -210,6 +210,7 @@ def _create_entity_graph_schema(db_path):
             attempts        INTEGER DEFAULT 0,
             last_error      TEXT,
             last_attempt_at TEXT,
+            status          TEXT,  -- migration 038 / pg_041
             FOREIGN KEY (memory_id) REFERENCES memory_items(id) ON DELETE CASCADE
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_eeq_memory_id ON entity_extraction_queue(memory_id);
@@ -1404,7 +1405,7 @@ async def test_locomo_audit_extractor_none(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
     """SLM fails on first call (raises), succeeds on second.
-    After two extract calls, entity is created and queue entry is removed."""
+    After two extract calls, entity is created and the queue row is marked done."""
     import memory_core
 
     db_path = tmp_path / "test.db"
@@ -1446,7 +1447,7 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
     assert q_row[0] == 1, f"attempts should be 1 after first failure, got {q_row[0]}"
     assert q_row[1] is not None and "Transient" in q_row[1], f"last_error should mention the exception, got: {q_row[1]}"
 
-    # Second call: extractor succeeds → entity created, queue row removed
+    # Second call: extractor succeeds → entity created, queue row marked done
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         await memory_core._try_extract_or_enqueue(mid, "RetryPerson did something", flaky_extractor, conn)
@@ -1454,10 +1455,11 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
 
     with sqlite3.connect(str(db_path)) as conn:
         entity_count = conn.execute("SELECT COUNT(*) FROM entities WHERE canonical_name='RetryPerson'").fetchone()[0]
-        q_count = conn.execute("SELECT COUNT(*) FROM entity_extraction_queue WHERE memory_id=?", (mid,)).fetchone()[0]
+        q_status = conn.execute("SELECT status FROM entity_extraction_queue WHERE memory_id=?", (mid,)).fetchone()
 
     assert entity_count == 1, f"Entity should be created on successful retry, got {entity_count}"
-    assert q_count == 0, f"Queue entry should be removed after successful extraction, got {q_count}"
+    # Marked done, not deleted: a deleted row made a zero-entity success eligible forever.
+    assert q_status is not None and q_status[0] == "done", f"queue row must be marked done, got {q_status}"
     assert call_count[0] == 2, f"Extractor should have been called exactly twice, got {call_count[0]}"
 
 

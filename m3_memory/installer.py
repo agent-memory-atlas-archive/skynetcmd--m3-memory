@@ -415,10 +415,12 @@ def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_
             return None
         data: dict = {}
     else:
+        from m3_core.config.claude_settings import SettingsUnreadable, read_json_object
+
         try:
-            data = json.loads(settings_file.read_text(encoding="utf-8")) or {}
-        except (OSError, json.JSONDecodeError):
-            return f"[!] {settings_file} is unreadable; skipping (hand-edited?)"
+            data = read_json_object(settings_file)
+        except SettingsUnreadable as e:
+            return f"[!] {e}"
 
     # CLAUDE CODE IS THE EXCEPTION: it does NOT read `mcpServers` from
     # settings.json (only ~/.claude.json, .mcp.json and plugins are honored), so
@@ -723,18 +725,26 @@ def _install_schedules_script() -> Path | None:
     return script if os.path.exists(script) else None
 
 
-def _register_cognitive_loop_task() -> bool:
+def _register_cognitive_loop_task(reasons: list[str] | None = None) -> bool:
     """Register the cognitive-loop background service (launchd / systemd /
     schtasks) via ``install_schedules.py --add cognitive-loop``. Best-effort;
     never aborts install. Returns True only when the task was ACTUALLY registered
-    (script found AND the add exited 0), so the caller's ``[OK]`` is honest — a
-    missing script or a failed add returns False. The loop runs entity
-    extraction, belief consolidation, the reflector, and chatlog-prune — idling
-    when there's no work."""
+    (script found AND the add exited 0), so the caller's ``[OK]`` is honest.
+    On failure the cause (missing script / exit code + output tail / exception)
+    is appended to ``reasons`` when given. The loop runs entity extraction,
+    belief consolidation, the reflector, and chatlog-prune — idling when
+    there's no work."""
+
+    def _fail(why: str) -> bool:
+        if reasons is not None:
+            reasons.append(why)
+        return False
+
     try:
         script = _install_schedules_script()
         if not script:
-            return False
+            bd = bin_dir()
+            return _fail(f"install_schedules.py not found in the payload bin/ ({bd or 'unresolved'})")
         proc = subprocess.run(
             [_python_exe(), str(script), "--add", "cognitive-loop"],
             check=False,
@@ -742,9 +752,12 @@ def _register_cognitive_loop_task() -> bool:
             text=True,
             **_hidden_window_kwargs(),
         )
-        return proc.returncode == 0
-    except Exception:  # noqa: BLE001 — never fail install on the task step
-        return False
+        if proc.returncode == 0:
+            return True
+        tail = ((proc.stderr or "") + (proc.stdout or "")).strip().splitlines()[-3:]
+        return _fail(f"{script.name} --add cognitive-loop exited {proc.returncode}: " + " | ".join(tail))
+    except Exception as exc:  # noqa: BLE001 — never fail install on the task step
+        return _fail(f"{type(exc).__name__}: {exc}")
 
 
 def _prompt_and_install_cognitive_loop(interactive: bool, forced: bool = False) -> bool:
@@ -753,7 +766,7 @@ def _prompt_and_install_cognitive_loop(interactive: bool, forced: bool = False) 
     Closes a real operational gap: this was NEVER installed by setup — the wiring
     was a placeholder (``del cognitive_loop_choice``), so the autonomous
     enrichment engine shipped OFF on every install and users had to know to run
-    ``m3 schedules --add cognitive-loop`` by hand. Mirrors
+    ``m3 schedules add cognitive-loop`` by hand. Mirrors
     _prompt_and_install_dashboard: interactive prompt (default yes); ``forced``
     (the --cognitive-loop flag) installs even non-interactively; a headless run
     without the flag leaves it (add later). Best-effort — a failed register step
@@ -776,22 +789,22 @@ def _prompt_and_install_cognitive_loop(interactive: bool, forced: bool = False) 
             ans = input("  Enable the autonomous cognitive loop? [Y/n] ").strip().lower()
             enable = ans not in ("n", "no")
         if not enable:
-            print("  Skipped. Enable later with:  m3 schedules --add cognitive-loop")
+            print("  Skipped. Enable later with:  m3 schedules add cognitive-loop")
             return False
-        if _register_cognitive_loop_task():
+        reasons: list[str] = []
+        if _register_cognitive_loop_task(reasons):
             print("    [OK] cognitive loop installed (background enrichment enabled).")
             return True
         print(
-            "    [!] cognitive loop NOT registered (install_schedules.py not "
-            "found on the payload, or the add failed). Enable later with:  "
-            "m3 schedules --add cognitive-loop"
+            f"    [!] cognitive loop NOT registered: {'; '.join(reasons) or 'cause not reported'}\n"
+            "        Enable later with:  m3 schedules add cognitive-loop"
         )
         return False
     except (EOFError, KeyboardInterrupt):
         print()
         return False
     except Exception as e:  # noqa: BLE001 — optional step, never abort install
-        print(f"    [!] cognitive loop step skipped ({e}); enable later:  m3 schedules --add cognitive-loop")
+        print(f"    [!] cognitive loop step skipped ({e}); enable later:  m3 schedules add cognitive-loop")
         return False
 
 
@@ -1429,10 +1442,14 @@ def _run_os_install(bridge: Path, interactive: bool = True) -> str | None:
             **_hidden_window_kwargs(),
         )
         return "OS-specific environment setup complete."
-    except subprocess.TimeoutExpired:
-        return f"OS setup timed out after 15 min and was skipped. Run it manually from {install_script}."
+    except subprocess.TimeoutExpired as e:
+        return (
+            f"OS setup timed out after {e.timeout:g}s (setting install.os_install_timeout_s) and was "
+            f"skipped. Run it manually:  {_python_exe()} {install_script}   or raise the limit:  "
+            "m3 config set install.os_install_timeout_s <seconds>"
+        )
     except subprocess.CalledProcessError as e:
-        return f"OS setup failed (code {e.returncode}). Run it manually from {install_script}."
+        return f"OS setup failed (code {e.returncode}). Run it manually:  {_python_exe()} {install_script}"
 
 
 def _post_install(
@@ -1732,7 +1749,7 @@ def install_m3(
                 "  The wheel already carries every file `install-m3` would fetch; "
                 "a second copy under ~/.m3/repo would only drift out of sync "
                 "(issue #174).\n"
-                "  • To upgrade:                 pipx upgrade m3-memory\n"
+                "  • To upgrade:                 m3 upgrade\n"
                 "  • To re-fetch a source tree:  m3 install-m3 --force"
             )
             save_config(
@@ -1870,30 +1887,78 @@ def install_m3(
     return bridge
 
 
-def uninstall_m3(yes: bool = False) -> None:
-    """Remove the cloned repo + config file. Idempotent."""
+def _uninstall_refusal(repo_path: Path) -> str | None:
+    """Why ``repo_path`` must NOT be deleted by uninstall, or None when it is a
+    clone `m3 install-m3` made under ``default_repo_path()``.
+
+    Hazard: config ``repo_path`` is also written for the installed wheel
+    (site-packages/m3_memory) and for a source checkout; rmtree on either
+    destroys the running package or the user's work."""
+    if _is_installed_payload(repo_path):
+        return "it is the installed package (remove it with its installer, e.g. `pipx uninstall m3-memory`)"
+    try:
+        clone_root = default_repo_path().resolve()
+        target = repo_path.resolve()
+    except OSError as exc:
+        return f"its location could not be resolved ({exc})"
+    if target != clone_root and clone_root not in target.parents:
+        return f"it is not the m3-managed clone under {clone_root} (a checkout is never deleted)"
+    return None
+
+
+def uninstall_m3(yes: bool = False) -> int:
+    """Remove the m3-managed clone + config file. Idempotent.
+
+    Returns 0 on success (including nothing to do / a refused tree that was
+    kept), 1 when something that should have been removed is still present."""
     cfg = load_config()
     repo_path = Path(cfg.get("repo_path", str(default_repo_path())))
+    refusal = _uninstall_refusal(repo_path) if os.path.exists(repo_path) else None
+    delete_repo = os.path.exists(repo_path) and refusal is None
 
     if not cfg and not os.path.exists(repo_path):
         print("nothing to uninstall (no config, no repo).")
-        return
+        return 0
 
     if not yes:
         print("will remove:")
-        print(f"  {repo_path}")
+        if delete_repo:
+            print(f"  {repo_path}")
         print(f"  {config_file()}")
+        if refusal:
+            print(f"will keep {repo_path}: {refusal}")
         resp = input("proceed? [y/N] ").strip().lower()
         if resp not in ("y", "yes"):
             print("aborted.")
-            return
+            return 0
 
-    if os.path.exists(repo_path):
-        shutil.rmtree(repo_path, ignore_errors=True)
-        print(f"  removed {repo_path}")
-    if os.path.isfile(config_file()):
-        config_file().unlink()
-        print(f"  removed {config_file()}")
+    rc = 0
+    if refusal:
+        print(f"  kept {repo_path}: {refusal}")
+    if delete_repo:
+        try:
+            shutil.rmtree(repo_path)
+        except OSError as exc:
+            print(f"  [X] could not remove {repo_path}: {exc}")
+        if os.path.exists(repo_path):
+            print(
+                f"  [X] {repo_path} still exists — a process may hold a file in it. "
+                f"Run `m3 stop`, then `m3 uninstall --yes` again."
+            )
+            rc = 1
+        else:
+            print(f"  removed {repo_path}")
+    cfg_path = config_file()
+    if os.path.isfile(cfg_path):
+        try:
+            cfg_path.unlink()
+        except OSError as exc:
+            print(f"  [X] could not remove {cfg_path}: {exc}")
+        if os.path.isfile(cfg_path):
+            rc = 1
+        else:
+            print(f"  removed {cfg_path}")
+    return rc
 
 
 def status_summary() -> dict:
@@ -2730,7 +2795,8 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     brief=True prints only the high-yield verdict + agent-wiring lines and the
     resolved-bridge check, skipping the verbose path/version block — for
-    `m3 doctor --brief` and the GUI's compact health view.
+    `m3 doctor` (brief is its default; there is no --brief flag) and the
+    GUI's compact health view.
     """
     from m3_memory import __version__
 
@@ -2762,7 +2828,9 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
         bridge = find_bridge()
         if bridge and os.path.isfile(bridge):
             print("[OK] m3 server found")  # its path: `m3 doctor --verbose`
-            return 0
+            # The verdict line above can still say broken (no DB, dead embedder);
+            # the exit code must agree with it, not with the bridge alone.
+            return 1 if _s["verdict"] == "broken" else 0
         print("[X] no bridge found. Run `mcp-memory install-m3` to fetch the system.")
         print("\nFor full detail, run:  m3 doctor --verbose")
         return 1
@@ -2862,6 +2930,6 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     bridge = find_bridge()
     if bridge and os.path.isfile(bridge):
         print(f"[OK] resolved bridge: {bridge}")
-        return 0
+        return 1 if _s["verdict"] == "broken" else 0
     print("[X] no bridge found. Run `mcp-memory install-m3` to fetch the system.")
     return 1

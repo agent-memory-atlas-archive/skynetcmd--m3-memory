@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_bridge.py
-sha1: 82def4c0a875
-mtime_utc: 2026-10-16T15:02:50.153925+00:00
-generated_utc: 2026-10-16T15:27:52.807871+00:00
+sha1: ff5401a0d793
+mtime_utc: 2026-10-16T17:48:06.217877+00:00
+generated_utc: 2026-10-16T19:03:59.545923+00:00
 private: false
 ---
 
@@ -60,6 +60,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `atexit`
+- `m3_core.caller (as_caller)`
 - `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
 - `memory.backends (dialect)`

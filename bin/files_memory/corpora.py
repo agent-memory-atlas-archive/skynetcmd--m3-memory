@@ -327,8 +327,11 @@ def corpus_delete(
     """Remove a corpus and (optionally) its file_nodes.
 
     Refuses when the corpus has file_nodes unless cascade=True.
-    Cascade is DESTRUCTIVE — file_nodes, leaves, facts, embeddings,
-    promotion_markers all go away.
+    Cascade is DESTRUCTIVE: file_nodes, leaves and facts are deleted explicitly,
+    their embeddings/attempt rows by FK cascade, and the promotion_markers and
+    memory_links that name them -- which have no FK, so nothing cascades to
+    them -- explicitly too. A memory a fact was promoted INTO stays in the memory
+    store (promotion copies). Counts are rows actually deleted (rowcount).
     """
     from memory.backends import dialect as _dialect
 
@@ -343,7 +346,7 @@ def corpus_delete(
         if file_n > 0 and not cascade:
             raise ValueError(f"corpus {corpus_id!r} has {file_n} file_nodes; pass cascade=True to delete")
 
-        deleted = {"file_nodes": 0, "leaves": 0, "facts": 0, "settings": 0}
+        deleted = {"file_nodes": 0, "leaves": 0, "facts": 0, "promotion_markers": 0, "memory_links": 0, "settings": 0}
         if cascade and file_n > 0:
             uuids = [
                 r["uuid"]
@@ -352,24 +355,34 @@ def corpus_delete(
                     (corpus_id,),
                 ).fetchall()
             ]
-            # ON DELETE CASCADE on leaves / facts / leaf_embeddings handles the rest.
             CHUNK = 500
-            for chunk in batched(uuids, CHUNK):
-                placeholders = _d.placeholder(len(chunk))
-                # Count what's about to be cascaded.
-                deleted["leaves"] += conn.execute(
-                    f"SELECT COUNT(*) FROM {files_table('leaves')} WHERE file_node IN ({placeholders})",
-                    chunk,
-                ).fetchone()[0]
-                deleted["facts"] += conn.execute(
-                    f"SELECT COUNT(*) FROM {files_table('facts')} WHERE file_node IN ({placeholders})",
-                    chunk,
-                ).fetchone()[0]
-                conn.execute(
-                    f"DELETE FROM {files_table('file_nodes')} WHERE uuid IN ({placeholders})",
-                    chunk,
+
+            for batch in batched(uuids, CHUNK):
+                chunk = list(batch)
+                ph = _d.placeholder(len(chunk))
+                leaves, facts = (
+                    [
+                        r["uuid"]
+                        for r in conn.execute(
+                            f"SELECT uuid FROM {files_table(t)} WHERE file_node IN ({ph})", chunk
+                        ).fetchall()
+                    ]
+                    for t in ("leaves", "facts")
                 )
-                deleted["file_nodes"] += len(chunk)
+                named = [*chunk, *leaves, *facts]
+                # Dependents first; the tables with no FK to cascade from are named.
+                for key, table, cols, ids in (
+                    ("promotion_markers", "promotion_markers", ("source_memory",), named),
+                    ("memory_links", "memory_links", ("src_uuid", "dst_uuid"), named),
+                    ("facts", "facts", ("uuid",), facts),
+                    ("leaves", "leaves", ("uuid",), leaves),
+                    ("file_nodes", "file_nodes", ("uuid",), chunk),
+                ):
+                    for c in batched(ids, CHUNK):
+                        ph = _d.placeholder(len(c))
+                        where = " OR ".join(f"{col} IN ({ph})" for col in cols)
+                        res = conn.execute(f"DELETE FROM {files_table(table)} WHERE {where}", list(c) * len(cols))
+                        deleted[key] += res.rowcount or 0
 
         settings_n = (
             conn.execute(

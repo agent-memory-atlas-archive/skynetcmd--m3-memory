@@ -4,7 +4,7 @@ Relocates repo-relative and old ~/.m3-memory/ state to new decoupled standard ro
 (~/.m3/config and ~/.m3/engine).
 
 This tool is non-destructive: it COPIES databases using the SQLite Backup API
-and MOVES configuration files. It does NOT modify system-wide tool settings
+and COPIES configuration files; the legacy originals are left in place. It does NOT modify system-wide tool settings
 (Claude/Gemini) to ensure safety. manually update tool settings if needed.
 """
 
@@ -24,7 +24,6 @@ except ImportError:
     print("Error: Could not import m3_sdk. Run from project root.")
     sys.exit(1)
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("homecoming")
 
 from m3_core.seams import root_migration  # noqa: E402  (the ONE Root-1 migration)
@@ -92,7 +91,19 @@ def backup_db(src, dst):
     logger.info(f"Copied {os.path.basename(src)} (verified: {len(counts)} tables match)")
 
 
+def _db_rows_missing_at_dst(src: str, dst: str) -> dict[str, tuple[int, int]]:
+    """Tables where the legacy ``src`` holds MORE rows than the existing ``dst``,
+    as {table: (src_rows, dst_rows)}; a table absent from ``dst`` counts 0.
+    Both opened read-only; raises sqlite3.Error when either cannot be read."""
+    from sqlite_snapshot import file_row_counts
+
+    s_rows, d_rows = file_row_counts(src), file_row_counts(dst)
+    return {t: (n, d_rows.get(t, 0)) for t, n in s_rows.items() if n > d_rows.get(t, 0)}
+
+
 def main():
+    # Configured here, not at import: tests and other tools import this module.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     config_root = get_m3_config_root()
     engine_root = get_m3_engine_root()
     logger.info(f"Homecoming Target Config Root: {config_root}")
@@ -106,6 +117,8 @@ def main():
         return _report_memory_root(migrate_memory_root())
 
     failed = []
+    kept = []  # destination already existed and holds at least the source's rows
+    diverged = []  # destination already existed but the legacy source has MORE rows
     total_size = sum(get_size_mb(src) for src, _ in assets.values())
     logger.info(f"Found {len(assets)} legacy assets ({total_size:.2f} MB)")
 
@@ -119,7 +132,30 @@ def main():
         dst = os.path.join(target_dir, dst_name)
 
         if os.path.exists(dst):
-            logger.warning(f"Destination {dst} already exists. Skipping.")
+            if src.endswith(".db") and os.path.isfile(dst):
+                import sqlite3
+
+                try:
+                    missing = _db_rows_missing_at_dst(src, dst)
+                except sqlite3.Error as e:
+                    logger.error(
+                        f"{dst_name}: destination {dst} exists; could not compare it with the legacy "
+                        f"{src} ({type(e).__name__}: {e}). Not copied. inspect: both files"
+                    )
+                    failed.append(key)
+                    continue
+                if missing:
+                    detail = ", ".join(f"{t} {a} vs {b}" for t, (a, b) in sorted(missing.items())[:10])
+                    logger.error(
+                        f"{dst_name}: destination {dst} already exists but the legacy {src} has MORE rows "
+                        f"in {len(missing)} table(s) (legacy vs destination: {detail}). Not copied: that "
+                        "would overwrite the destination. inspect: which store is live (m3 doctor), then "
+                        "merge or move the stale one aside and re-run"
+                    )
+                    diverged.append(key)
+                    continue
+            logger.warning(f"Destination {dst} already exists; kept it, legacy {src} not copied.")
+            kept.append(key)
             continue
 
         if src.endswith(".db"):
@@ -146,14 +182,20 @@ def main():
         # M3_DATABASE > config db_path > default). Rewrite it to the new engine
         # root so the migrated chatlog DB is actually used.
         if key == "chatlog_config" and os.path.exists(dst):
-            if "chatlog_db" in failed:
+            if "chatlog_db" in failed or "chatlog_db" in diverged:
                 logger.error("Not repointing the chatlog config: its database was not copied.")
+                failed.append(key)
             else:
-                _rewrite_chatlog_db_path(dst, engine_root)
+                chat = assets.get("chatlog_db")
+                if not _rewrite_chatlog_db_path(dst, engine_root, db_name=os.path.basename(chat[0]) if chat else None):
+                    failed.append(key)
 
-    if failed:
+    if kept:
+        logger.info(f"Kept existing destinations (legacy copy not needed): {', '.join(kept)}")
+    if failed or diverged:
         logger.error(
-            f"\nMigration INCOMPLETE — failed: {', '.join(failed)}. "
+            f"\nMigration INCOMPLETE — failed: {', '.join(failed) or 'none'}; "
+            f"destination exists with fewer rows: {', '.join(diverged) or 'none'}. "
             "The legacy files are untouched; fix the cause and re-run."
         )
         return 1
@@ -174,30 +216,44 @@ def _report_memory_root(report) -> int:
     return 1 if report["failed"] else 0
 
 
-def _rewrite_chatlog_db_path(config_path, engine_root):
+def _rewrite_chatlog_db_path(config_path, engine_root, db_name=None) -> bool:
     """Repoint the chatlog config's pinned `db_path` at the migrated DB.
 
-    Idempotent: only rewrites when the field is present and stale. Preserves the
-    rest of the JSON (and key order) so unrelated settings survive.
+    ``db_name``: the migrated chatlog DB's file name (the legacy source's); None
+    keeps the name the config pins (``agent_chatlog.db`` when it pins none).
+    Idempotent; preserves the rest of the JSON (and key order). Returns False,
+    having said why, when the config cannot be read or written or the target DB
+    is not a file: the caller must not report success over a dangling db_path.
     """
     try:
         with open(config_path, encoding="utf-8") as f:
             cfg = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"Could not read {config_path} to fix db_path: {e}")
-        return
+        logger.error(f"Could not read {config_path} to fix db_path ({type(e).__name__}: {e}); not repointed.")
+        return False
 
-    new_db_path = os.path.join(engine_root, "agent_chatlog.db")
     old = cfg.get("db_path")
+    name = db_name or (os.path.basename(old) if old else "") or "agent_chatlog.db"
+    new_db_path = os.path.join(engine_root, name)
     if old == new_db_path:
-        return  # already correct
+        return True  # already correct
+    if not os.path.isfile(new_db_path):
+        logger.error(
+            f"Not repointing {config_path}: the chatlog database {new_db_path} does not exist "
+            f"(db_path stays {old!r}). inspect: the copy step above"
+        )
+        return False
     cfg["db_path"] = new_db_path
     try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2)
-        logger.info(f"Rewrote chatlog db_path: {old!r} -> {new_db_path!r}")
+        from m3_core.atomic_io import atomic_write
+
+        # Atomic: an interrupted plain rewrite left a truncated config.
+        atomic_write(config_path, json.dumps(cfg, indent=2))
     except OSError as e:
-        logger.error(f"Failed to rewrite db_path in {config_path}: {e}")
+        logger.error(f"Failed to rewrite db_path in {config_path} ({type(e).__name__}: {e}); it still names {old!r}.")
+        return False
+    logger.info(f"Rewrote chatlog db_path: {old!r} -> {new_db_path!r}")
+    return True
 
 
 def _print_post_migration_checklist(config_root, engine_root):

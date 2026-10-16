@@ -145,3 +145,18 @@ def test_a_failed_copy_withholds_the_flip(home, monkeypatch):
     assert not _roots.memory_root_migrated(), "a partial migration must not switch the default"
     assert Path(_roots.memory_root()) == home / ".m3-memory"
     assert os.path.exists(home / ".m3-memory" / "config.json")
+
+
+def test_a_retry_after_a_failed_copy_merges_the_trail_once(home, monkeypatch):
+    import shutil
+
+    real_copy2 = shutil.copy2
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(shutil, "copy2", boom)
+    assert _migrate(home)["failed"]
+    monkeypatch.setattr(shutil, "copy2", real_copy2)
+    assert not _migrate(home)["failed"]
+    assert (home / ".m3" / "audit_trail.log.jsonl").read_text(encoding="utf-8") == '{"old": 1}\n'

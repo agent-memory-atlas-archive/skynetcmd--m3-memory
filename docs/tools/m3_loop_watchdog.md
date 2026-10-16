@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_loop_watchdog.py
-sha1: 13ddae67b94b
-mtime_utc: 2026-10-12T15:22:27.486742+00:00
-generated_utc: 2026-10-12T15:38:20.492014+00:00
+sha1: b8ac1f7c7c6e
+mtime_utc: 2026-10-16T17:36:36.660381+00:00
+generated_utc: 2026-10-16T19:03:59.486805+00:00
 private: false
 ---
 
@@ -43,17 +43,19 @@ DESIGN (§2 modularity, §3 fail-safe, §5 effectiveness)
     is the torn-WAL case the protocol exists to prevent.
   * Degrade, never guess: a MISSING heartbeat is "unknown", not "dead" — an
     upgrade predating the heartbeat would otherwise cause an endless restart
-    loop. Falls back to the m3_halt PID registry for liveness.
-  * Import-fragile by necessity, so imports are guarded: if the venv is
-    half-upgraded and m3_sdk/m3_halt won't import, the watchdog still resolves
-    roots from the documented env vars and keeps working. It is least useful
-    exactly when it is most needed otherwise.
+    loop. Falls back to the m3_halt PID registry for liveness. An UNREADABLE
+    heartbeat is judged by the file's mtime: old = stale (restart), fresh =
+    degraded. A beat with state "paused" (governor/thermal/HALT) is progress.
+  * Imports: roots come from m3_core.seams -> m3_memory._roots, which is
+    stdlib-only and imports even from a broken venv. m3_halt is imported
+    guarded; when it fails, the halt state is unknown and the watchdog stands
+    down for that tick (logged) rather than risk a restart into an exclusive op.
 
 ---
 
 ## Entry points
 
-- `def main()` (line 321)
+- `def main()` (line 386)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,7 +84,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 280)
+- `subprocess.run()  → `cmd`` (line 333)
 
 
 ---

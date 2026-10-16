@@ -222,8 +222,9 @@ def _task_jobs() -> list[Job]:
         try:
             xml = sp._query_task_xml(name)
             program, script = sp._parse_exec_paths(xml) if xml else (None, None)
-        except Exception:  # noqa: BLE001 -- one unreadable task must not hide the others
-            program = script = None
+        except Exception as e:  # noqa: BLE001 -- one unreadable task must not hide the others; judged unknown
+            jobs.append(Job("task", name, None, None, None, unreadable=f"could not query: {type(e).__name__}: {e}"))
+            continue
         jobs.append(Job("task", name, program, script, None))
     return jobs
 
@@ -390,14 +391,38 @@ def _remove(j: Job, backup: str) -> tuple[bool, str]:
     if j.kind == "launchd" and j.definition:
         shutil.copy2(j.definition, backup)
         uid = getattr(os, "getuid", lambda: 0)()  # launchd exists only where getuid does
-        _run(["launchctl", "bootout", f"gui/{uid}/{j.ident}"], capture_output=True, timeout=30)
+        target = f"gui/{uid}/{j.ident}"
+        r = _run(["launchctl", "bootout", target], capture_output=True, text=True, timeout=30)
+        # bootout fails for a job that was never loaded too; only a job launchd
+        # still holds blocks removal (deleting its plist would orphan it).
+        if r.returncode != 0 and _run(["launchctl", "print", target], capture_output=True, timeout=30).returncode == 0:
+            return (
+                False,
+                f"launchctl bootout {target} exited {r.returncode} ({(r.stderr or r.stdout or '').strip()}); "
+                f"still loaded, so {j.definition} was kept. Retry: launchctl bootout {target}",
+            )
         os.remove(j.definition)
         return True, f"unloaded and removed {j.definition}"
     if j.kind == "systemd" and j.definition:
         shutil.copy2(j.definition, backup)
-        _run(["systemctl", "--user", "disable", "--now", j.ident], capture_output=True, timeout=60)
+        r = _run(["systemctl", "--user", "disable", "--now", j.ident], capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            # Hazard: removing the unit file of a running/enabled unit leaves it
+            # running with no definition. Keep it; report the exact retry.
+            return (
+                False,
+                f"systemctl --user disable --now {j.ident} exited {r.returncode} "
+                f"({(r.stderr or r.stdout or '').strip()}); {j.definition} was kept. "
+                f"Retry: systemctl --user disable --now {j.ident}",
+            )
         os.remove(j.definition)
-        _run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=60)
+        r = _run(["systemctl", "--user", "daemon-reload"], capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            return (
+                True,
+                f"disabled and removed {j.definition}; systemctl --user daemon-reload exited {r.returncode} "
+                f"({(r.stderr or r.stdout or '').strip()}): run it by hand",
+            )
         return True, f"disabled and removed {j.definition}"
     if j.kind == "task":
         xml = _run(["schtasks", "/Query", "/TN", j.ident, "/XML"], capture_output=True, text=True, timeout=30)
@@ -534,7 +559,7 @@ def run(brief: bool = False) -> int:
     if brief:
         print(
             f"jobs: {len(jobs)} m3 job(s), "
-            + (f"{len(attention)} need attention: m3 doctor" if attention else "all current")
+            + (f"{len(attention)} need attention: m3 doctor --verbose" if attention else "all current")
         )
         return 0
     print()

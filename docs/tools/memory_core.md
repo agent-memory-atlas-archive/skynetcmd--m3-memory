@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_core.py
-sha1: 886fddd2fdf5
-mtime_utc: 2026-10-16T15:03:18.620243+00:00
-generated_utc: 2026-10-16T15:27:52.827838+00:00
+sha1: 0984b6eb469b
+mtime_utc: 2026-10-16T17:39:32.748719+00:00
+generated_utc: 2026-10-16T19:03:59.566383+00:00
 private: false
 ---
 
@@ -105,7 +105,6 @@ _(no subprocess / http / sqlite calls detected)_
 - `catalog.spec (VALID_RELATIONSHIP_TYPES)`
 - `importlib`
 - `m3_core.errors (describe_http_failure)`
-- `m3_core.errors (log_swallowed)`
 - `memory (records)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
@@ -117,7 +116,9 @@ _(no subprocess / http / sqlite calls detected)_
 - `memory.orchestration (TASK_STATE_TRANSITIONS, TERMINAL_TASK_STATES, VALID_AGENT_STATUSES, VALID_TASK_STATES, _agent_exists, _validate_task_transition, agent_get_impl, agent_heartbeat_impl, agent_list_impl, agent_offline_impl, agent_register_impl, agent_set_trust_impl, notifications_ack_all_impl, notifications_ack_impl, notifications_mark_received_impl, notifications_peek_impl, notifications_poll_impl, notify_impl, task_assign_impl, task_create_impl, task_delete_impl, task_get_impl, task_list_impl, task_set_result_impl, task_tree_impl, task_update_impl)`
 - `memory.orchestration (_addressing_predicate)`
 - `memory.orchestration (_addressing_predicate, require_agent_id)`
+- `memory.textprep (_content_hash)`
 - `memory.util (_POISON_PATTERNS, _check_content_safety)`
+- `memory.write (content_gate_error)`
 - `memory.write (rewindow_memory)`
 
 ---

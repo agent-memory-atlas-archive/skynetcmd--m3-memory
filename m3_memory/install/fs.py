@@ -7,10 +7,13 @@ module. installer.py re-imports them so `installer.<name>` still resolves.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import sqlite3
+import sys
 import tarfile  # noqa: F401 - referenced only in string type annotations below
+import time
 from pathlib import Path
 
 
@@ -85,6 +88,10 @@ def _drain_wal(src: Path) -> None:
         pass  # locked / not-WAL / not-a-DB — the backup below still preserves data
 
 
+_BACKUP_ATTEMPTS = 3
+_BACKUP_RETRY_S = 0.5
+
+
 def _safe_copy_sqlite(src: Path, dst: Path) -> None:
     """Copy a SQLite database WAL-safely via the Online Backup API.
 
@@ -92,27 +99,46 @@ def _safe_copy_sqlite(src: Path, dst: Path) -> None:
     the `-wal` file or capture a torn write. We first drain the source WAL
     (best-effort checkpoint), then use the backup API — which produces a
     transactionally-consistent single-file snapshot (it also folds any remaining
-    committed WAL pages into the destination). Falls back to a plain copy only if
-    the source isn't a valid SQLite file (e.g. a 0-byte placeholder) so non-DB
-    `.db` files still get preserved rather than dropped.
+    committed WAL pages into the destination). A locked source is retried; if the
+    backup still fails (locked, corrupt, not a DB) the file and its -wal/-shm are
+    byte-copied with a warning on stderr, so data is preserved rather than dropped.
     """
     _drain_wal(src)
-    try:
-        src_conn = sqlite3.connect(f"file:{src}?mode=ro", uri=True, timeout=10)
+    err: sqlite3.Error | None = None
+    for attempt in range(_BACKUP_ATTEMPTS):
         try:
-            dst_conn = sqlite3.connect(str(dst))
+            src_conn = sqlite3.connect(f"file:{src}?mode=ro", uri=True, timeout=10)
             try:
-                with dst_conn:
-                    src_conn.backup(dst_conn)
+                dst_conn = sqlite3.connect(str(dst))
+                try:
+                    with dst_conn:
+                        src_conn.backup(dst_conn)
+                finally:
+                    dst_conn.close()
             finally:
-                dst_conn.close()
-        finally:
-            src_conn.close()
-    except sqlite3.Error:
-        # Not a usable SQLite DB (corrupt / empty / locked-exclusive) — fall
-        # back to a byte copy so we still preserve *something* rather than lose
-        # the file entirely.
-        shutil.copy2(src, dst)
+                src_conn.close()
+            return
+        except sqlite3.Error as e:
+            err = e
+            # Only a lock is transient; a non-DB / corrupt file fails the same way again.
+            if not any(w in str(e).lower() for w in ("locked", "busy")) or attempt == _BACKUP_ATTEMPTS - 1:
+                break
+            time.sleep(_BACKUP_RETRY_S * (attempt + 1))
+    # Hazard: a byte copy of a DB another process is writing can be torn. It is
+    # still better than dropping the file; the -wal/-shm sidecars go with it so
+    # committed WAL pages are not lost, and the operator is told.
+    print(
+        f"  [!] {src}: SQLite backup failed ({type(err).__name__}: {err}); preserved by byte copy, "
+        "which may be inconsistent if m3 was writing it. Stop m3 (`m3 stop`) and re-run to get a clean snapshot.",
+        file=sys.stderr,
+    )
+    with contextlib.suppress(OSError):
+        dst.unlink()
+    shutil.copy2(src, dst)
+    for suffix in ("-wal", "-shm"):
+        side = src.with_name(src.name + suffix)
+        if os.path.isfile(side):
+            shutil.copy2(side, dst.with_name(dst.name + suffix))
 
 
 def _safe_tar_member(member: tarfile.TarInfo, dest_root: Path) -> tarfile.TarInfo | None:

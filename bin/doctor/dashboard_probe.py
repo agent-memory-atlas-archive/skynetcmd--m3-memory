@@ -39,7 +39,7 @@ import subprocess
 import sys
 import time
 
-from m3_core.seams import is_windows
+from m3_core.seams import hidden_window_kwargs, is_windows
 
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 8088
@@ -83,12 +83,20 @@ def _kill(pid: int) -> bool:
     """Terminate a wedged dashboard process. Best-effort, cross-platform."""
     try:
         if is_windows():
-            subprocess.run(  # noqa: S603 — fixed argv
+            r = subprocess.run(  # noqa: S603 — fixed argv
                 ["taskkill", "/F", "/PID", str(pid)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
                 check=False,
+                timeout=30,
+                **hidden_window_kwargs(),
             )
+            if r.returncode != 0:
+                print(
+                    f"  [fix] could not kill wedged dashboard (pid {pid}): taskkill exited {r.returncode}: "
+                    f"{(r.stderr or r.stdout or '').strip()}. Retry: taskkill /F /PID {pid}"
+                )
+                return False
         else:
             import signal
 
@@ -121,16 +129,22 @@ def _restart(host: str, port: int) -> bool:
         # `m3 dashboard` detaches the server itself and returns promptly; run it
         # blocking (no window inherited into doctor — it spawns its own detached
         # windowless child). Bounded so a hung CLI can't wedge doctor.
-        subprocess.run(  # noqa: S603 — fixed argv, our own CLI
+        r = subprocess.run(  # noqa: S603 — fixed argv, our own CLI
             argv,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
             stdin=subprocess.DEVNULL,
             timeout=30,
             check=False,
+            **hidden_window_kwargs(),
         )
     except Exception as e:  # noqa: BLE001
         print(f"  [fix] could not relaunch dashboard: {e}")
+        return False
+    if r.returncode != 0:
+        tail = ((r.stderr or "").strip() or (r.stdout or "").strip()).splitlines()[-3:]
+        print(f"  [fix] `{' '.join(argv)}` exited {r.returncode}: {' | '.join(tail) or 'no output'}")
+        print(f"        see the error directly: m3 dashboard --foreground --host {host} --port {port}")
         return False
 
     # Give the detached child a moment to bind, then confirm the port serves.
@@ -139,7 +153,10 @@ def _restart(host: str, port: int) -> bool:
             print(f"  [fix] dashboard restarted → http://{host}:{port}")
             return True
         time.sleep(0.5)
-    print(f"  [fix] relaunched dashboard on {host}:{port} but it is not yet answering — check the dashboard log.")
+    print(
+        f"  [fix] relaunched dashboard on {host}:{port} but it is not answering after 5 s. "
+        f"See its errors directly: m3 dashboard --foreground --host {host} --port {port}"
+    )
     return False
 
 

@@ -670,13 +670,16 @@ def _db_is_populated(path: str) -> bool:
     migrated engine root auto-creates a 0-table `agent_memory.db` stub, and that
     stub would otherwise shadow a populated legacy DB (the M3_MEMORY_ROOT drift —
     a fresh engine/ stub silently winning over memory/agent_memory.db with the
-    real data). Returns False for a missing file, an empty stub, or any open/read
-    error (treat unreadable as "not usable" so the caller keeps searching).
+    real data). False ONLY for a missing file or one without a memory_items
+    table. A file that cannot be read (locked by a live writer, permissions,
+    corruption) counts as populated: a busy live store must never lose to an
+    old legacy copy, which split reads and writes across two stores.
     """
     if not os.path.exists(path):
         return False
     try:
-        conn = sqlite3.connect(path, timeout=2)
+        # Read-only: probing must not create or modify anything.
+        conn = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
         try:
             row = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_items' LIMIT 1"
@@ -684,8 +687,13 @@ def _db_is_populated(path: str) -> bool:
             return row is not None
         finally:
             conn.close()
-    except Exception:  # noqa: BLE001 — unreadable/locked DB is not a usable default
-        return False
+    except sqlite3.Error as e:
+        logger.warning(
+            f"could not read {path} to tell whether it holds the memory schema ({type(e).__name__}: {e}); "
+            "treating it as the populated store rather than falling through to a legacy copy. "
+            "inspect: a process holding it locked (m3 doctor), or its permissions"
+        )
+        return True
 
 
 def _default_db_path() -> str:
@@ -938,6 +946,20 @@ def active_database(path: str | None):
         _active_db.reset(token)
 
 
+def main_db_path() -> str:
+    """The process's MAIN SQLite store, ignoring any ``active_database`` or named
+    store scope in force. For topology questions ("is the chatlog a separate
+    file?") asked from code that runs inside such a scope: a chatlog flush runs
+    under ``active_database(<chatlog path>)``, where ``resolve_db_path(None)`` is
+    the chatlog itself."""
+    token = _active_db.set(None)
+    try:
+        with without_active_store():
+            return resolve_db_path(None)
+    finally:
+        _active_db.reset(token)
+
+
 @contextmanager
 def scoped_db_env(path: "str | os.PathLike[str] | None"):
     """Pin ``path`` as the main database for a block and restore the previous pin
@@ -1025,9 +1047,17 @@ def _sqlite_bootstrap_shim():
         @staticmethod
         @contextmanager
         def connection(db_path: str | None = None):
+            # Same contract as the seam's connection(): rows by name, commit on
+            # a clean exit, roll back on error. Without the commit a caller's
+            # writes vanished on close only when the memory package was absent.
             c = _sq.connect(str(db_path or resolve_db_path(None)), timeout=30)
+            c.row_factory = _sq.Row
             try:
                 yield c
+                c.commit()
+            except BaseException:
+                c.rollback()
+                raise
             finally:
                 c.close()
 

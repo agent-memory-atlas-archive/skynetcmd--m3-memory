@@ -34,7 +34,7 @@ from m3_memory.integrations.langchain.m3client import M3Client
 
 
 def _loop_threads() -> list[threading.Thread]:
-    return [t for t in threading.enumerate() if t.name == "m3client-langchain-loop"]
+    return [t for t in threading.enumerate() if t.name == "m3client-loop"]
 
 
 @pytest.fixture(autouse=True)
@@ -193,7 +193,7 @@ def test_a_failed_drain_is_reported_not_swallowed(monkeypatch, caplog):
         raise TypeError("simulated defect in the drain")
 
     monkeypatch.setattr(db, "flush_access_stamps_now", _boom)
-    with caplog.at_level(logging.DEBUG, logger="m3_memory.langchain"):
+    with caplog.at_level(logging.DEBUG, logger="m3_memory.integrations"):
         M3Client._shutdown_loop()
     hits = [r for r in caplog.records if "access-stamp drain at shutdown failed" in r.getMessage()]
     assert hits and hits[0].levelno == logging.WARNING, "a failing drain was swallowed silently"

@@ -10,12 +10,13 @@ Subcommands:
     status                    Show current version and pending migrations
     plan [--to N]             Preview DDL that pending migrations would run (no changes)
     up [--to N] [--dry-run]   Apply pending migrations (prompts for backup + confirmation)
-    down --to N [--dry-run]   Roll back to version N (requires .down.sql files)
+    down --to N --target T [--dry-run]
+                              Roll back ONE store to version N (requires .down.sql files)
     backup [--out PATH]       Take a standalone backup
-    restore <PATH>            Restore the database from a backup file
+    restore <PATH>            Restore the database from a backup file (refused while m3 runs)
 
-All subcommands accept --target {main,chatlog,all} to select which DB(s) to operate on.
-Default is "all" (operates on all configured targets).
+Subcommands accept --target {main,chatlog,dispatch,all} to select which DB(s) to operate
+on. Default is "all", except `down` (--target required, never all) and `restore` (main).
 
 Migration file formats (both supported, sorted by numeric prefix):
     NNN_name.sql            legacy, treated as up-only
@@ -45,12 +46,8 @@ from m3_core.paths import configured_main_db, pin_chatlog_db, pin_database  # no
 from m3_core.seams import is_windows
 
 sys.path.insert(0, os.path.dirname(__file__))
-from m3_sdk import get_m3_config_root, get_m3_engine_root
 
 logger = logging.getLogger("migrate_memory")
-
-_M3_CONFIG_ROOT = get_m3_config_root()
-_M3_ENGINE_ROOT = get_m3_engine_root()
 
 # Path resolution (new-root-with-legacy-fallback) is the single source of truth
 # in m3_core.paths; these local names are thin aliases.
@@ -59,8 +56,20 @@ from m3_core.paths import resolve_config_file as _resolve_config_file
 from m3_core.paths import resolve_engine_file as _resolve_engine_file
 from sqlite_snapshot import snapshot_sqlite
 
-CONFIG_PATH = _resolve_config_file(".migrate_config.json")
-DB_PATH = configured_main_db() or _resolve_engine_file("agent_memory.db")
+# Resolved at CALL time (_config_path / _default_db_path), not import: an
+# import-time root read binds the importing process's env, before a test sandbox
+# or a --config pin can re-point it. A test may still set CONFIG_PATH directly.
+CONFIG_PATH: str | None = None
+
+
+def _config_path() -> str:
+    return CONFIG_PATH or _resolve_config_file(".migrate_config.json")
+
+
+def _default_db_path() -> str:
+    return configured_main_db() or _resolve_engine_file("agent_memory.db")
+
+
 # Migrations inside the repository are still base-dir relative since they are static code assets
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "migrations")
@@ -228,7 +237,7 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
 
         main_path = os.path.abspath(_resolve_main(None))
     except ImportError:
-        main_path = os.path.abspath(DB_PATH)
+        main_path = os.path.abspath(_default_db_path())
 
     main_kind = _classify_db(main_path)
     main_target_valid = main_kind in ("main", "empty")
@@ -347,9 +356,10 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
 
 
 def load_config():
-    if os.path.exists(CONFIG_PATH):
+    path = _config_path()
+    if os.path.exists(path):
         try:
-            with open(CONFIG_PATH, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
@@ -361,8 +371,9 @@ def save_config(cfg):
     # write lost the user's remembered backup_dir.
     from m3_core.atomic_io import atomic_write
 
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    atomic_write(CONFIG_PATH, json.dumps(cfg, indent=2))
+    path = _config_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    atomic_write(path, json.dumps(cfg, indent=2))
 
 
 def prompt_backup_dir(assume_yes: bool) -> str:
@@ -451,20 +462,71 @@ def take_backup(
     return dst
 
 
+_SQLITE_SIDE_FILES = ("-wal", "-shm", "-journal")
+
+
+def _live_store_writers() -> list[str]:
+    """'role (pid N)' for every running m3 process that holds a store. Raises when
+    the probe cannot run: a restore must not proceed on "could not check"."""
+    import m3_halt
+
+    return [f"{p.role} (pid {p.pid})" for p in m3_halt.list_blocking_db_writers() if p.pid != os.getpid()]
+
+
+def _move_back(moved: list[tuple[str, str]]) -> list[str]:
+    """Undo a list of (src, dst) moves, newest first; returns the moves that failed."""
+    failed = []
+    for src, dst in reversed(moved):
+        try:
+            shutil.move(dst, src)
+        except OSError as e:
+            failed.append(f"{dst} -> {src} ({e})")
+    return failed
+
+
 def restore_backup(backup_path: str, target: MigrationTarget):
     if not os.path.exists(backup_path):
         logger.error(f"Backup not found: {backup_path}")
         sys.exit(1)
-    # Move current DB aside first so we can recover if the copy fails mid-way
-    if os.path.exists(target.db_path):
-        sidecar = target.db_path + ".pre-restore"
-        shutil.move(target.db_path, sidecar)
-        for suffix in ("-wal", "-shm", "-journal"):
+    # A live writer keeps its handle on the file moved aside and its WAL; restoring
+    # under it splits the store. Refuse until every writer is stopped.
+    try:
+        writers = _live_store_writers()
+    except Exception as e:  # noqa: BLE001 — reported; the restore is refused
+        logger.error(
+            f"Restore refused: could not check for running m3 writers ({type(e).__name__}: {e}). "
+            f"store: {target.db_path} (unchanged). fix: stop m3 (`m3 stop`), then re-run the restore"
+        )
+        sys.exit(1)
+    if writers:
+        logger.error(
+            f"Restore refused: {len(writers)} m3 process(es) hold the store: {', '.join(writers)}. "
+            f"store: {target.db_path} (unchanged). fix: `m3 stop`, then re-run the restore"
+        )
+        sys.exit(1)
+
+    # Move the current DB aside under a unique name, so a failed copy can be undone
+    # and a second restore never overwrites the first one's sidecar.
+    now = datetime.now(UTC)
+    sidecar = f"{target.db_path}.pre-restore.{now:%Y%m%dT%H%M%S}.{now.microsecond:06d}Z.p{os.getpid()}"
+    moved: list[tuple[str, str]] = []
+    try:
+        for suffix in ("", *_SQLITE_SIDE_FILES):
             if os.path.exists(target.db_path + suffix):
+                if os.path.exists(sidecar + suffix):
+                    raise FileExistsError(f"sidecar already exists: {sidecar + suffix}")
                 shutil.move(target.db_path + suffix, sidecar + suffix)
+                moved.append((target.db_path + suffix, sidecar + suffix))
+    except OSError as e:
+        failed = _move_back(moved)
+        logger.error(
+            f"Restore failed before copying: could not move the current store aside ({type(e).__name__}: {e}). "
+            + (f"MOVE-BACK FAILED, recover by hand: {failed}" if failed else f"store: {target.db_path} (unchanged)")
+        )
+        sys.exit(1)
     try:
         shutil.copy2(backup_path, target.db_path)
-        for suffix in ("-wal", "-shm", "-journal"):
+        for suffix in _SQLITE_SIDE_FILES:
             src = backup_path + suffix
             if os.path.exists(src):
                 shutil.copy2(src, target.db_path + suffix)
@@ -475,10 +537,28 @@ def restore_backup(backup_path: str, target: MigrationTarget):
                 raise RuntimeError(f"integrity_check failed: {result}")
         finally:
             verify.close()
-        logger.info(f"Restored {target.db_path} from {backup_path} (integrity_check ok)")
     except Exception as e:
-        logger.error(f"Restore failed: {e}")
+        # Put the original back: drop the partial copy, then undo the moves.
+        for suffix in ("", *_SQLITE_SIDE_FILES):
+            try:
+                if os.path.exists(target.db_path + suffix):
+                    os.remove(target.db_path + suffix)
+            except OSError:
+                pass
+        failed = _move_back(moved)
+        if failed:
+            logger.error(
+                f"Restore failed ({type(e).__name__}: {e}) and the original store could NOT be moved back: "
+                f"{failed}. The original is at {sidecar}; move it to {target.db_path} by hand"
+            )
+        else:
+            logger.error(
+                f"Restore failed ({type(e).__name__}: {e}); backup: {backup_path}. "
+                f"The original store was moved back to {target.db_path} (unchanged)"
+            )
         sys.exit(1)
+    kept = f"; previous store kept at {sidecar}" if moved else ""
+    logger.info(f"Restored {target.db_path} from {backup_path} (integrity_check ok){kept}")
 
 
 # ── Migration discovery ─────────────────────────────────────────────────────
@@ -564,6 +644,23 @@ def current_version(conn) -> int:
     return max(applied) if applied else 0
 
 
+def read_applied_versions(db_path: str) -> "set[int] | None":
+    """The versions applied to a store, read-only: None when the file does not
+    exist, an empty set when it has no schema_versions table. Never creates the
+    file or the table (a read-only command must not leave a store behind)."""
+    if not os.path.exists(db_path):
+        return None
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5.0)
+    try:
+        has_table = (
+            conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_versions'").fetchone()
+            is not None
+        )
+        return set(get_applied_versions(conn)) if has_table else set()
+    finally:
+        conn.close()
+
+
 def pending_migrations(selected: str = "all") -> "dict[str, list[int]]":
     """{target name: unapplied versions} for every configured target, read-only.
 
@@ -577,18 +674,7 @@ def pending_migrations(selected: str = "all") -> "dict[str, list[int]]":
         migs = discover_migrations(target.migrations_dir)
         if not migs:
             raise FileNotFoundError(f"no migrations found in {target.migrations_dir}")
-        if not os.path.exists(target.db_path):
-            out[target.name] = sorted(migs)
-            continue
-        conn = sqlite3.connect(f"file:{target.db_path}?mode=ro", uri=True, timeout=5.0)
-        try:
-            has_table = (
-                conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_versions'").fetchone()
-                is not None
-            )
-            applied = set(get_applied_versions(conn)) if has_table else set()
-        finally:
-            conn.close()
+        applied = read_applied_versions(target.db_path) or set()
         out[target.name] = sorted(v for v in migs if v not in applied)
     return out
 
@@ -714,9 +800,16 @@ def apply_pending(conn, migrations_dir: str) -> list[int]:
     applied = set(get_applied_versions(conn))
     done: list[int] = []
     for v, entry in sorted(discover_migrations(migrations_dir).items()):
-        if v not in applied and entry["up"]:
-            apply_migration(conn, v, entry["name"], entry["up"])
-            done.append(v)
+        if v in applied:
+            continue
+        if not entry["up"]:
+            # Same rule as `up`: never apply later versions over a gap.
+            raise FileNotFoundError(
+                f"v{v:03d} ({entry['name']}) has no up file in {migrations_dir}; applied before it: "
+                f"{done or 'none'}. fix: reinstall m3 so the migration set is complete"
+            )
+        apply_migration(conn, v, entry["name"], entry["up"])
+        done.append(v)
     return done
 
 
@@ -784,35 +877,31 @@ def cmd_status(args):
         if len(target_list) > 1:
             print(f"=== {target.name} ===")
 
-        os.makedirs(os.path.dirname(target.db_path), exist_ok=True)
-        conn = sqlite3.connect(target.db_path)
-        try:
-            init_migrations_table(conn)
-            applied = set(get_applied_versions(conn))
-            cur = current_version(conn)
-            migs = discover_migrations(target.migrations_dir)
-            all_versions = sorted(migs.keys())
-            latest = max(all_versions) if all_versions else 0
+        # Read-only: status must not create the store or its schema_versions table.
+        found = read_applied_versions(target.db_path)
+        applied = found or set()
+        cur = max(applied) if applied else 0
+        migs = discover_migrations(target.migrations_dir)
+        all_versions = sorted(migs.keys())
+        latest = max(all_versions) if all_versions else 0
 
-            print(f"Database:         {target.db_path}")
-            print(f"Current version:  {cur}")
-            print(f"Latest available: {latest}")
-            print(f"Status:           {'up-to-date' if cur == latest else 'behind'}")
+        print(f"Database:         {target.db_path}{'  (does not exist yet)' if found is None else ''}")
+        print(f"Current version:  {cur}")
+        print(f"Latest available: {latest}")
+        print(f"Status:           {'up-to-date' if cur == latest else 'behind'}")
+        print()
+        print("Migrations:")
+        for v in all_versions:
+            entry = migs[v]
+            mark = "x" if v in applied else " "
+            down = "yes" if entry["down"] else "no "
+            up_name = os.path.basename(entry["up"]) if entry["up"] else "(missing up!)"
+            print(f"  [{mark}] v{v:03d}  down={down}  {up_name}")
+
+        pending = [v for v in all_versions if v not in applied]
+        if pending:
             print()
-            print("Migrations:")
-            for v in all_versions:
-                entry = migs[v]
-                mark = "x" if v in applied else " "
-                down = "yes" if entry["down"] else "no "
-                up_name = os.path.basename(entry["up"]) if entry["up"] else "(missing up!)"
-                print(f"  [{mark}] v{v:03d}  down={down}  {up_name}")
-
-            pending = [v for v in all_versions if v not in applied]
-            if pending:
-                print()
-                print(f"Pending: {pending}")
-        finally:
-            conn.close()
+            print(f"Pending: {pending}")
 
         if len(target_list) > 1:
             print()
@@ -879,6 +968,7 @@ def cmd_up(args):
         sys.exit(1)
 
     backup_dir = prompt_backup_dir(args.yes)
+    incomplete: list[str] = []
 
     for target in target_list:
         if len(target_list) > 1:
@@ -941,21 +1031,40 @@ def cmd_up(args):
 
             take_backup(backup_dir, cur, "pre-up", target, conn)
 
+            done: list[int] = []
             for v in pending:
                 entry = migs[v]
                 if not entry["up"]:
-                    logger.error(f"v{v:03d} has no up file — skipping")
-                    continue
+                    # Stop: applying later versions over a gap leaves a schema no
+                    # chain ever produced, and "Now at vN" would hide the gap.
+                    rest = pending[pending.index(v) :]
+                    logger.error(
+                        f"{target.name}: v{v:03d} ({entry['name']}) has only a down file, no up file, in "
+                        f"{target.migrations_dir}; stopped before it. applied: {done or 'none'}; NOT applied: "
+                        f"{rest} (expected through v{target_ver:03d}). fix: restore the missing "
+                        f"{v:03d}_{entry['name']}.up.sql (reinstall m3), then re-run `up`"
+                    )
+                    incomplete.append(target.name)
+                    break
                 apply_migration(conn, v, entry["name"], entry["up"])
-
-            logger.info(f"{target.name}: Done. Now at v{current_version(conn):03d}.")
+                done.append(v)
+            else:
+                logger.info(f"{target.name}: Done. Applied {done}; now at v{current_version(conn):03d}.")
         finally:
             conn.close()
+    if incomplete:
+        sys.exit(1)
 
 
 def cmd_down(args):
     if args.to is None:
         logger.error("down requires --to N (the version to roll back TO)")
+        sys.exit(1)
+    if getattr(args, "target", None) not in ("main", "chatlog", "dispatch"):
+        logger.error(
+            f"down requires --target main|chatlog|dispatch (got {getattr(args, 'target', None)!r}): each store "
+            "has its own version chain, so a rollback names exactly one"
+        )
         sys.exit(1)
 
     target_list = targets(args.target)
@@ -969,6 +1078,9 @@ def cmd_down(args):
         if len(target_list) > 1:
             logger.info(f"=== Processing {target.name} ===")
 
+        if not os.path.exists(target.db_path):
+            logger.info(f"{target.name}: no store at {target.db_path}; nothing to roll back")
+            continue
         conn = sqlite3.connect(target.db_path)
         try:
             conn.execute("PRAGMA busy_timeout = 30000;")
@@ -1038,13 +1150,11 @@ def cmd_backup(args):
     backup_dir = args.out or prompt_backup_dir(args.yes)
 
     for target in target_list:
-        conn = sqlite3.connect(target.db_path)
-        try:
-            init_migrations_table(conn)
-            cur = current_version(conn)
-        finally:
-            conn.close()
-        take_backup(backup_dir, cur, "manual", target)
+        applied = read_applied_versions(target.db_path)  # read-only; None = no file
+        if applied is None:
+            logger.info(f"{target.name}: no store at {target.db_path}; nothing to back up")
+            continue
+        take_backup(backup_dir, max(applied) if applied else 0, "manual", target)
 
 
 def cmd_restore(args):
@@ -1081,21 +1191,15 @@ def cmd_plan(args):
         if len(target_list) > 1:
             print(f"=== {target.name} ===")
 
-        os.makedirs(os.path.dirname(target.db_path), exist_ok=True)
-        conn = sqlite3.connect(target.db_path)
-        try:
-            init_migrations_table(conn)
-            applied = set(get_applied_versions(conn))
-            migs = discover_migrations(target.migrations_dir)
-            all_versions = sorted(migs.keys())
-            target_ver = args.to if args.to is not None else (max(all_versions) if all_versions else 0)
-            pending = [v for v in all_versions if v not in applied and v <= target_ver]
-            if not pending:
-                logger.info(f"{target.name}: No pending migrations.")
-                continue
-            _print_pending_plan(pending, migs, "up")
-        finally:
-            conn.close()
+        applied = read_applied_versions(target.db_path) or set()  # read-only
+        migs = discover_migrations(target.migrations_dir)
+        all_versions = sorted(migs.keys())
+        target_ver = args.to if args.to is not None else (max(all_versions) if all_versions else 0)
+        pending = [v for v in all_versions if v not in applied and v <= target_ver]
+        if not pending:
+            logger.info(f"{target.name}: No pending migrations.")
+            continue
+        _print_pending_plan(pending, migs, "up")
 
 
 # ── Entry point ─────────────────────────────────────────────────────────────
@@ -1157,11 +1261,14 @@ def build_parser():
 
     sp = sub.add_parser("down", help="Roll back migrations")
     sp.add_argument("--to", type=int, required=True, help="Roll back to this version")
+    # Required, and never "all": each store has its own version chain, so one
+    # --to N reverting every store at once reverts stores nobody named.
     sp.add_argument(
         "--target",
-        choices=["main", "chatlog", "dispatch", "all"],
-        default="all",
-        help=_TARGET_HELP,
+        choices=["main", "chatlog", "dispatch"],
+        required=True,
+        help="The ONE store to roll back (required; no 'all': each store has its own version numbers). "
+        "'main' = core memories DB, 'chatlog' = chatlog memories DB, 'dispatch' = the agent dispatch store.",
     )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     sp.add_argument("--dry-run", action="store_true", help="Print the plan + DDL without reverting anything")

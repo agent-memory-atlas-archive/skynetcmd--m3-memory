@@ -29,6 +29,7 @@ fi
 # Priority:
 #   1. Repo-local venv at $BASE/.venv (dev checkouts)
 #   2. pipx venv for m3-memory:
+#      -. Windows (Git Bash): ~/pipx/venvs/m3-memory, %LOCALAPPDATA%/pipx/pipx/venvs/m3-memory
 #      a. ~/.local/share/pipx/venvs/m3-memory  (pipx >= 1.4, XDG-compliant — Debian 13, Ubuntu 24.04+)
 #      b. ~/.local/pipx/venvs/m3-memory        (pipx < 1.4 — Debian 12, older distros)
 #   3. $PIPX_HOME/venvs/m3-memory if user set a custom pipx home
@@ -41,10 +42,10 @@ m3_usable() {
 # WINDOWS: pythonw.exe BEFORE python.exe at every location.
 # Both are the same interpreter; python.exe is the CONSOLE build, so each
 # invocation from a hook allocates a conhost and FLASHES A WINDOW that steals
-# focus. This wrapper runs up to three interpreters per hook fire (the
-# usable-probe, the envelope parse, and the ingest exec), and the Stop hook
-# fires on every turn - so the console build produced a visible flash every
-# few seconds (observed 2026-09-13).
+# focus. This wrapper runs up to two interpreters per hook fire (the
+# usable-probe and the hook exec), and the Stop hook fires on every turn - so
+# the console build produced a visible flash every few seconds (observed
+# 2026-09-13).
 # The Python hooks already pass CREATE_NO_WINDOW for exactly this reason; a
 # shell script has no such flag, so the fix is choosing the windowless binary.
 # Verified 2026-09-13 that pythonw.exe is correct for all three call shapes
@@ -58,6 +59,10 @@ for _cand in \
     "$BASE/.venv/Scripts/pythonw.exe" \
     "$BASE/.venv/Scripts/python.exe" \
     "$HOME/.local/share/pipx/venvs/m3-memory/bin/python" \
+    "$HOME/pipx/venvs/m3-memory/Scripts/pythonw.exe" \
+    "$HOME/pipx/venvs/m3-memory/Scripts/python.exe" \
+    "${LOCALAPPDATA:+$LOCALAPPDATA/pipx/pipx/venvs/m3-memory/Scripts/pythonw.exe}" \
+    "${LOCALAPPDATA:+$LOCALAPPDATA/pipx/pipx/venvs/m3-memory/Scripts/python.exe}" \
     "$HOME/.local/share/pipx/venvs/m3-memory/Scripts/pythonw.exe" \
     "$HOME/.local/share/pipx/venvs/m3-memory/Scripts/python.exe" \
     "$HOME/.local/pipx/venvs/m3-memory/bin/python" \
@@ -78,46 +83,14 @@ if [ -z "$PY" ]; then
     m3_usable "$PY" || echo "claude_code_precompact: no python with httpx found; trying '$PY' anyway" >&2
 fi
 
-# Read stdin once, then parse all fields in a single python call.
-ENV_JSON=$(cat)
-
-if [ -z "$ENV_JSON" ]; then
-    echo "claude_code_precompact: empty stdin envelope" >&2
+# Hand off to the .py hook (stdin, the host's JSON envelope, is inherited).
+# It owns the success criterion: it parses ingest's result, and on a failure
+# writes ~/.m3/unsaved_chats/<file> with the recovery command, screams on
+# stderr and exits non-zero. Exec'ing chatlog_ingest.py directly left a
+# failed capture with nothing but an exit code nobody read.
+HOOK="$BASE/bin/hooks/chatlog/claude_code_precompact.py"
+if [ ! -f "$HOOK" ]; then
+    echo "claude_code_precompact: hook script missing at $HOOK (reinstall m3-memory)" >&2
     exit 1
 fi
-
-# One python invocation: emit three newline-separated fields.
-# (Field values cannot contain newlines — they're an event name, a UUID, and a file path.)
-FIELDS=$(printf '%s' "$ENV_JSON" | "$PY" -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-except Exception as e:
-    sys.stderr.write('malformed JSON envelope: %s\n' % e)
-    sys.exit(2)
-for k in ('transcript_path', 'session_id', 'hook_event_name'):
-    print(d.get(k, '') or '')
-") || { echo "claude_code_precompact: failed to parse envelope" >&2; exit 1; }
-
-TRANSCRIPT=$(printf '%s' "$FIELDS" | sed -n '1p')
-SESSION_ID=$(printf '%s' "$FIELDS" | sed -n '2p')
-EVENT_NAME=$(printf '%s' "$FIELDS" | sed -n '3p')
-
-if [ -z "$TRANSCRIPT" ]; then
-    echo "claude_code_precompact: envelope missing transcript_path" >&2
-    exit 1
-fi
-
-# Determine variant
-case "$EVENT_NAME" in
-    "PreCompact") VARIANT="pre_compact" ;;
-    "Stop")       VARIANT="stop" ;;
-    *)            VARIANT="claude_code" ;;
-esac
-
-# Exec into ingest
-exec "$PY" "$BASE/bin/chatlog_ingest.py" \
-    --format claude-code \
-    --transcript-path "$TRANSCRIPT" \
-    --session-id "$SESSION_ID" \
-    --variant "$VARIANT"
+exec "$PY" "$HOOK"

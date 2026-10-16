@@ -47,11 +47,24 @@ class TestGenericBridgeRefusesNonSqliteLocal:
     def test_postgres_local_refuses(self, monkeypatch):
         monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "postgres")
         monkeypatch.setattr(sync_all, "_try_pg_fdw_fastpath", lambda dry_run: None)
+        set_secret("M3_CDW_PG_URL", "postgresql://u@wh/warehouse")
         ran = []
         monkeypatch.setattr(sync_all, "run_pg_sync_for_db", lambda db, dry: ran.append(db) or True)
 
         assert sync_all.run_pg_sync(dry_run=False) is False
         assert ran == [], "the generic bridge must not run on a non-SQLite local store"
+
+    def test_postgres_local_without_a_warehouse_dsn_is_a_named_skip(self, monkeypatch):
+        """No warehouse configured on a PG primary: neither success nor failure."""
+        monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "postgres")
+        fast = []
+        monkeypatch.setattr(sync_all, "_try_pg_fdw_fastpath", lambda dry_run: fast.append(1))
+        ran = []
+        monkeypatch.setattr(sync_all, "run_pg_sync_for_db", lambda db, dry: ran.append(db) or True)
+
+        assert sync_all.run_pg_sync(dry_run=False) is None
+        assert ran == [] and fast == []
+        assert any("no warehouse DSN" in r for r in sync_all._SKIP_REASONS), sync_all._SKIP_REASONS
 
     def test_a_future_backend_also_refuses(self, monkeypatch):
         """The check is `!= sqlite`, not `== postgres`.
@@ -79,20 +92,54 @@ class TestGenericBridgeRefusesNonSqliteLocal:
         assert sync_all.run_pg_sync(dry_run=False) is True
         assert ran, "SQLite deployments must still reach the generic bridge"
 
-    def test_backend_probe_failure_defaults_to_sqlite(self, monkeypatch):
-        """An unresolvable seam must not refuse.
+    def test_backend_name_comes_from_the_setting_not_the_backend_object(self, monkeypatch):
+        """PostgreSQL selected but its backend cannot be built (no DSN): still
+        'postgres'. Reading that failure as 'sqlite' ran the SQLite bridge over a
+        stale agent_memory.db and reported success."""
+        from conftest import select_backend
 
-        Defaulting to 'sqlite' keeps the historical shape working when the seam
-        is unavailable (installer bootstrap, partial install) rather than
-        breaking a user whose backend simply could not be read.
-        """
         backends = importlib.import_module("memory.backends")
 
         def _boom():
-            raise RuntimeError("seam unavailable")
+            raise RuntimeError("no primary DSN")
 
         monkeypatch.setattr(backends, "active_backend", _boom)
-        assert sync_all._local_backend_name() == "sqlite"
+        select_backend("postgres")
+        assert sync_all._local_backend_name() == "postgres"
+
+    def test_a_broken_backend_setting_propagates(self, monkeypatch):
+        """A config error is not a backend: it must not become 'sqlite'."""
+        paths = importlib.import_module("m3_core.paths")
+
+        def _bad():
+            raise ValueError("db.backend: 'postgre' is not a known backend")
+
+        monkeypatch.setattr(paths, "resolve_backend_name", _bad)
+        with pytest.raises(ValueError, match="postgre"):
+            sync_all._local_backend_name()
+
+    def test_resolver_failure_fails_the_run_instead_of_guessing(self, monkeypatch, caplog):
+        """No repo-relative fallback: an unresolvable store fails, named."""
+        monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "sqlite")
+        monkeypatch.setattr(sync_all, "_try_pg_fdw_fastpath", lambda dry_run: None)
+
+        def _boom():
+            raise RuntimeError("engine root unreadable")
+
+        monkeypatch.setattr(sync_all, "_resolve_dbs", _boom)
+        ran = []
+        monkeypatch.setattr(sync_all, "run_pg_sync_for_db", lambda db, dry: ran.append(db) or True)
+        with caplog.at_level("ERROR"):
+            assert sync_all.run_pg_sync(dry_run=False) is False
+        assert ran == [] and "engine root unreadable" in caplog.text
+
+    def test_missing_store_is_a_skip_not_a_success(self, tmp_path, caplog):
+        sync_all._SKIP_REASONS.clear()
+        ghost = tmp_path / "agent_memory.db"
+        with caplog.at_level("WARNING"):
+            assert sync_all.run_pg_sync_for_db(ghost, dry_run=False) is None
+        assert sync_all._SKIP_REASONS == [f"{ghost} does not exist on this peer"]
+        assert "SKIPPED" in caplog.text and not ghost.exists()
 
     def test_refusal_names_the_fdw_reason(self, monkeypatch, caplog):
         """On a PG primary this refusal is ALWAYS downstream of an FDW fallback.
@@ -102,6 +149,7 @@ class TestGenericBridgeRefusesNonSqliteLocal:
         """
         monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "postgres")
         monkeypatch.setattr(sync_all, "_try_pg_fdw_fastpath", lambda dry_run: None)
+        set_secret("M3_CDW_PG_URL", "postgresql://u@wh/warehouse")
         sync_all._set_fdw_reason("FDW fast-path unavailable: postgres_fdw not installed")
 
         with caplog.at_level("ERROR"):
@@ -121,9 +169,7 @@ class TestFdwUsesThePrimaryNotTheWarehouse:
 
     def test_missing_primary_dsn_falls_back_rather_than_guessing(self, monkeypatch):
         """No primary DSN must NOT silently fall back to the warehouse DSN."""
-        backends = importlib.import_module("memory.backends")
-
-        monkeypatch.setattr(backends, "active_backend", lambda: type("B", (), {"name": "postgres"})())
+        monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "postgres")
         # No primary DSN is stored (the sandbox's secrets file is empty).
         # A warehouse DSN IS available — the point is that it must not be used
         # as the primary just because it is the only one present.
@@ -137,10 +183,9 @@ class TestFdwUsesThePrimaryNotTheWarehouse:
         Returning None here would fall through to the generic bridge and mask a
         setup error that silently syncs a store with itself; the run must fail.
         """
-        backends = importlib.import_module("memory.backends")
         from memory.backends import postgres_backend as pgb
 
-        monkeypatch.setattr(backends, "active_backend", lambda: type("B", (), {"name": "postgres"})())
+        monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "postgres")
         set_secret("M3_PRIMARY_PG_URL", "postgresql://u@h/same")
         set_secret("M3_CDW_PG_URL", "postgresql://u@h/same")
 

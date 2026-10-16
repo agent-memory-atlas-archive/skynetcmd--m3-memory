@@ -1,0 +1,24 @@
+name: m3
+version: "2026.10.16"
+description: "m3-memory: a local-first memory backend. Hybrid FTS5 + vector recall with MMR, a bitemporal model, contradiction supersession, and async fact extraction from each turn. Runs in-process; memories stay on this machine unless you configure sync."
+author: skynetcmd
+license: Apache-2.0
+homepage: https://github.com/skynetcmd/m3-memory
+# kind=exclusive: a memory provider; Hermes runs one external provider at a time.
+kind: exclusive
+# Hermes 0.22 discovers m3-memory's provider through its
+# hermes_agent.memory_providers entry point, and no longer puts plugins/ on the
+# path (earlier versions shadowed m3's `memory` package).
+requires_hermes: ">=0.22.0"
+# Empty on purpose: m3_profile / m3_search / m3_conclude reach the model through
+# Hermes' memory manager (MemoryProvider.get_tool_schemas), not as plugin tools
+# registered in register(); `hermes plugins validate` checks this list against
+# registrations (mem0 and hindsight declare [] for the same reason).
+provides_tools: []
+# The provider lives in m3-memory; this folder only delegates to it (__init__.py),
+# so installing it installs the provider. The floor is the release that carries
+# this plugin's fixes; raise it with each release that changes the provider.
+python_dependencies:
+  - "m3-memory>=2026.10.16,<2027"
+tags:
+  - memory

@@ -28,11 +28,19 @@ PY="python"
 command -v python >/dev/null 2>&1 || PY="python3"
 
 if [ ! -f bin/check_control_chars.py ]; then
-  # Checker absent (partial checkout / old branch) -- don't block the commit.
-  exit 0
+  # Fail closed: a missing checker must not read as a clean commit.
+  echo "[pre-commit] BLOCKED: control-character checker missing at $ROOT/bin/check_control_chars.py" >&2
+  echo "  Restore it (git checkout -- bin/check_control_chars.py), or on a branch" >&2
+  echo "  that predates it commit with: git commit --no-verify" >&2
+  exit 1
 fi
 
-if ! "$PY" bin/check_control_chars.py --staged; then
+rc=0
+"$PY" bin/check_control_chars.py --staged || rc=$?
+if [ "$rc" -eq 2 ]; then
+  echo "[pre-commit] BLOCKED: the control-character check could not run (see the error above)." >&2
+  exit 1
+elif [ "$rc" -ne 0 ]; then
   echo
   echo "[pre-commit] BLOCKED: stray control characters in staged files."
   echo "  When writing files from PowerShell use a SINGLE-quoted here-string"

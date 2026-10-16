@@ -32,9 +32,8 @@ _SPEC.loader.exec_module(m3u)
 
 @pytest.fixture(autouse=True)
 def _step3_runs_nothing(monkeypatch):
-    """Step 3 captures `m3 stop --quiet`; tests stub `run`, so stub this too."""
-    monkeypatch.setattr(m3u, "run_captured", lambda cmd, **k: "")
-    # Steps 2 and 5 capture their output; route them through whatever `run` a
+    """Steps 2, 3 and 5 capture their output; tests stub `run`, so route these through it."""
+    # Steps 2, 3 and 5 capture their output; route them through whatever `run` a
     # test fakes, so its exit codes (and recorded calls) still apply.
     monkeypatch.setattr(m3u, "run_captured_rc", lambda cmd, **k: (m3u.run(cmd, dry=False, **k), ""))
     # Never ask the real PyPI from a test; tests that need it set their own.
@@ -283,7 +282,7 @@ def test_daemons_are_stopped_AFTER_the_package_is_replaced():
         "and the setup step will not restart it because it looks healthy"
     )
     upgrade_at = src.index("[2/5] upgrading the package")
-    second_stop = src.index("survived on OLD code")
+    second_stop = src.index("[3/5] stopping any daemon that survived on OLD code")
     setup_at = src.index("[4/5] finalizing")
     assert upgrade_at < second_stop < setup_at, (
         "the post-upgrade stop must come AFTER the package is replaced and "
@@ -743,11 +742,88 @@ def test_step_three_is_one_line_when_nothing_survived(tmp_path, monkeypatch, cap
     monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
     monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
     monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
-    monkeypatch.setattr(m3u, "run_captured", lambda cmd, **k: survivor)
+    monkeypatch.setattr(m3u, "run_captured_rc", lambda cmd, **k: (0, survivor if cmd[-1] == "stop" else ""))
     m3u.main(["--yes"])
     out = capsys.readouterr().out
     assert ("[3/5] no daemon survived on old code" in out) is (survivor == "")
     assert ("stopped cognitive-loop (pid 9)" in out) is (survivor != "")
+
+
+def test_step_three_runs_stop_without_quiet(tmp_path, monkeypatch):
+    """--quiet hides daemons that hold no database (the Rust embed server),
+    which are the ones that keep the old binary."""
+    scripts, pkg = _pip_install(tmp_path)
+    monkeypatch.setattr(m3u.shutil, "which", lambda n: str(scripts / "m3.exe"))
+    monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
+    monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
+    monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
+    monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
+    seen: list[list[str]] = []
+    monkeypatch.setattr(m3u, "run_captured_rc", lambda cmd, **k: (seen.append(cmd), (0, ""))[1])
+    m3u.main(["--yes"])
+    stops = [c for c in seen if c[-1] == "stop"]
+    assert stops and all("--quiet" not in c for c in stops)
+
+
+@pytest.mark.parametrize(
+    ("line", "role"),
+    [
+        ("  embed-server (pid 42) left running (it runs as administrator); it holds no data.", "embed-server"),
+        ("  cognitive-loop (pid 7) left running (it is still running); it holds no data.", "cognitive-loop"),
+    ],
+)
+def test_step_three_names_each_survivor_by_role(line, role):
+    out = "\n".join(m3u.step3_report(0, line + "\n[m3] stopped 0/0 writer(s); 1 left running (no database).\n"))
+    assert "no daemon survived" not in out
+    assert f"{role} (pid " in out and "OLD binary" in out
+    assert ("m3 embedder stop" in out) is ("embed" in role)
+    assert ("elevated shell" in out) is ("administrator" in line)
+
+
+def test_step_three_reports_a_failed_stop_never_as_clean():
+    out = "\n".join(m3u.step3_report(1, ""))
+    assert "no daemon survived" not in out
+    assert "exited 1" in out
+
+
+@pytest.mark.parametrize("out", ["", "[m3] nothing to stop — no m3 DB-writers running.\n"])
+def test_step_three_is_clean_only_when_nothing_ran(out):
+    assert m3u.step3_report(0, out) == ["\n[3/5] no daemon survived on old code"]
+
+
+def test_installed_version_picks_the_highest_not_the_string_max(tmp_path, capsys):
+    site = _mk(tmp_path, "site-packages")
+    pkg = _mk(site, "m3_memory")
+    for v in ("2026.9.30.0", "2026.10.1.0"):
+        _mk(site, f"m3_memory-{v}.dist-info")
+    assert m3u.installed_version(pkg) == "2026.10.1.0"
+    assert "2 m3-memory dist-info directories" in capsys.readouterr().out
+
+
+def test_stop_holders_reports_only_what_actually_stopped(monkeypatch, capsys):
+    import psutil
+
+    class _P:
+        def __init__(self, pid):
+            self.pid = pid
+
+        def children(self, recursive=False):
+            return []
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(psutil, "Process", _P)
+    monkeypatch.setattr(psutil, "wait_procs", lambda procs, timeout=None: ([], procs))
+    monkeypatch.setattr(psutil, "pid_exists", lambda pid: pid == 2)
+    assert m3u.stop_holders([1, 2], timeout=0) == [2]
+    out = capsys.readouterr().out
+    assert "stopped m3 in an agent session (pid 1)" in out
+    assert "could NOT stop m3 in an agent session (pid 2)" in out
+    assert "stopped m3 in an agent session (pid 2)" not in out
 
 
 def test_step_headers_name_their_commands_without_echo_lines(tmp_path, monkeypatch, capsys):
@@ -825,7 +901,9 @@ def test_a_plugin_update_is_one_line_and_the_summary_says_restart(tmp_path, monk
         "  [ok] plugin plugin: ✔ m3 is already at the latest version (2026.10.5.0).\n", update
     )
     monkeypatch.setattr(
-        m3u, "run_captured_rc", lambda cmd, **k: (0, doctor if "doctor" in cmd else "upgrading m3-memory...\n")
+        m3u,
+        "run_captured_rc",
+        lambda cmd, **k: (0, doctor if "doctor" in cmd else "" if cmd[-1] == "stop" else "upgrading m3-memory...\n"),
     )
     m3u.main(["--yes"])
     out = capsys.readouterr().out
@@ -842,7 +920,12 @@ def test_step_five_prints_one_line_when_doctor_is_healthy(tmp_path, monkeypatch,
     monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
     monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
     monkeypatch.setattr(
-        m3u, "run_captured_rc", lambda cmd, **k: (0, _HEALTHY_DOCTOR if "doctor" in cmd else "upgrading m3-memory...\n")
+        m3u,
+        "run_captured_rc",
+        lambda cmd, **k: (
+            0,
+            _HEALTHY_DOCTOR if "doctor" in cmd else "" if cmd[-1] == "stop" else "upgrading m3-memory...\n",
+        ),
     )
     m3u.main(["--yes"])
     out = capsys.readouterr().out
@@ -851,3 +934,44 @@ def test_step_five_prints_one_line_when_doctor_is_healthy(tmp_path, monkeypatch,
     assert "upgrading m3-memory..." not in out  # pipx lines only on failure
     assert out.startswith("[detect] pip install")  # one detect line
     assert "evidence" not in out
+
+
+def _unchanged_run(tmp_path, monkeypatch, *, latest, locked_on_retry=False, retry_rc=0, setup_rc=0):
+    """A run whose upgrade leaves the version as it was."""
+    scripts, pkg = _pip_install(tmp_path)
+    monkeypatch.setattr(m3u.shutil, "which", lambda n: str(scripts / "m3.exe"))
+    monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
+    probes = iter([[], []] + ([[scripts / "m3.exe"]] if locked_on_retry else [[]]))
+    monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: next(probes, []))
+    monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
+    monkeypatch.setattr(m3u, "pypi_latest", lambda: latest)
+    monkeypatch.setattr(m3u, "m3_still_installed", lambda py: True)
+    monkeypatch.setattr(m3u, "run", lambda cmd, **k: setup_rc if "setup" in cmd else 0)
+    monkeypatch.setattr(m3u, "run_captured_rc", lambda cmd, **k: (retry_rc if k.get("env") else 0, ""))
+    return m3u.main(["--yes"])
+
+
+def test_unchanged_with_pypi_unreachable_says_so(tmp_path, monkeypatch, capsys):
+    _unchanged_run(tmp_path, monkeypatch, latest=None)
+    out = capsys.readouterr().out
+    assert "could not be asked" in out and "has no newer version" not in out
+
+
+def test_unchanged_when_the_retry_was_skipped_says_so(tmp_path, monkeypatch, capsys):
+    _unchanged_run(tmp_path, monkeypatch, latest="2099.1.1.0", locked_on_retry=True)
+    out = capsys.readouterr().out
+    assert "PyPI has 2099.1.1.0, but the uncached retry was skipped" in out
+    assert "nothing newer to install" not in out
+
+
+def test_unchanged_when_the_retry_failed_names_its_exit_code(tmp_path, monkeypatch, capsys):
+    _unchanged_run(tmp_path, monkeypatch, latest="2099.1.1.0", retry_rc=3)
+    out = capsys.readouterr().out
+    assert "failed (exit 3)" in out and "nothing newer to install" not in out
+
+
+def test_a_failed_setup_does_not_claim_an_upgrade_that_did_not_happen(tmp_path, monkeypatch, capsys):
+    rc = _unchanged_run(tmp_path, monkeypatch, latest="2026.10.4.2", setup_rc=5)
+    out = capsys.readouterr().out
+    assert rc == 5
+    assert "IS upgraded" not in out and "nothing was upgraded" in out

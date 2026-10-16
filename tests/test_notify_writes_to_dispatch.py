@@ -17,6 +17,7 @@ no state behind.
 
 from __future__ import annotations
 
+import importlib
 import os
 import pathlib
 import sqlite3
@@ -51,6 +52,11 @@ class _Store(unittest.TestCase):
 
     def setUp(self):
         self._saved = {k: os.environ.get(k) for k in ("M3_ENGINE_ROOT", "M3_DISPATCH_MODE")}
+        # The main store is a hand-built subset no migration chain produces; a
+        # failed migration now raises, so skip its lazy migration (restored in tearDown).
+        self._mdb = importlib.import_module("memory.db")
+        self._real_ensure = self._mdb._ensure_sync_tables
+        self._mdb._ensure_sync_tables = lambda *a, **k: None
         root = tempfile.mkdtemp(prefix="m3-notify-test-")
         engine = os.path.join(root, "engine")
         os.makedirs(engine, exist_ok=True)
@@ -80,6 +86,7 @@ class _Store(unittest.TestCase):
         pin_database(self.main)
 
     def tearDown(self):
+        self._mdb._ensure_sync_tables = self._real_ensure
         pin_database(None)
         for k, v in self._saved.items():
             if v is None:

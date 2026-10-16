@@ -11,7 +11,7 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import httpx
 from sqlite_pragmas import apply_pragmas, profile_for_db, refresh_schema
@@ -30,7 +30,6 @@ from m3_core.paths import (
     without_active_store,
 )
 from m3_core.runtime import (
-    M3_CORE_RS_DISABLE,
     StructuredLogger,
     load_dotenv,
     logger,
@@ -271,28 +270,11 @@ class M3Context:
             )
 
     def get_system_telemetry(self) -> dict:
-        """Unify system hardware metrics (CPU, RAM, GPU, Thermal status)."""
-        # Try native Rust FFI fast path first
-        if not M3_CORE_RS_DISABLE:
-            try:
-                import m3_core_rs
+        """Unify system hardware metrics (CPU, RAM, GPU, Thermal status).
 
-                if hasattr(m3_core_rs, "get_native_telemetry"):
-                    telemetry = m3_core_rs.get_native_telemetry()
-                    native_gpu = float(getattr(telemetry, "gpu_total", 0.0))
-                    # If the native path reports no GPU (older wheel without GPU
-                    # support), fall back to the nvidia-smi probe so the governor
-                    # still sees a GPU-pinned local LLM / embed server.
-                    gpu_total = native_gpu if native_gpu > 0.0 else probe_gpu_util()
-                    return {
-                        "cpu_total": float(getattr(telemetry, "cpu_total", 0.0)),
-                        "ram_total": float(getattr(telemetry, "ram_total", 0.0)),
-                        "gpu_total": gpu_total,
-                        "thermal": str(getattr(telemetry, "thermal", "Nominal")),
-                    }
-            except Exception:  # noqa: BLE001 — optional Rust telemetry; the Python values stand
-                pass
-
+        Python only: m3_core_rs exports no telemetry or circuit-breaker API, so
+        the native branches that probed for one could never run (removed).
+        """
         try:
             import psutil
         except ImportError:
@@ -345,19 +327,6 @@ class M3Context:
 
     def _check_circuit(self, service: str) -> bool:
         """Checks if the circuit for a specific service is open."""
-        if not M3_CORE_RS_DISABLE:
-            try:
-                import m3_core_rs
-
-                if hasattr(m3_core_rs, "NativeCircuitBreaker"):
-                    state = _CIRCUITS.get(service)
-                    if not state or not hasattr(state, "check"):
-                        state = m3_core_rs.NativeCircuitBreaker(3, 60)
-                        _CIRCUITS[service] = state
-                    return cast("bool", state.check())
-            except Exception:  # noqa: BLE001 — optional Rust circuit breaker; the Python breaker below decides
-                pass
-
         state = _CIRCUITS.get(service)
         if state is None or isinstance(state, dict):
             if not state:
@@ -369,37 +338,9 @@ class M3Context:
         return True
 
     def _record_success(self, service: str):
-        if not M3_CORE_RS_DISABLE:
-            try:
-                import m3_core_rs
-
-                if hasattr(m3_core_rs, "NativeCircuitBreaker"):
-                    state = _CIRCUITS.get(service)
-                    if state and hasattr(state, "record_success"):
-                        state.record_success()
-                        return
-            except Exception:  # noqa: BLE001 — optional Rust circuit breaker; the Python breaker below records
-                pass
-
         _CIRCUITS.pop(service, None)
 
     def _record_failure(self, service: str, custom_cooldown: float | None = None):
-        if not M3_CORE_RS_DISABLE:
-            try:
-                import m3_core_rs
-
-                if hasattr(m3_core_rs, "NativeCircuitBreaker"):
-                    state = _CIRCUITS.get(service)
-                    if not state or not hasattr(state, "check"):
-                        cooldown: float = int(custom_cooldown or _CB_COOLDOWN)
-                        state = m3_core_rs.NativeCircuitBreaker(3, cooldown)
-                        _CIRCUITS[service] = state
-                    if hasattr(state, "record_failure"):
-                        state.record_failure()
-                        return
-            except Exception:  # noqa: BLE001 — optional Rust circuit breaker; the Python breaker below records
-                pass
-
         state = _CIRCUITS.get(service)
         if state is None or not isinstance(state, dict):
             state = {"failures": 0, "open_until": 0}
@@ -524,7 +465,14 @@ class M3Context:
                 "SQLite pool unavailable; observed: _init_sqlite_pool() left "
                 f"no pool for {self.db_path!r}. inspect: the DB path and its directory"
             )
-        conn = pool.get(timeout=10)
+        try:
+            conn = pool.get(timeout=10)
+        except queue.Empty:
+            raise RuntimeError(
+                f"SQLite pool exhausted: observed: no connection to {self.db_path!r} came back within 10s "
+                f"(pool size {pool.maxsize}; every connection is checked out). inspect: a caller holding "
+                "get_sqlite_conn() across a long operation or nesting it; or raise M3_DB_POOL_SIZE"
+            ) from None
         try:
             refresh_schema(conn)
             yield conn
@@ -565,14 +513,14 @@ class M3Context:
         split: a row written that way landed in the wrong file with no error.
         """
         # PG and other server backends: one database, dispatch is a schema.
-        try:
+        # store_is_a_file() owns the question (and its bootstrap fallback); a
+        # backend that cannot be built raises rather than reading as SQLite.
+        from m3_core.paths import store_is_a_file
+
+        if not store_is_a_file():
             from memory.backends import active_backend as _ab
 
-            _backend = _ab()
-        except ImportError:  # no seam yet (bootstrap) => SQLite
-            _backend = None
-        if _backend is not None and _backend.name != "sqlite":
-            with _backend.connection() as conn:
+            with _ab().connection() as conn:
                 # ⚠ BOOTSTRAP HERE TOO. This branch used to yield the connection
                 # untouched, so on PostgreSQL NOTHING ever created the dispatch
                 # schema: memory/dispatch_migrations/postgres/pg_001_bootstrap.up.sql
@@ -585,15 +533,18 @@ class M3Context:
                 yield conn
             return
 
-        try:
-            from m3_core.paths import resolve_dispatch_db
+        from m3_core.paths import resolve_dispatch_db
 
+        try:
             target = resolve_dispatch_db()
-        except Exception:  # noqa: BLE001 -- a broken dispatch config must not
-            # take the caller down; the main store is the safe fallback.
-            with self.get_sqlite_conn() as conn:
-                yield conn
-            return
+        except Exception as e:
+            # Not a fallback to the main store: that wrote dispatch rows into
+            # agent_memory.db silently, where the dispatch reader never looks.
+            raise RuntimeError(
+                f"dispatch store path did not resolve ({type(e).__name__}: {e}); nothing was written. "
+                "inspect: M3_DISPATCH_DB (explicit path), M3_DISPATCH_MODE (integrated|separate), and the "
+                "engine root (m3 doctor)"
+            ) from e
 
         if canonical_path(target) == canonical_path(self.db_path):
             # Integrated mode, or an override pointing at the main file. Reuse
@@ -680,15 +631,15 @@ class M3Context:
             yield from self._chatlog_conn()
 
     def _chatlog_conn(self) -> "Iterator[Any]":
-        # PG: one DB, no file path — route to the active backend pool.
-        try:
+        # PG: one DB, no file path — route to the active backend pool. Through
+        # store_is_a_file(), which falls back only on ImportError: catching any
+        # error here sent a PostgreSQL install without a DSN to local SQLite.
+        from m3_core.paths import store_is_a_file
+
+        if not store_is_a_file():
             from memory.backends import active_backend as _ab
 
-            _backend = _ab()
-        except Exception:
-            _backend = None
-        if _backend is not None and _backend.name != "sqlite":
-            with _backend.connection() as conn:
+            with _ab().connection() as conn:
                 yield conn
             return
 
@@ -700,11 +651,22 @@ class M3Context:
             return
 
         target = chatlog_config.chatlog_db_path()
+        # A separate chatlog FILE gets its schema here, once per path, through
+        # the store-schema owner (memory.db) — not in each integration. Decided
+        # by the topology owner, NOT by comparing with self.db_path: a flush runs
+        # under active_database(<chatlog path>), where this context's main path
+        # IS the chatlog, and that test skipped the schema.
+        if chatlog_config.chatlog_is_separate(target):
+            try:
+                from memory.db import ensure_chatlog_schema
+            except ImportError:  # bootstrap: no memory package, nothing to migrate with
+                pass
+            else:
+                ensure_chatlog_schema(target)
         if canonical_path(target) == canonical_path(self.db_path):
             with self.get_sqlite_conn() as conn:
                 yield conn
             return
-
         with chatlog_config.chatlog_sqlite_conn() as conn:
             yield conn
 
@@ -761,35 +723,45 @@ class M3Context:
             raise RuntimeError("PostgreSQL circuit breaker is open. Failing fast.")
         # Warehouse role: M3_CDW_PG_URL > PG_URL(deprecated). The vault key stays
         # PG_URL for continuity. Does NOT read M3_PG_URL (that is the primary store).
-        from m3_core.secret_store import PgRole, resolve_pg_dsn
+        from m3_core.secret_store import PgRole, explain_pg_dsn
 
-        url = resolve_pg_dsn(PgRole.WAREHOUSE)
+        res = explain_pg_dsn(PgRole.WAREHOUSE)
+        url = res.dsn
         if not url:
+            why = "; ".join(str(e) for e in (res.errors or [])) or "no M3_CDW_PG_URL secret and no legacy PG_URL entry"
             raise RuntimeError(
-                "Data-warehouse DSN not found. Set M3_CDW_PG_URL (or store PG_URL "
-                "in the keychain). NOTE: M3_PG_URL is the PRIMARY-store var and is "
-                "no longer read here. "
-                "observed: M3_CDW_PG_URL unset and no PG_URL in the keychain. inspect: M3_CDW_PG_URL"
+                f"Data-warehouse DSN not found. observed: {why}. fix: m3 secret set M3_CDW_PG_URL. "
+                "NOTE: the primary store's DSN (M3_PRIMARY_PG_URL) is never read here."
             )
+        from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
+
+        # Only the CONNECT is retried. The yield sits outside this loop: inside
+        # it, a caller's own mid-body OperationalError was caught here and the
+        # generator tried to run again ("generator didn't stop after throw()").
+        conn = None
         last_exc = None
         for attempt in range(2):
             try:
-                from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
-
                 conn = pg_connect(url, connect_timeout=10)
                 self._record_success("postgresql")
-                try:
-                    yield conn
-                finally:
-                    conn.close()
-                return
+                break
             except psycopg2.OperationalError as e:
                 last_exc = e
                 self._record_failure("postgresql")
                 if attempt < 1:
                     logger.warning(f"PostgreSQL connect attempt {attempt + 1} failed: {e}. Retrying in 3s...")
                     time.sleep(3)
-        raise RuntimeError(f"PostgreSQL connection failed after 2 attempts: {last_exc}")
+        if conn is None:
+            from m3_core.secret_store import loggable_url
+
+            raise RuntimeError(
+                f"PostgreSQL warehouse connection failed after 2 attempts to {loggable_url(url)} "
+                f"(DSN from {res.source}): {last_exc}"
+            ) from last_exc
+        try:
+            yield conn
+        finally:
+            conn.close()
 
 
 _DISPATCH_PG_READY: set = set()

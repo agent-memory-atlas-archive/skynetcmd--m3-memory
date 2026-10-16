@@ -957,7 +957,8 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
                 type="note", content=f"Consolidation note {i}", title=f"Note {i}", agent_id=CONS_AGENT, embed=False
             )
 
-        cons_res = await memory_consolidate(type_filter="note", agent_filter=CONS_AGENT, threshold=3)
+        # The tool previews by default (dry_run=True); this check needs the write.
+        cons_res = await memory_consolidate(type_filter="note", agent_filter=CONS_AGENT, threshold=3, dry_run=False)
         check("consolidate returns success", "Consolidated 2 note items" in cons_res)
 
         # Verify summary exists

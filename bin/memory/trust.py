@@ -60,7 +60,7 @@ def set_agent_trust(db, agent_id: str, trust_score: float) -> float:
     # Upsert: create a minimal agent row if it doesn't exist yet.
     db.execute(
         f"INSERT INTO agents (agent_id, trust_score, last_seen) VALUES ({_d.placeholder(3)}) "
-        "ON CONFLICT(agent_id) DO UPDATE SET trust_score = excluded.trust_score",
+        f"{_d.on_conflict_update('(agent_id)', ['trust_score'])}",
         (agent_id, value, now),
     )
     return value

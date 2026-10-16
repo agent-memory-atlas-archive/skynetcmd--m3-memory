@@ -1,10 +1,10 @@
 """Token budgeting for the embed pipeline — the single authority on "how long
 is this text, in the units the embedder actually cares about".
 
-Split out per DESIGN_PHILOSOPHIES §2: pure functions over their arguments, no
-module-level MUTABLE state (the constants below are read once from os.environ
-and never reassigned), so this module is safe to unit-test with no database, no
-embedder and no network. Do NOT import `embed` or `chunking` here — both import
+Split out per DESIGN_PHILOSOPHIES §2: pure functions over their arguments (the
+budget settings below are read from the config registry at CALL time; the only
+module state is a once-per-error-type log latch), so this module is safe to
+unit-test with no database, no embedder and no network. Do NOT import `embed` or `chunking` here — both import
 this, and the reverse edge would be a cycle.
 
 WHY THIS MODULE EXISTS
@@ -64,14 +64,19 @@ assumption so the swap fails loudly instead of silently under-estimating.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
+from typing import cast
 
 from m3_core.config import settings as _m3cfg
 
 from . import config
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Budget constants (read-only config: set once at import, never reassigned)
+# Budget settings -- read per call (registry accessor, <1 us). An import-time
+# read froze them, so a daemon never saw a changed setting. The module names
+# are served by __getattr__ below; `from memory.tokens import X` binds the
+# value at the importer's import, so prefer `tokens.X` at the use site.
 # ──────────────────────────────────────────────────────────────────────────────
 # The model's hard ceiling. Rows above this cannot be embedded whole at all.
 # Mirrors M3_EMBED_CTX, which the Rust core reads for the same purpose
@@ -81,7 +86,7 @@ from . import config
 # beyond that you are extrapolating past the model rather than gaining capacity,
 # and KV cost is ~96 KB/token — 16384 takes a 4-stream pool from ~3.0 GB to
 # ~6.0 GB for embeddings that are getting worse, not better.
-TOKEN_CEILING: int = _m3cfg.setting("embed.ctx")
+#   TOKEN_CEILING -> embed.ctx
 
 # The target we chunk to, leaving headroom under the ceiling for:
 #   - anchor augmentation (`[2026-05-16, 2026-Q2] ` prepended at write time;
@@ -89,11 +94,30 @@ TOKEN_CEILING: int = _m3cfg.setting("embed.ctx")
 #     unbounded in principle, which is why the budget is computed on the
 #     POST-augmentation text — see memory/write.py),
 #   - the estimator's own slack on mixed-density content.
-TOKEN_BUDGET: int = _m3cfg.setting("embed.token_budget")
+#   TOKEN_BUDGET -> embed.token_budget
 
 # Overlap between adjacent windows, in tokens. Preserves the legacy ~28%
 # ratio (8000/28000 chars) so retrieval across a chunk seam does not degrade.
-TOKEN_OVERLAP: int = _m3cfg.setting("embed.token_overlap")
+#   TOKEN_OVERLAP -> embed.token_overlap
+_SETTING_KEYS = {
+    "TOKEN_CEILING": "embed.ctx",
+    "TOKEN_BUDGET": "embed.token_budget",
+    "TOKEN_OVERLAP": "embed.token_overlap",
+}
+
+
+def __getattr__(name: str) -> int:
+    try:
+        key = _SETTING_KEYS[name]
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+    return cast("int", _m3cfg.setting(key))
+
+
+logger = logging.getLogger("memory.tokens")
+# Exception types already reported from the Rust tokenizer: a failing core
+# fails on every call, and one WARNING per type says so without flooding.
+_RUST_FAILURES_NOTED: set[str] = set()
 
 # Bytes-per-token divisor for the estimator's byte term. Deliberately 3 (not 4):
 # 4 is the English ratio and under-estimates every denser content type.
@@ -144,7 +168,21 @@ def _rust_count_tokens(texts: Sequence[str]) -> list[int] | None:
         return None
     try:
         counts = rs.count_tokens(list(texts))
-    except Exception:  # noqa: BLE001 — a genuine FFI hiccup falls back to the estimator
+    except Exception as exc:  # noqa: BLE001 — falls back to the estimator; reported once per type
+        kind = type(exc).__name__
+        if kind not in _RUST_FAILURES_NOTED:
+            _RUST_FAILURES_NOTED.add(kind)
+            logger.warning(
+                "Rust tokenizer count_tokens failed (%s: %s) on a batch of %d; token counts fall "
+                "back to the conservative estimator (more, smaller windows). Further %s failures "
+                "log at DEBUG. Check the core with `m3 doctor`.",
+                kind,
+                exc,
+                len(texts),
+                kind,
+            )
+        else:
+            logger.debug("Rust tokenizer count_tokens failed again (%s: %s)", kind, exc)
         return None
     if not isinstance(counts, (list, tuple)) or len(counts) != len(texts):
         return None  # shape mismatch: do not trust a partial answer
@@ -198,4 +236,4 @@ def token_budget(text: str) -> int:
 
 def fits(text: str, limit: int | None = None) -> bool:
     """True if ``text`` is within ``limit`` tokens (default: :data:`TOKEN_BUDGET`)."""
-    return token_budget(text) <= (TOKEN_BUDGET if limit is None else limit)
+    return token_budget(text) <= (_m3cfg.setting("embed.token_budget") if limit is None else limit)

@@ -55,6 +55,11 @@ from typing import override
 
 REPO = Path(__file__).resolve().parent.parent
 SCAN_ROOTS = ("bin", "m3_memory")
+# Root-level files that ship as production code. setup.py stages each into
+# m3_memory/ at build time (a gitignored copy): the source is scanned and the
+# staged copy skipped, so a local build and a clean CI checkout count the same.
+# install_os.py was unscanned until this list existed (2026-10-16).
+ROOT_FILES = ("install_os.py",)
 
 # Modules allowed to touch the environment; paths are repo-relative, POSIX style.
 # The config package reads env in exactly one module, plus the child_env helper.
@@ -102,6 +107,8 @@ OS_NAMES: frozenset[str] = frozenset(
         "GITHUB_TOKEN",
         "HERMES_HOME",
         "OPENCODE_DATA_DIR",
+        # git's own: tests bound repository discovery to their temp dir with it.
+        "GIT_CEILING_DIRECTORIES",
         # The OS's and toolchains' own. Reads only: a
         # write (GGML_LOG_LEVEL, PYTHONUTF8 for children) stays a violation until
         # child_env owns it.
@@ -493,12 +500,15 @@ def _with_owner(f: Finding, lines: list[str]) -> Finding:
 
 
 def _production_files() -> list[Path]:
-    out = []
+    out = [REPO / name for name in ROOT_FILES if (REPO / name).is_file()]
+    staged = {(REPO / "m3_memory" / name).resolve() for name in ROOT_FILES}
     for root in SCAN_ROOTS:
         for p in sorted((REPO / root).rglob("*.py")):
             if "__pycache__" in p.parts or p.name.startswith(("bench_", "benchmark_", "test_")):
                 continue
             if p.resolve() == Path(__file__).resolve():  # the gate's own planted snippets
+                continue
+            if p.resolve() in staged:
                 continue
             out.append(p)
     return out

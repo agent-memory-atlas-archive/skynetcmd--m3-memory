@@ -4,7 +4,7 @@ PydanticAI has no built-in persistent memory; memory is added by injecting a
 service through the agent's dependency system (``deps_type=M3Deps``) and exposing
 tools/history-processors that call it. ``M3Deps`` is that service: a thin,
 tenant-scoped facade over the framework-agnostic ``M3Client`` dispatch core
-(reused from the langchain adapter — Recipe 2, docs/EXTENDING.md).
+(m3_memory.integrations._client, shared by every integration — docs/EXTENDING.md).
 
 Tenancy (§7): m3 has no anonymous/global mode. ``user_id`` is required at
 construction and stamped on every call; a missing tenant fails loud rather than
@@ -57,12 +57,12 @@ class M3Deps:
     def client(self) -> Any:
         """The shared ``M3Client`` (constructed on first use).
 
-        Reuses the langchain adapter's framework-agnostic dispatch core — one
+        The shared integration client (m3_memory.integrations._client) — one
         event-loop thread process-wide, all m3 tools reachable, our agent_id
         stamped on writes.
         """
         if self._client is None:
-            from ..langchain.m3client import M3Client
+            from .._client import M3Client
 
             self._client = M3Client(agent_id=_AGENT_ID, call_timeout=self.call_timeout)
         return self._client

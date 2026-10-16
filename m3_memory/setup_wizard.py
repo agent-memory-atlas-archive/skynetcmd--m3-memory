@@ -581,9 +581,10 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
 
     print()
     print("  FIPS 140-3 cryptography (most people: leave it off):")
-    print("    Turn it on only if a policy or contract requires FIPS-validated")
-    print("    cryptography. 'off' is not less secure: m3 already uses approved")
-    print("    algorithms.")
+    print("    m3 is FIPS 140-3 ready. Turn this on only if a policy or contract")
+    print("    requires FIPS 140-3 cryptography. 'off' is not less secure: m3")
+    print("    already uses approved algorithms. Only 'strict' with the commercial")
+    print("    CMVP-validated module gives a validated deployment.")
     print("    off    = the default.")
     print("    mode   = use wolfCrypt. Needs the open-source wolfSSL library built on")
     print("             this computer (a C compiler and CMake); setup can build it.")
@@ -1178,23 +1179,9 @@ def _runas_kill_windows(pid: int) -> bool:
     called interactively (UAC is a GUI prompt; pointless headless)."""
     # -PassThru + -Wait lets us read the elevated child's ExitCode. taskkill /F /T
     # /PID <pid> is the same command the unprivileged path used, just elevated.
-    ps = (
-        "$p = Start-Process -FilePath taskkill "
-        f"-ArgumentList '/F','/T','/PID','{int(pid)}' "
-        "-Verb RunAs -PassThru -Wait -WindowStyle Hidden; "
-        "exit $p.ExitCode"
-    )
-    try:
-        out = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            timeout=120,
-            check=False,
-            **_hidden_window_kwargs(),
-        )
-        # taskkill exit 0 = killed; 128 = not found (already gone → goal met).
-        return out.returncode in (0, 128)
-    except Exception:  # noqa: BLE001 — UAC cancelled / powershell missing / timeout
-        return False
+    ps = _elevated_ps(f"-FilePath taskkill -ArgumentList '/F','/T','/PID','{int(pid)}'")
+    # taskkill exit 0 = killed; 128 = not found (already gone → goal met).
+    return _run_elevated_ps(ps, timeout=120, what=f"taskkill /PID {int(pid)}", ok=(0, 128)) in (0, 128)
 
 
 def _runas_schedule_repair_windows(script: str) -> bool:
@@ -1211,23 +1198,49 @@ def _runas_schedule_repair_windows(script: str) -> bool:
     # An elevated process starts from the user's environment, not this one's, so
     # the config file it must register tasks with goes as an argument.
     extra = "".join(",'\"{}\"'".format(a.replace("'", "''")) for a in _job_config_args())
-    ps = (
-        "$p = Start-Process -FilePath "
-        f"'{sys.executable}' "
-        f"-ArgumentList '\"{script}\"','--repair'{extra} "
-        "-Verb RunAs -PassThru -Wait; "
+    ps = _elevated_ps(
+        f"-FilePath '{sys.executable}' -ArgumentList '\"{script}\"','--repair'{extra}",
+    )
+    return _run_elevated_ps(ps, timeout=300, what="install_schedules.py --repair") == 0
+
+
+# Exit code the elevation wrapper uses for a cancelled UAC dialog (Windows
+# ERROR_CANCELLED), so "declined" and "ran and failed" are told apart.
+_UAC_CANCELLED_RC = 1223
+
+
+def _elevated_ps(start_args: str) -> str:
+    """PowerShell that runs ``Start-Process <start_args>`` elevated and hidden.
+
+    Hazard: a cancelled UAC makes Start-Process a non-terminating error, $p is
+    null, and `exit $p.ExitCode` exits 0 — a decline read as success. The
+    try/catch turns it into _UAC_CANCELLED_RC. -WindowStyle Hidden: tooling
+    opens no windows."""
+    return (
+        f"try {{ $p = Start-Process {start_args} -Verb RunAs -WindowStyle Hidden "
+        f"-PassThru -Wait -ErrorAction Stop }} catch {{ exit {_UAC_CANCELLED_RC} }}; "
         "exit $p.ExitCode"
     )
+
+
+def _run_elevated_ps(ps: str, *, timeout: int, what: str, ok: tuple[int, ...] = (0,)) -> int | None:
+    """Run an _elevated_ps command and return its exit code (None when it could
+    not be started), saying which failure it was when nonzero."""
     try:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            timeout=300,
+            timeout=timeout,
             check=False,
             **_hidden_window_kwargs(),
         )
-        return out.returncode == 0
-    except Exception:  # noqa: BLE001 — UAC cancelled / powershell missing / timeout
-        return False
+    except Exception as e:  # noqa: BLE001 — powershell missing / timeout
+        _warn(f"  could not run the elevated {what}: {type(e).__name__}: {e}")
+        return None
+    if out.returncode == _UAC_CANCELLED_RC:
+        _warn("  the UAC dialog was cancelled (or could not be shown).")
+    elif out.returncode not in ok:
+        _warn(f"  the elevated {what} ran and exited {out.returncode}.")
+    return int(out.returncode)
 
 
 def _runas_delete_tasks_windows(task_names: list[str]) -> bool:
@@ -1235,26 +1248,39 @@ def _runas_delete_tasks_windows(task_names: list[str]) -> bool:
     Windows. Deleting a scheduled task needs admin, so an unelevated `m3 setup`
     can't remove the legacy governor-eligible tasks and falls back to printing
     the commands. This offers to do it inline via `Start-Process -Verb RunAs`.
-    Returns True iff every delete exited 0. Interactive-only (UAC is a GUI
-    prompt)."""
-    # Build one elevated command that deletes each task; /F force, ignore a
-    # not-found (already gone) as success.
+    Returns True iff every task is GONE afterwards — re-queried, because the
+    elevated shell's exit code is only its LAST delete's, and a task that was
+    already absent counts as removed. Interactive-only (UAC is a GUI prompt)."""
     deletes = "; ".join(f"schtasks /Delete /TN '{n}' /F" for n in task_names)
-    ps = (
-        "$p = Start-Process -FilePath 'powershell' "
-        f"-ArgumentList '-NoProfile','-Command',\"{deletes}\" "
-        "-Verb RunAs -PassThru -Wait; exit $p.ExitCode"
-    )
+    ps = _elevated_ps(f"-FilePath 'powershell' -ArgumentList '-NoProfile','-Command',\"{deletes}\"")
+    rc = _run_elevated_ps(ps, timeout=120, what="schtasks /Delete")
+    if rc is None or rc == _UAC_CANCELLED_RC:
+        return False  # nothing was attempted
+    left = [n for n in task_names if _schtask_exists(n)]
+    if left:
+        _warn(f"  still registered after the elevated delete: {', '.join(left)}")
+    return not left
+
+
+def _schtask_exists(name: str) -> bool:
+    """Does `schtasks /Query /TN name` find the task? An unreadable answer
+    counts as present, so a removal is never claimed on doubt."""
     try:
-        out = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            timeout=120,
+        proc = subprocess.run(
+            ["schtasks", "/Query", "/TN", name],
             check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
             **_hidden_window_kwargs(),
         )
-        return out.returncode == 0
-    except Exception:  # noqa: BLE001 — UAC cancelled / powershell missing / timeout
-        return False
+    except Exception:  # noqa: BLE001 — treated as present (see docstring)
+        return True
+    if proc.returncode == 0:
+        return True
+    # Not-found wording; anything else (access denied) is not evidence of absence.
+    blob = f"{proc.stdout or ''}{proc.stderr or ''}".lower()
+    return not ("cannot find" in blob or "does not exist" in blob)
 
 
 # Privileged steps queued during setup and run under ONE UAC prompt at the end
@@ -1446,8 +1472,10 @@ def _retry_elevated(action, *, what: str, max_attempts: int = 5) -> bool:
         )
         if action():
             return True
-        _why = " (the dialog was declined or missed)" if is_windows() else " (the password was not accepted)"
-        _warn(f"  {what} was cancelled or failed{_why if attempt == 1 else ''}.")
+        # On Windows the action already said whether UAC was cancelled or the
+        # elevated command failed (and with which exit code).
+        _why = "" if is_windows() else " (the password was not accepted, or the command failed)"
+        _warn(f"  {what} did not succeed{_why if attempt == 1 else ''}.")
         if attempt >= max_attempts:
             _warn(f"  giving up after {max_attempts} attempts — run the command above yourself from an admin shell.")
             return False
@@ -1670,9 +1698,8 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     ok = True
     _check_user_services()
 
-    # ── Probe 0: decoupled paths and FIPS configuration ─────────────────
-    if plan.fips_mode:
-        _ok("  strict FIPS 140-3 execution mode: ENABLED")
+    # (The FIPS tier is reported where it is recorded — run_setup, after
+    # _record_settings succeeds — not here, where it is only a plan.)
 
     # ── Probe 1: stale m3_memory/ package shadowing ─────────────────────
     # If another repo (e.g. an old m3-lme-s clone) has a top-level
@@ -2688,13 +2715,14 @@ def _step_install_wolfssl(plan: SetupPlan) -> bool:
     cmd = _m3_cli("fips", "install-wolfssl")
     try:
         _run(cmd, env=_m3_child_env())
-        _ok("wolfSSL installed to ~/.m3/lib — FIPS mode can use it")
+        _ok(f"wolfSSL installed ({_existing_wolfssl() or _roots.lib_root()}) — FIPS mode can use it")
         return True
     except subprocess.CalledProcessError as e:
         _warn(f"wolfSSL build failed (exit {e.returncode}).")
         print("  Install a C toolchain (see docs/FIPS_MODULE_BOUNDARY.md §5), then:")
         print("    m3 fips install-wolfssl")
-        print("    export M3_FIPS_MODE=1   # (and M3_FIPS_STRICT=1 for the validated module)")
+        print("    m3 config set crypto.fips_mode true")
+        print("    (strict, with the commercial validated module: m3 config set crypto.fips_strict true)")
         return False
     except FileNotFoundError:
         _warn("could not invoke the wolfSSL installer; run `m3 fips install-wolfssl` manually.")
@@ -2741,8 +2769,15 @@ def _register_claude_server() -> bool:
     # other agents' memory entries use.
     try:
         env = _canonical_memory_env()
-    except Exception:  # noqa: BLE001 — never block registration on env resolution
-        env = {}
+    except Exception as e:  # noqa: BLE001 — reported; registration refused below
+        # Registering without root pins would let the server resolve different
+        # roots than the hooks (split-brain) — refuse rather than guess.
+        _warn(
+            f"Claude Code: NOT registering the m3 server — its root pins could not be resolved "
+            f"({type(e).__name__}: {e}). Fix the cause (often a malformed m3_config.toml: "
+            "`m3 config show` names it), then re-run `m3 setup`."
+        )
+        return False
     add_cmd = ["claude", "mcp", "add", "--scope", "user"]
     for k, v in env.items():
         add_cmd += ["--env", f"{k}={v}"]
@@ -2770,11 +2805,15 @@ def _register_claude_server() -> bool:
     # Drop the legacy roots-less `memory` entry a prior setup created (migration),
     # then drop any existing `m3_memory` so the re-add REFRESHES the env (root
     # pins) — `claude mcp add` on an existing name is a no-op that would leave a
-    # stale env behind. Both removals are best-effort.
+    # stale env behind. Both removals are best-effort; what they remove is kept
+    # so a failed add can put it back instead of leaving zero m3 servers.
+    prior = _claude_user_servers(("memory", "m3_memory"))
     _claude_mcp_remove("memory")
     _claude_mcp_remove("m3_memory")
 
     reg_ok = _claude_mcp_add(add_cmd)
+    if not reg_ok:
+        _restore_claude_servers(prior, add_cmd)
     if reg_ok:
         # Belt-and-suspenders: the canonical settings writer (via _wire_claude_hooks
         # -> install_claude_settings) normally disables the plugin's memory server,
@@ -2787,6 +2826,9 @@ def _register_claude_server() -> bool:
         # Loud default: the direct server is active; the plugin's server is kept off.
         print()
         _ok("  Claude memory server: mcp__m3_memory__ (direct — low-friction, roots-pinned).")
+        for k in ("M3_ENGINE_ROOT", "M3_CONFIG_ROOT", "M3_MEMORY_ROOT"):
+            if env.get(k):
+                print(f"     {k}={env[k]}")
         print("     The optional m3 plugin (marketplace discovery) ships its own memory")
         print("     server; it is kept DISABLED so you never run two. To switch to the")
         print('     plugin instead, remove "plugin:m3:memory" from disabledMcpServers')
@@ -2810,6 +2852,46 @@ def _claude_registration_current(env: dict[str, str]) -> bool:
         and not entry.get("args")
         and (entry.get("env") or {}) == env
     )
+
+
+def _claude_user_servers(names: tuple[str, ...]) -> dict[str, dict]:
+    """The user-scope ~/.claude.json mcpServers entries named ``names`` (only
+    those present); {} when the file cannot be read."""
+    try:
+        with open(Path(os.path.expanduser("~")) / ".claude.json", encoding="utf-8") as fh:
+            servers = (json.load(fh) or {}).get("mcpServers") or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return {n: servers[n] for n in names if isinstance(servers.get(n), dict)}
+
+
+def _restore_claude_servers(prior: dict[str, dict], add_cmd: list[str]) -> None:
+    """After a failed `claude mcp add`, re-add the entries removed before it.
+    Says plainly when no m3 server is left registered, with the add command."""
+    import shlex
+
+    restored: list[str] = []
+    for name, entry in prior.items():
+        try:
+            proc = subprocess.run(
+                ["claude", "mcp", "add-json", "--scope", "user", name, json.dumps(entry)],
+                check=False,
+                capture_output=True,
+                text=True,
+                **_hidden_window_kwargs(),
+            )
+        except Exception as e:  # noqa: BLE001 — reported below
+            _warn(f"could not restore the previous `{name}` registration: {type(e).__name__}: {e}")
+            continue
+        if proc.returncode == 0:
+            restored.append(name)
+        else:
+            tail = (proc.stderr or proc.stdout or "").strip()
+            _warn(f"could not restore the previous `{name}` registration (exit {proc.returncode}): {tail}")
+    if restored:
+        _warn(f"  restored the previous Claude registration ({', '.join(restored)}); it may carry stale root pins.")
+    else:
+        _warn(f"  NO m3 server is registered in Claude Code now. Register it with:  {shlex.join(add_cmd)}")
 
 
 def _claude_mcp_remove(name: str) -> None:
@@ -2860,45 +2942,47 @@ def _claude_mcp_add(add_cmd: list[str]) -> bool:
     return False
 
 
-# The m3 plugin's MCP server ids to keep disabled when the direct `m3_memory`
-# server is the active default. `memory` is the current plugin server key
-# (mcp__plugin_m3_memory__); `m3` is the pre-rename key an upgrader may still
-# carry. Mirrors generate_configs.install_claude_settings section 4 — kept here
-# as a targeted safety net (disabledMcpServers only, no hook/statusline rewrite).
-_CLAUDE_PLUGIN_SERVER_IDS = ("plugin:m3:memory", "plugin:m3:m3")
+def _disable_claude_plugin_server() -> bool:
+    """Merge the m3 plugin's server ids (m3_core.config.claude_settings, the one
+    owner) into ~/.claude/settings.json disabledMcpServers so only the direct
+    `mcp__m3_memory__` server runs.
 
-
-def _disable_claude_plugin_server() -> None:
-    """Merge the m3 plugin's server ids into ~/.claude/settings.json
-    disabledMcpServers so only the direct `mcp__m3_memory__` server runs.
-
-    A narrow, idempotent JSON merge — never clobbers a user's own disables, never
-    touches any other key, never raises. This is the guaranteed floor under the
-    canonical writer: the direct server must never be registered without the
-    plugin's competing server being turned off in the same setup.
+    A narrow, idempotent JSON merge — never clobbers a user's own disables or
+    touches any other key, keeps the file's key order, backs up before
+    rewriting (GuardedRewrite) and writes atomically. Never raises; a failure is
+    reported with the path and cause and returns False. This is the floor under
+    the canonical writer: the direct server must never be registered without
+    the plugin's competing server being turned off in the same setup.
     """
     settings_path = Path(os.path.expanduser("~")) / ".claude" / "settings.json"
     try:
-        if os.path.isfile(settings_path):
-            with open(settings_path, encoding="utf-8") as fh:
-                live = json.load(fh)
-        else:
-            live = {}
-        if not isinstance(live, dict):
-            return
+        _m3bin.ensure_on_path()
+        from m3_core.atomic_io import GuardedRewrite, atomic_write
+        from m3_core.config.claude_settings import PLUGIN_SERVER_IDS, read_json_object
+
+        live = read_json_object(settings_path)
         disabled = live.get("disabledMcpServers")
         if not isinstance(disabled, list):
             disabled = []
-        added = [pid for pid in _CLAUDE_PLUGIN_SERVER_IDS if pid not in disabled]
+        added = [pid for pid in PLUGIN_SERVER_IDS if pid not in disabled]
         if not added:
-            return  # already disabled — nothing to write
+            return True  # already disabled — nothing to write
         disabled.extend(added)
         live["disabledMcpServers"] = disabled
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(settings_path, "w", encoding="utf-8") as fh:
-            json.dump(live, fh, indent=2, sort_keys=True)
-    except Exception:  # noqa: BLE001 — the disable is a safety net, never fatal
-        pass
+        text = json.dumps(live, indent=2) + "\n"
+        if os.path.isfile(settings_path):
+            GuardedRewrite(settings_path, by="m3 setup (disable plugin server)").write(text)
+        else:
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write(settings_path, text)
+        return True
+    except Exception as e:  # noqa: BLE001 — reported, never fatal to setup
+        _warn(
+            f"could not disable the m3 plugin's server in {settings_path}: {type(e).__name__}: {e}. "
+            "If the plugin is installed, two m3 servers may run; `m3 doctor` reports it and "
+            "`m3 doctor --fix --fix-hooks` converges to one."
+        )
+        return False
 
 
 def _wire_claude_hooks(capture_mode: str) -> bool:
@@ -2947,15 +3031,26 @@ def _wire_claude_hooks(capture_mode: str) -> bool:
         return False
 
 
+def _report_registration(msg: str | None) -> bool:
+    """Show an installer registrar's status line; False when it is a "[!]"
+    warning or "[X]" failure (unreadable file, failed write) — that host is
+    NOT wired."""
+    if not msg:
+        return True
+    if msg.startswith(("[!]", "[X]")):
+        _warn(f"  {msg[3:].strip()}")
+        return False
+    _say(f"  · {msg.lstrip('[+=]').strip()}")
+    return True
+
+
 def _wire_gemini() -> bool:
     """Write the m3 MCP entry into ~/.gemini/settings.json. Reuses the
     installer's helper so the wizard never reimplements JSON-merge semantics."""
     from m3_memory.installer import _register_gemini_mcp
 
     msg = _register_gemini_mcp()
-    if msg:
-        _say(f"  · {msg.lstrip('[+=!]').strip()}")
-    return True
+    return _report_registration(msg)
 
 
 def _opencode_entry_is_stale(entry: object) -> bool:
@@ -3069,9 +3164,7 @@ def _wire_antigravity() -> bool:
     from m3_memory.installer import _register_antigravity_mcp
 
     msg = _register_antigravity_mcp()
-    if msg:
-        _say(f"  · {msg.lstrip('[+=!]').strip()}")
-    return True
+    return _report_registration(msg)
 
 
 def _wire_cursor() -> bool:
@@ -3079,9 +3172,7 @@ def _wire_cursor() -> bool:
     from m3_memory.installer import _register_cursor_mcp
 
     msg = _register_cursor_mcp()
-    if msg:
-        _say(f"  · {msg.lstrip('[+=!]').strip()}")
-    return True
+    return _report_registration(msg)
 
 
 def _wire_cline() -> bool:
@@ -3089,9 +3180,7 @@ def _wire_cline() -> bool:
     from m3_memory.installer import _register_cline_mcp
 
     msg = _register_cline_mcp()
-    if msg:
-        _say(f"  · {msg.lstrip('[+=!]').strip()}")
-    return True
+    return _report_registration(msg)
 
 
 # OpenClaw shipped a NATIVE MCP client in 2026.3.22. Bisected against upstream
@@ -3379,9 +3468,16 @@ def _openclaw_entry_current(spec: dict) -> bool:
     return servers.get(_OPENCLAW_SERVER_NAME) == spec
 
 
-# Files copied into the user's hermes-agent plugin dir. README/test stay behind
-# in the vendored source — they're dev artifacts, not part of the live plugin.
-_HERMES_PLUGIN_FILES = ("__init__.py", "m3client.py", "plugin.yaml")
+# Files copied into the user's hermes-agent plugin dir. __init__.py is the
+# delegating stub (integrations/hermes/folder_plugin/), not the provider source:
+# Hermes ranks a plugin folder above the entry point, so a full copy would shadow
+# the installed provider and go stale on every m3 upgrade.
+_HERMES_PLUGIN_FILES = ("__init__.py", "plugin.yaml")
+
+
+def _hermes_plugin_file(src: Path, fname: str) -> Path:
+    """Where the wizard copies ``fname`` from: the stub plugin folder."""
+    return src / "folder_plugin" / fname
 
 
 def _hermes_plugin_is_current(src: Path, dst: Path) -> bool:
@@ -3394,7 +3490,7 @@ def _hermes_plugin_is_current(src: Path, dst: Path) -> bool:
     one, rather than prompt.
     """
     for fname in _HERMES_PLUGIN_FILES:
-        s, d = src / fname, dst / fname
+        s, d = _hermes_plugin_file(src, fname), dst / fname
         if not os.path.isfile(d):
             return False
         try:
@@ -3450,7 +3546,7 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
     try:
         dst.mkdir(parents=True, exist_ok=True)
         for fname in _HERMES_PLUGIN_FILES:
-            _shutil.copy2(src / fname, dst / fname)
+            _shutil.copy2(_hermes_plugin_file(src, fname), dst / fname)
     except OSError as e:
         _warn(f"  · Hermes: copy failed ({e}) — skipping")
         return False
@@ -3458,8 +3554,10 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
     verb = "updated" if existed else "installed"
     _say(f"  · Hermes: m3 SOTA provider {verb} at {dst}" + (" (previous backed up to m3.m3bak)" if existed else ""))
     print("    To complete configuration:")
-    print("    1. Add m3-memory's bin/ to PYTHONPATH in Hermes' launch environment.")
-    print("    2. Enable and select 'm3' inside `hermes plugins` to replace/run alongside default memory.")
+    print("    1. Install m3-memory into Hermes' own Python (3.12+):")
+    print('         "<hermes-agent>/venv/<bin|Scripts>/python" -m pip install m3-memory')
+    print("    2. Select it: `hermes memory setup` and choose m3 (or set memory.provider: m3).")
+    print("    3. Check: `hermes memory status`.")
     try:
         from pathlib import Path as _Path
 
@@ -4460,6 +4558,10 @@ def run_setup(args: argparse.Namespace) -> int:
             from m3_core.config.settings import set_from_cli
 
             set_from_cli(fips)
+            if plan.fips_strict:
+                _ok("  FIPS: strict recorded — m3 starts only with the CMVP-validated wolfCrypt module")
+            else:
+                _ok("  FIPS: mode recorded — m3's cryptography runs through wolfCrypt (FIPS 140-3 ready)")
         else:
             _warn("FIPS mode not turned on: wolfSSL is not present, so enabling it would fail closed.")
             _warn("Install wolfSSL (`m3 fips install-wolfssl`), then: m3 config set crypto.fips_mode true")

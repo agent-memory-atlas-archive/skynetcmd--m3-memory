@@ -25,10 +25,10 @@
 **A:** No — m3 already gives you verbatim recall. Content is stored exactly as you wrote it and is **never altered in place**; the raw text is always retrievable byte-for-byte. When a fact is corrected, m3 doesn't overwrite the old one — it *closes* the old fact and links the new one, so the original wording stays queryable (via the `memory_history` tool, or an `as_of` point-in-time search) alongside the update. A verbatim-only store returns raw text too, but the moment a fact changes it loses the earlier version. m3 gives you exact recall **and** the full history of how a fact evolved — plus extraction and contradiction handling a plain verbatim store can't do.
 
 ### Q: Is m3 right for my project? When is a simpler approach better?
-**A:** Be honest with yourself about the need. Persistent, evolving memory earns its keep when users (or agents) interact **repeatedly over time** and benefit from accumulated context — long-running autonomous agents, coding assistants that improve across sessions, personal/research assistants, multi-session workflows. If your need is really just **conversation history + RAG over a knowledge base + a small structured user profile**, that combination is simpler to build, test, and operate, and you may not need a memory framework at all. m3 doesn't punish you for starting small, though: you can run it as a plain store (disable enrichment/extraction — see below) and turn on the higher-order features only when you need them.
+**A:** Be honest with yourself about the need. Persistent, evolving memory earns its keep when users (or agents) interact **repeatedly over time** and benefit from accumulated context — long-running autonomous agents, coding assistants that improve across sessions, personal/research assistants, multi-session workflows. If your need is really just **conversation history + RAG over a knowledge base + a small structured user profile**, that combination is simpler to build, test, and operate, and you may not need a dedicated memory backend at all. m3 doesn't punish you for starting small, though: you can run it as a plain store (disable enrichment/extraction — see below) and turn on the higher-order features only when you need them.
 
 ### Q: What should I check before adopting m3? (evaluation checklist)
-**A:** Here are the standard "should I adopt this memory framework?" questions with m3's honest answers:
+**A:** Here are the standard "should I adopt this memory backend?" questions with m3's honest answers:
 
 | Question | m3's answer |
 |---|---|

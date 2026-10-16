@@ -742,16 +742,23 @@ def set_halt(owner: str, reason: str, engine_root: str | None = None, targets: s
             f"m3_halt.set_halt: only targets={_TARGET_ALL!r} is supported "
             f"(per-role HALT is an unshipped extension point); got {targets!r}"
         )
+    from m3_core.atomic_io import atomic_write
+    from m3_core.runtime import utc_iso
+
     path = _halt_path(engine_root)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "owner_pid": os.getpid(),
+        # Recorded so a reader can tell the owner from a later process that
+        # reused its pid (a reused pid would otherwise hold the halt forever).
+        "owner_create_time": _proc_create_time(os.getpid()),
         "owner": owner,
         "reason": reason,
-        "created_at": iso_local_timestamp(),
+        "created_at": utc_iso(),
         "protocol": PROTOCOL_VERSION,
     }
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    # Atomic: a reader polling every 2 s must never see a half-written file.
+    atomic_write(path, json.dumps(payload))
     return path
 
 
@@ -766,10 +773,15 @@ def clear_halt(engine_root: str | None = None) -> None:
 def halt_is_active(engine_root: str | None = None, role: str | None = None) -> bool:
     """True if writers of ``role`` should pause right now.
 
-    Honors ONLY a semaphore whose owner is still alive: a HALT_m3 left by a
-    crashed exclusive-op author self-voids (and is reaped) so it can never freeze
-    writers forever. A malformed file is warned about and treated as ABSENT —
-    a corrupt semaphore must neither silently pause nor silently un-pause (§3).
+    Honors ONLY a semaphore whose owner is still alive — the same process, by
+    pid AND recorded create time, so a reused pid cannot hold it: a HALT_m3 left
+    by a crashed exclusive-op author self-voids (and is reaped) so it can never
+    freeze writers forever.
+
+    A file that exists but cannot be read or parsed is treated as ACTIVE, with a
+    WARNING naming the path (once per file version): the safe failure is a
+    paused writer, not one that resumes into a migration (torn WAL). set_halt
+    writes atomically, so a partial file is not a write in progress.
 
     ``role`` is accepted for the per-role extension point; today every role gates
     only on the master switch.
@@ -780,20 +792,45 @@ def halt_is_active(engine_root: str | None = None, role: str | None = None) -> b
     except FileNotFoundError:
         return False
     except OSError as e:
-        logger.warning("m3_halt: could not read HALT_m3 (%s) — treating as inactive", e)
-        return False
+        _warn_unusable_halt(path, f"unreadable ({type(e).__name__}: {e})")
+        return True
     try:
         data = json.loads(raw)
         owner_pid = int(data["owner_pid"])
-    except (ValueError, KeyError, json.JSONDecodeError):
-        logger.warning("m3_halt: malformed HALT_m3 — treating as inactive")
-        return False
-    if not _pid_is_alive(owner_pid):
-        # Owner is gone → self-void → reap so the next reader is clean.
-        logger.info("m3_halt: HALT_m3 owner pid=%s is dead — voiding stale halt", owner_pid)
+        ct = data.get("owner_create_time")
+        owner_ct = float(ct) if ct is not None else None
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
+        _warn_unusable_halt(path, f"malformed ({type(e).__name__}: {e})")
+        return True
+    if not _pid_is_live_owner(owner_pid, owner_ct):
+        # Owner is gone (or its pid now belongs to another process) → self-void
+        # → reap so the next reader is clean.
+        logger.info("m3_halt: HALT_m3 owner pid=%s is no longer running — voiding stale halt", owner_pid)
         _reap(path)
         return False
     return True
+
+
+# (path, mtime_ns, size) of HALT files already warned about: writers poll every
+# 2 s, and one warning per file version is enough.
+_UNUSABLE_HALT_WARNED: set[tuple[str, int, int]] = set()
+
+
+def _warn_unusable_halt(path: Path, why: str) -> None:
+    try:
+        st = path.stat()
+        key = (str(path), st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = (str(path), 0, 0)
+    if key in _UNUSABLE_HALT_WARNED:
+        return
+    _UNUSABLE_HALT_WARNED.add(key)
+    logger.warning(
+        "m3_halt: HALT_m3 at %s is %s — treating the halt as ACTIVE, so m3 DB-writers stay paused. "
+        "If no install, upgrade or migration is running, delete that file to resume them.",
+        path,
+        why,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────

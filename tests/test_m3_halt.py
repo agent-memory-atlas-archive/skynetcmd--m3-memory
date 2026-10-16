@@ -1,7 +1,8 @@
 """Tests for the cooperative quiesce protocol (bin/m3_halt.py).
 
 Covers the PID registry (register / list / stale-reap), the HALT_m3 semaphore
-(active-while-owner-alive, self-void on dead owner, malformed→inactive), and
+(active-while-owner-alive, self-void on dead or pid-reused owner,
+unreadable/malformed→active), and
 wait_for_quiesce's empty-registry invariant. Filesystem-isolated via tmp_path;
 never spawns real processes — a "dead" PID is a forged high number that isn't
 running.
@@ -110,11 +111,60 @@ def test_halt_self_voids_on_dead_owner(root):
     assert not halt.exists()  # voided + reaped
 
 
-def test_halt_malformed_is_inactive(root):
+def test_halt_malformed_is_active_and_warns_once(root, caplog):
+    """A corrupt semaphore keeps writers paused (resuming into a migration tears
+    the WAL) and says which file to delete, once per file version."""
     halt = Path(root) / ".internal" / "HALT_m3"
     halt.parent.mkdir(parents=True)
     halt.write_text("{broken", encoding="utf-8")
+    with caplog.at_level("WARNING", logger="m3_halt"):
+        assert m3_halt.halt_is_active(engine_root=root) is True
+        assert m3_halt.halt_is_active(engine_root=root) is True
+    hits = [r for r in caplog.records if "HALT_m3 at" in r.getMessage()]
+    assert len(hits) == 1
+    assert str(halt) in hits[0].getMessage() and "malformed" in hits[0].getMessage()
+    assert halt.exists(), "a malformed halt must not be reaped"
+
+
+def test_halt_unreadable_is_active(root, monkeypatch):
+    halt = Path(root) / ".internal" / "HALT_m3"
+    halt.parent.mkdir(parents=True)
+    halt.write_text("{}", encoding="utf-8")
+    real = Path.read_text
+
+    def _deny(self, *a, **k):
+        if self == halt:
+            raise PermissionError(13, "denied")
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(Path, "read_text", _deny)
+    assert m3_halt.halt_is_active(engine_root=root) is True
+
+
+def test_halt_owned_by_a_reused_pid_self_voids(root, monkeypatch):
+    """The owner pid is alive, but it is a different process (create time does
+    not match the one recorded): the halt is stale and must be voided."""
+    m3_halt.set_halt("installer", "migration", engine_root=root)
+    halt = Path(root) / ".internal" / "HALT_m3"
+    data = json.loads(halt.read_text(encoding="utf-8"))
+    assert data["owner_create_time"] is not None
+    assert data["created_at"].endswith("Z"), "HALT created_at must be ISO-8601 UTC"
+    data["owner_create_time"] = float(data["owner_create_time"]) - 3600.0
+    halt.write_text(json.dumps(data), encoding="utf-8")
     assert m3_halt.halt_is_active(engine_root=root) is False
+    assert not halt.exists()
+
+
+def test_set_halt_writes_atomically(root, monkeypatch):
+    """set_halt goes through the atomic writer, so a polling reader never sees
+    a half-written file."""
+    calls = []
+    import m3_core.atomic_io as aio
+
+    real = aio.atomic_write
+    monkeypatch.setattr(aio, "atomic_write", lambda p, d, **k: (calls.append(str(p)), real(p, d, **k)))
+    m3_halt.set_halt("installer", "x", engine_root=root)
+    assert calls == [str(Path(root) / ".internal" / "HALT_m3")]
 
 
 def test_clear_halt_is_idempotent(root):

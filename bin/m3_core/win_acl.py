@@ -174,3 +174,14 @@ def probe_new_file(directory: str | os.PathLike[str]) -> Iterator[str]:
 def file_foreign_principals(path: str) -> list[str]:
     """Who besides the trusted set can open ``path``; [] means private."""
     return foreign_principals(file_sddl(path), current_user_sid())
+
+
+def icacls_user_only(path: str | os.PathLike[str], *, directory: bool = False) -> str:
+    """THE command m3 tells a user to run to make ``path`` user-only. The user is
+    spelled out: ``%USERNAME%`` expands in cmd.exe only and stays literal in
+    PowerShell, granting a principal that does not exist. A directory's grants
+    inherit to new files ((OI)(CI))."""
+    import getpass
+
+    rights = "(OI)(CI)F" if directory else "F"
+    return f'icacls "{path}" /inheritance:r /grant:r "{getpass.getuser()}:{rights}" /grant:r "SYSTEM:{rights}"'

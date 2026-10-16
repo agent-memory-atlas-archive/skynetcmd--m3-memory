@@ -73,6 +73,7 @@ import mcp_tool_catalog
 import memory_core
 import tool_domains
 import tool_loader
+from m3_core.caller import as_caller
 from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
@@ -206,13 +207,16 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     # mcp_tool_catalog._inject_database_arg); pop_call_scope pops them before
     # validators/impl run and returns the scope the impl runs inside.
     if spec.is_async or _offload_sync:
-        # The MCP path, async or sync impl alike: the same routing, timeout and
-        # execution as catalog.dispatch.execute_tool (m3_call, the CLI). Before,
-        # these wrappers popped `timeout` and ran the impl UNBOUNDED, so the
-        # advertised argument was ignored over MCP only. _run_impl_bounded runs a
-        # sync impl through asyncio.to_thread, off the event loop, and to_thread
-        # copies the context: the call scope entered here (store / database)
-        # reaches the worker thread.
+        # The MCP path, async or sync impl alike: execute_tool's routing, timeout
+        # and bounded execution (_run_impl_bounded runs a sync impl through
+        # asyncio.to_thread, which copies the context, so the call scope and the
+        # caller reach the worker thread). Two deliberate differences:
+        #  - the generated signature already admits only declared parameters (plus
+        #    the injected database/store), so no allowed-keys filter is needed;
+        #  - this stdio server has NO authenticated caller, so inject_agent_id is
+        #    not applied (execute_tool would blank a caller-supplied agent_id) and
+        #    the read-access log records the caller's CLAIMED agent_id, or
+        #    "mcp-unauthenticated" -- never "direct", which means "not a tool call".
         async def _wrapper(args):
             args.pop("__class__", None)  # locals() may include this in some Python versions
             try:
@@ -224,7 +228,7 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
             if err:
                 return err
             try:
-                with scope:
+                with scope, as_caller(str(args.get("agent_id") or "") or "mcp-unauthenticated"):
                     result = await mcp_tool_catalog._run_impl_bounded(spec, args, timeout)
                 return result if isinstance(result, str) else str(result)
             except Exception as e:

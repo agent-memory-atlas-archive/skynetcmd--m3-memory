@@ -2,7 +2,7 @@
 
 Provides:
 - Async write queue (asyncio.Queue) with flush-on-size/interval
-- Spill-to-disk backpressure at memory/chatlog_spill/YYYYMMDD.jsonl
+- Spill-to-disk backpressure at <engine root>/chatlog_spill/YYYYMMDD.jsonl (chatlog_config.spill_dir())
 - chatlog_write_impl / chatlog_write_bulk_impl — enqueue + flush
 - chatlog_search_impl — FTS5 + facet filters over chat_log rows
 - chatlog_promote_impl — ATTACH DATABASE cross-DB copy (separate/hybrid) or UPDATE (integrated)
@@ -33,7 +33,6 @@ from typing import Any
 
 import chatlog_config
 import chatlog_redaction
-from m3_core.seams import is_windows
 from memory_core import _sanitize_fts
 
 logger = logging.getLogger("chatlog_core")
@@ -298,15 +297,35 @@ async def _flush_loop() -> None:
                 await _flush_once()
                 _LAST_FLUSH_TS = time.time()
         except asyncio.CancelledError:
-            # Drain everything on shutdown
-            try:
-                if _QUEUE is not None and _QUEUE.qsize() > 0:
-                    await _flush_once()
-            except Exception as e:
-                logger.warning(f"Final flush on shutdown failed: {e}")
+            await _drain_all("flush loop cancelled")
             raise
         except Exception as e:
             logger.exception(f"flush loop error: {e}")
+
+
+async def _drain_all(reason: str) -> None:
+    """Flush until the queue is empty or a pass makes no progress (shutdown).
+
+    One _flush_once moves at most queue_flush_rows; a single pass at shutdown
+    left the rest queued in memory, gone with the process.
+    """
+    q = _QUEUE
+    try:
+        while q is not None and q.qsize() > 0:
+            before = q.qsize()
+            await _flush_once()
+            if q.qsize() >= before:
+                break
+    except Exception as e:  # noqa: BLE001 — reported with what is left below
+        logger.error(f"chatlog shutdown drain ({reason}) failed: {type(e).__name__}: {e}")
+    left = q.qsize() if q is not None else 0
+    if left:
+        logger.error(
+            f"chatlog shutdown ({reason}): {left} queued row(s) could not be written or "
+            f"spilled and are lost with this process. observed: no progress on the last "
+            f"flush pass. inspect: chatlog DB {chatlog_config.chatlog_db_path()}, spill dir "
+            f"{chatlog_config.spill_dir()} (disk full / permissions), then `m3 chatlog doctor`"
+        )
 
 
 async def _flush_once() -> int:
@@ -329,9 +348,6 @@ async def _flush_once() -> int:
     # Run SQLite insert off the event loop
     try:
         written = await asyncio.to_thread(_executemany_insert, batch)
-        _WROTE_COUNT += written
-        _update_state_after_flush(q.qsize(), written)
-        return written
     except Exception as e:
         logger.error(f"Flush failed, spilling {len(batch)} rows: {e}")
         # The batch was already dequeued via get_nowait(); if the spill ALSO fails
@@ -353,6 +369,18 @@ async def _flush_once() -> int:
                 except asyncio.QueueFull:
                     logger.error(f"Re-enqueue dropped chatlog row id={it.get('_id')}: queue full — this row is LOST.")
         return 0
+    # The rows are COMMITTED. A state-file failure past this point must not be
+    # mistaken for a write failure: spilling here re-inserts committed rows.
+    _WROTE_COUNT += written
+    try:
+        await asyncio.to_thread(_update_state_after_flush, q.qsize(), written)
+    except Exception as e:  # noqa: BLE001 — bookkeeping only; the rows landed
+        logger.warning(
+            f"chatlog: {written} row(s) committed, but the state file "
+            f"{chatlog_config.STATE_FILE} was not updated ({type(e).__name__}: {e}); "
+            "status may show a stale last_write_at until the next flush"
+        )
+    return written
 
 
 # The columns that make up a chat_log row, in the order the canonical writer
@@ -422,8 +450,12 @@ def _assert_promotable(conn, dialect_, table: str) -> None:
         )
 
 
-def _executemany_insert(batch: list[dict]) -> int:
+def _executemany_insert(batch: list[dict], *, ignore_conflicts: bool = False) -> int:
     """Synchronous bulk INSERT into chatlog DBs. Called from executor thread.
+
+    ``ignore_conflicts`` (spill drain): skip a row whose id already exists. A
+    drain that committed and then died before removing its file retries the
+    same ids; a plain INSERT then fails on the primary key forever.
 
     Items carry their target DB path (``_db_path``) captured at enqueue time.
     A single batch can contain items routed to different DBs when callers pass
@@ -441,7 +473,11 @@ def _executemany_insert(batch: list[dict]) -> int:
     _T = chatlog_table("items")
     # Column list and placeholder count both derive from _ROW_COLUMNS, so they
     # cannot drift apart from each other or from the promote paths.
-    sql = f"INSERT INTO {_T} ({', '.join(_ROW_COLUMNS)}) VALUES ({_d.placeholder(len(_ROW_COLUMNS))})"
+    _cols = f"{_T} ({', '.join(_ROW_COLUMNS)}) VALUES ({_d.placeholder(len(_ROW_COLUMNS))})"
+    if ignore_conflicts:
+        sql = f"{_d.insert_or_ignore()} {_cols} {_d.on_conflict_ignore(conflict_target='(id)')}".rstrip()
+    else:
+        sql = f"INSERT INTO {_cols}"
 
     groups: dict[str, list[tuple]] = {}
     for item in batch:
@@ -505,59 +541,83 @@ def _executemany_insert(batch: list[dict]) -> int:
 
 
 def _spill_batch(batch: list[dict]) -> None:
-    """Dump pending rows to memory/chatlog_spill/YYYYMMDD.jsonl. Sweeper picks up."""
-    os.makedirs(chatlog_config.SPILL_DIR, exist_ok=True)
+    """Append pending rows to <spill_dir>/YYYYMMDD.jsonl; the drain picks them up.
+
+    Raises if the rows did not reach disk. The append holds the spill lock so a
+    drain's claim-by-rename can never take the file between our open and our
+    last write (a line appended after the drain read it was deleted unread).
+    """
+    spill_dir = chatlog_config.spill_dir()
+    os.makedirs(spill_dir, exist_ok=True)
     day = datetime.now(UTC).strftime("%Y%m%d")
-    path = os.path.join(chatlog_config.SPILL_DIR, f"{day}.jsonl")
-    with open(path, "a", encoding="utf-8") as f:
-        f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in batch)
-    _update_state_spill()
+    path = os.path.join(spill_dir, f"{day}.jsonl")
+    with chatlog_config.locked(chatlog_config.spill_lock_path(), purpose="chatlog spill"):
+        with open(path, "a", encoding="utf-8") as f:
+            f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in batch)
+    # The rows are on disk. A state-file failure must not read as a spill
+    # failure: the caller would re-enqueue rows that are already spilled.
+    try:
+        _update_state_spill()
+    except Exception as e:  # noqa: BLE001 — bookkeeping only
+        logger.warning(
+            f"chatlog: spilled {len(batch)} row(s) to {path}, but the state file "
+            f"{chatlog_config.STATE_FILE} was not updated ({type(e).__name__}: {e})"
+        )
 
 
 def _update_state_after_flush(queue_depth: int, written: int) -> None:
-    """Atomic-rename the state file after a successful flush."""
-    state = _read_state()
-    state["queue_depth"] = queue_depth
-    state["last_flush_at"] = _utcnow_iso()
-    state["last_write_at"] = _utcnow_iso()
-    state["total_written"] = int(state.get("total_written", 0)) + written
-    _write_state(state)
+    """Locked update of the state file after a successful flush."""
+
+    def _mutate(state: dict) -> None:
+        now = _utcnow_iso()
+        state["queue_depth"] = queue_depth
+        state["last_flush_at"] = now
+        state["last_write_at"] = now
+        state["total_written"] = int(state.get("total_written", 0)) + written
+
+    chatlog_config.update_state(_mutate)
 
 
 def _update_state_spill() -> None:
-    state = _read_state()
-    # Recompute spill bytes
-    total = 0
-    oldest_mtime = None
-    if os.path.isdir(chatlog_config.SPILL_DIR):
-        for fn in os.listdir(chatlog_config.SPILL_DIR):
-            fp = os.path.join(chatlog_config.SPILL_DIR, fn)
-            if os.path.isfile(fp):
-                total += os.path.getsize(fp)
-                mt = os.path.getmtime(fp)
-                if oldest_mtime is None or mt < oldest_mtime:
-                    oldest_mtime = mt
-    state["spill"] = {
-        "bytes": total,
-        "oldest_ms_ago": int((time.time() - oldest_mtime) * 1000) if oldest_mtime else None,
-    }
-    _write_state(state)
+    chatlog_config.record_spill_state()
 
 
-def _read_state() -> dict:
+_REDACTION_ERRORS_SEEN: list[str] | None = None
+
+
+def _sync_redaction_errors() -> None:
+    """Persist the redaction compile errors to state["redaction"]["regex_errors"]
+    (what status reads) when they change, and log them once per change.
+
+    Called after a scrub. A pattern that fails to compile is skipped, so turns
+    it was meant to cover are stored unredacted; without this the only trace
+    was an in-process list nobody reads.
+    """
+    global _REDACTION_ERRORS_SEEN
+    errors = chatlog_redaction.get_compile_errors()
+    if errors == _REDACTION_ERRORS_SEEN:
+        return
+    if errors:
+        logger.error(
+            f"chatlog redaction: {len(errors)} pattern(s) failed to compile and are "
+            f"NOT applied: {errors[:3]}. fix: m3 chat chatlog_set_redaction --help "
+            f"(config {chatlog_config.CONFIG_PATH})"
+        )
+
+    def _mutate(state: dict) -> None:
+        red = state.get("redaction")
+        if not isinstance(red, dict):
+            red = {}
+        red["regex_errors"] = list(errors)
+        red["checked_at"] = _utcnow_iso()
+        state["redaction"] = red
+
     try:
-        with open(chatlog_config.STATE_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _write_state(state: dict) -> None:
-    """Atomic write: tmp file + os.replace."""
-    os.makedirs(os.path.dirname(chatlog_config.STATE_FILE), exist_ok=True)
-    from m3_core.atomic_io import atomic_write
-
-    atomic_write(chatlog_config.STATE_FILE, json.dumps(state, ensure_ascii=False))
+        chatlog_config.update_state(_mutate)
+    except Exception as e:  # noqa: BLE001 — the ERROR above already carries it
+        logger.warning(f"chatlog: could not record redaction errors in {chatlog_config.STATE_FILE}: {e}")
+        return
+    _REDACTION_ERRORS_SEEN = list(errors)
 
 
 # ---------------------------------------------------------------------------
@@ -622,6 +682,7 @@ async def chatlog_write_impl(
             content,
             _redaction_dict(cfg.redaction),
         )
+        _sync_redaction_errors()
         if rcount > 0:
             scrubbed = True
             if cfg.redaction.store_original_hash:
@@ -673,12 +734,17 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
     # Snapshot the target DB once per bulk call (see single-write impl note).
     target_db = chatlog_config.chatlog_db_path()
 
-    for item in items:
+    for idx, item in enumerate(items):
         try:
             _validate_write(item)
         except ValueError as e:
             failed += 1
-            errors.append(str(e))
+            # Index + identifying fields so the caller can name WHICH item;
+            # never the content.
+            errors.append(
+                f"item {idx} (conversation_id={item.get('conversation_id')!r}, "
+                f"turn_index={item.get('turn_index')!r}, role={item.get('role')!r}): {e}"
+            )
             continue
 
         content = item["content"]
@@ -694,6 +760,7 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
                 content,
                 _redaction_dict(cfg.redaction),
             )
+            _sync_redaction_errors()
             if rcount > 0:
                 scrubbed = True
                 if cfg.redaction.store_original_hash:
@@ -1321,6 +1388,7 @@ async def chatlog_rescrub_impl(
                 if not r["content"]:
                     continue
                 scrubbed, count, groups = chatlog_redaction.scrub(r["content"], red_dict)
+                _sync_redaction_errors()
                 if count == 0:
                     continue
                 matched_rows += 1
@@ -1383,7 +1451,7 @@ def _final_drain_sync() -> None:
         except RuntimeError:
             loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(_flush_once())
+            loop.run_until_complete(_drain_all("process exit"))
         finally:
             if not loop.is_running():
                 loop.close()
@@ -1395,15 +1463,22 @@ atexit.register(_final_drain_sync)
 
 
 def _install_sigterm_handler() -> None:
-    """Best-effort SIGTERM drain. No-op on Windows where SIGTERM is limited."""
+    """Best-effort SIGTERM drain, wherever the platform defines SIGTERM.
+
+    Gated on the capability, not the OS: on Windows the handler only fires for
+    an in-process raise (a TerminateProcess kill never runs it), which is
+    harmless, and the next platform without SIGTERM needs no edit here.
+    """
+    sigterm = getattr(signal, "SIGTERM", None)
+    if sigterm is None:
+        return
     try:
 
         def _handler(signum, frame):
             _final_drain_sync()
             sys.exit(0)
 
-        if not is_windows():
-            signal.signal(signal.SIGTERM, _handler)
+        signal.signal(sigterm, _handler)
     except (ValueError, OSError):
         # Signals can only be set from the main thread of the main interpreter
         pass

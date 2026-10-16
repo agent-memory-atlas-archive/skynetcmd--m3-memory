@@ -1,8 +1,8 @@
 ---
 tool: bin/run_reflector.py
-sha1: b9e19d8683de
-mtime_utc: 2026-10-11T17:51:15.733479+00:00
-generated_utc: 2026-10-11T18:07:54.215169+00:00
+sha1: eff6e8f18847
+mtime_utc: 2026-10-16T17:46:25.903008+00:00
+generated_utc: 2026-10-16T19:03:59.721809+00:00
 private: false
 ---
 
@@ -35,7 +35,7 @@ Status: Phase D Task 4. Pairs with config/slm/reflector_local.yaml.
 
 ## Entry points
 
-- `def main()` (line 399)
+- `def main()` (line 452)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -71,8 +71,8 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 332)
-- `httpx.AsyncClient()` (line 382)
+- `httpx.AsyncClient()` (line 374)
+- `httpx.AsyncClient()` (line 433)
 
 
 ---
@@ -80,6 +80,7 @@ _(none detected)_
 ## Notable external imports
 
 - `httpx`
+- `importlib`
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
 - `memory.backends (dialect)`

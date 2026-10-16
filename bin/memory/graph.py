@@ -281,7 +281,8 @@ async def _entity_graph_neighbor_ids(
         count_row = db.execute("SELECT COUNT(*) AS cnt FROM entities").fetchone()
         if count_row["cnt"] == 0:
             return set()
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — expansion is best-effort; a defect is reported
+        log_swallowed(logger, exc, "entity graph: entities count check failed (%s); no entity seeds", exc)
         return set()
 
     # Resolve entity stoplist: caller list (incl. explicit []) > env default.
@@ -309,7 +310,10 @@ async def _entity_graph_neighbor_ids(
                 list(_stoplist_lower),
             ).fetchall()
             _stoplisted_eids = {r["id"] for r in sl_rows}
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — expansion is best-effort; a defect is reported
+            log_swallowed(
+                logger, exc, "entity graph: stoplist id lookup failed (%s); stoplisted entities stay in the walk", exc
+            )
             _stoplisted_eids = set()
 
     # Build optional entity_type filter clause (caller-provided list overrides core defaults)
@@ -341,8 +345,8 @@ async def _entity_graph_neighbor_ids(
         for r in tier1_rows:
             matched_entity_ids.add(r["id"])
             resolved_cands.add(r["canonical_name"])
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001 — expansion is best-effort; a defect is reported
+        log_swallowed(logger, exc, "entity graph: tier-1 exact entity match failed (%s); falling back to LIKE", exc)
 
     # Tier 2 (per-candidate LIKE): only run for candidates that didn't resolve
     # in Tier 1, capped at 5 hits each — matches the legacy LIMIT 5.
@@ -356,7 +360,8 @@ async def _entity_graph_neighbor_ids(
             ).fetchall()
             for r in rows:
                 matched_entity_ids.add(r["id"])
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — expansion is best-effort; a defect is reported
+            log_swallowed(logger, exc, "entity graph: tier-2 LIKE entity match failed for one candidate (%s)", exc)
             continue
 
     if _capture_dict is not None:
@@ -395,7 +400,10 @@ async def _entity_graph_neighbor_ids(
                 f"WHERE to_entity IN ({placeholders}){_pred_clause}",
                 frontier_list + _pred_params + frontier_list + _pred_params,
             ).fetchall()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — expansion is best-effort; a defect is reported
+            log_swallowed(
+                logger, exc, "entity graph: relationship walk failed at a hop (%s); keeping entities found so far", exc
+            )
             break
         next_frontier: set[str] = set()
         for r in rel_rows:
@@ -424,7 +432,10 @@ async def _entity_graph_neighbor_ids(
             list(seen_entities),
         ).fetchall()
         return {r["memory_id"] for r in mie_rows}
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — expansion is best-effort; a defect is reported
+        log_swallowed(
+            logger, exc, "entity graph: memory_item_entities lookup failed (%s); no entity-graph neighbors", exc
+        )
         return set()
 
 
@@ -467,38 +478,55 @@ async def _score_extra_rows(query: str, rows_by_id: dict, base_score: float = 0.
 
 
 def memory_graph_impl(memory_id: str, depth: int = 1, as_records: bool = False) -> str:
-    """Returns the local graph neighborhood of a memory item up to N hops."""
+    """Returns the local graph neighborhood of a memory item up to N hops.
+
+    Traversal honours tenancy (Dialect.row_visibility): an edge may join this
+    memory to another user's, or to another agent's private one, and the walk
+    neither lists nor passes through such a node. The boundary is the ROOT
+    memory's own owner and agent (the signature is a pinned public API, and a
+    caller who can name the root may see the root's tenancy, no wider).
+    """
     depth = min(max(int(depth), 1), 3)  # Clamp to 1-3
     with _db() as db:
         _d = dialect()
         p = _d.param()
         # Verify item exists
-        root = db.execute(f"SELECT id, title, type FROM memory_items WHERE id = {p}", (memory_id,)).fetchone()
+        root = db.execute(
+            f"SELECT id, title, type, user_id, agent_id FROM memory_items WHERE id = {p}", (memory_id,)
+        ).fetchone()
         if not root:
             return records.emit(
                 f"Error: memory {memory_id} not found",
                 records.error_payload("not_found", memory_id=memory_id),
                 as_records,
             )
+        _uid = root["user_id"] or ""
+        _agent = root["agent_id"] or ""
+        _vis_nx, _vis_nx_params = _d.row_visibility("nx", user_id=_uid, requesting_agent=_agent)
+        _vis_mi, _vis_mi_params = _d.row_visibility("mi", user_id=_uid, requesting_agent=_agent)
 
-        # Recursive CTE to traverse relationships up to `depth` hops
+        # Recursive CTE to traverse relationships up to `depth` hops. The
+        # visibility join sits INSIDE the recursion so an out-of-scope node is
+        # not a stepping stone to what lies beyond it.
+        _next = "CASE WHEN mr.from_id = g.node_id THEN mr.to_id ELSE mr.from_id END"
         rows = db.execute(
             f"""
             WITH RECURSIVE graph(node_id, hop) AS (
                 SELECT {p}, 0
                 UNION ALL
-                SELECT CASE WHEN mr.from_id = g.node_id THEN mr.to_id ELSE mr.from_id END, g.hop + 1
+                SELECT {_next}, g.hop + 1
                 FROM memory_relationships mr
                 JOIN graph g ON (mr.from_id = g.node_id OR mr.to_id = g.node_id)
-                WHERE g.hop < {p}
+                JOIN memory_items nx ON nx.id = {_next}
+                WHERE g.hop < {p}{_vis_nx}
             )
             SELECT DISTINCT mi.id, mi.title, mi.type, g.hop
             FROM graph g
             JOIN memory_items mi ON g.node_id = mi.id
-            WHERE mi.is_deleted = 0
+            WHERE 1 = 1{_vis_mi}
             ORDER BY g.hop, mi.type
         """,
-            (memory_id, depth),
+            (memory_id, depth, *_vis_nx_params, *_vis_mi_params),
         ).fetchall()
 
         # Also get the edges

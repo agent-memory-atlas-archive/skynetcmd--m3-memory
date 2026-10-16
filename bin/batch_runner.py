@@ -267,9 +267,15 @@ class AnthropicBatchRunner:
                     service_tier=str(u.get("service_tier") or ""),
                 ),
             )
-        # Errored / canceled / expired
-        err_type = result.get("error", {}).get("type", kind or "unknown_error")
-        err_msg = result.get("error", {}).get("message", "")
+        # Errored / canceled / expired. An errored result carries an ErrorResponse
+        # envelope ({"type": "error", "error": {"type", "message"}}); a flat
+        # {"type", "message"} is also accepted, so neither shape is reported as a
+        # bare "error" with the real cause dropped.
+        err = result.get("error") or {}
+        if isinstance(err.get("error"), dict):
+            err = err["error"]
+        err_type = err.get("type") or kind or "unknown_error"
+        err_msg = err.get("message", "")
         return BatchResult(
             custom_id=cid,
             succeeded=False,
@@ -604,4 +610,19 @@ async def run_to_completion(
     results: list[BatchResult] = []
     async for r in runner.fetch_results(batch_id, client=client):
         results.append(r)
+    # Reconcile: every submitted request gets a result. One the provider did not
+    # return becomes an explicit failure, so a caller counting results cannot
+    # leave it claimed and uncounted.
+    returned = {r.custom_id for r in results}
+    missing = [rq.custom_id for rq in requests if rq.custom_id not in returned]
+    if missing:
+        print(
+            f"[batch_runner] WARN batch {batch_id}: {len(requests) - len(missing)} of {len(requests)} "
+            f"results returned; {len(missing)} missing (first: {missing[0]}) recorded as failed",
+            flush=True,
+        )
+        results.extend(
+            BatchResult(custom_id=cid, succeeded=False, error=f"no_result: batch {batch_id} returned no result")
+            for cid in missing
+        )
     return batch_id, results

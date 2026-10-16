@@ -1,3 +1,4 @@
+import importlib
 import subprocess
 import sys
 import time
@@ -51,11 +52,15 @@ def test_child_eof_self_terminates():
 
     with patch("sys.stdin.read", return_value=""):
         with patch("builtins.print") as mock_print:
-            with patch("memory.orchestration.notifications_unread_ids_impl", return_value=[]):
-                with patch("memory.db._db"):
-                    rc = waiter.pg_child_loop(args)
-                    assert rc == 0
-                    mock_print.assert_any_call('{"t": "bye"}', flush=True)
+            orch = importlib.import_module("memory.orchestration")
+            with (
+                patch.object(orch, "notifications_unread_ids_checked", return_value=([], [])),
+                patch.object(orch, "notifications_mark_received_checked", return_value=(0, [])),
+                patch.object(importlib.import_module("memory.db"), "_db"),
+            ):
+                rc = waiter.pg_child_loop(args)
+                assert rc == 0
+                mock_print.assert_any_call('{"t": "bye"}', flush=True)
 
 
 def test_child_inband_stop():
@@ -74,8 +79,12 @@ def test_child_inband_stop():
 
     with patch("sys.stdin", iter(mock_stdin_iter())):
         with patch("builtins.print") as mock_print:
-            with patch("memory.orchestration.notifications_unread_ids_impl", return_value=[]):
-                with patch("memory.db._db"):
-                    rc = waiter.pg_child_loop(args)
-                    assert rc == 0
-                    mock_print.assert_any_call('{"t": "bye"}', flush=True)
+            orch = importlib.import_module("memory.orchestration")
+            with (
+                patch.object(orch, "notifications_unread_ids_checked", return_value=([], [])),
+                patch.object(orch, "notifications_mark_received_checked", return_value=(0, [])),
+                patch.object(importlib.import_module("memory.db"), "_db"),
+            ):
+                rc = waiter.pg_child_loop(args)
+                assert rc == 0
+                mock_print.assert_any_call('{"t": "bye"}', flush=True)

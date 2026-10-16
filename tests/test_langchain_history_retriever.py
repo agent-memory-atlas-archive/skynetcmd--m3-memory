@@ -38,7 +38,7 @@ from m3_memory.langchain import (  # noqa: E402
 # can appear when this file runs; both are understood and intentionally left visible:
 #
 #   1. ".*non-main thread.*" — pytest notes that M3Client's shared asyncio event-loop
-#      thread ("m3client-langchain-loop") is still alive at test end. That thread is a
+#      thread ("m3client-loop") is still alive at test end. That thread is a
 #      process-wide DAEMON by design (M3Client._ensure_loop): all m3 dispatch lands on
 #      one loop-thread, reused across tests. Still correct — do NOT "fix" by killing
 #      the shared loop per test (that defeats its purpose and slows every adapter call).
@@ -207,7 +207,11 @@ def test_a_second_batch_continues_the_turn_index_before_the_first_is_stored():
     h = M3ChatMessageHistory(f"conv-q-{uuid.uuid4()}", user_id="alex")
     sent = []
 
+    from m3_memory.integrations._client import M3Client
+
     class _QueuedClient:
+        write_turns = M3Client.write_turns  # the real shared writer, over a fake _tool
+
         def _tool(self, name, **kw):
             sent.append(kw["turn_index"])
 

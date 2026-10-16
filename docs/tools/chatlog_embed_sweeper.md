@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_embed_sweeper.py
-sha1: beb862efafa4
-mtime_utc: 2026-10-14T03:16:31.662088+00:00
-generated_utc: 2026-10-14T03:18:56.022785+00:00
+sha1: af1a59100dd0
+mtime_utc: 2026-10-16T17:47:20.379852+00:00
+generated_utc: 2026-10-16T19:03:59.051289+00:00
 private: false
 ---
 
@@ -20,7 +20,7 @@ and drains any spill-to-disk files from the async write queue.
 
 ## Entry points
 
-- `async def main()` (line 519)
+- `async def main()` (line 621)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -64,7 +64,7 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 617)
+- `sqlite3.connect()  → `db_path`` (line 719)
 
 
 ---
@@ -76,8 +76,10 @@ _(none detected)_
 - `m3_core.paths (_db_is_populated)`
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (get_m3_config_root)`
+- `m3_core.paths (get_m3_engine_root)`
 - `m3_core.paths (pin_database)`
 - `m3_core.paths (resolve_backend_name)`
+- `m3_core.runtime (utc_iso)`
 - `memory.backends (active_backend)`
 - `memory.backends.base (EmbeddingRow)`
 

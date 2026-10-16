@@ -340,7 +340,8 @@ def test_startup_sweep_runs_before_the_baseline():
     marker = '_m3_admin("notifications_mark_received", _a)'
     assert marker in src, "no startup sweep call in the waiter"
     sweep = src.index(marker)
-    baseline = src.index("baselines = {a: unread_ids(a)")
+    assert "baselines = {a:" in src and "unread_ids(a)" in src, "no baseline read in the waiter"
+    baseline = src.index("baselines = {a:")
     assert sweep < baseline, (
         "the startup sweep must run BEFORE the baseline is taken, or the "
         "stranded notifications it exists to catch are already discarded"

@@ -190,11 +190,12 @@ def test_ensure_sync_tables_passes_target_chatlog_for_chatlog_path(tmp_path, mon
     )
 
 
-def test_ensure_sync_tables_no_target_for_main_path(tmp_path, monkeypatch):
-    """For a main-shaped active DB, no --target flag is added — the runner
-    handles all targets in 'all' mode — and the child is told the store as
-    --database: it does not inherit this process's --database pin, so without
-    the flag it migrated the default store instead."""
+def test_ensure_sync_tables_targets_main_for_main_path(tmp_path, monkeypatch):
+    """For a main-shaped active DB the child gets `--target main` — without a
+    target it ran `up` for EVERY configured store (chatlog, dispatch) from a call
+    that opened only this one — and is told the store as --database: it does not
+    inherit this process's --database pin, so without the flag it migrated the
+    default store instead."""
     from m3_core.paths import pin_database
 
     main_path = tmp_path / "fake_main.db"
@@ -216,7 +217,7 @@ def test_ensure_sync_tables_no_target_for_main_path(tmp_path, monkeypatch):
     memory_core._ensure_sync_tables(str(main_path))
 
     assert "cmd" in captured
-    assert "--target" not in captured["cmd"], f"expected NO --target flag, got {captured['cmd']}"
+    assert captured["cmd"][-2:] == ["--target", "main"], f"expected --target main, got {captured['cmd']}"
     db_idx = captured["cmd"].index("--database")
     assert os.path.abspath(captured["cmd"][db_idx + 1]) == os.path.abspath(str(main_path))
 

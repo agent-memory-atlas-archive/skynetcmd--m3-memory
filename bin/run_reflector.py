@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
 import re
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from llm_failover import apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room
@@ -228,18 +230,29 @@ def _load_observations_for_conv(
     return out
 
 
+_PREFIX_MIN_CHARS = 20
+
+
 def _find_observation_id_by_text(rows: list[tuple[str, dict]], target_text: str) -> str | None:
     """Linear scan for an observation row whose text matches the
     Reflector's text reference. Used to translate supersedes pairs into
     actual memory_item id pairs for memory_link_impl. Trims and lowercases
     for comparison since the Reflector may slightly rephrase."""
-    target = target_text.strip().lower()
+    target = (target_text or "").strip().lower()
+    if not target:
+        return None  # an empty reference matches nothing (startswith("") is always True)
     for rid, obs in rows:
         if (obs["text"] or "").strip().lower() == target:
             return rid
-    # Fallback: prefix match (Reflector may truncate)
+    # Fallback: prefix match (Reflector may truncate). Both sides must carry at
+    # least _PREFIX_MIN_CHARS of text, or a short fragment ("user") would match
+    # an arbitrary observation and supersede the wrong row.
+    if len(target) < _PREFIX_MIN_CHARS:
+        return None
     for rid, obs in rows:
         ot = (obs["text"] or "").strip().lower()
+        if len(ot) < _PREFIX_MIN_CHARS:
+            continue
         if ot.startswith(target[:60]) or target.startswith(ot[:60]):
             return rid
     return None
@@ -252,14 +265,18 @@ async def reflect_conversation(
     client: httpx.AsyncClient,
     token: str,
     counters: dict,
-) -> None:
+) -> dict:
     """Load observations for a (user, conversation) pair, partition into
     existing + new (defer Phase D2 — for now treat all as new), call
-    Reflector, and write supersedes edges from each new→old pair."""
+    Reflector, and supersede each old observation by its new one.
+
+    Returns ``{"outcome": "written"|"empty"|"failed", "error": str | None,
+    "superseded": N}`` so the queue drain keeps a failed row for retry
+    instead of deleting it."""
     rows = _load_observations_for_conv(user_id, conversation_id)
     if len(rows) < 2:
         counters["empty_groups"] += 1
-        return
+        return {"outcome": "empty", "error": None, "superseded": 0}
     # For Phase D1 v1 we treat the entire observation set as `new` and pass
     # an empty `existing` — this lets the Reflector do dedup + supersede
     # detection across the entire conversation. Future enhancement: pass
@@ -272,33 +289,58 @@ async def reflect_conversation(
         counters["failed"] += 1
         if counters["failed"] <= 5:
             print(f"[reflector] FAIL conv={conversation_id[:8]}: {e}", flush=True)
-        return
+        return {"outcome": "failed", "error": f"{type(e).__name__}: {e}", "superseded": 0}
 
     counters["processed"] += 1
     counters["sup_emitted"] += len(supersedes)
     if not supersedes:
-        return
+        return {"outcome": "empty", "error": None, "superseded": 0}
 
-    # Translate text-pair supersedes into memory_id-pair edges.
+    # Translate text-pair supersedes into memory_id pairs.
     edges_written = 0
+    link_failures = 0
     for s in supersedes:
         new_id = _find_observation_id_by_text(rows, s["new_text"])
         old_id = _find_observation_id_by_text(rows, s["old_text"])
         if not new_id or not old_id or new_id == old_id:
             continue
         try:
+            # The one supersede owner: closes old_id's validity, writes the
+            # supersedes edge and the history event in one transaction.
+            # require_active: an already-closed old_id is skipped, not re-closed.
+            # Resolved per call from the live module: _mark_superseded's history
+            # writer is bound by _resolve_mc_callbacks(), which nothing on this
+            # script's path has run yet (unbound it raises TypeError: None).
+            _w = importlib.import_module("memory.write")
+            _w._resolve_mc_callbacks()
             with mc._db() as db:
-                mc.memory_link_impl(
-                    from_id=new_id,
-                    to_id=old_id,
-                    relationship_type="supersedes",
+                closed = _w._mark_superseded(
+                    old_id,
+                    new_id,
+                    close_at=datetime.now(UTC).isoformat(),
                     db=db,
+                    actor_id="reflector",
+                    require_active=True,
                 )
-            edges_written += 1
+            if closed:
+                edges_written += 1
+            else:
+                counters["sup_already_closed"] = counters.get("sup_already_closed", 0) + 1
         except Exception as e:  # noqa: BLE001
-            if counters["failed"] <= 5:
-                print(f"[reflector] link FAIL ({new_id[:8]}->{old_id[:8]}): {e}", flush=True)
+            link_failures += 1
+            if link_failures <= 5:
+                print(
+                    f"[reflector] supersede FAIL ({new_id[:8]}->{old_id[:8]}): {type(e).__name__}: {e}",
+                    flush=True,
+                )
     counters["sup_written"] += edges_written
+    if link_failures:
+        counters["sup_failed"] = counters.get("sup_failed", 0) + link_failures
+    return {
+        "outcome": "written",
+        "error": (f"{link_failures} of {len(supersedes)} supersede writes failed" if link_failures else None),
+        "superseded": edges_written,
+    }
 
 
 async def drain_queue_mode(args, profile, token: str) -> None:
@@ -335,8 +377,9 @@ async def drain_queue_mode(args, profile, token: str) -> None:
             _d = dialect()
             _p = _d.param()
             async with sem:
+                err: str | None = None
                 try:
-                    await reflect_conversation(
+                    res = await reflect_conversation(
                         uid or "",
                         conv_id,
                         profile,
@@ -344,19 +387,25 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                         token,
                         counters,
                     )
+                    if (res or {}).get("outcome") == "failed":
+                        err = res.get("error") or "reflector outcome 'failed'"  # already counted
+                except Exception as e:  # noqa: BLE001
+                    err = f"{type(e).__name__}: {e}"
+                    counters["failed"] += 1
+                if err is None:
                     with mc._db() as db:
                         db.execute(f"DELETE FROM reflector_queue WHERE id={_p}", (qid,))
                         db.commit()
-                except Exception as e:  # noqa: BLE001
+                else:
+                    # Keep the row and charge an attempt: retried until attempts >= 5.
                     with mc._db() as db:
                         db.execute(
                             f"UPDATE reflector_queue SET attempts=attempts+1, "
                             f"last_error={_p}, last_attempt_at={_d.now()} "
                             f"WHERE id={_p}",
-                            (str(e)[:500], qid),
+                            (err[:500], qid),
                         )
                         db.commit()
-                    counters["failed"] += 1
 
         await gather_or_cancel(*(drain_one(r[0], r[1], r[2], r[3]) for r in queue_rows))
 
@@ -365,6 +414,8 @@ async def drain_queue_mode(args, profile, token: str) -> None:
     print(f"  groups processed:   {counters['processed']}", flush=True)
     print(f"  supersedes emitted: {counters['sup_emitted']}", flush=True)
     print(f"  supersedes written: {counters['sup_written']}", flush=True)
+    print(f"  supersedes skipped (already closed): {counters.get('sup_already_closed', 0)}", flush=True)
+    print(f"  supersedes FAILED:  {counters.get('sup_failed', 0)}", flush=True)
     print(f"  empty groups:       {counters['empty_groups']}", flush=True)
     print(f"  failed groups:      {counters['failed']}", flush=True)
 
@@ -392,6 +443,8 @@ async def force_mode(args, profile, token: str) -> None:
     print(f"  processed:          {counters['processed']}", flush=True)
     print(f"  supersedes emitted: {counters['sup_emitted']}", flush=True)
     print(f"  supersedes written: {counters['sup_written']}", flush=True)
+    print(f"  supersedes skipped (already closed): {counters.get('sup_already_closed', 0)}", flush=True)
+    print(f"  supersedes FAILED:  {counters.get('sup_failed', 0)}", flush=True)
     print(f"  empty groups:       {counters['empty_groups']}", flush=True)
     print(f"  failed groups:      {counters['failed']}", flush=True)
 

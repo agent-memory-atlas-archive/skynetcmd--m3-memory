@@ -182,9 +182,13 @@ async def test_extract_pending_drain(tmp_path, monkeypatch, m3_settings):
         links = db.execute("SELECT mention_text FROM memory_item_entities WHERE memory_id = ?", (memory_id,)).fetchall()
         assert len(links) >= 2
 
-        # Check queue was cleared
-        queue = db.execute("SELECT COUNT(*) FROM entity_extraction_queue").fetchone()[0]
-        assert queue == 0
+        # The queue row is marked processed (not deleted), so it is not re-selected
+        row = db.execute("SELECT status FROM entity_extraction_queue WHERE memory_id = ?", (memory_id,)).fetchone()
+        assert row["status"] == "done"
+        assert _entity_mod._select_pending_entity_extraction(db) == []
+
+    assert res["entities_created"] >= 2
+    assert res["entities_linked"] >= 2
 
 
 @pytest.mark.asyncio

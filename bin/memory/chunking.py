@@ -8,10 +8,11 @@ stays in embed.py, which re-imports these names for backward compatibility
 (`from memory.embed import _chunk_for_sliding_window`, etc.) and via
 memory_core's lazy registry (`memory_core._chunk_for_sliding_window`).
 
-The chunk-size / dense-recovery constants below are read-only config
-(set once from os.environ at import time, never reassigned) — copied
-here verbatim from embed.py so this module has no import-time coupling
-back to embed.py. Do NOT import `embed` here — that would create a cycle.
+The chunk-size settings (``MAX_CHARS_PER_CHUNK``, ``MIN_OVERLAP_CHARS``,
+``STRIDE_CHARS``) are read from the config registry at CALL time; the module
+names are served by ``__getattr__`` for importers. The dense-recovery
+constants are plain constants. Do NOT import `embed` here — that would create
+a cycle.
 """
 
 from __future__ import annotations
@@ -21,12 +22,35 @@ import re
 
 from m3_core.config import settings as _m3cfg
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Sliding-window chunking + dense-content recovery
 # ──────────────────────────────────────────────────────────────────────────────
-MAX_CHARS_PER_CHUNK = _m3cfg.setting("embed.chunk_max_chars")
-MIN_OVERLAP_CHARS = _m3cfg.setting("embed.chunk_overlap_chars")
-STRIDE_CHARS = MAX_CHARS_PER_CHUNK - MIN_OVERLAP_CHARS
+# Read per call (registry accessor, <1 us): an import-time read froze the value,
+# so a long-lived daemon never saw a changed setting.
+def _max_chars() -> int:
+    return _m3cfg.setting("embed.chunk_max_chars")
+
+
+def _stride_chars() -> int:
+    return _max_chars() - _m3cfg.setting("embed.chunk_overlap_chars")
+
+
+_SETTING_NAMES = {
+    "MAX_CHARS_PER_CHUNK": _max_chars,
+    "MIN_OVERLAP_CHARS": lambda: _m3cfg.setting("embed.chunk_overlap_chars"),
+    "STRIDE_CHARS": _stride_chars,
+}
+
+
+def __getattr__(name: str) -> int:
+    """Serve the chunk-size names at access time (an importer's
+    ``from memory.chunking import X`` still binds the value then)."""
+    try:
+        return _SETTING_NAMES[name]()
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
 
 # Floor for the token-aware split: below this a window is handed back whole even
 # if it still estimates over budget. Guards the degenerate case (a few astral
@@ -91,18 +115,19 @@ def _chunk_for_sliding_window(text: str, windows: list[tuple[int, int]] | None =
         return [(text[s:e], i) for i, (s, e) in enumerate(windows)]
 
     # Coarse pass: the existing character sliding window.
-    if n <= MAX_CHARS_PER_CHUNK:
+    max_chars, stride = _max_chars(), _stride_chars()
+    if n <= max_chars:
         coarse = [text]
     else:
         coarse = []
         start = 0
         while True:
-            end = start + MAX_CHARS_PER_CHUNK
+            end = start + max_chars
             if end >= n:
                 coarse.append(text[start:n])
                 break
             coarse.append(text[start:end])
-            start += STRIDE_CHARS
+            start += stride
 
     # Fine pass: bound each window in TOKENS. Imported lazily to keep this
     # module import-cycle-free (tokens.py is pure, but the lazy import also

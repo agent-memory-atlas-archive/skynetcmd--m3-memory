@@ -79,3 +79,27 @@ def test_cascade_delete_leaves_no_orphans(tmp_path):
     # The cascade must have removed leaves, ingestion_runs AND leaf_embeddings —
     # not just the file_nodes rows the delete statement named.
     assert _counts(db) == {"file_nodes": 0, "leaves": 0, "ingestion_runs": 0, "leaf_embeddings": 0}
+
+
+def test_cascade_removes_markers_and_links_that_have_no_fk(tmp_path):
+    """promotion_markers and memory_links name the corpus's rows without a FK, so
+    no cascade reaches them; corpus_delete removes them explicitly and counts
+    what it actually deleted. Another corpus's marker survives."""
+    db = str(tmp_path / "files.db")
+    _seed(db, "smoke")
+    with DB._db(db) as c:
+        for uuid, src in (("mk1", "lf1"), ("mk2", "other-leaf")):
+            c.execute(
+                f"INSERT INTO {files_table('promotion_markers')}"
+                "(uuid, source_memory, source_memory_type, promoted_to, promoted_by) VALUES (?, ?, 'leaf', 'm', 't')",
+                (uuid, src),
+            )
+        c.execute(
+            f"INSERT INTO {files_table('memory_links')}(src_uuid, dst_uuid, edge_type) VALUES ('lf1', 'fn1', 'parent')"
+        )
+    report = corpus_delete("smoke", cascade=True, db_path=db)
+    assert report["deleted"]["promotion_markers"] == 1 and report["deleted"]["memory_links"] == 1
+    with DB._db(db) as c:
+        left = [r[0] for r in c.execute(f"SELECT uuid FROM {files_table('promotion_markers')}").fetchall()]
+        links = c.execute(f"SELECT COUNT(*) FROM {files_table('memory_links')}").fetchone()[0]
+    assert left == ["mk2"] and links == 0

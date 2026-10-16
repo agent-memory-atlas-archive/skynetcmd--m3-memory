@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_sync.sh
-sha1: f651ea66b18b
-mtime_utc: 2026-07-19T03:04:59.629082+00:00
-generated_utc: 2026-07-19T20:02:06.275508+00:00
+sha1: 631364c37fc6
+mtime_utc: 2026-10-16T17:36:08.676615+00:00
+generated_utc: 2026-10-16T19:03:59.693098+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `LOG_FILE`
+- `M3_PYTHON`
 - `PYTHON`
 - `WORKSPACE`
 

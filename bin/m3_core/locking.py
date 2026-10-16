@@ -5,9 +5,13 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from m3_core.paths import get_m3_config_root
-from m3_core.runtime import M3_CORE_RS_DISABLE
 
 logger = logging.getLogger("M3_SDK")
+
+
+class LockTimeout(RuntimeError):
+    """The lock stayed held past the wait. A class, not a message test: the
+    native-lock fallback re-raised any RuntimeError whose text said "lock"."""
 
 
 @contextmanager
@@ -25,35 +29,13 @@ def migration_lock():
 def file_lock(lock_path: str, *, purpose: str):
     """THE cross-process exclusive lock: block up to 120 s, reclaim a stale one.
 
-    Native advisory lock first (m3_core_rs), else an O_CREAT|O_EXCL file stamped
-    with its owner so a crashed holder's lock is reclaimed rather than wedging
+    An O_CREAT|O_EXCL file stamped with its owner so a crashed holder's lock is reclaimed rather than wedging
     every waiter. ``purpose`` names it in errors (``migration``, ``secrets file``).
     """
     os.makedirs(os.path.dirname(lock_path), exist_ok=True)  # noqa: PTH103, PTH120 — a bare lock name raises here as before; Path('x').parent.mkdir() would silently succeed
 
-    # Try native Rust advisory lock first
-    if not M3_CORE_RS_DISABLE:
-        try:
-            import m3_core_rs
-
-            if hasattr(m3_core_rs, "NativeMigrationLock"):
-                lock = m3_core_rs.NativeMigrationLock(lock_path)
-                acquired = lock.acquire(120)
-                if not acquired:
-                    raise RuntimeError(
-                        f"Could not acquire native {purpose} lock at {lock_path} within 120 seconds. "
-                        f"observed: the lock stayed held for 120 s. inspect: the process holding {lock_path}"
-                    )
-                try:
-                    yield
-                finally:
-                    lock.release()
-                return
-        except Exception as e:
-            if isinstance(e, RuntimeError) and "lock" in str(e):
-                raise
-            # Fall back to Python busy-wait lock on other errors
-
+    # No native path: m3_core_rs exports no lock class (a NativeMigrationLock
+    # branch here could never run, and caught the caller's own exceptions).
     fd = None
     start_time = time.time()
     acquired = False
@@ -80,7 +62,7 @@ def file_lock(lock_path: str, *, purpose: str):
             time.sleep(0.5)
 
     if not acquired:
-        raise RuntimeError(
+        raise LockTimeout(
             f"Could not acquire {purpose} lock at {lock_path} within 120 seconds. "
             f"Another process holding it may be hung. If you are sure none is running, "
             f"delete the lock file manually: {lock_path}. "
@@ -174,17 +156,51 @@ def _reclaim_stale_lock(lock_path: str) -> bool:
 
     if not stale:
         return False
+    # Rename, re-read, then delete — never a bare unlink. Two waiters can judge
+    # the same lock stale; with unlink the second deleted the FRESH lock the
+    # first had just created, and both proceeded as holders. The rename is
+    # atomic, and the renamed file is checked to be the one judged stale.
+    import uuid
+
+    aside = f"{lock_path}.stale-{os.getpid()}-{uuid.uuid4().hex[:8]}"
     try:
-        Path(lock_path).unlink()
-        logger.warning(
-            "Reclaimed stale lock %s (owner pid=%s host=%s age=%.0fs)",
-            lock_path,
-            pid or "?",
-            host or "?",
-            age,
-        )
-        return True
+        Path(lock_path).replace(aside)
     except FileNotFoundError:
-        return True  # someone else reclaimed it first — fine, retry
+        return True  # someone else reclaimed it first — retry
     except OSError:
+        return False  # held open (Windows) or not ours to move: keep waiting
+    try:
+        moved = Path(aside).read_text(encoding="utf-8").strip()
+        moved_mtime = Path(aside).stat().st_mtime
+    except OSError:
+        moved, moved_mtime = None, None
+    if moved != raw or moved_mtime != mtime:
+        # We moved a lock created after our read. Put it back only if nobody has
+        # created another meanwhile (link fails if the name exists).
+        try:
+            os.link(aside, lock_path)
+            Path(aside).unlink()
+        except OSError as e:
+            logger.error(
+                "lock %s: moved a lock created after the stale check and could not restore it "
+                "(%s: %s). observed: its owner may now run alongside another holder. "
+                "kept at: %s. inspect: the processes using %s",
+                lock_path,
+                type(e).__name__,
+                e,
+                aside,
+                lock_path,
+            )
         return False
+    try:
+        Path(aside).unlink()
+    except OSError:
+        pass  # the lock name is free already; a leftover aside file holds nothing
+    logger.warning(
+        "Reclaimed stale lock %s (owner pid=%s host=%s age=%.0fs)",
+        lock_path,
+        pid or "?",
+        host or "?",
+        age,
+    )
+    return True

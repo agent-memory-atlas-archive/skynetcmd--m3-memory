@@ -48,6 +48,7 @@ def fetch_candidates_pg(
     row_limit: int,
     as_of: str = "",
     extra_columns: list[str] | None = None,
+    vector_kind: str | None = "default",
 ) -> tuple[list[dict], bool]:
     """Fetch scored-search candidates on PostgreSQL via the seam.
 
@@ -57,7 +58,10 @@ def fetch_candidates_pg(
       * semantic  -> vector candidates only
       * fts5      -> keyword candidates only
       * hybrid    -> union of both (keyword bm25 + vector cosine per row)
-    Returns ``(rows, False)``.
+
+    ``row_limit`` caps EACH source, not the union. ``vector_kind`` restricts the
+    hydrated embedding rows like the SQLite path's ``me.vector_kind`` filter
+    (``None`` = every kind, the "max" strategy). Returns ``(rows, False)``.
     """
     extra_columns = extra_columns or []
 
@@ -88,15 +92,35 @@ def fetch_candidates_pg(
         ):
             vec_ids.append(hit.memory_id)
 
-    candidate_ids = list(dict.fromkeys([*kw_by_id.keys(), *vec_ids]))  # ordered unique
+    # Interleave the two rankings rather than keyword-first: each source is
+    # already capped at row_limit, and a keyword-first list cut at row_limit
+    # (here or by the caller's row cap) dropped every vector-only candidate
+    # whenever the keyword side was full.
+    vec_unique = list(dict.fromkeys(vec_ids))
+    kw_ids = list(kw_by_id)
+    interleaved: list[str] = []
+    for i in range(max(len(kw_ids), len(vec_unique))):
+        if i < len(kw_ids):
+            interleaved.append(kw_ids[i])
+        if i < len(vec_unique):
+            interleaved.append(vec_unique[i])
+    candidate_ids = list(dict.fromkeys(interleaved))  # ordered unique
     if not candidate_ids:
         return [], False
-    if len(candidate_ids) > row_limit:
-        candidate_ids = candidate_ids[:row_limit]
 
-    # 2. hydrate the full rows (with embeddings) for the downstream scorer.
+    # 2. hydrate the full rows (with embeddings) for the downstream scorer --
+    # restricted to the same embedder identity the vector search used: a row
+    # from another embed_model or vector_kind is a different vector space.
+    d = backend.dialect()
     extra_select = "".join(f", mi.{c}" for c in extra_columns)
-    placeholders = ", ".join(["%s"] * len(candidate_ids))
+    ident_sql = f" AND me.dim = {d.param()}"
+    ident_params: list[Any] = [dim]
+    if embed_models:
+        ident_sql += f" AND me.embed_model IN ({d.placeholder(len(embed_models))})"
+        ident_params.extend(embed_models)
+    if vector_kind is not None:
+        ident_sql += f" AND me.vector_kind = {d.param()}"
+        ident_params.append(vector_kind)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -104,9 +128,9 @@ def fetch_candidates_pg(
                me.embedding, mi.metadata_json{extra_select}
         FROM memory_items mi
         JOIN memory_embeddings me ON mi.id = me.memory_id
-        WHERE mi.id IN ({placeholders}) AND {backend.dialect().live_predicate("mi", as_of)} AND me.dim = %s
+        WHERE mi.id IN ({d.placeholder(len(candidate_ids))}) AND {d.live_predicate("mi", as_of)}{ident_sql}
         """,
-        (*candidate_ids, dim),
+        (*candidate_ids, *ident_params),
     )
     colnames = [d[0] for d in cur.description]
     rows: list[dict] = []
@@ -128,9 +152,9 @@ def fetch_candidates_pg(
         row["bm25_score"] = kw_by_id.get(row["id"], _NO_KEYWORD_BM25)
         rows.append(row)
 
-    # Order to mirror the SQLite intent: keyword-ranked first (bm25 asc = better),
-    # then vector-only candidates. The downstream _hybrid_score_batch re-scores
-    # everything, so this is just a stable pre-order, not the final ranking.
-    kw_order = {mid: i for i, mid in enumerate(kw_by_id)}
-    rows.sort(key=lambda r: kw_order.get(r["id"], len(kw_order)))
+    # Keep the interleaved candidate order: the downstream _hybrid_score_batch
+    # re-scores everything, but a row cap applied before scoring must see both
+    # sources, not keyword hits first.
+    order = {mid: i for i, mid in enumerate(candidate_ids)}
+    rows.sort(key=lambda r: order.get(r["id"], len(order)))
     return rows, False

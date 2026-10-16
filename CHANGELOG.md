@@ -39,6 +39,15 @@ the policy is forward-going only.
 
 ### Added
 
+- **Hermes Agent memory provider (Hermes 0.22+).** m3-memory registers a
+  `hermes_agent.memory_providers` entry point, so installing it into Hermes'
+  Python makes `m3` selectable in `hermes memory setup`. Cron and subagent
+  contexts are recall-only. Turns are written with host agent `hermes`. A
+  catalog-shape folder plugin (`m3_memory/integrations/hermes/folder_plugin`)
+  delegates to the installed package. `hermes memory status` shows why m3 is
+  unavailable, with the fix. **Affected:** Hermes users · **Action:** optional ·
+  **Data status:** none.
+
 - **`m3 embedder secure`: the shared embed server for other machines.** Adds a
   second listener to m3-embed-server with TLS 1.3 (rustls on aws-lc-rs; the
   `fips` build uses AWS-LC's FIPS module) and a bearer token, stored server-side
@@ -49,6 +58,36 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Fixed
+
+- **A separate chatlog store gets its schema on the first flush.** A turn
+  written before any read spilled with "no such table: memory_items".
+  `chatlog_config.chatlog_is_separate()` decides the topology for the
+  connection and for `m3 chatlog status`. **Affected:** split chatlog
+  installs, integrations · **Data status:** spilled turns drain on the next
+  flush.
+- **GDPR erasure removes every derived row.** Entity links, corroborations,
+  relationships, facts and queue rows of erased memories go, entities only
+  they referenced are deleted with their embeddings, and a separate chatlog
+  store is erased in the same request. A failing wiki hook is reported
+  (`completed_with_failures`).
+- **Dedup and consolidate stay inside one tenant.** Dedup compares only within
+  the same user, agent and embedding space and skips pinned rows; consolidate
+  skips a group whose summary, embedding or link fails.
+- **Contradiction detection is scoped.** Candidates come from the backend's
+  vector search within the writer's tenancy and embedding space; an unscoped
+  write never supersedes. A replacement inherits the old row's user and agent.
+- **Scoped search returns in-scope matches** the row limit used to cut off.
+- **`memory_update` of a missing id is an error**; content changes recompute
+  `content_hash` and pass the write content gate.
+- **Sync watermarks are stored after the commit**, and both merge paths share
+  one guard.
+- **Spill files drain**, chatlog hooks run their `.py` scripts, and the
+  watchdog honours a paused loop.
+- **Uninstall and settings writers refuse a malformed `settings.json`**
+  instead of replacing it; `m3 doctor` exit codes follow its verdict.
+- **Windows icacls hints name the user.** `%USERNAME%` stayed literal in
+  PowerShell.
+- **Hermes `m3.json` is not overwritten when it cannot be parsed.**
 
 - **Embedder and HTTP failures say what happened.** Tier-2 probes (doctor,
   `embedder_status`, the shared-embedder check, the watchdog) tell refused,
@@ -735,6 +774,21 @@ the policy is forward-going only.
   **Affected:** Windows · **Action:** none · **Data status:** none.
 
 ### Changed
+
+- **`memory_consolidate` previews by default** (`dry_run` defaults to true) and
+  requires `agent_filter`; `memory_consolidate` and `memory_dedup` are marked
+  destructive.
+- **An empty, whitespace or `*` query lists memories by their filters**
+  (`memory_search`, `memory_search_scored`), ordered by importance then
+  recency.
+- **`migrate_memory.py down` requires `--target`** (`main`, `chatlog` or
+  `dispatch`).
+- **`enrich_pending` with `dry_run=false` over MCP returns an error** when no
+  fact enricher is configured.
+- **The Windows cognitive-loop task no longer passes `--background`.**
+  **Action:** run `m3 schedules repair` from an elevated shell after upgrading.
+- **The env-access scanner covers root `install_os.py`** and skips its staged
+  copy.
 
 - **The notification waiter blocks on the dispatch doorbell when the core has it.**
   With a core that ships `m3-dispatchd` and `m3-wait`, the waiter starts the

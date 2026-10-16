@@ -31,8 +31,9 @@ import json
 
 
 def find_derived_syntheses(db, dialect, erased_member_ids: list[str]) -> list[str]:
-    """Synthesis ids that `consolidates` at least one erased member. Reads the
-    edge table, so MUST be called before the erasure deletes relationships."""
+    """Live synthesis ids that `consolidates` at least one erased member (a
+    superseded one no longer renders). Reads the edge table, so MUST be called
+    before the erasure deletes relationships."""
     if not erased_member_ids:
         return []
     ph = dialect.placeholder(len(erased_member_ids))
@@ -40,7 +41,7 @@ def find_derived_syntheses(db, dialect, erased_member_ids: list[str]) -> list[st
         f"SELECT DISTINCT r.from_id FROM memory_relationships r "
         f"JOIN memory_items m ON m.id = r.from_id "
         f"WHERE r.relationship_type = 'consolidates' "
-        f"AND m.type = 'synthesis' AND m.valid_to IS NULL "
+        f"AND m.type = 'synthesis' AND {dialect.live_predicate('m')} "
         f"AND r.to_id IN ({ph})",
         list(erased_member_ids),
     ).fetchall()

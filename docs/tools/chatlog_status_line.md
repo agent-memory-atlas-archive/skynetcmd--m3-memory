@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_status_line.py
-sha1: 5287b7099bc2
-mtime_utc: 2026-10-11T18:40:07.353084+00:00
-generated_utc: 2026-10-11T19:18:31.757903+00:00
+sha1: dea4d275306f
+mtime_utc: 2026-10-16T17:38:44.343139+00:00
+generated_utc: 2026-10-16T19:03:59.096094+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ Keystroke-fast: reads state file only, no DB. Prints one tag or nothing.
 Exit 0 always.
 
 Shows highest-severity anomaly when multiple fire.
-Order: regex_errors > silent_hook > spill > queue_backpressure > embed_backlog.
+Order: regex_errors > silent_hook > spill_quarantined > spill > queue_backpressure > embed_backlog.
 
 Respects env:
 - CHATLOG_STATUSLINE=off → no output
@@ -26,7 +26,7 @@ Respects env:
 
 ## Entry points
 
-- `def main()` (line 104)
+- `def main()` (line 110)
 - `if __name__ == "__main__"` guard
 
 ---

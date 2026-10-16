@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_pg.py
-sha1: c63aa4c456ff
-mtime_utc: 2026-10-16T00:42:10.168429+00:00
-generated_utc: 2026-10-16T00:51:49.201419+00:00
+sha1: 3a98d7c96758
+mtime_utc: 2026-10-16T17:36:26.428341+00:00
+generated_utc: 2026-10-16T19:03:59.649009+00:00
 private: false
 ---
 
@@ -30,9 +30,9 @@ the two runners behave the same way. Differences that are intrinsic to the engin
     real transaction; a file either commits whole or rolls back whole. Migration
     files therefore MUST NOT contain their own COMMIT/ROLLBACK/BEGIN (same rule as
     the SQLite runner; enforced by ``_validate_migration_sql``).
-  * DSN resolution goes through the PRIMARY-store resolver + forbidden-host guard
-    (``resolve_primary_pg_dsn`` / ``M3_PG_FORBIDDEN_HOSTS``) so the runner can
-    NEVER migrate the data-warehouse hub by accident (the PG_URL-split invariant).
+  * DSN resolution goes through the PRIMARY-store resolver and BOTH of the
+    backend's guards (``M3_PG_FORBIDDEN_HOSTS`` and same-database-as-the-stored-
+    warehouse-DSN), so a DSN naming the warehouse is refused, --dsn included.
 
 Commands: ``up`` (apply pending), ``status``, ``down --to N`` (revert to N),
 ``plan`` (print pending SQL). ``ensure_schema()`` on the backend still applies the
@@ -44,7 +44,7 @@ or call :func:`run_pending_pg_migrations` programmatically (what the backend doe
 
 ## Entry points
 
-- `def main()` (line 460)
+- `def main()` (line 478)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -53,7 +53,7 @@ or call :func:`run_pending_pg_migrations` programmatically (what the backend doe
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--dsn` | Explicit DSN (else M3_PRIMARY_PG_URL/M3_PG_URL). | None |  | str |  |
+| `--dsn` | Explicit PRIMARY-store DSN. Default: the stored M3_PRIMARY_PG_URL secret (`m3 secret set M3_PRIMARY_PG_URL`); never read from the environment, never the warehouse DSN. | None |  | str |  |
 | `--to` | Stop at this version. | None |  | int |  |
 | `--yes` | Skip confirmation. | `False` |  | store_true |  |
 | `--dry-run` | Show plan, apply nothing. | `False` |  | store_true |  |
@@ -71,6 +71,7 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `m3_sdk (PgRole, resolve_pg_dsn)`
+- `migrate_memory (_confirm)`
 
 ---
 
@@ -84,7 +85,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `m3_core.pgconn (pg_connect)`
 - `memory.backends.dialect (dialect_for)`
-- `memory.backends.postgres_backend (_reject_forbidden_host)`
+- `memory.backends.postgres_backend (_reject_forbidden_host, _reject_same_as_warehouse)`
 - `psycopg2`
 
 ---

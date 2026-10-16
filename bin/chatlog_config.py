@@ -70,13 +70,176 @@ CONFIG_PATH = _resolve_config_file(".chatlog_config.json")
 DEFAULT_DB_PATH = _resolve_engine_file("agent_chatlog.db")
 MAIN_DB_PATH = configured_main_db() or _resolve_engine_file("agent_memory.db")
 STATE_FILE = _resolve_engine_file(".chatlog_state.json")
-SPILL_DIR = _resolve_engine_file("chatlog_spill")
+# Explicit override ONLY (tests, `chatlog_ingest --spill-dir`). None = resolve
+# from the engine root at CALL time via spill_dir(): a constant bound at import
+# keeps whatever root was live then, which is how test runs spilled into the
+# developer's real engine dir. Read it through spill_dir(), never directly.
+SPILL_DIR: str | None = None
 INGEST_CURSOR = _resolve_engine_file(".chatlog_ingest_cursor.json")
 # Migration DDL ships WITH the code, not in the relocatable engine data root —
 # mirror the main runner (migrate_memory.MIGRATIONS_DIR = BASE_DIR/memory/migrations).
 # Using _resolve_engine_file here was a bug: it pointed at <engine>/chatlog_migrations,
 # which homecoming never populates, so the chatlog DB could never be bootstrapped.
 CHATLOG_MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "chatlog_migrations")
+
+# ── Spill-dir layout: ONE owner for the writer, the drain, status and the loop ──
+# <SPILL_DIR>/YYYYMMDD.jsonl                   live day file (writer appends)
+# <SPILL_DIR>/YYYYMMDD.draining-<tag>.jsonl    claimed by a drain (writer never touches)
+# <SPILL_DIR>/quarantine/                      undrainable files + malformed lines (.bad)
+# Every *.jsonl directly under SPILL_DIR is pending work.
+QUARANTINE_DIRNAME = "quarantine"
+DRAINING_MARKER = ".draining-"
+# Sidecar written next to a quarantined file; carries the reason, not turns.
+QUARANTINE_REASON_SUFFIX = ".reason.json"
+
+
+def spill_dir() -> str:
+    """The spill directory: the explicit override, else <engine root>/chatlog_spill now."""
+    return SPILL_DIR or _resolve_engine_file("chatlog_spill")
+
+
+def spill_lock_path() -> str:
+    """Lock serialising a spill APPEND with a drain's claim-by-rename, so no line
+    is appended to a file after the drain has read it."""
+    return os.path.join(spill_dir(), ".spill.lock")
+
+
+def quarantine_dir() -> str:
+    return os.path.join(spill_dir(), QUARANTINE_DIRNAME)
+
+
+def spill_inventory(now: float | None = None) -> dict:
+    """Pending and quarantined spill on disk, measured (never from the state file).
+
+    pending_*: *.jsonl directly under spill_dir() (live day files and claimed
+    draining files) — turns not yet in any store. quarantine_*: files under
+    quarantine/ except the reason sidecars — turns preserved but parked until an
+    operator moves them back. ``error`` is set (and the counts are partial) when
+    a directory could not be listed.
+    """
+    import time
+
+    now = time.time() if now is None else now
+    sdir = spill_dir()
+    inv: dict = {
+        "spill_dir": sdir,
+        "pending_files": 0,
+        "pending_bytes": 0,
+        "oldest_ms_ago": None,
+        "quarantine_dir": quarantine_dir(),
+        "quarantine_files": 0,
+        "quarantine_bytes": 0,
+        "error": None,
+    }
+    oldest = None
+    try:
+        entries = os.listdir(sdir) if os.path.isdir(sdir) else []
+    except OSError as e:
+        inv["error"] = f"cannot list {sdir}: {type(e).__name__}: {e}"
+        entries = []
+    for fn in entries:
+        if not fn.endswith(".jsonl"):
+            continue
+        fp = os.path.join(sdir, fn)
+        try:
+            st = os.stat(fp)
+        except OSError:
+            continue  # drained/renamed between listdir and stat
+        inv["pending_files"] += 1
+        inv["pending_bytes"] += st.st_size
+        if oldest is None or st.st_mtime < oldest:
+            oldest = st.st_mtime
+    if oldest is not None:
+        inv["oldest_ms_ago"] = int((now - oldest) * 1000)
+    qdir = quarantine_dir()
+    try:
+        qentries = os.listdir(qdir) if os.path.isdir(qdir) else []
+    except OSError as e:
+        inv["error"] = f"cannot list {qdir}: {type(e).__name__}: {e}"
+        qentries = []
+    for fn in qentries:
+        if fn.endswith(QUARANTINE_REASON_SUFFIX):
+            continue
+        try:
+            inv["quarantine_bytes"] += os.path.getsize(os.path.join(qdir, fn))
+            inv["quarantine_files"] += 1
+        except OSError:
+            continue
+    return inv
+
+
+_THREAD_LOCKS: dict[str, threading.Lock] = {}
+_THREAD_LOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def locked(lock_path: str, *, purpose: str):
+    """Exclusive across threads AND processes. file_lock alone is not: its native
+    advisory lock is per process, so two threads of one process (the flush
+    thread and the event loop) both acquired it and lost each other's update."""
+    from m3_core.locking import file_lock
+
+    key = os.path.normcase(os.path.abspath(lock_path))
+    with _THREAD_LOCKS_GUARD:
+        tlock = _THREAD_LOCKS.setdefault(key, threading.Lock())
+    with tlock, file_lock(lock_path, purpose=purpose):
+        yield
+
+
+# ── Chatlog state file: shared by the writer, the sweeper and status ──
+# Three processes read-modify-write it; unlocked, one's update erases another's.
+
+
+def read_state() -> dict:
+    """The state file as a dict; {} when absent. A corrupt file logs a warning
+    (naming the path) and reads as {} so the next locked write repairs it."""
+    try:
+        with open(STATE_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"chatlog state file {STATE_FILE} unreadable ({type(e).__name__}: {e}); treating as empty")
+        return {}
+
+
+def update_state(mutate) -> dict:
+    """Locked read-modify-write of the state file. ``mutate(state)`` edits the
+    dict in place. Raises on lock or write failure — callers decide how loud."""
+    from m3_core.atomic_io import atomic_write
+
+    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+    with locked(STATE_FILE + ".lock", purpose="chatlog state file"):
+        state = read_state()
+        mutate(state)
+        atomic_write(STATE_FILE, json.dumps(state, ensure_ascii=False, indent=2))
+    return state
+
+
+def record_spill_state() -> dict:
+    """Measure the spill dir and store it as state["spill"] (what the status
+    line reads). Called by the writer after a spill and by the drain after a
+    pass, so quarantined files show up without a status call. Raises on write
+    failure."""
+    from m3_core.runtime import utc_iso
+
+    inv = spill_inventory()
+
+    def _mutate(state: dict) -> None:
+        state["spill"] = {
+            "bytes": inv["pending_bytes"],
+            "files": inv["pending_files"],
+            "oldest_ms_ago": inv["oldest_ms_ago"],
+            "quarantine_files": inv["quarantine_files"],
+            "quarantine_bytes": inv["quarantine_bytes"],
+            "quarantine_dir": inv["quarantine_dir"],
+            "measured_at": utc_iso(),
+        }
+
+    update_state(_mutate)
+    return inv
+
 
 # ⚠ THE SINGLE OWNER. chatlog_core imports this rather than restating it, and
 # ChatlogConfig.host_agents is built from it. Adding an agent here is not enough
@@ -92,6 +255,7 @@ VALID_HOST_AGENTS: frozenset[str] = frozenset(
         "openclaw",
         "aider",
         "langchain",
+        "hermes",
     )
 )
 # Host agents that are LIBRARIES, not CLIs with a session lifecycle: the
@@ -99,7 +263,8 @@ VALID_HOST_AGENTS: frozenset[str] = frozenset(
 # wire and no transcript to parse. The single owner of that distinction: hook
 # paths, ingest, the setup prompts and doctor all read it, instead of each
 # treating such an agent as a missing hook (which handed users unknown.sh).
-LIBRARY_HOST_AGENTS: frozenset[str] = frozenset(("langchain",))
+# Hermes Agent hands turns to m3 from its memory-provider plugin (sync_turn).
+LIBRARY_HOST_AGENTS: frozenset[str] = frozenset(("langchain", "hermes"))
 VALID_PROVIDERS: frozenset[str] = frozenset(
     (
         "anthropic",
@@ -410,6 +575,18 @@ def chatlog_db_path() -> str:
         return main_env
     # Fall back to the cached config's stored db_path (file or default).
     return resolve_config().db_path
+
+
+def chatlog_is_separate(path: str | None = None) -> bool:
+    """THE owner of "is the chatlog (``path``, default the effective chatlog
+    store) a different SQLite file from the process's main store?". Asks against
+    ``m3_core.paths.main_db_path``, which ignores any ``active_database`` scope:
+    a chatlog flush runs under ``active_database(<chatlog path>)``, so comparing
+    against the scope-relative main path answered "same file" and the chatlog
+    store never got its schema ("no such table: memory_items")."""
+    from m3_core.paths import canonical_path, main_db_path
+
+    return canonical_path(path or chatlog_db_path()) != canonical_path(main_db_path())
 
 
 def chat_store_paths() -> list[str]:

@@ -170,7 +170,7 @@ def test_batches_beyond_one_page(pg):
     from memory.backends import postgres_backend
 
     backend, table = pg
-    n_rows = postgres_backend._UPSERT_PAGE_SIZE * 2 + 7
+    n_rows = postgres_backend._upsert_page_size() * 2 + 7
     rows = [(f"id{i}", f"v{i}", "2026-01-01") for i in range(n_rows)]
     with backend.connection() as conn:
         sent = backend.bulk_upsert(conn, table, _COLS, rows, conflict_target="(id)", update_columns=["val"])
@@ -216,10 +216,10 @@ def test_bulk_upsert_sends_one_statement_per_page(pg):
         finally:
             raw.cursor_factory = saved  # a pooled connection outlives the test
 
-    pages = math.ceil(n_rows / postgres_backend._UPSERT_PAGE_SIZE)
+    pages = math.ceil(n_rows / postgres_backend._upsert_page_size())
     assert len(sent) == pages, (
         f"bulk_upsert sent {len(sent)} statements for {n_rows} rows; expected "
-        f"{pages} (page size {postgres_backend._UPSERT_PAGE_SIZE}). The batching "
+        f"{pages} (page size {postgres_backend._upsert_page_size()}). The batching "
         "has regressed; check that execute_values is still in use"
     )
     with backend.connection() as conn:

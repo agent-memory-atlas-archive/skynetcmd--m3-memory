@@ -5,11 +5,13 @@ m3 installs its background work as OS-native scheduled jobs whose definitions
 bake an ABSOLUTE interpreter path (``…/.venv/…/python``) and script path:
 
   * **Windows** — ``schtasks`` tasks ``AgentOS_*`` (XML ``<Command>`` + ``<Arguments>``).
-  * **macOS**   — a launchd agent ``~/Library/LaunchAgents/com.m3memory.cognitiveloop.plist``
-                  (``ProgramArguments[0]`` = interpreter, ``[1]`` = script), plus
-                  ``install_unix_crontab`` entries.
-  * **Linux**   — a ``systemd --user`` unit ``~/.config/systemd/user/m3-cognitive-loop.service``
-                  (``ExecStart=<interp> <script> …``), plus crontab entries.
+  * **macOS**   — every m3 launchd agent in ``~/Library/LaunchAgents`` (``com.m3memory.*``,
+                  or any plist running an m3 launcher/script), plus crontab entries.
+  * **Linux**   — every m3 ``systemd --user`` unit in ``~/.config/systemd/user``
+                  (``m3-*``, or any unit running an m3 launcher/script), plus crontab entries.
+
+Which launchd agents and units are m3's is decided by ``job_inventory`` (the one
+owner of that predicate), not re-derived here.
 
 If the code install is deleted or moved (e.g. ``rm -rf ~/.local/pipx`` wipes the
 venv, or the repo clone is relocated), those definitions stay registered but
@@ -33,7 +35,6 @@ from __future__ import annotations
 
 import logging
 import os
-import plistlib
 import posixpath
 import re
 import shlex
@@ -59,9 +60,10 @@ logger = logging.getLogger("memory.doctor.schedule_probe")
 _TASK_NS = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 _SCHTASKS_NOT_FOUND_RC = 1  # schtasks /Query rc when the named task doesn't exist
 
-# ── Unix: fixed install destinations (mirror install_schedules.py) ─────────
-_LAUNCHD_PLIST = "~/Library/LaunchAgents/com.m3memory.cognitiveloop.plist"
-_SYSTEMD_UNIT = "~/.config/systemd/user/m3-cognitive-loop.service"
+# schtasks /Query stderr when the task does not exist. rc is 1 for "Access is
+# denied" too, so rc alone cannot mean "not installed". English-only: on another
+# UI language a missing task reports as query-error (loud), never as absent.
+_SCHTASKS_NOT_FOUND_TEXT = ("CANNOT FIND", "DOES NOT EXIST")
 
 
 # A dangling record is a dict: {job, interpreter, script, missing:[...]}. `job`
@@ -102,7 +104,7 @@ def _query_task_xml(name: str) -> str | None:
     proc = subprocess.run(["schtasks", "/Query", "/TN", name, "/XML"], capture_output=True, text=True, timeout=20)
     if proc.returncode != 0:
         stderr = (proc.stderr or "").upper()
-        if proc.returncode == _SCHTASKS_NOT_FOUND_RC or "ERROR:" in stderr:
+        if proc.returncode == _SCHTASKS_NOT_FOUND_RC and any(t in stderr for t in _SCHTASKS_NOT_FOUND_TEXT):
             return None  # not-installed is benign, not dangling
         raise RuntimeError(f"schtasks /Query {name} failed (rc={proc.returncode}): {proc.stderr.strip()}")
     return proc.stdout
@@ -187,77 +189,41 @@ def _dangling_windows(m3_memory_root: str) -> list[dict]:
     return dangling
 
 
-# ── macOS backend (launchd plist + crontab) ────────────────────────────────
+# ── macOS / Linux backends (launchd agents, systemd units + crontab) ───────
+
+
+def _dangling_unix_jobs(jobs: list, prefix: str) -> list[dict]:
+    """Dangling records for job_inventory Jobs (launchd agents or systemd units).
+    An unreadable definition is recorded as parse-error, not skipped."""
+    dangling: list[dict] = []
+    for j in jobs:
+        if j.unreadable:
+            dangling.append(
+                {
+                    "job": f"{prefix}:{j.definition or j.ident}",
+                    "interpreter": None,
+                    "script": None,
+                    "missing": ["parse-error"],
+                    "error": j.unreadable,
+                }
+            )
+            continue
+        rec = _flag_missing(f"{prefix}:{j.ident}", j.program, j.script)
+        if rec:
+            dangling.append(rec)
+    return dangling
 
 
 def _dangling_darwin(m3_memory_root: str) -> list[dict]:
-    dangling: list[dict] = []
-    plist_path = os.path.expanduser(_LAUNCHD_PLIST)
-    if os.path.exists(plist_path):
-        try:
-            with open(plist_path, "rb") as f:
-                data = plistlib.load(f)
-            args = data.get("ProgramArguments", [])
-            interpreter = args[0] if len(args) >= 1 else None
-            script = args[1] if len(args) >= 2 else None
-            label = data.get("Label", "com.m3memory.cognitiveloop")
-            rec = _flag_missing(f"launchd:{label}", interpreter, script)
-            if rec:
-                dangling.append(rec)
-        except Exception as e:  # noqa: BLE001
-            dangling.append(
-                {
-                    "job": f"launchd:{plist_path}",
-                    "interpreter": None,
-                    "script": None,
-                    "missing": ["parse-error"],
-                    "error": str(e),
-                }
-            )
-    dangling.extend(_dangling_crontab())
-    return dangling
+    from doctor import job_inventory as ji
 
-
-# ── Linux backend (systemd --user unit + crontab) ──────────────────────────
-
-_EXECSTART_RE = re.compile(r"^\s*ExecStart\s*=\s*(.+?)\s*$", re.MULTILINE)
-
-
-def _parse_execstart(unit_text: str) -> tuple[str | None, str | None]:
-    """(interpreter, script) from a systemd ExecStart= line. systemd allows a
-    leading '-'/'@'/'+' prefix on the command; strip it before splitting."""
-    m = _EXECSTART_RE.search(unit_text)
-    if not m:
-        return None, None
-    cmd = m.group(1).lstrip("-@+!:").strip()
-    toks = cmd.split()
-    interpreter = toks[0] if toks else None
-    script = toks[1] if len(toks) >= 2 else None
-    return interpreter, script
+    return _dangling_unix_jobs(ji._launchd_jobs(), "launchd") + _dangling_crontab()
 
 
 def _dangling_linux(m3_memory_root: str) -> list[dict]:
-    dangling: list[dict] = []
-    unit_path = os.path.expanduser(_SYSTEMD_UNIT)
-    if os.path.exists(unit_path):
-        try:
-            with open(unit_path, encoding="utf-8") as f:
-                interpreter, script = _parse_execstart(f.read())
-            rec = _flag_missing("systemd:m3-cognitive-loop.service", interpreter, script)
-            if rec:
-                dangling.append(rec)
-        except Exception as e:  # noqa: BLE001
-            dangling.append(
-                {
-                    "job": f"systemd:{unit_path}",
-                    "interpreter": None,
-                    "script": None,
-                    "missing": ["parse-error"],
-                    "error": str(e),
-                }
-            )
-    dangling.extend(_dangling_crontab())
-    return dangling
+    from doctor import job_inventory as ji
+
+    return _dangling_unix_jobs(ji._systemd_jobs(), "systemd") + _dangling_crontab()
 
 
 # ── Shared Unix crontab backend ────────────────────────────────────────────
@@ -285,6 +251,8 @@ def _dangling_crontab() -> list[dict]:
     text = _read_crontab()
     if not text:
         return []
+    from doctor import job_inventory as ji
+
     dangling: list[dict] = []
     for lineno, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
@@ -294,9 +262,13 @@ def _dangling_crontab() -> list[dict]:
         # never touched. m3's cron entries either invoke the m3 venv python
         # (…/.venv/bin/python …/bin/<script>.py) or the pg_sync.sh wrapper — a
         # generic "*.sh under some bin/" gate would wrongly catch /usr/bin/*.sh.
+        # job_inventory._is_m3 also recognises a pipx venv's launcher or python
+        # running an m3 script, which the .venv pattern misses.
+        inv_program, inv_script = ji._cron_command(line)
+        is_inventory_m3 = ji._is_m3(inv_program, inv_script)
         is_venv_python = re.search(r"/\.venv/(bin|Scripts)/python", line)
         is_pg_sync = re.search(r"/bin/pg_sync\.sh\b", line)
-        if not (is_venv_python or is_pg_sync):
+        if not (is_venv_python or is_pg_sync or is_inventory_m3):
             continue
         toks = line.split()
         interpreter = None
@@ -312,6 +284,15 @@ def _dangling_crontab() -> list[dict]:
                 interpreter = path
             elif script is None and re.search(r"/bin/[\w.-]+\.(py|sh)$", path):
                 script = path
+        if interpreter is None and script is None:
+            # A launcher or pipx python: judged only when absolute; a bare name
+            # resolves through cron's PATH, which this cannot see.
+            if not (inv_program and posixpath.isabs(inv_program)):
+                continue
+            rec = _flag_missing(f"crontab:line-{lineno}", inv_program, inv_script)
+            if rec:
+                dangling.append(rec)
+            continue
         # pg_sync.sh lines invoke the .sh directly (no python interpreter token);
         # treat the .sh itself as the interpreter that must exist.
         rec = _flag_missing(f"crontab:line-{lineno}", interpreter or script, script if interpreter else None)

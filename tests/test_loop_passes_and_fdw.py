@@ -117,7 +117,7 @@ class TestFdwContract:
         assert "SELECT id, content, updated_at FROM public.memory_items" in sql
         assert "updated_at > %s" in sql  # delta
         assert "ON CONFLICT (id) DO UPDATE" in sql
-        assert "cdw_fdw.memory_items.updated_at < EXCLUDED.updated_at" in sql
+        assert "EXCLUDED.updated_at > cdw_fdw.memory_items.updated_at" in sql
 
     def test_upsert_without_ts_has_no_delta_or_guard(self):
         import pg_fdw_sync as F

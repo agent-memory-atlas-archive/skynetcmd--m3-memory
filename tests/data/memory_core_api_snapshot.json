@@ -1,7 +1,7 @@
 {
   "module": "memory_core",
   "module_doc_present": true,
-  "n_symbols": 324,
+  "n_symbols": 326,
   "symbols": {
     "ARCHIVE_DB_PATH": {
       "kind": "constant",
@@ -900,7 +900,7 @@
     },
     "_ensure_sync_tables": {
       "kind": "function",
-      "signature": "(db_path: 'str | None' = None) -> 'None'",
+      "signature": "(db_path: 'str | None' = None, target: 'str | None' = None) -> 'None'",
       "value_repr": null
     },
     "_entity_graph_neighbor_ids": {
@@ -1088,9 +1088,14 @@
       "signature": "(db, ident: 'str') -> 'str'",
       "value_repr": null
     },
+    "_row_out": {
+      "kind": "function",
+      "signature": "(row) -> 'dict'",
+      "value_repr": null
+    },
     "_run_entity_extractor": {
       "kind": "async_function",
-      "signature": "(memory_id: 'str', content: 'str', entity_extractor, *, valid_types: 'frozenset | None' = None, valid_predicates: 'frozenset | None' = None) -> 'None'",
+      "signature": "(memory_id: 'str', content: 'str', entity_extractor, *, valid_types: 'frozenset | None' = None, valid_predicates: 'frozenset | None' = None) -> 'dict'",
       "value_repr": null
     },
     "_sanitize_for_searchable": {
@@ -1284,7 +1289,7 @@
     },
     "enrich_pending_impl": {
       "kind": "async_function",
-      "signature": "(dry_run: 'bool' = True, limit: 'int' = 0, allowed_variants: 'list[str] | None' = None) -> 'dict'",
+      "signature": "(dry_run: 'bool' = True, limit: 'int' = 0, allowed_variants: 'list[str] | None' = None, *, fact_enricher=None) -> 'dict'",
       "value_repr": null
     },
     "entity_extractor_health": {
@@ -1518,6 +1523,11 @@
     "notifications_mark_received_impl": {
       "kind": "function",
       "signature": "(agent_id: 'str') -> 'str'",
+      "value_repr": null
+    },
+    "notifications_peek_impl": {
+      "kind": "function",
+      "signature": "(agent_id: 'str', unread_only: 'bool' = True, limit: 'int' = 20, as_records: 'bool' = False) -> 'str'",
       "value_repr": null
     },
     "notifications_poll_impl": {

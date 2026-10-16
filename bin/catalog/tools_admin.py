@@ -222,14 +222,21 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="enrich_pending",
-        description="Enrich pending memory items with SLM-distilled facts. Default dry_run=true reports count + ETA; pass dry_run=false to execute.",
+        description=(
+            "Report memory items pending SLM fact enrichment (count + ETA). Execution needs a fact "
+            "enricher passed by a Python caller; m3 has none configurable, so dry_run=false over MCP "
+            "returns an error and enriches nothing."
+        ),
         parameters={
             "type": "object",
             "properties": {
                 "dry_run": {
                     "type": "boolean",
                     "default": True,
-                    "description": "If true, report count + ETA without executing; if false, execute enrichment.",
+                    "description": (
+                        "If true, report count + ETA. If false, execute — only possible with a "
+                        "caller-supplied fact enricher; over MCP it returns an error."
+                    ),
                 },
                 "limit": {"type": "integer", "default": 0, "description": "Max items to enrich (0 = no limit)."},
                 "allowed_variants": {

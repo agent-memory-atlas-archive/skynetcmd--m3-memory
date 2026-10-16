@@ -4,7 +4,7 @@ Keystroke-fast: reads state file only, no DB. Prints one tag or nothing.
 Exit 0 always.
 
 Shows highest-severity anomaly when multiple fire.
-Order: regex_errors > silent_hook > spill > queue_backpressure > embed_backlog.
+Order: regex_errors > silent_hook > spill_quarantined > spill > queue_backpressure > embed_backlog.
 
 Respects env:
 - CHATLOG_STATUSLINE=off → no output
@@ -76,6 +76,11 @@ def chatlog_status_line() -> str:
                     break
 
     if not warning:
+        q_files = (state.get("spill") or {}).get("quarantine_files") or 0
+        if q_files:
+            warning = f"chatlog: {q_files} spill file(s) quarantined"
+
+    if not warning:
         spill = state.get("spill", {})
         spill_bytes = spill.get("bytes", 0)
         spill_oldest_ms = spill.get("oldest_ms_ago")
@@ -83,15 +88,16 @@ def chatlog_status_line() -> str:
             warning = f"chatlog: spill={_humanize_bytes(spill_bytes)}"
 
     if not warning:
-        queue_state = state.get("queue", {})
-        depth = queue_state.get("depth", 0)
-        max_depth = queue_state.get("max", config.queue_max_depth)
-        if max_depth > 0 and depth / max_depth > 0.8:
+        # The writer records state["queue_depth"] after each flush.
+        depth = state.get("queue_depth", 0)
+        max_depth = config.queue_max_depth
+        if isinstance(depth, int) and max_depth > 0 and depth / max_depth > 0.8:
             warning = f"chatlog: queue {depth}/{max_depth}"
 
     if not warning:
-        embed_backlog = state.get("row_counts", {}).get("chatlog_without_embed")
-        if embed_backlog is not None and embed_backlog > 10_000:
+        # The sweeper records state["embed_backlog"] (None = its count failed).
+        embed_backlog = state.get("embed_backlog")
+        if isinstance(embed_backlog, int) and embed_backlog > 10_000:
             warning = f"chatlog: embed backlog {embed_backlog}"
 
     if not warning:

@@ -368,11 +368,27 @@ Text to process:
             return cast("dict", parsed)
 
         except Exception as e:
-            logger.warning(f"LLM entity extraction failed, falling back to rule-based: {e}")
-            fallback = RuleBasedExtractor()
-            return await fallback.extract(text)
+            return await _rule_based_fallback(
+                "LLM", f"provider={self.provider} model={self.model or '(auto)'}", e, text
+            )
         finally:
             cli.close()
+
+
+async def _rule_based_fallback(backend: str, ident: str, err: Exception, text: str) -> dict:
+    """Rule-based substitute for a failed configured extractor, TAGGED as such.
+
+    The result carries ``EXTRACTOR_FALLBACK_KEY`` so the drain records the memory
+    as a failed extraction (retried, never marked extracted with the substitute's
+    entities); the preview tool reports the tag to its caller.
+    """
+    reason = f"{backend} extractor failed ({ident}): {type(err).__name__}: {err}"
+    logger.warning(f"Entity extraction: {reason}; returning a rule-based substitute tagged as a fallback")
+    res = await RuleBasedExtractor().extract(text)
+    if not isinstance(res, dict):
+        res = {"entities": [], "relationships": []}
+    res[_entity_mod.EXTRACTOR_FALLBACK_KEY] = reason[:500]
+    return res
 
 
 def httpx_async_client() -> Any:
@@ -423,9 +439,7 @@ class CustomScriptExtractor(BaseExtractor):
             return res
 
         except Exception as e:
-            logger.warning(f"Custom script extraction failed, falling back to rule-based: {e}")
-            fallback = RuleBasedExtractor()
-            return await fallback.extract(text)
+            return await _rule_based_fallback("custom script", f"script={self.script_path}", e, text)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -433,11 +447,12 @@ class CustomScriptExtractor(BaseExtractor):
 # ──────────────────────────────────────────────────────────────────────────────
 def get_configured_extractor() -> BaseExtractor:
     """Instantiate and return the configured entity extractor based on settings."""
-    # Look for env overrides first (typical M3 design language)
+    # Registry settings (flag > config file > legacy env names), read at call
+    # time so a daemon sees the configured values, not only a shell's env.
     etype = (_m3cfg.setting("extraction.type") or "rule_based").lower().strip()
-    model = os.environ.get("M3_EXTRACTION_MODEL", "").strip()
-    url = os.environ.get("M3_EXTRACTION_URL", "").strip()
-    prompt = os.environ.get("M3_EXTRACTION_PROMPT", "").strip()
+    model = str(_m3cfg.setting("extraction.model") or "").strip()
+    url = str(_m3cfg.setting("extraction.url") or "").strip()
+    prompt = str(_m3cfg.setting("extraction.prompt") or "").strip()
     script = str(_s) if (_s := _m3cfg.setting("extraction.script")) else ""
     func = (_m3cfg.setting("extraction.function") or "extract").strip()
 
@@ -530,7 +545,12 @@ async def extract_entities_impl(text: str) -> str:
                 }
             )
 
-        return json.dumps({"entities": cleaned_entities, "relationships": cleaned_relationships})
+        out: dict = {"entities": cleaned_entities, "relationships": cleaned_relationships}
+        if res.get(_entity_mod.EXTRACTOR_FALLBACK_KEY):
+            # The configured backend failed: say so rather than presenting the
+            # rule-based substitute as its result.
+            out[_entity_mod.EXTRACTOR_FALLBACK_KEY] = res[_entity_mod.EXTRACTOR_FALLBACK_KEY]
+        return json.dumps(out)
     except Exception as e:
         logger.error(f"extract_entities_impl failed: {e}")
         return json.dumps({"entities": [], "relationships": [], "error": str(e)})

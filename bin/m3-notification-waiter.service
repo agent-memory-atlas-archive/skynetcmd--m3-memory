@@ -52,10 +52,12 @@ ExecStart=[M3_PYTHON] -u [M3_MEMORY_ROOT]/bin/m3_notification_waiter.py --agent-
 Restart=always
 RestartSec=10
 # NOTE: deliberately NO StartLimitBurst/StartLimitIntervalSec override. systemd's
-# start-limit is a restart BUDGET, and an exhausted budget is the exact failure
-# the embed server hit on Windows (2026-09-13: SCM spent RESTART x3 on a sick
-# GPU driver, the driver was fixed the next day, and nothing ever retried — 30h
-# down). An hourly clean exit would consume such a budget within a day.
+# start-limit is a restart BUDGET (default 5 starts per 10 s); an exhausted
+# budget is the exact failure the embed server hit on Windows (2026-09-13: SCM
+# spent RESTART x3 on a sick GPU driver, the driver was fixed the next day, and
+# nothing ever retried — 30h down). With RestartSec=10 the default budget cannot
+# trip (at most one start per 10 s), and the hourly clean exit is far below it;
+# a tighter override is what would let a crash-loop exhaust it.
 #
 # ⚠ Windows gets single-instance from the scheduler (MultipleInstances=
 # IgnoreNew); the waiter has NO lock of its own. systemd gives the same property

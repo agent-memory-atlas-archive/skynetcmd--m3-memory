@@ -115,27 +115,6 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         # a second batch the first batch's indices and the turns read back out of
         # order under load.
         self._next_turn = 0
-        self._ensure_chatlog_schema()
-
-    def _ensure_chatlog_schema(self) -> None:
-        """Self-heal the chatlog DB schema (§4 "just works"): in *separate*
-        topology the chatlog DB has no schema until m3 install/doctor runs, so a
-        first ``chatlog_write`` would spill with "no such table: memory_items".
-        Resolve the chatlog path and ensure it's migrated (one-time, cached)."""
-        try:
-            from m3_memory import installer  # noqa: F401  (bin already on path)
-        except Exception:
-            pass
-        try:
-            import chatlog_config
-
-            self._client.ensure_schema(chatlog_config.chatlog_db_path())
-        except Exception as e:  # never block construction on a heal attempt
-            import logging
-
-            from m3_core.errors import log_swallowed
-
-            log_swallowed(logging.getLogger("m3_memory.langchain"), e, "chatlog schema self-heal skipped: %s", e)
 
     # ── read: messages (chronological) ────────────────────────────────────────
     def _fetch_rows(self) -> list[dict]:
@@ -191,18 +170,15 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         """
         base = max(self._next_turn_index(), self._next_turn)
         self._next_turn = base + len(messages)
-        for i, msg in enumerate(messages):
-            self._client._tool(
-                "chatlog_write",
-                content=str(msg.content),
-                role=_msg_to_role(msg),
-                conversation_id=self.conversation_id,
-                host_agent=self._host_agent,
-                provider=self._provider,
-                model_id=self._model_id,
-                user_id=self._user_id,
-                turn_index=base + i,
-            )
+        self._client.write_turns(
+            [(_msg_to_role(msg), str(msg.content)) for msg in messages],
+            conversation_id=self.conversation_id,
+            host_agent=self._host_agent,
+            provider=self._provider,
+            model_id=self._model_id,
+            user_id=self._user_id,
+            turn_index_base=base,
+        )
 
     def _next_turn_index(self) -> int:
         """Highest existing turn_index in this conversation + 1 (0 if empty)."""

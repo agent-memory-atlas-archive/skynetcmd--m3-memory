@@ -396,8 +396,15 @@ async def write_observation(
         valid_from=valid_from,
         embed=embed,
     )
-    m = UUID_RE.search(result)
+    # Only a "Created: <uuid>" result is a write; an error string can itself
+    # contain a UUID (e.g. a memory id it names), which must not count.
+    m = UUID_RE.search(result) if isinstance(result, str) and result.startswith("Created:") else None
     obs_id = m.group(0) if m else None
+    if obs_id is None:
+        print(
+            f"[observer] observation NOT written conv={conversation_id[:8]} user={user_id or '-'}: {str(result)[:200]}",
+            flush=True,
+        )
     # Link the observation back to its source enrichment_groups row (when
     # provided). The column is nullable; absence means "this run wasn't
     # using the state machine" — backwards-compatible.
@@ -416,9 +423,12 @@ async def write_observation(
                     (source_group_id, obs_id),
                 )
                 conn.commit()
-        except Exception:
-            # Don't break a successful write on a metadata-only failure.
-            pass
+        except Exception as e:  # noqa: BLE001 — metadata-only: the observation itself is written
+            print(
+                f"[observer] WARN observation {obs_id} written but source_group_id={source_group_id} not set "
+                f"({type(e).__name__}: {e}); the enrichment_groups link for it is missing",
+                flush=True,
+            )
     return obs_id
 
 
@@ -870,11 +880,23 @@ async def drain_queue_mode(args, profile, token: str) -> None:
 
         print(f"[observer] queue: {len(queue_rows)} rows pending", flush=True)
 
+        async def _record_failure(qid: int, err: str) -> None:
+            with mc._db() as db:
+                db.execute(
+                    f"UPDATE observation_queue SET attempts=attempts+1, "
+                    f"last_error={_p}, last_attempt_at={_d.now()} "
+                    f"WHERE id={_p}",
+                    (err[:500], qid),
+                )
+                db.commit()
+
         async def drain_one(qid: int, conv_id: str, uid: str, attempts: int) -> None:
             async with sem:
-                # Pull turns for this conversation from its variant. Production
-                # rows live under the default (NULL) variant; bench rows under
-                # the named variant. We infer from a single turn's variant.
+                # The queue drains production conversations: the default (NULL)
+                # variant only, and only the queued user's turns — a conversation
+                # id is not unique across users or bench variants, and mixing
+                # them would put one user's turns into another's observations.
+                # NULL and '' user ids are the same "no user" (COALESCE).
                 with mc._db() as db:
                     turns = db.execute(
                         f"""
@@ -884,11 +906,13 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                                created_at, metadata_json
                         FROM memory_items
                         WHERE COALESCE({_je_sid}, {_je_cid}, conversation_id) = {_p}
+                          AND COALESCE(user_id, '') = {_p}
+                          AND variant IS NULL
                           AND COALESCE(is_deleted,0)=0
                           AND type IN ('message','conversation')
                         ORDER BY turn_index ASC
                         """,
-                        (conv_id,),
+                        (conv_id, uid or ""),
                     ).fetchall()
                 if not turns:
                     with mc._db() as db:
@@ -898,7 +922,7 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                     return
 
                 try:
-                    await process_conversation(
+                    res = await process_conversation(
                         conv_id,
                         uid or "",
                         list(turns),
@@ -908,19 +932,20 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                         token,
                         counters,
                     )
+                except Exception as e:  # noqa: BLE001
+                    await _record_failure(qid, f"{type(e).__name__}: {e}")
+                    counters["failed"] += 1
+                    return
+                outcome = (res or {}).get("outcome")
+                if outcome in ("written", "empty", "skipped"):  # terminal: nothing to retry
                     with mc._db() as db:
                         db.execute(f"DELETE FROM observation_queue WHERE id={_p}", (qid,))
                         db.commit()
-                except Exception as e:  # noqa: BLE001
-                    with mc._db() as db:
-                        db.execute(
-                            f"UPDATE observation_queue SET attempts=attempts+1, "
-                            f"last_error={_p}, last_attempt_at={_d.now()} "
-                            f"WHERE id={_p}",
-                            (str(e)[:500], qid),
-                        )
-                        db.commit()
-                    counters["failed"] += 1
+                else:
+                    # process_conversation already counted the failure; keep the
+                    # row and charge an attempt so it is retried (cap: attempts < 5).
+                    err = (res or {}).get("last_error") or f"observer outcome {outcome!r}"
+                    await _record_failure(qid, err)
 
         await gather_or_cancel(*(drain_one(r[0], r[1], r[2], r[3]) for r in queue_rows))
 

@@ -70,7 +70,7 @@ def test_register_cognitive_loop_returns_true_only_on_success(monkeypatch, tmp_p
 
 def test_prompt_prints_honest_failure_when_not_registered(monkeypatch, capsys):
     """When registration fails, the loud [OK] must NOT print — a [!] does."""
-    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda: False)
+    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda *a, **k: False)
     installer._prompt_and_install_cognitive_loop(interactive=False, forced=True)
     out = capsys.readouterr().out
     assert "[OK] cognitive loop installed" not in out
@@ -78,7 +78,7 @@ def test_prompt_prints_honest_failure_when_not_registered(monkeypatch, capsys):
 
 
 def test_prompt_prints_ok_when_registered(monkeypatch, capsys):
-    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda: True)
+    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda *a, **k: True)
     did = installer._prompt_and_install_cognitive_loop(interactive=False, forced=True)
     out = capsys.readouterr().out
     assert "[OK] cognitive loop installed" in out
@@ -111,7 +111,7 @@ def test_install_m3_cognitive_loop_flag_is_success_on_existing_payload(monkeypat
     raise 'already installed' — the loop WAS the requested work. Returns the
     existing bridge (exit 0), not a RuntimeError (exit 1)."""
     repo_path = _stub_install_m3_env(monkeypatch, tmp_path)
-    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda: True)
+    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda *a, **k: True)
     # find_bridge resolves the existing payload bridge.
     fake_bridge = repo_path / "bin" / "memory_bridge.py"
     monkeypatch.setattr(installer, "find_bridge", lambda: fake_bridge)

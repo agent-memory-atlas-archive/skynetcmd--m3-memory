@@ -32,11 +32,13 @@ DESIGN (§2 modularity, §3 fail-safe, §5 effectiveness)
     is the torn-WAL case the protocol exists to prevent.
   * Degrade, never guess: a MISSING heartbeat is "unknown", not "dead" — an
     upgrade predating the heartbeat would otherwise cause an endless restart
-    loop. Falls back to the m3_halt PID registry for liveness.
-  * Import-fragile by necessity, so imports are guarded: if the venv is
-    half-upgraded and m3_sdk/m3_halt won't import, the watchdog still resolves
-    roots from the documented env vars and keeps working. It is least useful
-    exactly when it is most needed otherwise.
+    loop. Falls back to the m3_halt PID registry for liveness. An UNREADABLE
+    heartbeat is judged by the file's mtime: old = stale (restart), fresh =
+    degraded. A beat with state "paused" (governor/thermal/HALT) is progress.
+  * Imports: roots come from m3_core.seams -> m3_memory._roots, which is
+    stdlib-only and imports even from a broken venv. m3_halt is imported
+    guarded; when it fails, the halt state is unknown and the watchdog stands
+    down for that tick (logged) rather than risk a restart into an exclusive op.
 """
 
 from __future__ import annotations
@@ -81,7 +83,8 @@ except Exception:  # pragma: no cover - fallback if _task_runtime unavailable
     def no_window_kwargs() -> dict:
         # getattr, not subprocess.CREATE_NO_WINDOW: the attribute is Windows-only
         # and a direct reference fails mypy on the Linux CI runner.
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        # Capability, not identity: the flag exists only where it applies.
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         return {"creationflags": flags} if flags else {}
 
 
@@ -136,9 +139,22 @@ STATE = CONFIG_ROOT / ".loop_watchdog_state.json"
 
 
 def _log_path() -> Path:
-    if _os_name() == "Darwin":
-        return Path(os.path.expanduser("~/Library/Logs/m3_loop_watchdog.log"))
-    return CONFIG_ROOT.parent / "logs" / "m3_loop_watchdog.log"
+    """<logs root>/m3_loop_watchdog.log on every OS (honours M3_LOGS_ROOT); the
+    launchd plist and systemd unit point their stdout at the same root."""
+    from m3_core.seams import roots
+
+    return Path(roots.logs_root()) / "m3_loop_watchdog.log"
+
+
+def _stdout_is(path: Path) -> bool:
+    """True when stdout already IS ``path`` (launchd StandardOutPath), so a
+    second write would duplicate every line. False when undeterminable."""
+    try:
+        out = os.fstat(sys.stdout.fileno())
+        target = os.stat(path)
+    except (AttributeError, OSError, ValueError):
+        return False
+    return bool(target.st_ino) and (out.st_dev, out.st_ino) == (target.st_dev, target.st_ino)
 
 
 def log(msg: str) -> None:
@@ -146,11 +162,15 @@ def log(msg: str) -> None:
     # Match the codebase's cp1252-safe print (ASCII only here, but the console
     # encoding can still reject the stream's default).
     try:
-        print(line)
+        print(line, flush=True)
     except UnicodeEncodeError:
-        print(line.encode("ascii", "replace").decode("ascii"))
+        print(line.encode("ascii", "replace").decode("ascii"), flush=True)
+    except (AttributeError, OSError, ValueError):
+        pass  # no stdout (pythonw): the file below is the record
     try:
         p = _log_path()
+        if _stdout_is(p):
+            return
         p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -209,18 +229,42 @@ def newest_loop_age() -> float | None:
         return None
 
 
-def heartbeat_age() -> tuple[float | None, int]:
-    """(age_seconds, interval_s). age is None when the file is absent or
-    unreadable — explicitly 'unknown', never 'stale'."""
+def read_heartbeat() -> dict:
+    """The loop's beat as {age, interval, state, reason, error, mtime_age}.
+
+    age is None when the file is absent (error None) or unreadable (error set,
+    mtime_age = seconds since the file was last written, when stat works)."""
+    out: dict = {"age": None, "interval": 300, "state": None, "reason": None, "error": None, "mtime_age": None}
     try:
-        hb = json.loads(HEARTBEAT.read_text(encoding="utf-8"))
-        ts = datetime.fromisoformat(hb["ts"])
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=UTC)
-        interval = int(hb.get("interval_s") or 300)
-        return (datetime.now(UTC) - ts).total_seconds(), interval
-    except (OSError, ValueError, KeyError, TypeError):
-        return None, 300
+        raw = HEARTBEAT.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return out
+    except OSError as e:
+        out["error"] = f"{type(e).__name__}: {e}"
+    else:
+        try:
+            hb = json.loads(raw)
+            ts = datetime.fromisoformat(hb["ts"])
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            out["interval"] = int(hb.get("interval_s") or 300)
+            out["age"] = (datetime.now(UTC) - ts).total_seconds()
+            out["state"] = hb.get("state") or "running"
+            out["reason"] = hb.get("reason")
+            return out
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            out["error"] = f"malformed ({type(e).__name__}: {e})"
+    try:
+        out["mtime_age"] = time.time() - HEARTBEAT.stat().st_mtime
+    except OSError:
+        pass
+    return out
+
+
+def heartbeat_age() -> tuple[float | None, int]:
+    """(age_seconds, interval_s); age None when absent or unreadable."""
+    hb = read_heartbeat()
+    return hb["age"], hb["interval"]
 
 
 def recently_restarted() -> bool:
@@ -237,8 +281,15 @@ def _restart_backend() -> tuple[list[list[str]], str]:
     Each OS gets the idiom that preserves single-supervisor ownership:
       Darwin  — kickstart -k restarts the launchd-managed job in place.
       Linux   — systemctl --user restart; the unit is Restart=always.
-      Windows — /End then /Run; MultipleInstances=IgnoreNew makes a redundant
-                /Run harmless, and /End releases the single-instance lock first.
+      Windows — /End then /Run. The task runs the loop in the foreground (no
+                --background re-exec), so /End terminates the loop itself and
+                releases its single-instance lock; MultipleInstances=IgnoreNew
+                makes a redundant /Run harmless. A task registered by an older
+                installer with --background has exited already, so /End reaches
+                nothing — re-register with `m3 schedules repair` (admin shell).
+
+    The LAST command is the one that (re)starts the loop; the earlier ones are
+    graceful stops whose non-zero exit on a not-running job is expected.
     """
     osn = _os_name()
     if osn == "Darwin":
@@ -274,30 +325,44 @@ def restart(reason: str) -> int:
         return 0
     cmds, what = _restart_backend()
     log(f"RESTARTING via {what}: {reason}")
-    spawned = False
-    for cmd in cmds:
+    start_ok = False
+    failure = ""
+    for i, cmd in enumerate(cmds):
+        is_start = i == len(cmds) - 1
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, **no_window_kwargs())
-            spawned = True
         except (OSError, subprocess.SubprocessError) as e:
-            log(f"  {cmd[0]} failed to spawn: {e}")
+            log(f"  {' '.join(cmd)} failed to spawn: {type(e).__name__}: {e}")
+            if is_start:
+                failure = f"`{' '.join(cmd)}` could not be spawned ({type(e).__name__}: {e})"
             continue
-        if r.returncode != 0:
-            # Expected no-ops, not failures: `schtasks /End` on a task that is
-            # not running, and `launchctl kickstart` on a job KeepAlive already
-            # brought back. Log at info so a genuine problem is still visible,
-            # and let the next tick judge on the heartbeat rather than guessing
-            # from exit codes that differ per platform and per state.
-            log(f"  note: {' '.join(cmd)} exit={r.returncode} {(r.stderr or '').strip()}")
-    if not spawned:
-        log("  no restart command could be spawned")
-        return 1
+        err = (r.stderr or r.stdout or "").strip()[-400:]
+        if r.returncode == 0:
+            start_ok = start_ok or is_start
+            continue
+        if is_start:
+            failure = f"`{' '.join(cmd)}` exit={r.returncode} stderr={err!r}"
+        else:
+            # A graceful stop on a job that is not running exits non-zero
+            # (`schtasks /End`, `launchctl kill`); the start command decides.
+            log(f"  note: {' '.join(cmd)} exit={r.returncode} {err}")
+    # Backoff applies to a failed attempt too: a supervisor that rejects the
+    # start every 5 minutes must not be hammered, and the failure is logged.
     try:
         STATE.parent.mkdir(parents=True, exist_ok=True)
-        STATE.write_text(json.dumps({"last_restart": time.time(), "reason": reason}), encoding="utf-8")
-    except OSError:
-        pass
-    log("restart issued OK")
+        STATE.write_text(
+            json.dumps({"last_restart": time.time(), "reason": reason, "ok": start_ok, "failure": failure or None}),
+            encoding="utf-8",
+        )
+    except OSError as e:
+        log(f"  could not record restart state at {STATE}: {e} (backoff will not apply next tick)")
+    if not start_ok:
+        log(
+            f"restart FAILED via {what}: {failure or 'no start command ran'}. The loop is still "
+            f"not progressing; inspect the supervisor ({what}) and the loop log in the logs root."
+        )
+        return 1
+    log(f"restart requested via {what} (start command exit 0; next tick verifies the heartbeat)")
     return 0
 
 
@@ -328,8 +393,24 @@ def main() -> int:
     # — the two checks are independent by design.
     _tick_embed_watchdog()
 
-    age, interval = heartbeat_age()
+    hb = read_heartbeat()
+    age, interval = hb["age"], hb["interval"]
     stale_after = max(_MIN_STALE_S, interval * _MISSED_CYCLES)
+
+    if age is None and hb["error"]:
+        # Present but unreadable. The loop writes it atomically, so this is not
+        # a torn write in progress; judge by when the file last changed.
+        mt = hb["mtime_age"]
+        if mt is not None and mt > stale_after:
+            return restart(
+                f"heartbeat {HEARTBEAT} is unreadable ({hb['error']}) and was last written "
+                f"{mt:.0f}s ago (> {stale_after:.0f}s)"
+            )
+        log(
+            f"OK (degraded): heartbeat {HEARTBEAT} is unreadable ({hb['error']}); last written "
+            f"{'unknown' if mt is None else f'{mt:.0f}s'} ago — treated as fresh until {stale_after:.0f}s"
+        )
+        return 0
 
     if age is None:
         # No progress signal. Fall back to liveness so a loop that died BEFORE
@@ -362,7 +443,10 @@ def main() -> int:
             f"be alive but is not completing cycles"
         )
 
-    log(f"OK: heartbeat {age:.0f}s old (threshold {stale_after:.0f}s)")
+    if hb["state"] == "paused":
+        log(f"OK: loop paused ({hb['reason'] or 'unspecified'}); beat {age:.0f}s old (threshold {stale_after:.0f}s)")
+    else:
+        log(f"OK: heartbeat {age:.0f}s old (threshold {stale_after:.0f}s)")
     return 0
 
 

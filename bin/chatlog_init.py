@@ -387,7 +387,10 @@ def apply_claude_settings(config: ChatlogConfig) -> tuple[bool, str]:
         return False, f"could not write Claude settings via install_claude_settings: {e}"
 
     if changed:
-        msg = f"wrote m3 hooks + statusLine + mcpServers into {settings_path}"
+        # Claude Code reads server definitions only from ~/.claude.json (claude
+        # mcp add); install_claude_settings writes hooks + statusLine and prunes
+        # any stale m3-owned mcpServers here rather than adding one.
+        msg = f"wrote m3 hooks + statusLine into {settings_path} (stale m3 mcpServers entries pruned)"
     elif path_action:
         msg = f"Claude settings already up to date ({settings_path})"
     else:

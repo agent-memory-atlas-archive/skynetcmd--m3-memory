@@ -51,11 +51,10 @@ from typing import cast
 
 from m3_core.seams import is_windows
 
-# The installer marks its own settings.json entries by this substring appearing
-# anywhere in the serialized entry (see chatlog_init._chatlog_entry_present).
-# Detection and repair must use the SAME ownership test, or repair will either
-# miss entries it should fix or touch entries it does not own.
-OWNERSHIP_MARKER = "chatlog"
+# Ownership of a hook command: generate_configs._is_m3_command, the test the
+# repair writer (install_claude_settings) strips by. Detection and repair must
+# use the SAME test, or repair misses entries it should fix or touches entries
+# it does not own.
 
 # Hook events m3 wires. SessionStart is capture-health only; PreCompact and Stop
 # are the actual turn-capture path.
@@ -111,19 +110,25 @@ def _load_settings() -> dict | None:
     """
     try:
         with open(_claude_settings_path(), encoding="utf-8") as fh:
-            return cast("dict | None", json.load(fh))
+            data = json.load(fh)
     except Exception:  # noqa: BLE001 — absent or malformed both mean "unknown"
         return None
+    return cast("dict", data) if isinstance(data, dict) else None
 
 
 def _m3_hook_entries(settings: dict) -> list[tuple[str, str]]:
     """[(event, command), …] for every m3-owned hook entry."""
+    from generate_configs import _is_m3_command, _m3_repo_root
+
+    root_fwd = _m3_repo_root().replace(os.sep, "/")
     out: list[tuple[str, str]] = []
-    for event, entries in (settings.get("hooks") or {}).items():
-        for entry in entries or []:
-            for hook in entry.get("hooks") or []:
-                command = str(hook.get("command", ""))
-                if OWNERSHIP_MARKER in command.lower():
+    hooks = settings.get("hooks")
+    for event, entries in (hooks if isinstance(hooks, dict) else {}).items():
+        for entry in entries if isinstance(entries, list) else []:
+            inner = entry.get("hooks") if isinstance(entry, dict) else None
+            for hook in inner if isinstance(inner, list) else []:
+                command = str(hook.get("command", "")) if isinstance(hook, dict) else ""
+                if _is_m3_command(command, root_fwd):
                     out.append((event, command))
     return out
 
@@ -137,13 +142,22 @@ def _extract_paths(command: str) -> list[str]:
     anything that looks like an absolute path to a real file type — shape-
     agnostic, so a new launcher form does not silently go unchecked.
     """
-    pattern = r'(?:[A-Za-z]:[\\/]|/)[^\s"\'&|;]+\.(?:exe|py|ps1|sh|cmd|bat)'
+    # A quoted path may hold spaces (generate_configs._quote_cmd_path); POSIX
+    # interpreters have no extension (…/venv/bin/python3), so match those too.
+    ext = r"\.(?:exe|py|ps1|sh|cmd|bat)|/python[0-9.]*"
+    quoted = rf'"((?:[A-Za-z]:[\\/]|/)[^"]+?(?:{ext}))"|\'((?:[A-Za-z]:[\\/]|/)[^\']+?(?:{ext}))\''
+    bare = rf'(?:[A-Za-z]:[\\/]|/)[^\s"\'&|;]+(?:{ext})(?=$|[\s"\'&|;])'
     seen: list[str] = []
-    for match in re.findall(pattern, command):
-        cleaned = match.strip().strip('"').strip("'")
+    for m in re.finditer(rf"{quoted}|({bare})", command):
+        cleaned = next(g for g in m.groups() if g)
         if cleaned not in seen:
             seen.append(cleaned)
     return seen
+
+
+def _is_interpreter(path: str) -> bool:
+    """A Python interpreter path (python.exe, pythonw.exe, …/bin/python3)."""
+    return os.path.basename(path).lower().startswith("python")
 
 
 def _payload_root() -> str:
@@ -152,14 +166,16 @@ def _payload_root() -> str:
 
 
 def _is_installed_layout(payload_root: str) -> bool:
-    """Is the running payload an INSTALLED package (vs. a repo checkout)?
+    """Is the running payload an INSTALLED package (vs. a repo checkout)? The
+    one owner is generate_configs._is_installed_layout (site- AND dist-packages).
 
     The same-install comparison is only meaningful for an installed layout. From
     a checkout the hooks correctly point at the installed venv — a different tree
-    by design — so the comparison must be skipped rather than reported as a
-    mismatch on every dev machine.
+    by design — so the comparison is skipped there.
     """
-    return "/site-packages/" in os.path.normcase(os.path.abspath(payload_root)).replace("\\", "/")
+    from generate_configs import _is_installed_layout as owner
+
+    return owner(os.path.abspath(payload_root))
 
 
 def _same_install(path: str, payload_root: str) -> bool:
@@ -181,8 +197,7 @@ def _same_install(path: str, payload_root: str) -> bool:
     # "the same install" — the check would pass on exactly the mismatch it is
     # meant to catch.
     payload = norm(payload_root)
-    marker = "/site-packages/"
-    idx = payload.find(marker)
+    idx = max(payload.find("/site-packages/"), payload.find("/dist-packages/"))
     if idx == -1:
         # Running from a REPO CHECKOUT, not an installed layout. The hooks
         # legitimately point at the installed venv, which is a different tree by
@@ -236,11 +251,7 @@ def check() -> dict:
                         "silently on every fire, so capture is DEAD",
                     }
                 )
-            elif (
-                path.lower().endswith(".exe")
-                and _is_installed_layout(payload_root)
-                and not _same_install(path, payload_root)
-            ):
+            elif _is_interpreter(path) and _is_installed_layout(payload_root) and not _same_install(path, payload_root):
                 findings.append(
                     {
                         "kind": "foreign_interpreter",
@@ -296,6 +307,7 @@ def check() -> dict:
 
     # Corroborate the config's own claim against the file. `wired` in
     # chatlog_status is spec.enabled echoed back, not evidence.
+    config_error: str | None = None
     try:
         import chatlog_config
 
@@ -336,13 +348,21 @@ def check() -> dict:
                         f"{gap} — capture cannot run for this agent",
                     }
                 )
-    except Exception:  # noqa: BLE001 — config is optional context, not the check
-        pass
+    except Exception as e:  # noqa: BLE001 — reported as an unverified claim check
+        config_error = f"{type(e).__name__}: {e}"
 
+    if findings:
+        status = "issues"
+    elif config_error:
+        # Which agents SHOULD be wired is unknown, so "OK" would be unverified.
+        status = "unknown"
+    else:
+        status = "ok"
     return {
-        "status": "issues" if findings else "ok",
+        "status": status,
         "findings": findings,
         "hooks_seen": len(entries),
+        "config_error": config_error,
     }
 
 
@@ -422,6 +442,14 @@ def run(brief: bool = False, fix: bool = False) -> int:
     except Exception as e:  # noqa: BLE001 — the doctor must never die on a probe
         if not brief:
             print(f"  environment: probe failed (non-fatal): {type(e).__name__}: {e}")
+        return 0
+
+    if res["status"] == "unknown" and res.get("config_error"):
+        print(
+            f"⚠️  chatlog hooks: SKIPPED — the chatlog config could not be read ({res['config_error']}); "
+            f"{res['hooks_seen']} hook path(s) checked, but which agents should capture was NOT verified. "
+            "Diagnose: m3 chatlog doctor"
+        )
         return 0
 
     if res["status"] == "unknown":

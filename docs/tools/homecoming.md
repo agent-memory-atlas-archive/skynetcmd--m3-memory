@@ -1,8 +1,8 @@
 ---
 tool: bin/homecoming.py
-sha1: ff21c6242ddc
-mtime_utc: 2026-10-11T20:28:34.224199+00:00
-generated_utc: 2026-10-11T20:28:52.979853+00:00
+sha1: 42af369541e4
+mtime_utc: 2026-10-16T17:38:53.876096+00:00
+generated_utc: 2026-10-16T19:03:59.297753+00:00
 private: false
 ---
 
@@ -15,14 +15,14 @@ Relocates repo-relative and old ~/.m3-memory/ state to new decoupled standard ro
 (~/.m3/config and ~/.m3/engine).
 
 This tool is non-destructive: it COPIES databases using the SQLite Backup API
-and MOVES configuration files. It does NOT modify system-wide tool settings
+and COPIES configuration files; the legacy originals are left in place. It does NOT modify system-wide tool settings
 (Claude/Gemini) to ensure safety. manually update tool settings if needed.
 
 ---
 
 ## Entry points
 
-- `def main()` (line 95)
+- `def main()` (line 104)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -43,6 +43,7 @@ _(none detected)_
 
 - `m3_sdk (get_m3_config_root, get_m3_engine_root)`
 - `sqlite_snapshot (SqliteSnapshotError, snapshot_sqlite)`
+- `sqlite_snapshot (file_row_counts)`
 
 ---
 
@@ -54,6 +55,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.atomic_io (atomic_write)`
 - `m3_core.seams (root_migration)`
 
 ---
@@ -61,7 +63,6 @@ _(no subprocess / http / sqlite calls detected)_
 ## File dependencies (repo paths referenced)
 
 - `.db`
-- `agent_chatlog.db`
 - `memory/.chatlog_config.json`
 - `memory/.chatlog_ingest_cursor.json`
 - `memory/.chatlog_state.json`

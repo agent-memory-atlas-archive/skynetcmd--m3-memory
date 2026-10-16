@@ -13,7 +13,12 @@ CLI:
 
 A per-session cursor at <engine_root>/.chatlog_ingest_cursor.json records which
 message ids / indices have been ingested so re-invoking on the same transcript
-(e.g. Stop hook every turn) stays idempotent.
+(e.g. Stop hook every turn) stays idempotent. It advances only for rows that
+are durable (in the DB or a spill file) after the write queue is drained, under
+a file lock shared by concurrent hook fires.
+
+Output: one JSON object on stdout (written = landed in the DB, spilled, pending,
+skipped, failed, error). Exit code is non-zero when capture is incomplete.
 """
 
 from __future__ import annotations
@@ -268,15 +273,56 @@ def _cursor_path() -> str:
     return str(chatlog_config.INGEST_CURSOR)
 
 
+class CursorUnreadable(RuntimeError):
+    """The cursor exists but cannot be trusted; ingest must not proceed on {}."""
+
+
+def _cursor_lock_path() -> str:
+    return _cursor_path() + ".lock"
+
+
 def _load_cursor() -> dict:
+    """Return the cursor; {} only when no cursor file exists yet.
+
+    ⚠ An unreadable cursor is NOT an empty one: treating it as {} re-ingests
+    every turn of every transcript under fresh row ids (duplicates, silently).
+    A corrupt file is moved aside and CursorUnreadable raised; the caller refuses
+    this run and reports the moved path.
+    """
+    path = _cursor_path()
+    if not os.path.exists(path) and os.path.exists(_legacy_cursor_path()):
+        path = _legacy_cursor_path()  # first run after the move: keep the progress
     try:
-        path = _cursor_path()
-        if not os.path.exists(path) and os.path.exists(_legacy_cursor_path()):
-            path = _legacy_cursor_path()  # first run after the move: keep the progress
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+            data = json.load(f)
+    except FileNotFoundError:
         return {}
+    except OSError as e:
+        raise CursorUnreadable(
+            f"ingest cursor {path} could not be read ({type(e).__name__}: {e}); "
+            f"refusing to ingest without it (would re-capture every turn). inspect: permissions on {path}"
+        ) from e
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise _corrupt_cursor(path, str(e)) from e
+    if not isinstance(data, dict):
+        raise _corrupt_cursor(path, f"holds a JSON {type(data).__name__}, not an object")
+    return data
+
+
+def _corrupt_cursor(path: str, why: str) -> CursorUnreadable:
+    """Move a corrupt cursor aside, log ERROR, and build the refusal."""
+    aside = f"{path}.corrupt-{utc_iso().replace(':', '')}"
+    try:
+        os.replace(path, aside)
+        moved = f"moved aside to {aside}"
+    except OSError as mv_err:
+        moved = f"could NOT be moved aside ({mv_err}); remove or repair {path} by hand"
+    logger.error("ingest cursor %s is corrupt (%s); %s", path, why, moved)
+    return CursorUnreadable(
+        f"ingest cursor {path} is corrupt ({why}); {moved}. This run captured nothing. "
+        "The next run starts a fresh cursor and may re-capture turns already stored "
+        "(duplicates, not loss); to avoid that, repair the JSON and move it back first."
+    )
 
 
 def _save_cursor(state: dict) -> None:
@@ -445,6 +491,22 @@ def _parse_openclaw(raw: str) -> tuple[list[dict], str | None]:
 _AIDER_SESSION_RE = re.compile(r"^# aider chat started at (.+)$")
 
 
+def _aider_stamp_to_utc(stamp: str) -> str:
+    """Aider stamps its header in naive LOCAL time; rows store ISO-8601 UTC.
+
+    The stamp is read in this machine's zone (the one Aider wrote it in) and
+    converted. An unparseable stamp yields "" so the writer stamps now() rather
+    than storing local time as if it were UTC. The raw stamp stays the
+    conversation id: it is an identity, not a time.
+    """
+    try:
+        local = datetime.strptime(stamp.strip(), "%Y-%m-%d %H:%M:%S")  # noqa: DTZ007 — naive by Aider's format; zone applied next
+    except ValueError:
+        return ""
+    # Same fixed-width form as utc_iso() (which only renders now()).
+    return local.astimezone().astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _parse_aider(raw: str) -> tuple[list[dict], str | None]:
     """Parse an Aider chat history. Returns (items, sessionId).
 
@@ -493,7 +555,7 @@ def _parse_aider(raw: str) -> tuple[list[dict], str | None]:
                     "model_id": "unknown",
                     "conversation_id": session_id or "",
                     "provider": "other",
-                    "timestamp": session_id or "",
+                    "timestamp": _aider_stamp_to_utc(session_id or ""),
                     # No per-turn id exists in the format; index within the session
                     # keeps the cursor's idempotency working across re-ingests.
                     "uuid": f"{session_id or 'aider'}#{len(items)}",
@@ -836,6 +898,21 @@ async def _ingest(format_name: str, transcript_path: str, session_override: str,
         logger.info(f"No parseable items in {transcript_path}")
         return {"written": 0, "skipped": 0, "failed": 0, "session_id": session_id}
 
+    from m3_core.locking import file_lock
+
+    # One lock spans load -> filter -> write -> drain -> commit: two hooks firing
+    # together (Stop + PreCompact) otherwise both read the old cursor, both write
+    # the same turns, and the later save drops the earlier one's uuids.
+    try:
+        with file_lock(_cursor_lock_path(), purpose="chatlog ingest cursor"):
+            return await _ingest_locked(items, session_id, format_name, variant, transcript_path)
+    except CursorUnreadable as e:
+        return {"written": 0, "skipped": 0, "failed": 0, "error": str(e), "session_id": session_id}
+
+
+async def _ingest_locked(
+    items: list[dict], session_id: str, format_name: str, variant: str | None, transcript_path: str
+) -> dict:
     cursor = _load_cursor()
     new_items = _filter_new_items(items, session_id, cursor)
     skipped = len(items) - len(new_items)
@@ -844,33 +921,103 @@ async def _ingest(format_name: str, transcript_path: str, session_override: str,
         logger.info(f"All {len(items)} items already ingested for session {session_id}")
         return {"written": 0, "skipped": skipped, "failed": 0, "session_id": session_id}
 
-    # Capture uuids before _normalize strips them — the cursor needs them.
-    uuids_to_commit = [it.get("uuid") for it in new_items if it.get("uuid")]
-    normalized = _normalize(new_items, format_name, variant, session_id)
-
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import chatlog_config
     import chatlog_core
 
-    result = await chatlog_core.chatlog_write_bulk_impl(normalized, embed=False)
-    written = len(result.get("written_ids", []))
-    failed = result.get("failed", 0)
-    spilled = result.get("spilled", 0)
+    # Capture uuids before _normalize strips them — the cursor needs them.
+    uuids = [it.get("uuid") for it in new_items]
+    normalized = _normalize(new_items, format_name, variant, session_id)
 
-    if written > 0:
-        _commit_cursor([{"uuid": u} for u in uuids_to_commit], session_id, cursor)
+    # Enqueue one item per call so each transcript uuid maps to exactly one row
+    # id (the bulk result's id list skips validation failures, losing alignment).
+    row_of: dict[int, str] = {}
+    failed = 0
+    spilled_at_enqueue = 0
+    errors: list[str] = []
+    for idx, item in enumerate(normalized):
+        res = await chatlog_core.chatlog_write_bulk_impl([item], embed=False)
+        ids = res.get("written_ids") or []
+        if ids:
+            row_of[idx] = ids[0]
+            spilled_at_enqueue += int(res.get("spilled", 0))
+        else:
+            failed += 1
+            errors.extend(f"item {idx} (uuid={uuids[idx] or '-'}): {err}" for err in res.get("errors", []))
 
-    logger.info(
-        f"Ingested {transcript_path}: written={written}, skipped={skipped}, "
-        f"spilled={spilled}, failed={failed}, session_id={session_id}"
-    )
-    return {
-        "written": written,
+    landed, spilled_at_flush, pending_ids = await _drain_queue(chatlog_core)
+    spilled = spilled_at_enqueue + spilled_at_flush
+
+    # Commit the cursor ONLY for rows that are durable (in the DB or in a spill
+    # file the sweeper drains). Rows still queued when the drain gave up are
+    # retried by the next hook fire because their uuids stay unseen.
+    durable_uuids = [uuids[i] for i, rid in row_of.items() if rid not in pending_ids and uuids[i]]
+    if durable_uuids:
+        _commit_cursor([{"uuid": u} for u in durable_uuids], session_id, cursor)
+
+    pending = len(pending_ids)
+    result: dict[str, Any] = {
+        "written": landed,
         "skipped": skipped,
         "spilled": spilled,
+        "pending": pending,
         "failed": failed,
-        "errors": result.get("errors", []),
+        "errors": errors[:3],
         "session_id": session_id,
     }
+    if spilled:
+        result["spill_dir"] = chatlog_config.spill_dir()
+    if pending:
+        result["error"] = (
+            f"{pending} row(s) neither reached the chatlog DB nor a spill file in "
+            f"{chatlog_config.spill_dir()} (both writes failed; see the ERROR lines above). "
+            "Their turns stay un-cursored, so the next hook fire retries them."
+        )
+    logger.info(
+        f"Ingested {transcript_path}: landed={landed}, skipped={skipped}, spilled={spilled}, "
+        f"pending={pending}, failed={failed}, session_id={session_id}"
+    )
+    return result
+
+
+async def _drain_queue(chatlog_core: Any) -> tuple[int, int, set[str]]:
+    """Flush the write queue to empty. Returns (landed, spilled, pending_row_ids).
+
+    The background flush task is cancelled first so this is the only consumer:
+    a one-shot CLI must not report until its rows are durable. Stops when the
+    queue is empty or a flush makes no progress (DB write AND spill failed, rows
+    re-enqueued); whatever remains is returned as pending — never claimed.
+    """
+    task = chatlog_core._FLUSH_TASK
+    if task is not None and not task.done():
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001 — cancelling our own helper task
+            pass
+    q = chatlog_core._QUEUE
+    landed = spilled = 0
+    while q is not None and q.qsize() > 0:
+        before = q.qsize()
+        try:
+            n = await chatlog_core._flush_once()
+        except Exception as e:  # noqa: BLE001 — reported as pending below
+            logger.error("chatlog flush raised %s: %s; %d row(s) still queued", type(e).__name__, e, q.qsize())
+            break
+        after = q.qsize()
+        if n:
+            landed += n
+        elif after < before:
+            spilled += before - after  # flush failed, batch reached the spill file
+        else:
+            break  # no progress: DB and spill both failed, batch re-enqueued
+    pending: set[str] = set()
+    while q is not None and not q.empty():
+        try:
+            pending.add(q.get_nowait().get("_id"))
+        except asyncio.QueueEmpty:
+            break
+    return landed, spilled, pending
 
 
 async def main() -> int:
@@ -954,35 +1101,19 @@ async def main() -> int:
             except Exception as e:
                 logger.warning(f"M3_AUTO_ENRICH enqueue failed (non-fatal): {type(e).__name__}: {e}")
 
-    # Shutdown drain: chatlog_write_bulk_impl enqueues rows on an async
-    # Queue drained by the _flush_loop background task. asyncio.run()
-    # cancels tasks without awaiting their drain, so rows in flight when
-    # main() returns get spilled to disk (or lost entirely if the executor
-    # is torn down mid-insert, surfacing as "cannot schedule new futures
-    # after interpreter shutdown"). Explicitly drain the queue and cancel
-    # the loop before returning so every row either lands in the DB or
-    # reaches the spill file cleanly.
-    try:
-        import chatlog_core as _cc
-
-        if _cc._QUEUE is not None:
-            # Drain remaining items. _flush_once is idempotent once the
-            # queue is empty so calling in a loop is safe.
-            while _cc._QUEUE.qsize() > 0:
-                written = await _cc._flush_once()
-                if written == 0:
-                    break  # nothing flushable (likely already spilled)
-        if _cc._FLUSH_TASK is not None and not _cc._FLUSH_TASK.done():
-            _cc._FLUSH_TASK.cancel()
-            try:
-                await _cc._FLUSH_TASK
-            except (asyncio.CancelledError, Exception):
-                pass
-    except Exception as e:
-        logger.warning(f"Shutdown drain non-fatal error: {type(e).__name__}: {e}")
-
+    # The queue was drained inside _ingest before the cursor moved; nothing is
+    # in flight here, so the result below reports only checked outcomes.
     print(json.dumps(result, indent=2))
-    return 0 if result.get("failed", 0) == 0 else 1
+    return _exit_code(result)
+
+
+def _exit_code(result: dict) -> int:
+    """Non-zero whenever capture is incomplete: an error, a validation failure,
+    or rows that are neither in the DB nor spilled. Hooks and the .sh wrappers
+    that exec this read the exit code, so an error with exit 0 is invisible."""
+    if result.get("error") or result.get("failed", 0) or result.get("pending", 0):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

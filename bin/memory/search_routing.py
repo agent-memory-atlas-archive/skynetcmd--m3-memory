@@ -363,8 +363,10 @@ def build_candidate_sql(
       semantic + has_vec : (q_blob, *where_params)
       semantic + keys    : (json_rowids, *where_params)
       semantic           : (*where_params,)
-      hybrid   + has_vec : (q_blob, *where_params, fts_query)
-      hybrid             : (*where_params, fts_query)
+      hybrid   + has_vec : (fts_query, *where_params, q_blob, *where_params)
+      hybrid             : (fts_query, *where_params, *where_params)
+    (hybrid: the CTE consumes MATCH and the scope params, then the outer
+    SELECT/WHERE consumes the vector blob and the scope params again).
     """
     if search_mode == "semantic":
         # Vector-only: every in-scope embedding is a candidate, ranked by
@@ -409,17 +411,23 @@ def build_candidate_sql(
     # gap widens as queries get MORE selective, because the CTE hands the joins
     # a tiny row set: "embedding" (115 matches) went 102.6 ms -> 0.7 ms (152x).
     #
-    # Equivalence: bm25() returns identical scores in both forms (verified
-    # value-for-value), and the top-50 scores match exactly. Rows can differ
-    # only where scores TIE at the LIMIT boundary -- 4 of 2,000 on the "the"
-    # query, all with identical scores. SQLite never guaranteed an order among
-    # ties in either form, so this changes nothing a caller could rely on.
+    # Scope: the CTE applies `where_sql` (tenancy, live, embedder identity)
+    # BEFORE the LIMIT, via EXISTS against the embeddings. Ranking the global
+    # FTS match set first let other users' and deleted rows fill the cap: on a
+    # 5-user store a 2,000-row cap kept 418 of 1,390 in-scope matches. The
+    # outer WHERE repeats it to pick the matching embedding rows, so
+    # `where_params` bind twice. Measured on 7,500 rows: no slower (3 ms vs 4).
     if has_vec:
         return f"""
                         WITH ranked AS (
-                            SELECT rowid AS _rid, bm25(memory_items_fts) AS _b
+                            SELECT memory_items_fts.rowid AS _rid, bm25(memory_items_fts) AS _b
                             FROM memory_items_fts
+                            JOIN memory_items mi ON mi.rowid = memory_items_fts.rowid
                             WHERE memory_items_fts MATCH ?
+                              AND EXISTS (
+                                  SELECT 1 FROM memory_embeddings me
+                                  WHERE me.memory_id = mi.id AND {where_sql}
+                              )
                             ORDER BY _b ASC
                             LIMIT {row_limit}
                         )
@@ -434,9 +442,14 @@ def build_candidate_sql(
                     """
     return f"""
                         WITH ranked AS (
-                            SELECT rowid AS _rid, bm25(memory_items_fts) AS _b
+                            SELECT memory_items_fts.rowid AS _rid, bm25(memory_items_fts) AS _b
                             FROM memory_items_fts
+                            JOIN memory_items mi ON mi.rowid = memory_items_fts.rowid
                             WHERE memory_items_fts MATCH ?
+                              AND EXISTS (
+                                  SELECT 1 FROM memory_embeddings me
+                                  WHERE me.memory_id = mi.id AND {where_sql}
+                              )
                             ORDER BY _b ASC
                             LIMIT {row_limit}
                         )

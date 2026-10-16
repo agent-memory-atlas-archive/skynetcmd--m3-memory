@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_core.py
-sha1: b60e3f438c21
-mtime_utc: 2026-10-10T21:05:16.782478+00:00
-generated_utc: 2026-10-10T21:05:29.330740+00:00
+sha1: 9b37dac6fea1
+mtime_utc: 2026-10-16T17:47:20.372833+00:00
+generated_utc: 2026-10-16T19:03:59.039328+00:00
 private: false
 ---
 
@@ -14,7 +14,7 @@ chatlog_core.py — the load-bearing module for the chat log subsystem.
 
 Provides:
 - Async write queue (asyncio.Queue) with flush-on-size/interval
-- Spill-to-disk backpressure at memory/chatlog_spill/YYYYMMDD.jsonl
+- Spill-to-disk backpressure at <engine root>/chatlog_spill/YYYYMMDD.jsonl (chatlog_config.spill_dir())
 - chatlog_write_impl / chatlog_write_bulk_impl — enqueue + flush
 - chatlog_search_impl — FTS5 + facet filters over chat_log rows
 - chatlog_promote_impl — ATTACH DATABASE cross-DB copy (separate/hybrid) or UPDATE (integrated)
@@ -69,9 +69,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `atexit`
-- `m3_core.atomic_io (atomic_write)`
 - `m3_core.runtime (utc_iso)`
-- `m3_core.seams (is_windows)`
 - `m3_core.search_modes (normalize_chatlog_search_mode)`
 - `memory.backends (active_backend)`
 - `memory.backends (active_backend, chatlog_table)`

@@ -76,6 +76,7 @@ from llm_failover import (  # noqa: E402
 from m3_core.config import settings as _m3cfg
 from m3_core.paths import get_m3_backups_root, snapshot_stores
 from m3_sdk import scoped_db_env
+from memory.entity import entity_extraction_terminal_ids_sql, record_entity_queue_status  # noqa: E402
 from slm_intent import Profile, _is_loopback, load_profile, localize_endpoint  # noqa: E402
 
 logger = logging.getLogger("m3_entities")
@@ -597,37 +598,16 @@ def _query_eligible_rows(
 
         extracted_clause = ""
         if skip_already_extracted:
-            # "Already extracted" = has an entity row OR was recorded processed
-            # (status='done') in the queue. The second half is essential: a turn
-            # that legitimately extracts to ZERO entities has no
-            # memory_item_entities row, so entity-presence alone would re-select it
-            # every run (worst-first under ORDER BY LENGTH DESC), re-sending it to
-            # the LLM forever. The `status='done'` marker (written by
-            # _mark_extracted on empty OR success) is what makes an empty
-            # extraction terminal.
-            #
-            # Terminal statuses excluded from re-selection:
-            #   - 'done'      : processed (empty OR success).
-            #   - 'ctx_error' : a 'Context size has been exceeded' 500 (usually a
-            #                   too-small per-sequence KV slot, NOT oversized
-            #                   content); retrying can't succeed while the model
-            #                   is loaded that way. Re-enable in bulk once the
-            #                   server's per-slot context is fixed.
-            #   - 'failed' with attempts >= MAX_ENTITY_ATTEMPTS : exhausted the
-            #                   retry budget. WITHOUT this cap a deterministically
-            #                   failing row sits atop the worst-first ORDER BY and
-            #                   is re-sent to the LLM every pass forever — the
-            #                   "same item over and over" loop.
-            # Failed rows still under the cap (attempts < N) stay eligible so
-            # genuinely transient failures (LM Studio OOM-reload 500s) retry.
-            # Tolerant of a DB lacking the status column.
-            extracted_clause = " AND id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
-            if _has_status:
-                extracted_clause += (
-                    " AND id NOT IN (SELECT memory_id FROM entity_extraction_queue"
-                    "                WHERE status IN ('done', 'ctx_error')"
-                    f"                   OR (status = 'failed' AND attempts >= {int(MAX_ENTITY_ATTEMPTS)}))"
-                )
+            # The shared terminal predicate (memory.entity owns it; the live
+            # extract_pending drain uses the same one): entity row present, or
+            # queue status 'done'/'ctx_error', or the retry budget spent. 'done'
+            # is what makes a zero-entity extraction terminal; the budget stops a
+            # deterministically failing row atop the worst-first ORDER BY from
+            # being re-sent forever. A store without the status column (pre-038)
+            # degrades to entity presence only.
+            extracted_clause = (
+                f" AND id NOT IN ({entity_extraction_terminal_ids_sql(MAX_ENTITY_ATTEMPTS, has_status=_has_status)})"
+            )
 
         sql = f"""
             SELECT id,
@@ -707,38 +687,20 @@ async def _run_db(
         resumable instead of silently dropped — recovered by the existing
         extract_pending / dead-letter machinery.
 
-        Concurrency-hardened (vs memory_core's live INSERT-OR-REPLACE): uses an
-        atomic UPSERT (ON CONFLICT(memory_id) DO UPDATE) so the row is updated
-        in place — no delete+insert churn, stable id, safe when the live
-        enricher or another batch worker touches the same queue. Routes through
-        the backend-aware mc._db() (SQLite pool handles busy-wait; PG uses the
-        connection pool), so it works on both backends.
-        Best-effort: a queue-write failure must never mask the original error."""
+        Writes through memory.entity.record_entity_queue_status, the one queue
+        status writer the live drain also uses (an UPSERT in place: stable id),
+        via the backend-aware mc._db(). Best-effort: a queue-write failure is
+        logged and must never mask the original error."""
+        error = (f"{type(err).__name__}: {err}" if err is not None else "the extractor returned no result")[:500]
         try:
-            from memory.backends import dialect
-
-            _d = dialect()
-            _p = _d.param()
             with mc._db() as qc:
-                qc.execute(
-                    f"""INSERT INTO entity_extraction_queue
-                           (memory_id, attempts, last_error, last_attempt_at, status)
-                       VALUES ({_p}, 1, {_p}, {_d.now()}, 'failed')
-                       ON CONFLICT(memory_id) DO UPDATE SET
-                           attempts        = entity_extraction_queue.attempts + 1,
-                           last_error      = excluded.last_error,
-                           last_attempt_at = excluded.last_attempt_at,
-                           status          = 'failed'""",
-                    (
-                        memory_id,
-                        (f"{type(err).__name__}: {err}" if err is not None else "the extractor returned no result")[
-                            :500
-                        ],
-                    ),
-                )
+                record_entity_queue_status(qc, memory_id, "failed", error)
                 qc.commit()
-        except Exception:
-            pass  # never let queue bookkeeping break the run
+        except Exception as qerr:  # noqa: BLE001 — bookkeeping must not mask the original error
+            logger.warning(
+                f"[m3-entities] could not record failure for memory {memory_id} in entity_extraction_queue "
+                f"({type(qerr).__name__}: {qerr}); it stays eligible and will be retried. original error: {error}"
+            )
 
     def _enqueue_ctx_error(memory_id: str, err: Exception) -> None:
         """Mark a row terminally 'ctx_error': the server returned 'Context size
@@ -752,25 +714,14 @@ async def _run_db(
         status='ctx_error') to make them eligible again. Best-effort, same UPSERT
         shape as _enqueue_failure."""
         try:
-            from memory.backends import dialect
-
-            _d = dialect()
-            _p = _d.param()
             with mc._db() as qc:
-                qc.execute(
-                    f"""INSERT INTO entity_extraction_queue
-                           (memory_id, attempts, last_error, last_attempt_at, status)
-                       VALUES ({_p}, 1, {_p}, {_d.now()}, 'ctx_error')
-                       ON CONFLICT(memory_id) DO UPDATE SET
-                           attempts        = entity_extraction_queue.attempts + 1,
-                           last_error      = excluded.last_error,
-                           last_attempt_at = excluded.last_attempt_at,
-                           status          = 'ctx_error'""",
-                    (memory_id, f"{type(err).__name__}: {err}"[:500]),
-                )
+                record_entity_queue_status(qc, memory_id, "ctx_error", f"{type(err).__name__}: {err}")
                 qc.commit()
-        except Exception:
-            pass  # never let queue bookkeeping break the run
+        except Exception as qerr:  # noqa: BLE001 — bookkeeping must not break the run
+            logger.warning(
+                f"[m3-entities] could not mark memory {memory_id} ctx_error in entity_extraction_queue "
+                f"({type(qerr).__name__}: {qerr}); it stays eligible and will be re-sent next pass"
+            )
 
     # Batched 'done' bookkeeping. Previously _mark_extracted opened its OWN
     # mc._db() write transaction PER ROW, back-to-back with the entity write —
@@ -801,25 +752,15 @@ async def _run_db(
         if not _marks:
             return
         try:
-            from memory.backends import dialect
-
-            _d = dialect()
-            _p = _d.param()
             with mc._db() as qc:
-                qc.executemany(
-                    f"""INSERT INTO entity_extraction_queue
-                           (memory_id, attempts, last_error, last_attempt_at, status)
-                       VALUES ({_p}, 1, NULL, {_d.now()}, 'done')
-                       ON CONFLICT(memory_id) DO UPDATE SET
-                           attempts        = entity_extraction_queue.attempts + 1,
-                           last_error      = NULL,
-                           last_attempt_at = excluded.last_attempt_at,
-                           status          = 'done'""",
-                    [(mid,) for mid in _marks],
-                )
+                for mid in _marks:
+                    record_entity_queue_status(qc, mid, "done")
                 qc.commit()
-        except Exception:
-            pass  # never let bookkeeping break the run
+        except Exception as qerr:  # noqa: BLE001 — bookkeeping must not break the run
+            logger.warning(
+                f"[m3-entities] could not write {len(_marks)} 'done' markers to entity_extraction_queue "
+                f"({type(qerr).__name__}: {qerr}); those rows will be re-selected next pass"
+            )
 
     rows = _query_eligible_rows(
         db_path,

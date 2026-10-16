@@ -8,6 +8,7 @@ the single-id variant, which adds ~2 sec of LLM round-trip latency per call.
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import sqlite3
@@ -27,6 +28,9 @@ if _BIN not in sys.path:
 @pytest.fixture
 def scratch_db(monkeypatch, tmp_path):
     """Build a minimal SQLite DB with the schema the bulk impls touch."""
+    # Hand-built partial schema: a lazy migration of it now fails loudly
+    # (memory.db._ensure_sync_tables raises), so skip it.
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     db_path = tmp_path / "scratch.db"
     conn = sqlite3.connect(db_path)
     conn.execute("""

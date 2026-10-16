@@ -12,6 +12,7 @@ expected rows get modified and the result dict has the expected shape.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -31,6 +32,9 @@ if _BIN not in sys.path:
 @pytest.fixture
 def scratch_db(monkeypatch, tmp_path):
     db_path = tmp_path / "scratch.db"
+    # Hand-built subset schema: the migration chain cannot run over it, and a
+    # failed migration raises, so skip its lazy migration.
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     conn = sqlite3.connect(db_path)
     conn.execute("""
         CREATE TABLE memory_items (

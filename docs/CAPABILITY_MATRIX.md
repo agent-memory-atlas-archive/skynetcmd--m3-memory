@@ -25,13 +25,13 @@ _Write, retrieve, version, and reconcile long-term agent memory._
 | Tool | Description | Consent |
 |---|---|---|
 | `curate_memory_apply` | Deterministically apply a memory.db curator plan in ONE call. | ⚠️ opt-in required |
-| `memory_consolidate` | Consolidate old memories of the same type into summaries using the local LLM. | default-allowed |
+| `memory_consolidate` | Roll up one agent's oldest memories of a type into a summary using the local LLM; the sources are c… | ⚠️ opt-in required |
 | `memory_cost_report` | Returns current session operation counts and estimated token usage for memory operations. | default-allowed |
 | `memory_count_entities` | Count distinct entities mentioned in a single conversation. | default-allowed |
 | `memory_count_mentions` | Per-entity mention frequency within a single conversation, sorted DESC by count. | default-allowed |
-| `memory_dedup` | Find (and optionally soft-delete) near-duplicate memory items by cosine similarity over embeddings. | default-allowed |
-| `memory_delete` | Soft-deletes a MemoryItem (kept and recoverable; memory_restore). | ⚠️ opt-in required |
-| `memory_delete_bulk` | Soft-deletes a list of MemoryItems in one transaction per chunk (kept and recoverable). | ⚠️ opt-in required |
+| `memory_dedup` | Find (and optionally supersede) near-duplicate memory items by cosine similarity over embeddings, w… | ⚠️ opt-in required |
+| `memory_delete` | Soft-deletes a MemoryItem: the row stays in the store but leaves search. | ⚠️ opt-in required |
+| `memory_delete_bulk` | Soft-deletes a list of MemoryItems in one transaction per chunk (rows stay in the store; memory_res… | ⚠️ opt-in required |
 | `memory_export` | Export memories as portable JSON. | default-allowed |
 | `memory_feedback` | Provide feedback on a memory item to improve quality. | default-allowed |
 | `memory_feedback_stats` | How often graded feedback is landing versus being rejected as stale. | default-allowed |
@@ -183,7 +183,7 @@ _Maintenance, cross-store sync, import/export, and lifecycle ops._
 
 | Tool | Description | Consent |
 |---|---|---|
-| `enrich_pending` | Enrich pending memory items with SLM-distilled facts. | ⚠️ opt-in required |
+| `enrich_pending` | Report memory items pending SLM fact enrichment (count + ETA). | ⚠️ opt-in required |
 | `extract_entities` | Accepts raw text, extracts entities and relationship predicates based on the configured pluggable e… | default-allowed |
 | `extract_pending` | Extract pending entities from the queue. | ⚠️ opt-in required |
 | `gdpr_export` | Export all memories for a data subject (GDPR data portability). | default-allowed |

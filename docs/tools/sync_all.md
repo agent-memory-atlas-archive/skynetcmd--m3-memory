@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_all.py
-sha1: 45f85e923afe
-mtime_utc: 2026-10-16T02:38:36.622386+00:00
-generated_utc: 2026-10-16T02:40:28.973873+00:00
+sha1: ded08ee3f6a3
+mtime_utc: 2026-10-16T17:40:30.626398+00:00
+generated_utc: 2026-10-16T19:03:59.757969+00:00
 private: false
 ---
 
@@ -19,9 +19,9 @@ Usage:
     python bin/sync_all.py --dry-run   (connectivity check only)
 
 DB list:
-    Repo default: `memory/agent_memory.db`. The agent_memory manifest sweeps
-    both `main` and `chatlog` targets internally, so chatlog data gets synced
-    in the same pass without listing it separately. Bench DBs and other
+    The resolved main store (m3_sdk.resolve_db_path). The agent_memory manifest
+    sweeps both `main` and `chatlog` targets internally, so chatlog data gets
+    synced in the same pass without listing it separately. Bench DBs and other
     custom databases are NOT auto-detected — set M3_SYNC_DBS to include them.
 
     Example self-host override:
@@ -31,7 +31,7 @@ DB list:
 
 ## Entry points
 
-- `def main()` (line 476)
+- `def main()` (line 500)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -68,7 +68,7 @@ DB list:
 
 **subprocess**
 
-- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 203)
+- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 207)
 
 
 ---
@@ -80,9 +80,10 @@ DB list:
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (get_m3_logs_root)`
 - `m3_core.paths (pin_database)`
+- `m3_core.paths (resolve_backend_name)`
+- `m3_core.pgconn (pg_connect)`
 - `m3_core.seams (is_windows, os_name)`
 - `m3_core.secret_store (PgRole, resolve_pg_dsn)`
-- `memory.backends (active_backend)`
 - `memory.backends.postgres_backend (PostgresBackend)`
 - `memory.backends.postgres_backend (_reject_same_as_warehouse)`
 
@@ -90,7 +91,7 @@ DB list:
 
 ## File dependencies (repo paths referenced)
 
-- `memory/agent_memory.db`
+_(none detected)_
 
 ---
 

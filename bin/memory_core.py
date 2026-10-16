@@ -804,7 +804,9 @@ def memory_verify_impl(memory_id: str) -> str:
         if not row:
             return f"Error: memory {memory_id} not found"
         stored_hash = row["content_hash"] or ""
-        computed_hash = _sha256_hex((row["content"] or "").encode("utf-8"))
+        from memory.textprep import _content_hash
+
+        computed_hash = _content_hash(row["content"])
         if not stored_hash:
             return f"Warning: no content hash stored for {memory_id}. Computed: {computed_hash}"
         if stored_hash == computed_hash:
@@ -850,7 +852,14 @@ async def memory_update_impl(
     except (TypeError, ValueError):
         importance = -1.0
     from memory.backends import dialect as _dialect
+    from memory.textprep import _content_hash
+    from memory.write import content_gate_error
 
+    # The write boundary's size/safety gate applies to an update too: otherwise
+    # memory_update stores what memory_write rejects.
+    gate_err = content_gate_error(content or "", title or "", metadata or "")
+    if gate_err:
+        return gate_err
     _p = _dialect().param()
     with _db() as db:
         # Read old values for audit trail
@@ -858,11 +867,19 @@ async def memory_update_impl(
             f"SELECT content, title, type, refresh_on, refresh_reason, conversation_id FROM memory_items WHERE id = {_p}",
             (id,),
         ).fetchone()
+        if old is None:
+            # No history row, no "Updated": nothing exists to update.
+            return f"Error: memory {id} not found — nothing updated"
         if content:
-            _record_history(id, "update", old["content"] if old else None, content, "content", db=db)
-            db.execute(f"UPDATE memory_items SET content = {_p} WHERE id = {_p}", (content, id))
+            _record_history(id, "update", old["content"], content, "content", db=db)
+            # content_hash follows content, or memory_verify reports a false
+            # INTEGRITY VIOLATION on every edited memory.
+            db.execute(
+                f"UPDATE memory_items SET content = {_p}, content_hash = {_p} WHERE id = {_p}",
+                (content, _content_hash(content), id),
+            )
         if title:
-            _record_history(id, "update", old["title"] if old else None, title, "title", db=db)
+            _record_history(id, "update", old["title"], title, "title", db=db)
             db.execute(f"UPDATE memory_items SET title = {_p} WHERE id = {_p}", (title, id))
         if type:
             # `type` is NOT free text like content/title — it drives routing, the
@@ -877,7 +894,7 @@ async def memory_update_impl(
             # History row like content/title (not silent like importance): a type
             # change alters which searches can reach the row, so it must be
             # auditable.
-            _record_history(id, "update", old["type"] if old else None, type, "type", db=db)
+            _record_history(id, "update", old["type"], type, "type", db=db)
             db.execute(f"UPDATE memory_items SET type = {_p} WHERE id = {_p}", (type, id))
         if importance >= 0:
             db.execute(f"UPDATE memory_items SET importance = {_p} WHERE id = {_p}", (importance, id))
@@ -888,15 +905,15 @@ async def memory_update_impl(
         # lets callers distinguish "no change" from "mark as refreshed, remove reminder".
         if refresh_on:
             new_val = None if refresh_on == "clear" else refresh_on
-            _record_history(id, "update", old["refresh_on"] if old else None, new_val, "refresh_on", db=db)
+            _record_history(id, "update", old["refresh_on"], new_val, "refresh_on", db=db)
             db.execute(f"UPDATE memory_items SET refresh_on = {_p} WHERE id = {_p}", (new_val, id))
         if refresh_reason:
             new_val = None if refresh_reason == "clear" else refresh_reason
-            _record_history(id, "update", old["refresh_reason"] if old else None, new_val, "refresh_reason", db=db)
+            _record_history(id, "update", old["refresh_reason"], new_val, "refresh_reason", db=db)
             db.execute(f"UPDATE memory_items SET refresh_reason = {_p} WHERE id = {_p}", (new_val, id))
         if conversation_id:
             new_val = None if conversation_id == "clear" else conversation_id
-            _record_history(id, "update", old["conversation_id"] if old else None, new_val, "conversation_id", db=db)
+            _record_history(id, "update", old["conversation_id"], new_val, "conversation_id", db=db)
             db.execute(f"UPDATE memory_items SET conversation_id = {_p} WHERE id = {_p}", (new_val, id))
         db.execute(f"UPDATE memory_items SET updated_at = {_p} WHERE id = {_p}", (now, id))
     if reembed and content:
@@ -997,10 +1014,9 @@ def memory_delete_bulk_impl(ids, hard=False):
     with two key differences that make it suitable for curation passes:
 
     1. **Batched SQL.** Each chunk of up to _MEMORY_DELETE_BULK_CHUNK ids runs
-       a single `IN (?,?,...)` per affected table (memory_items,
-       memory_embeddings, memory_relationships), inside one `_db()`
-       connection. For 178 deletes this collapses ~712 individual
-       statements + 178 connection-opens into ~8 statements + 1 connection.
+       one existence `SELECT ... IN (...)` and one soft-delete `UPDATE ... IN
+       (...)` on memory_items, inside one `_db()` connection. Embeddings and
+       relationships are kept (a soft delete is recoverable).
 
     2. **Structured result.** Returns `{succeeded, not_found, mode}` instead
        of N string lines, so curation callers don't have to parse text.
@@ -1130,6 +1146,7 @@ def memory_update_bulk_impl(updates):
           "not_found": [id, ...],
           "no_change": [id, ...],          # row exists but every field was empty/sentinel
           "total":     <int total input rows after dedupe on id>,
+          "rejected":  [{"id", "error"}],  # only when the write gate refused an entry
         }
     """
     # Dedupe on id while preserving order (last entry per id wins).
@@ -1148,10 +1165,13 @@ def memory_update_bulk_impl(updates):
     succeeded: list[str] = []
     not_found: list[str] = []
     no_change: list[str] = []
+    rejected: list[dict] = []
     now_iso = datetime.now(UTC).isoformat()
     id_list = list(by_id.keys())
 
     from memory.backends import dialect
+    from memory.textprep import _content_hash
+    from memory.write import content_gate_error
 
     _d = dialect()
     p = _d.param()
@@ -1174,9 +1194,19 @@ def memory_update_bulk_impl(updates):
                 changed_any = False
 
                 content = u.get("content", "")
+                _meta_in = u.get("metadata", "")
+                gate_err = content_gate_error(
+                    content or "", u.get("title", "") or "", _meta_in if isinstance(_meta_in, str) else ""
+                )
+                if gate_err:
+                    rejected.append({"id": mid, "error": gate_err})
+                    continue
                 if content:
                     _record_history(mid, "update", old["content"], content, "content", db=db)
-                    db.execute(f"UPDATE memory_items SET content = {p} WHERE id = {p}", (content, mid))
+                    db.execute(
+                        f"UPDATE memory_items SET content = {p}, content_hash = {p} WHERE id = {p}",
+                        (content, _content_hash(content), mid),
+                    )
                     changed_any = True
 
                 title = u.get("title", "")
@@ -1200,7 +1230,6 @@ def memory_update_bulk_impl(updates):
                         )
                     _record_history(mid, "update", old["type"], new_type, "type", db=db)
                     db.execute(f"UPDATE memory_items SET type = {p} WHERE id = {p}", (new_type, mid))
-                    changed_any = True
                     changed_any = True
 
                 importance = u.get("importance", -1.0)
@@ -1246,16 +1275,20 @@ def memory_update_bulk_impl(updates):
                 else:
                     no_change.append(mid)
 
-    return {
+    result: dict = {
         "succeeded": succeeded,
         "not_found": not_found,
         "no_change": no_change,
         "total": len(by_id),
     }
+    if rejected:
+        # Present only when a gate refused an entry, so existing callers that
+        # compare the whole dict see the shape they always did.
+        result["rejected"] = rejected
+    return result
 
 
 from catalog.spec import VALID_RELATIONSHIP_TYPES  # noqa: E402 — the single owner
-from m3_core.errors import log_swallowed
 
 _MEMORY_LINK_BULK_CHUNK = 500
 
@@ -1463,12 +1496,21 @@ def memory_handoff_impl(
             (new_id, f"Handoff from {from_agent}", task, to_agent, metadata_json, now, now),
         )
 
-    # 3. Link context items (each opens its own _db() context)
+    # 3. Link context items (each opens its own _db() context). Count what
+    # memory_link actually wrote: it reports a missing id as an "Error: ..."
+    # string, not an exception.
+    linked = 0
+    link_failures: list[str] = []
     for ctx_id in context_ids:
         try:
-            memory_link_impl(new_id, ctx_id, "handoff")
-        except Exception as e:
-            log_swallowed(logger, e, f"Failed to link context {ctx_id}: {e}")
+            res = memory_link_impl(new_id, ctx_id, "handoff")
+        except Exception as e:  # noqa: BLE001 — reported in the return value
+            res = f"Error: {e.__class__.__name__}: {e}"
+        if res.startswith(("Linked:", "Link already exists")):
+            linked += 1
+        else:
+            link_failures.append(ctx_id)
+            logger.warning(f"handoff {new_id}: context {ctx_id} not linked ({res})")
 
     # 4. Record history
     _record_history(new_id, "handoff_create", None, task, "content", from_agent)
@@ -1504,7 +1546,10 @@ def memory_handoff_impl(
 
     # 6. Return status
     delivery = "" if notified else " -- WARNING: stored but NOT notified, the recipient has no queue entry"
-    return f"Handoff created: {new_id} ({from_agent} -> {to_agent}, {len(context_ids)} context links){delivery}"
+    links = f"{linked} of {len(context_ids)} context links"
+    if link_failures:
+        links += f"; NOT linked: {', '.join(link_failures)}"
+    return f"Handoff created: {new_id} ({from_agent} -> {to_agent}, {links}){delivery}"
 
 
 def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20, as_records: bool = False) -> str:
@@ -1535,6 +1580,10 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20, 
             f"{where_clause} ORDER BY created_at DESC LIMIT {_p}",
             (*_addr, limit),
         ).fetchall()
+        # The header reports the full match count, not the LIMITed page.
+        total = len(rows)
+        if total >= limit:
+            total = db.execute(f"SELECT COUNT(*) FROM memory_items {where_clause}", _addr).fetchone()[0]
 
     # Format result
     from memory import records as _records
@@ -1546,7 +1595,9 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20, 
             as_records,
         )
 
-    lines = [f"Inbox for {agent_id} ({len(rows)} {'unread' if unread_only else 'total'}):"]
+    kind = "unread" if unread_only else "total"
+    shown = f"{len(rows)} of {total} {kind}" if total > len(rows) else f"{total} {kind}"
+    lines = [f"Inbox for {agent_id} ({shown}):"]
     for row in rows:
         # Parse from_agent from metadata_json
         # metadata_json is JSONB on PostgreSQL (a dict): a bare json.loads raised
@@ -1560,7 +1611,11 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20, 
         task_truncated = (row["content"] or "")[:60]
         lines.append(f"  [{row['id'][:8]}] from={from_agent} task={task_truncated} created={row['created_at']}")
 
-    return "\n".join(lines)
+    return _records.emit(
+        "\n".join(lines),
+        _records.as_records_payload(rows, agent_id=agent_id, unread_only=unread_only, total=total),
+        as_records,
+    )
 
 
 def memory_inbox_ack_impl(memory_id: str, agent_id: str = "") -> str:
@@ -1640,8 +1695,15 @@ def _count_refresh_backlog(agent_id: str = "") -> int:
                 params,
             ).fetchone()
         return int(row[0]) if row else 0
-    except Exception:  # noqa: BLE001 — the refresh_on column is absent before migration (see below)
-        # refresh_on column may not exist on an un-migrated DB — fail quiet.
+    except Exception as e:  # noqa: BLE001 — classified below
+        # An un-migrated DB has no refresh_on column: no backlog to report.
+        if _dialect().is_undefined_object_error(e):
+            return 0
+        # Anything else is a real read failure. The hint is decoration on a
+        # lifecycle reply, so it must not fail that call — but it is not "0 due".
+        logger.warning(
+            f"refresh backlog count failed ({e.__class__.__name__}: {e}); hint omitted. inspect: memory_refresh_queue"
+        )
         return 0
 
 
@@ -1693,6 +1755,9 @@ def memory_refresh_queue_impl(
             f"FROM memory_items WHERE {where_sql} ORDER BY refresh_on ASC LIMIT {_p}",
             (*params, limit),
         ).fetchall()
+        total = len(rows)
+        if total >= limit:
+            total = db.execute(f"SELECT COUNT(*) FROM memory_items WHERE {where_sql}", params).fetchone()[0]
 
     if not rows:
         scope_label = f" for {agent_id}" if agent_id else ""
@@ -1706,7 +1771,8 @@ def memory_refresh_queue_impl(
         )
 
     scope_label = f" for {agent_id}" if agent_id else ""
-    lines = [f"Refresh queue{scope_label} ({len(rows)} item{'s' if len(rows) != 1 else ''}):"]
+    shown = f"{len(rows)} of {total}" if total > len(rows) else f"{total}"
+    lines = [f"Refresh queue{scope_label} ({shown} item{'s' if total != 1 else ''}):"]
     for row in rows:
         title = (row["title"] or "")[:60]
         reason = row["refresh_reason"] or "(no reason)"
@@ -1716,7 +1782,7 @@ def memory_refresh_queue_impl(
 
     return _records.emit(
         "\n".join(lines),
-        _records.as_records_payload(rows, agent_id=agent_id or None, include_future=include_future),
+        _records.as_records_payload(rows, agent_id=agent_id or None, include_future=include_future, total=total),
         as_records,
     )
 

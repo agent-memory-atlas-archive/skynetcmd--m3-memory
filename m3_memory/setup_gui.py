@@ -232,7 +232,7 @@ def _apply_platform_tooltips() -> None:
 _apply_platform_tooltips()
 
 # Leading status tokens the doctor output uses, mapped to a color-tag name. The
-# emoji forms come from --brief; the bracket forms from installer.doctor / the
+# emoji forms come from the compact default; the bracket forms from installer.doctor / the
 # full output. Checked longest-first so "❌" isn't shadowed, etc.
 _DOCTOR_STATUS_TOKENS = (
     ("✅", "ok"),
@@ -724,13 +724,13 @@ def run_gui() -> int:
         return "\n".join(lines) + "\n"
 
     def _run_doctor(trigger_btn) -> None:
-        """Run `m3 doctor --brief` and show its stdout verbatim in a window.
+        """Run `m3 doctor` (compact by default) and show its stdout verbatim in a window.
 
-        The engine's --brief distills the verdicts to stdout; the noisy
+        The compact default distills the verdicts to stdout; the noisy
         llama.cpp model-load logs go to stderr. We show ONLY stdout (the clean
         summary), always archive full stderr to a temp file, and surface that
         file's path only if doctor exits non-zero. No GUI-side stderr parsing.
-        A toggle re-runs plain `m3 doctor` for the full stdout detail.
+        A toggle re-runs `m3 doctor --verbose` for the full stdout detail.
 
         Runs on a worker thread; results return via a queue polled on the main
         thread (Tk is not thread-safe)."""

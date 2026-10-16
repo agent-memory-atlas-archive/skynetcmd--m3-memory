@@ -16,7 +16,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 AGENT = "claude"
@@ -24,6 +24,12 @@ FORMAT = "claude-code"
 
 
 # ── Shared core (parity across all m3 agent hooks) ───────────────────────────
+# Byte-identical in every hook (tests/test_chatlog_hooks_success_criterion.py).
+# Stdlib only: a hook must run, and scream, even when the m3 package is broken.
+
+# Console-less child on Windows; 0 (the default) where the flag does not exist.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_TAIL = 400  # chars of ingest stderr carried into a failure report
 
 
 def find_repo_root() -> Path:
@@ -54,7 +60,7 @@ def usable_interpreter(candidate: Path) -> bool:
                 [str(candidate), "-c", "import httpx"],
                 capture_output=True,
                 timeout=10,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+                creationflags=_NO_WINDOW,
             ).returncode
             == 0
         )
@@ -74,13 +80,24 @@ def find_python(repo: Path) -> str:
     return sys.executable
 
 
-def write_fallback(transcript: str, session_id: str, agent: str, event: str, variant: str, reason: str) -> Path:
-    ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+def recovery_command(py: str, ingest: Path, transcript: str, session_id: str, variant: str) -> str:
+    """The exact command that re-runs this capture: absolute paths, same session."""
+    cmd = f'"{py}" "{ingest}" --format {FORMAT} --transcript-path "{transcript}" --variant {variant}'
+    if session_id:
+        cmd += f" --session-id {session_id}"
+    return cmd
+
+
+def write_fallback(
+    transcript: str, session_id: str, agent: str, event: str, reason: str, recover: str, detail: str = ""
+) -> Path:
+    now = datetime.now(UTC)
+    stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     sid = (session_id or "unknown")[:8]
     save_dir = Path.home() / ".m3" / "unsaved_chats"
     save_dir.mkdir(parents=True, exist_ok=True)
-    fallback = save_dir / f"m3_unsaved_{agent}_{sid}_{ts}.md"
-    content = f"""# M3 CHATLOG NOT SAVED - {ts}
+    fallback = save_dir / f"m3_unsaved_{agent}_{sid}_{now.strftime('%Y%m%dT%H%M%SZ')}.md"
+    content = f"""# M3 CHATLOG NOT SAVED - {stamp}
 
 **Agent:** {agent}
 **Event:** {event}
@@ -88,59 +105,36 @@ def write_fallback(transcript: str, session_id: str, agent: str, event: str, var
 **Transcript path:** {transcript}
 **Reason:** {reason}
 
-This session's chatlog was NOT captured by m3-memory.
+This session's chatlog was NOT captured by m3-memory. The transcript above is
+the only copy until the recovery command succeeds.
 
-To recover manually:
-    python bin/chatlog_ingest.py --format {FORMAT} \\
-        --transcript-path "{transcript}" \\
-        --variant {variant}
+To recover (re-runs the same capture; already-stored turns are skipped):
+
+    {recover}
+
+To diagnose: m3 chatlog doctor
 """
+    if detail:
+        content += f"\nIngest stderr (last {_TAIL} chars):\n\n```\n{detail}\n```\n"
     fallback.write_text(content, encoding="utf-8")
     return fallback
 
 
 def scream(reason: str, fallback: Path, agent: str, event: str) -> None:
     border = "=" * 70
-    try:
-        display = "~/.m3/unsaved_chats/" + fallback.name
-    except Exception:
-        display = str(fallback)
     msg = f"""
 {border}
   M3 CHATLOG NOT SAVED - SESSION CONTEXT WILL BE LOST
 
   Agent  : {agent} ({event})
   Reason : {reason}
-  Saved  : {display}
+  Saved  : {fallback}
 
-  Fix    : restart m3 MCP, then re-run ingest on transcript above.
+  Fix    : run the recovery command in the file above;
+           diagnose with `m3 chatlog doctor`.
 {border}
 """
     print(msg, file=sys.stderr, flush=True)
-
-
-def announce(reason: str, fallback: Path, agent: str, event: str) -> None:
-    """Surface the failure to the user via the harness, regardless of exit code.
-
-    The stderr scream() alone is NOT enough: on a Stop event the harness only
-    reliably shows stderr on a non-zero exit / under --debug, and ingest can
-    exit 0 while writing 0 rows (the silent-capture-failure case). The hook
-    contract parses stdout as JSON and always surfaces `systemMessage`, so we
-    emit a red line there too — the scream can never be swallowed.
-
-    stdout MUST stay JSON-only for the harness to parse it: this is the single
-    print to stdout in the whole hook (everything else goes to stderr).
-    """
-    try:
-        display = "~/.m3/unsaved_chats/" + fallback.name
-    except Exception:  # noqa: BLE001
-        display = str(fallback)
-    msg = (
-        f"\U0001f6a8 M3 CHATLOG NOT SAVED ({agent}/{event}): {reason}. "
-        f"Fallback written to {display}. Restart the m3 MCP server, then re-run "
-        "ingest on the transcript. Session context is at risk until you do."
-    )
-    print(json.dumps({"systemMessage": msg}), flush=True)
 
 
 def _extract_last_json_object(output: str):
@@ -184,36 +178,116 @@ def _extract_last_json_object(output: str):
     return None
 
 
-def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple[int, int, int, str | None, int]:
-    """Run ingest, return (written, skipped, failed, error, returncode)."""
+def run_ingest(py: str, ingest: Path, extra_args: list) -> dict:
+    """Run ingest and return its JSON result plus rc, interpreter and stderr tail.
+
+    Keys always present: written, skipped, spilled, pending, failed, error,
+    errors, rc, py, stderr_tail. error is None only when ingest reported none.
+    """
+    out: dict = {
+        "written": 0,
+        "skipped": 0,
+        "spilled": 0,
+        "pending": 0,
+        "failed": 0,
+        "error": None,
+        "errors": [],
+        "rc": 1,
+        "py": py,
+        "stderr_tail": "",
+    }
     try:
-        # CREATE_NO_WINDOW: this hook fires in the background per compaction; a
-        # bare python.exe child would flash a console window. getattr keeps the
-        # attribute reference valid on non-Windows (0 = default, no-op).
-        _flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
         result = subprocess.run(
-            [py, str(ingest), *extra_args], capture_output=True, text=True, timeout=60, creationflags=_flags
+            [py, str(ingest), *extra_args], capture_output=True, text=True, timeout=60, creationflags=_NO_WINDOW
         )
-        output = result.stdout.strip()
-        # ingest emits PRETTY-PRINTED (multi-line) JSON after its log lines, e.g.
-        #   {\n  "written": 9,\n  ...\n}
-        # The old parser scanned for a line *starting with* "{" and json.loads'd
-        # that single line — which is just "{" for pretty JSON, so it always
-        # raised and reported written=0. That false-failure wrote 1485 bogus
-        # fallback files over 9 days (2026-06-04..13) while ingest was succeeding.
-        # Parse the LAST balanced {...} block from the end of stdout instead.
-        result_json = _extract_last_json_object(output)
-        if not result_json:
-            return 0, 0, 1, "m3 ingest failed or unreachable", result.returncode or 1
-        written = int(result_json.get("written", 0))
-        skipped = int(result_json.get("skipped", 0))
-        failed = int(result_json.get("failed", 0))
-        error = result_json.get("error")
-        return written, skipped, failed, error, result.returncode
-    except subprocess.TimeoutExpired:
-        return 0, 0, 1, "ingest timed out after 60s — m3 unreachable", 1
+    except subprocess.TimeoutExpired as e:
+        err = e.stderr.decode("utf-8", "replace") if isinstance(e.stderr, bytes) else (e.stderr or "")
+        out.update(error="ingest timed out after 60s", stderr_tail=err[-_TAIL:])
+        return out
     except Exception as e:
-        return 0, 0, 1, f"ingest failed: {e}", 1
+        out.update(error=f"could not start ingest: {type(e).__name__}: {e}")
+        return out
+    out["rc"] = result.returncode
+    out["stderr_tail"] = (getattr(result, "stderr", "") or "")[-_TAIL:]
+    # ingest prints PRETTY (multi-line) JSON after its log lines; parse the LAST
+    # balanced {...} block (a line-based parse took '{' alone and always failed).
+    parsed = _extract_last_json_object((result.stdout or "").strip())
+    if not parsed:
+        out["error"] = "ingest printed no result JSON (it crashed before reporting)"
+        return out
+    for key in ("written", "skipped", "spilled", "pending", "failed"):
+        try:
+            out[key] = int(parsed.get(key) or 0)
+        except (TypeError, ValueError):
+            out[key] = 0
+    out["error"] = parsed.get("error") or None
+    out["errors"] = list(parsed.get("errors") or [])[:3]
+    out["spill_dir"] = parsed.get("spill_dir")
+    return out
+
+
+def failure_reason(res: dict, transcript: str) -> "str | None":
+    """None when capture is complete; else one cause, with rc and interpreter.
+
+    Success is DURABILITY, not written>0: skipped counts turns an earlier fire
+    for this session already captured (the ingest cursor; Stop fires every turn
+    and re-reads the whole transcript), and spilled turns sit in a spill file
+    that the cognitive loop drains into the DB.
+    """
+    if res["error"]:
+        cause = res["error"]
+    elif res["pending"]:
+        cause = f"{res['pending']} turn(s) reached neither the DB nor a spill file"
+    elif res["failed"]:
+        cause = f"{res['failed']} turn(s) were rejected by validation: {'; '.join(res['errors']) or 'no detail'}"
+    elif res["rc"] != 0:
+        cause = "ingest exited non-zero without reporting an error"
+    elif res["written"] == 0 and res["skipped"] == 0 and res["spilled"] == 0:
+        cause = f"ingest found no parseable turns in {transcript} (empty transcript or wrong format)"
+    else:
+        return None
+    return f"{cause} [rc={res['rc']}, interpreter={res['py']}]"
+
+
+def note_spill(res: dict, agent: str) -> None:
+    """A spill is durable, not a loss: say where it is, without screaming."""
+    if res["spilled"]:
+        print(
+            f"{agent} hook: {res['spilled']} turn(s) spilled to {res.get('spill_dir') or 'the chatlog spill dir'} "
+            "(DB write failed; the cognitive loop drains it). Check: m3 chatlog status",
+            file=sys.stderr,
+        )
+
+
+def report_failure(
+    reason: str, res: "dict | None", py: str, ingest: Path, transcript: str, session_id: str, event: str, variant: str
+) -> Path:
+    """Write the fallback file and scream. Returns the fallback path."""
+    recover = recovery_command(py, ingest, transcript, session_id, variant)
+    detail = (res or {}).get("stderr_tail", "")
+    fallback = write_fallback(transcript, session_id, AGENT, event, reason, recover, detail)
+    scream(reason, fallback, AGENT, event)
+    return fallback
+
+
+def announce(reason: str, fallback: Path, agent: str, event: str) -> None:
+    """Surface the failure to the user via the harness, regardless of exit code.
+
+    The stderr scream() alone is NOT enough: on a Stop event the harness only
+    reliably shows stderr on a non-zero exit / under --debug, and ingest can
+    exit 0 while writing 0 rows (the silent-capture-failure case). The hook
+    contract parses stdout as JSON and always surfaces `systemMessage`, so we
+    emit a red line there too — the scream can never be swallowed.
+
+    stdout MUST stay JSON-only for the harness to parse it: this is the single
+    print to stdout in the whole hook (everything else goes to stderr).
+    """
+    msg = (
+        f"\U0001f6a8 M3 CHATLOG NOT SAVED ({agent}/{event}): {reason}. "
+        f"Run the recovery command in {fallback}; diagnose with `m3 chatlog doctor`. "
+        "Session context is at risk until you do."
+    )
+    print(json.dumps({"systemMessage": msg}), flush=True)
 
 
 # ── Agent-specific main ───────────────────────────────────────────────────────
@@ -244,9 +318,8 @@ def main() -> int:
     repo = find_repo_root()
     ingest = repo / "bin" / "chatlog_ingest.py"
     if not os.path.exists(ingest):
-        reason = f"chatlog_ingest.py not found under {repo} — set M3_HOME"
-        fallback = write_fallback(transcript, session_id, AGENT, event_name, variant, reason)
-        scream(reason, fallback, AGENT, event_name)
+        reason = f"chatlog_ingest.py not found under {repo} (set M3_HOME to the m3-memory payload root)"
+        fallback = report_failure(reason, None, sys.executable, ingest, transcript, session_id, event_name, variant)
         announce(reason, fallback, AGENT, event_name)
         return 1
 
@@ -255,34 +328,16 @@ def main() -> int:
     if session_id:
         args += ["--session-id", session_id]
 
-    written, skipped, failed, error, rc = run_ingest(py, ingest, args)
-
-    # Success criterion is reachability, NOT written>0. The live MCP server
-    # captures turns itself via chatlog_write; by the time this PreCompact/Stop
-    # hook runs its own ingest, those turns are usually ALREADY in the DB, so
-    # ingest legitimately reports written=0, skipped=N (all deduped). That is a
-    # SUCCESS — the data is safe — not a loss. Treating written==0 as failure
-    # screamed and wrote a bogus ~/.m3/unsaved_chats/ spill file every time the
-    # live capture beat the hook (observed 2026-06-27). A run is a real failure
-    # only when ingest could not reach the DB / genuinely failed: error set,
-    # failed>0, or it parsed/processed nothing at all (written==skipped==0).
-    captured_nothing = written == 0 and skipped == 0
-    if error or failed > 0 or captured_nothing:
-        if error:
-            reason = error
-        elif failed > 0:
-            reason = f"{failed} turn(s) failed to write — m3 may be degraded"
-        else:
-            reason = "0 rows seen — transcript empty or m3 unreachable"
-        fallback = write_fallback(transcript, session_id, AGENT, event_name, variant, reason)
-        scream(reason, fallback, AGENT, event_name)
-        announce(reason, fallback, AGENT, event_name)
-        # Force non-zero even if ingest exited 0: a genuine capture failure is the
-        # exact silent-failure the harness would otherwise swallow. Non-zero makes
-        # the harness surface the hook, complementing the stdout systemMessage.
-        return rc if rc != 0 else 1
-
-    return rc
+    res = run_ingest(py, ingest, args)
+    failure = failure_reason(res, transcript)
+    if failure:
+        fallback = report_failure(failure, res, py, ingest, transcript, session_id, event_name, variant)
+        announce(failure, fallback, AGENT, event_name)
+        # Non-zero even if ingest exited 0: the harness surfaces a failing hook,
+        # complementing the stdout systemMessage.
+        return res["rc"] if res["rc"] != 0 else 1
+    note_spill(res, AGENT)
+    return 0
 
 
 if __name__ == "__main__":

@@ -290,7 +290,7 @@ def tolerant_schema(conn, *, reraise_real=True):
 # ──────────────────────────────────────────────────────────────────────────────
 # Schema lifecycle
 # ──────────────────────────────────────────────────────────────────────────────
-def _ensure_sync_tables(db_path: str | None = None) -> None:
+def _ensure_sync_tables(db_path: str | None = None, target: str | None = None) -> None:
     """Run pending migrations against the active DB.
 
     Fast path: if the schema is already at the latest version on disk
@@ -301,6 +301,9 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
     doing anything. Test fixtures that pre-create the full post-v031
     schema (via tests/conftest.py's `create_full_main_schema`) set this
     so the migration subprocess doesn't re-run on an already-current DB.
+
+    Raises RuntimeError (naming the store, target and exit code) when the
+    migrator fails or times out, so _lazy_init does not mark the store ready.
     """
     if os.environ.get("M3_SKIP_MIGRATIONS", "").lower() in ("1", "true", "yes"):
         return
@@ -316,37 +319,41 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
     # gate the sqlite_master probe below simply raised on PG and was swallowed
     # by the surrounding try, so the "fast path" never fired and every call
     # shelled out to a migration runner that could not help it.
+    from m3_core.paths import store_is_a_file
+
+    if not store_is_a_file():  # the positive capability (store_is_a_file owns the bootstrap fallback)
+        return
+    migration_script = str(Path(config.BASE_DIR) / "bin" / "migrate_memory.py")
+    active = db_path or resolve_db_path(None)
+    # Detect chatlog context via schema fingerprint. The child ALWAYS gets an
+    # explicit --target: without one it runs `up` for every configured store,
+    # migrating stores this call never opened.
+    # An explicit ``target`` (ensure_chatlog_schema) wins: a FRESH chatlog file
+    # classifies "empty", which the fingerprint would migrate as main.
+    target_kind = target or "main"
     try:
-        from memory.backends import resolve_backend_name
+        sys.path.insert(0, str(Path(config.BASE_DIR) / "bin"))
+        from migrate_memory import _classify_db
 
-        if resolve_backend_name() != "sqlite":
-            return
-    except ImportError:  # no seam yet (bootstrap) => SQLite
-        pass
+        if target is None and _classify_db(active) == "chatlog":
+            target_kind = "chatlog"
+    except Exception as ce:  # noqa: BLE001 — reported; the main target refuses a non-main store itself
+        logger.warning(
+            f"could not classify {active} as main or chatlog ({type(ce).__name__}: {ce}); migrating it as "
+            "--target main, which refuses a store whose schema is not main. inspect: python bin/migrate_memory.py status"
+        )
+    target_flag = ["--target", target_kind]
+    db_latest = latest_on_disk = -1  # for the success line; -1 = unknown
+    store_flag = "--chatlog-db" if target_kind == "chatlog" else "--database"
+    status_cmd = f"python bin/migrate_memory.py {store_flag} {active} status"
     try:
-        migration_script = str(Path(config.BASE_DIR) / "bin" / "migrate_memory.py")
-
-        # Detect chatlog context via schema fingerprint.
-        active = db_path or resolve_db_path(None)
-        target_flag: list[str] = []
-        target_kind = "main"
-        try:
-            sys.path.insert(0, str(Path(config.BASE_DIR) / "bin"))
-            from migrate_memory import _classify_db
-
-            if _classify_db(active) == "chatlog":
-                target_flag = ["--target", "chatlog"]
-                target_kind = "chatlog"
-        except Exception:  # noqa: BLE001 — store classification for --target; default target on failure
-            pass
-
         # Fast path: compare DB's applied version vs. the highest .up.sql file
         # number for the resolved target. If equal, no migrations to apply.
         try:
             mig_dir = (
                 Path(config.BASE_DIR) / "memory" / ("chatlog_migrations" if target_kind == "chatlog" else "migrations")
             )
-            file_versions = []
+            file_versions: list[int] = []
             pattern = re.compile(r"^(\d+)_.*\.up\.sql$")
             for entry in mig_dir.iterdir():
                 m = pattern.match(entry.name)
@@ -354,30 +361,32 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
                     file_versions.append(int(m.group(1)))
             latest_on_disk = max(file_versions) if file_versions else -1
 
-            db_latest = -1
-            conn = sqlite3.connect(f"file:{active}?mode=ro", uri=True, timeout=2.0)
-            try:
-                cur = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name IN ('schema_versions','schema_migrations')"
-                ).fetchall()
-                tables = {r[0] for r in cur}
-                if "schema_versions" in tables:
-                    row = conn.execute(
-                        "SELECT MAX(CAST(version AS INTEGER)) FROM schema_versions "
-                        "WHERE typeof(CAST(version AS INTEGER))='integer' "
-                        "  AND CAST(version AS INTEGER) > 0"
-                    ).fetchone()
-                    db_latest = int(row[0]) if row and row[0] is not None else -1
-                elif "schema_migrations" in tables:
-                    row = conn.execute(
-                        "SELECT MAX(CAST(version AS INTEGER)) FROM schema_migrations "
-                        "WHERE typeof(CAST(version AS INTEGER))='integer' "
-                        "  AND CAST(version AS INTEGER) > 0"
-                    ).fetchone()
-                    db_latest = int(row[0]) if row and row[0] is not None else -1
-            finally:
-                conn.close()
+            # A missing file is the normal fresh case (version unknown -> migrate),
+            # not a failed check: probing it warned on every fresh store.
+            if os.path.exists(active):
+                conn = sqlite3.connect(f"file:{active}?mode=ro", uri=True, timeout=2.0)
+                try:
+                    cur = conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' "
+                        "AND name IN ('schema_versions','schema_migrations')"
+                    ).fetchall()
+                    tables = {r[0] for r in cur}
+                    if "schema_versions" in tables:
+                        row = conn.execute(
+                            "SELECT MAX(CAST(version AS INTEGER)) FROM schema_versions "
+                            "WHERE typeof(CAST(version AS INTEGER))='integer' "
+                            "  AND CAST(version AS INTEGER) > 0"
+                        ).fetchone()
+                        db_latest = int(row[0]) if row and row[0] is not None else -1
+                    elif "schema_migrations" in tables:
+                        row = conn.execute(
+                            "SELECT MAX(CAST(version AS INTEGER)) FROM schema_migrations "
+                            "WHERE typeof(CAST(version AS INTEGER))='integer' "
+                            "  AND CAST(version AS INTEGER) > 0"
+                        ).fetchone()
+                        db_latest = int(row[0]) if row and row[0] is not None else -1
+                finally:
+                    conn.close()
 
             if latest_on_disk >= 0 and db_latest >= latest_on_disk:
                 return
@@ -390,7 +399,9 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
         # The store reaches the child as --database (its pin), for BOTH targets: a
         # child no longer inherits this process's database through env, so without
         # it a main-target migration ran against the default store, not `active`.
-        db_flag = ["--database", str(active)]
+        # A chatlog store is named with --chatlog-db: as --database, an EMPTY
+        # chatlog file would be taken for the main store and given main DDL.
+        db_flag = [store_flag, str(active)]
         # ⚠ RESOLVE THE HELPER, DO NOT HOPE FOR IT.
         #
         # `from _task_runtime import ...` is a BARE module name: it resolves
@@ -422,20 +433,14 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
                 _flag = getattr(subprocess, "CREATE_NO_WINDOW", 0)
                 _nw = {"creationflags": _flag} if _flag else {}
         with migration_lock():
-            # ⚠ CAPTURE THE CHILD'S STDOUT, THEN RELAY IT TO STDERR.
-            #
-            # migrate_memory is also a human-facing CLI, so it prints its plan
-            # ("Current version: v000 / Will apply: ...") to stdout. Inheriting
-            # that handle injected those lines into the STDOUT OF WHATEVER
-            # COMMAND happened to trigger the auto-migration — so the first
-            # `m3 ... --as_records` against a fresh database emitted migration
-            # prose followed by JSON, and every parser downstream failed.
-            #
-            # Now that every tool is pipeable, "stdout is the result, stderr is
-            # the narration" is a contract, not a preference (§3). Relayed
-            # rather than discarded: a migration is worth seeing, just not in
-            # the data channel.
-            proc = subprocess.run(
+            # ⚠ CAPTURE THE CHILD'S OUTPUT; NEVER WRITE IT TO THIS PROCESS'S
+            # stdout OR stderr. migrate_memory is also a human-facing CLI and
+            # prints its whole plan (~60 lines). Inherited, it corrupted the
+            # stdout of the command that triggered the migration (`--as_records`
+            # JSON); relayed to stderr, it filled the terminal UI of a host that
+            # runs m3 in-process (Hermes' memory provider). Success is one INFO
+            # line on the m3 logger; a failure carries the captured tail.
+            subprocess.run(
                 [sys.executable, migration_script, *db_flag, "up", "--yes", *target_flag],
                 check=True,
                 timeout=300,
@@ -445,19 +450,31 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
                 env=env,
                 **_nw,
             )
-            for stream in (proc.stdout, proc.stderr):
-                if stream and stream.strip():
-                    print(stream.rstrip(), file=sys.stderr)
+        frm = f"v{db_latest:03d}" if db_latest >= 0 else "v000"
+        to = f"v{latest_on_disk:03d}" if latest_on_disk >= 0 else "the latest version"
+        logger.info(f"migrated {active} ({target_kind}) from {frm} to {to}")
     except subprocess.CalledProcessError as e:
-        # §3: capturing output must not HIDE a failure. Without this the child's
-        # diagnostics died inside the CalledProcessError and the log carried
-        # only an exit code.
-        for stream in (e.stdout, e.stderr):
-            if stream and str(stream).strip():
-                print(str(stream).rstrip(), file=sys.stderr)
-        logger.exception(f"_ensure_sync_tables migration failed: {e}")
-    except Exception as e:
-        logger.exception(f"_ensure_sync_tables failed: {e}")
+        # Raised, not logged: _lazy_init must not mark a store initialised on a
+        # schema its migrations never reached (it un-marks and the next open
+        # retries). The captured output's tail goes IN the error, so capturing
+        # never hides the cause.
+        raise RuntimeError(
+            f"schema migration FAILED for {active} (--target {target_kind}): migrate_memory exited {e.returncode}. "
+            "The store was not marked initialised; the next open retries. "
+            f"inspect: {status_cmd}. "
+            f"migrator output (tail):\n{_output_tail(e.stdout, e.stderr)}"
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"schema migration TIMED OUT for {active} (--target {target_kind}) after {e.timeout}s; a writer may "
+            f"hold the store. inspect: m3 doctor, then {status_cmd}"
+        ) from e
+
+
+def _output_tail(stdout, stderr, lines: int = 20) -> str:
+    """The last ``lines`` lines of a captured child's stdout + stderr."""
+    text = "\n".join(str(s).rstrip() for s in (stdout, stderr) if s and str(s).strip())
+    return "\n".join(text.splitlines()[-lines:]) or "(no output)"
 
 
 def _backfill_change_agent() -> None:
@@ -531,6 +548,24 @@ def _lazy_init(db_path: str | None = None) -> None:
             raise
 
 
+_initialized_chatlog_dbs: set[str] = set()
+
+
+def ensure_chatlog_schema(db_path: str) -> None:
+    """THE owner of "this SQLite chatlog store has its schema": once per path,
+    thread-safe, through the same captured migration path as the main store.
+    A never-written chatlog store used to raise "no such table" on its first
+    search, and integrations each carried a copy of a self-heal.
+    PostgreSQL never calls this: its pooled store's schema comes from
+    backend.ensure_schema(). Raises (and retries on the next call) on failure."""
+    key = str(db_path)
+    with _init_lock:
+        if key in _initialized_chatlog_dbs:
+            return
+        _ensure_sync_tables(key, target="chatlog")
+        _initialized_chatlog_dbs.add(key)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # History audit trail
 # ──────────────────────────────────────────────────────────────────────────────
@@ -561,18 +596,20 @@ def _record_history(
     )
     try:
         if db is not None:
-            db.execute(sql, row)
+            # A SAVEPOINT on the caller's connection: on PostgreSQL a failed
+            # statement aborts the WHOLE transaction, so swallowing it bare would
+            # roll back the caller's own writes at their commit.
+            with savepoint(db):
+                db.execute(sql, row)
         else:
             with _db() as inner:
                 inner.execute(sql, row)
-    except Exception as e:
-        # NOTE: on PostgreSQL a failed statement aborts the WHOLE transaction, so
-        # a swallowed error here on the caller's shared `db` would silently roll
-        # back the caller's writes too. Dialecting the SQL above prevents the
-        # syntax error that used to trigger exactly that (superseded rows silently
-        # not persisting). Keep the catch for genuinely-tolerable failures (e.g. a
-        # pre-migration DB with no memory_history table).
-        log_swallowed(logger, e, f"History recording failed: {e}")
+    except Exception as e:  # noqa: BLE001 — the caller's write stands; the lost audit row is reported
+        logger.warning(
+            f"memory_history row NOT recorded for memory {memory_id} (event={event}, field={field}): "
+            f"{type(e).__name__}: {e}. The change itself was kept; only its audit entry is missing. "
+            "inspect: python bin/migrate_memory.py status (memory_history comes from the main migrations)"
+        )
 
 
 def memory_history_impl(memory_id: str, limit: int = 20, as_records: bool = False) -> str:

@@ -114,9 +114,8 @@ async def test_no_procedural_intent_is_byte_identical(monkeypatch, tmp_path):
     cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
-    srch = importlib.import_module("memory.search")
 
-    monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
+    monkeypatch.setattr(cfg, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
 
     async def _proc_score(**kw):
@@ -152,9 +151,8 @@ async def test_procedural_intent_boosts_procedure_row(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
     monkeypatch.setattr(cfg, "INTENT_PROCEDURAL_BOOST", 0.5)  # exaggerate for a clear gap
     # search.py binds INTENT_PROCEDURAL_BOOST at import; patch the bound name too.
-    srch = importlib.import_module("memory.search")
 
-    monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
+    monkeypatch.setattr(cfg, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
 
     res = await mc.memory_search_scored_impl(
@@ -185,9 +183,8 @@ async def test_procedural_intent_ignores_non_procedure_types(monkeypatch, tmp_pa
     cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
-    srch = importlib.import_module("memory.search")
 
-    monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
+    monkeypatch.setattr(cfg, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
 
     res = await mc.memory_search_scored_impl(

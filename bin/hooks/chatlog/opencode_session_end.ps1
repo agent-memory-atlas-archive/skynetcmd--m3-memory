@@ -30,12 +30,11 @@ if (-not $py) {
     }
 }
 
-# ⚠ --transcript-path IS REQUIRED and was missing, so this exited 2 on every
-# fire and OpenCode capture never ran. OpenCode writes no transcript FILE: it
-# keeps sessions in opencode.db (v1.2.0+) or a legacy per-message JSON tree, so
-# point ingest at the STORE and let the parser resolve the layout.
-# "auto" asks chatlog_ingest to locate the store. The per-OS candidate list
-# lives there, in ONE place, rather than being re-derived in each shell wrapper
-# — which is how two platforms drift apart (DESIGN §1, §10a).
-$input | & $py (Join-Path $base "bin\chatlog_ingest.py") --format opencode --transcript-path auto --variant session_end
+# Hand off to the .py hook: it passes --transcript-path auto (OpenCode writes
+# no transcript file; chatlog_ingest owns the per-OS store lookup) and owns the
+# failure handling: fallback file with the recovery command, scream, non-zero
+# exit. Calling chatlog_ingest.py directly reported nothing on a failure.
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$env:PYTHONIOENCODING = "utf-8"
+$input | & $py (Join-Path $base "bin\hooks\chatlog\opencode_session_end.py")
 exit $LASTEXITCODE

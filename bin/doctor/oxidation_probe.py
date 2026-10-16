@@ -42,7 +42,7 @@ _EXPECTED = [
 def run(brief: bool = False) -> int:
     """Report m3_core_rs presence and per-function availability. Always 0.
 
-    brief=True emits a single line for `m3 doctor --brief`."""
+    brief=True emits a single line for `m3 doctor`'s compact default."""
 
     def _b(line: str) -> None:  # brief-only one-liner
         if brief:

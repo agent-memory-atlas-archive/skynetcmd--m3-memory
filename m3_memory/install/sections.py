@@ -1144,7 +1144,7 @@ def _deprecated_env_section() -> None:
         return  # clean — say nothing rather than add noise
     print()
     print("  [!] deprecated env vars in use (still work, but migrate — the old")
-    print("      names will be removed; `m3 install`/`update` will refuse while set):")
+    print("      names will be removed; `m3 install-m3`/`update` will refuse while set):")
     for old, new in sorted(in_use.items()):
         print(f"        {old}  ->  {new}")
     for line in sorted(reg_lines):

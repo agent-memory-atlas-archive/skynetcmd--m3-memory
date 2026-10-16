@@ -287,7 +287,13 @@ def test_drain_spill_refuses_stale_target_and_keeps_file(tmp_path, monkeypatch):
 
     import chatlog_embed_sweeper
 
-    asyncio.run(chatlog_embed_sweeper.drain_spill())
+    assert asyncio.run(chatlog_embed_sweeper.drain_spill()) == 3
 
-    # The good file drained and is gone; the failing one is retained.
-    assert bad.exists(), "a spill file with an undrained row must be kept, not deleted"
+    # The good file drained; the stale-target line was neither written into an
+    # orphan store nor retried forever: it is parked, intact, in quarantine/.
+    assert not (tmp_path / "nonexistent-dir").exists(), "drain conjured an orphan store"
+    assert not list(spill_dir.glob("*.jsonl")), "stale-target line left in the hot path"
+    parked = list((spill_dir / "quarantine").glob("foreign-*"))
+    assert len(parked) == 1
+    lines = parked[0].read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1 and json.loads(lines[0])["_content"] == "unroutable"

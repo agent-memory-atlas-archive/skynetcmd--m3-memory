@@ -105,3 +105,34 @@ def test_lock_owner_stamp_is_parseable():
     assert int(parts[0]) == os.getpid()
     assert parts[1] == socket.gethostname()
     assert int(parts[2]) > 0
+
+
+def test_a_lock_recreated_after_the_stale_check_is_not_deleted(tmp_path, monkeypatch):
+    """Two waiters judge one dead-owner lock stale. The first reclaims it and
+    creates a FRESH lock; the second must not delete that fresh lock (a bare
+    unlink did, and both proceeded as holders)."""
+    import importlib
+
+    locking = importlib.import_module("m3_core.locking")
+    lock = tmp_path / ".migration.lock"
+    _write_lock(lock, f"2000000000 {socket.gethostname()} 1")
+    fresh = f"{os.getpid()} {socket.gethostname()} {int(time.time())}"
+
+    def other_waiter_wins(pid):  # runs between the read and the reclaim
+        lock.unlink()
+        _write_lock(lock, fresh)
+        return False  # the stamp we read named a dead pid
+
+    monkeypatch.setattr(locking, "_pid_alive", other_waiter_wins)
+    assert locking._reclaim_stale_lock(str(lock)) is False
+    assert lock.read_text(encoding="utf-8") == fresh, "observed: the fresh lock was removed or replaced"
+    assert not list(tmp_path.glob(".migration.lock.stale-*")), "no aside file is left behind"
+
+
+def test_a_lock_timeout_is_its_own_class():
+    """The native fallback re-raises by CLASS: a message test ("lock" in str(e))
+    also matched unrelated errors that merely mention a lock."""
+    import importlib
+
+    locking = importlib.import_module("m3_core.locking")
+    assert issubclass(locking.LockTimeout, RuntimeError)

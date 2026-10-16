@@ -19,9 +19,9 @@ the two runners behave the same way. Differences that are intrinsic to the engin
     real transaction; a file either commits whole or rolls back whole. Migration
     files therefore MUST NOT contain their own COMMIT/ROLLBACK/BEGIN (same rule as
     the SQLite runner; enforced by ``_validate_migration_sql``).
-  * DSN resolution goes through the PRIMARY-store resolver + forbidden-host guard
-    (``resolve_primary_pg_dsn`` / ``M3_PG_FORBIDDEN_HOSTS``) so the runner can
-    NEVER migrate the data-warehouse hub by accident (the PG_URL-split invariant).
+  * DSN resolution goes through the PRIMARY-store resolver and BOTH of the
+    backend's guards (``M3_PG_FORBIDDEN_HOSTS`` and same-database-as-the-stored-
+    warehouse-DSN), so a DSN naming the warehouse is refused, --dsn included.
 
 Commands: ``up`` (apply pending), ``status``, ``down --to N`` (revert to N),
 ``plan`` (print pending SQL). ``ensure_schema()`` on the backend still applies the
@@ -68,12 +68,13 @@ def _resolve_dsn(explicit: str | None = None) -> str:
     """Resolve the PRIMARY-store DSN, fail loud if absent.
 
     ``explicit`` (from --dsn) wins; else the stored primary DSN
-    (M3_PRIMARY_PG_URL, the secrets chain; never env). NEVER the warehouse DSN,
-    and the result is checked against M3_PG_FORBIDDEN_HOSTS — so this runner cannot touch
-    the warehouse hub. Reuses the exact guards from the backend."""
+    (M3_PRIMARY_PG_URL, the secrets chain; never env). NEVER the warehouse DSN:
+    the result passes the same two guards as postgres_backend._resolve_dsn —
+    M3_PG_FORBIDDEN_HOSTS, and "not the same database as the stored warehouse
+    DSN" (an explicit --dsn included)."""
     sys.path.insert(0, os.path.join(_BASE_DIR, "bin"))
     from m3_sdk import PgRole, resolve_pg_dsn
-    from memory.backends.postgres_backend import _reject_forbidden_host
+    from memory.backends.postgres_backend import _reject_forbidden_host, _reject_same_as_warehouse
 
     dsn = (explicit or "").strip() or resolve_pg_dsn(PgRole.PRIMARY)
     if not dsn:
@@ -81,7 +82,8 @@ def _resolve_dsn(explicit: str | None = None) -> str:
             "No PostgreSQL PRIMARY DSN. Pass --dsn, or store it: `m3 secret set M3_PRIMARY_PG_URL`. "
             "This runner never uses the warehouse DSN."
         )
-    _reject_forbidden_host(dsn)  # refuses a warehouse-hub DSN
+    _reject_forbidden_host(dsn)  # refuses a listed warehouse host
+    _reject_same_as_warehouse(dsn)  # refuses the stored warehouse database itself
     return dsn
 
 
@@ -265,7 +267,10 @@ def run_pending_pg_migrations(conn, migrations_dir: str = _PG_MIGRATIONS_DIR, sc
         for v in pending:
             up = migs[v]["up"]
             if not up:
-                logger.error(f"pg migration v{v} has no up file — stopping.")
+                logger.error(
+                    f"pg migration v{v} ({migs[v]['name']}) has no up file in {migrations_dir} — stopping. "
+                    f"applied this run: {done or 'none'}; NOT applied: {pending[pending.index(v) :]}"
+                )
                 break
             apply_migration(conn, v, up)
             done.append(v)
@@ -346,6 +351,15 @@ def run_warehouse_migrations(conn, schema: str) -> list[int]:
 
 
 # ── CLI subcommands ──────────────────────────────────────────────────────────
+def _confirm(prompt: str, assume_yes: bool) -> bool:
+    """migrate_memory's consent prompt (one owner): declines instead of blocking
+    when no console can answer (an elevated window nobody types into)."""
+    sys.path.insert(0, os.path.join(_BASE_DIR, "bin"))
+    from migrate_memory import _confirm as confirm
+
+    return confirm(prompt, assume_yes)
+
+
 def cmd_status(args) -> None:
     migs = discover_migrations()
     conn = _connect(_resolve_dsn(args.dsn))
@@ -408,18 +422,24 @@ def cmd_up(args) -> None:
         if args.dry_run:
             logger.info("Dry run — no changes made.")
             return
-        if not args.yes:
-            resp = input(f"\nApply {len(pending)} pg migration(s) to the PRIMARY store? [y/N] ")
-            if resp.strip().lower() not in ("y", "yes"):
-                logger.info("Aborted by user.")
-                return
+        if not _confirm(f"\nApply {len(pending)} pg migration(s) to the PRIMARY store?", args.yes):
+            logger.info("Aborted by user.")
+            return
+        done: list[int] = []
         for v in pending:
             up = migs[v]["up"]
             if not up:
-                logger.error(f"v{v} has no up file — skipping")
-                continue
+                # Stop, as run_pending_pg_migrations does: later versions over a
+                # gap give a schema no chain produced.
+                raise SystemExit(
+                    f"pg migration v{v} ({migs[v]['name']}) has only a down file in {_PG_MIGRATIONS_DIR}; "
+                    f"stopped before it. applied: {done or 'none'}; NOT applied: {pending[pending.index(v) :]} "
+                    f"(expected through v{target_ver}). fix: reinstall m3 so pg_{v:03d}_{migs[v]['name']}.up.sql "
+                    "exists, then re-run `up`"
+                )
             apply_migration(conn, v, up)
-        logger.info(f"Done. Now at v{current_version(conn)}.")
+            done.append(v)
+        logger.info(f"Done. Applied {done}; now at v{current_version(conn)}.")
     finally:
         conn.close()
 
@@ -445,11 +465,9 @@ def cmd_down(args) -> None:
         print("Will revert (newest first):")
         for v in to_revert:
             print(f"  - v{v}  {migs[v]['name']}")
-        if not args.yes:
-            resp = input(f"\nRevert {len(to_revert)} pg migration(s)? [y/N] ")
-            if resp.strip().lower() not in ("y", "yes"):
-                logger.info("Aborted by user.")
-                return
+        if not _confirm(f"\nRevert {len(to_revert)} pg migration(s)?", args.yes):
+            logger.info("Aborted by user.")
+            return
         for v in to_revert:
             revert_migration(conn, v, migs[v]["down"])
         logger.info(f"Done. Now at v{current_version(conn)}.")
@@ -463,7 +481,12 @@ def main(argv: list[str] | None = None) -> int:
     # (every `m3 memory` command printed each HTTP request).
     logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
     p = argparse.ArgumentParser(description="PostgreSQL PRIMARY-store migration runner.")
-    p.add_argument("--dsn", default=None, help="Explicit DSN (else M3_PRIMARY_PG_URL/M3_PG_URL).")
+    p.add_argument(
+        "--dsn",
+        default=None,
+        help="Explicit PRIMARY-store DSN. Default: the stored M3_PRIMARY_PG_URL secret "
+        "(`m3 secret set M3_PRIMARY_PG_URL`); never read from the environment, never the warehouse DSN.",
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
 
     p_up = sub.add_parser("up", help="Apply pending pg migrations.")

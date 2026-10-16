@@ -23,7 +23,7 @@
 # push actually touches the tool catalog, its generators, or the docs whose
 # counts they own. So we change-detect first and SKIP the gate entirely when
 # the push range doesn't touch those paths — the common case. The leakage
-# scan is a sub-millisecond `git diff | grep` and always runs.
+# scan (`git diff` piped into bin/prepush/scan_diff.py) is cheap and always runs.
 
 set -euo pipefail
 
@@ -37,10 +37,19 @@ cd "$ROOT"
 # ModuleNotFoundError and FALSE-POSITIVE BLOCKS the push (observed 2026-07-29:
 # homebrew's bare python failed all 21 shim tests while .venv passed them).
 # Prefer, in order: an active virtualenv, a repo-local .venv, then python/python3.
-if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
-  PY="$VIRTUAL_ENV/bin/python"
-elif [ -x "$ROOT/.venv/bin/python" ]; then
-  PY="$ROOT/.venv/bin/python"
+# A Windows venv keeps its interpreter in Scripts/python.exe, not bin/python;
+# both layouts are probed so Git Bash on Windows finds the venv too.
+venv_python() {
+  local d="$1" c
+  for c in "$d/bin/python" "$d/Scripts/python.exe"; do
+    [ -x "$c" ] && { printf '%s\n' "$c"; return 0; }
+  done
+  return 1
+}
+if [ -n "${VIRTUAL_ENV:-}" ] && PY="$(venv_python "$VIRTUAL_ENV")"; then
+  :
+elif PY="$(venv_python "$ROOT/.venv")"; then
+  :
 elif command -v python >/dev/null 2>&1; then
   PY="python"
 else
@@ -113,8 +122,6 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     # behind the rebase and still spans public commits). The right baseline is
     # what the remote ALREADY publishes: content reachable from the remote's
     # own branches is not newly exposed by this push, whoever put it there.
-    # Exclude every remote-tracking ref for this remote, so only genuinely new
-    # content is scanned.
     # Baseline = the merge-base with the remote's DEFAULT branch (the trunk the
     # branch will merge into). Everything up to there is already published, so
     # only what this branch adds on top gets scanned. Two dots, not a rev-list
@@ -156,14 +163,23 @@ if [ ${#RANGES[@]} -eq 0 ]; then
   fi
 fi
 
-# Union of files changed across all pushed ranges.
-changed_files() {
-  local r
-  for r in "${RANGES[@]}"; do
-    git diff --name-only "$r" 2>/dev/null || true
-  done | sort -u
-}
-CHANGED="$(changed_files)"
+# Union of files changed across all pushed ranges. Fails CLOSED: a failed diff
+# used to yield an empty list, which skipped the drift and shim gates as
+# "not touched".
+CHANGED=""
+for r in "${RANGES[@]}"; do
+  if ! _names="$(git diff --name-only "$r" 2>&1)"; then
+    echo "[pre-push] BLOCKED: cannot list the files changed in $r" >&2
+    printf '%s\n' "$_names" | sed 's/^/[pre-push]   git: /' >&2
+    exit 1
+  fi
+  CHANGED="$(printf '%s\n%s\n' "$CHANGED" "$_names" | sed '/^$/d' | sort -u)"
+done
+
+# Per-gate outcome, printed on the final line: a push that skipped or deferred a
+# gate must not read as "drift clean".
+DRIFT_STATE="skipped (no catalog/doc paths)"
+SHIM_STATE="skipped (no memory shim)"
 
 # --- 1/3 tool-catalog drift gate (conditional) ------------------------------
 # Paths whose change can make the generated catalog/inventory or the hardcoded
@@ -186,6 +202,7 @@ then
   if ! py_has_deps; then
     echo "[pre-push] 1/3 drift gate — WARNING: '$PY' lacks project deps; deferring to CI." >&2
     echo "           Install dev deps for local coverage: pip install -e '.[dev]'" >&2
+    DRIFT_STATE="DEFERRED to CI ('$PY' lacks project deps)"
   else
     # Check the commit being PUSHED, not the working tree. Checking the tree
     # blocked a clean commit because of unrelated uncommitted edits (2026-10-15),
@@ -210,6 +227,7 @@ then
       echo "[pre-push] BLOCKED: tool-catalog drift in the pushed commit. Regenerate + commit, then re-push." >&2
       exit 1
     fi
+    DRIFT_STATE="clean"
   fi
 else
   echo "[pre-push] 1/3 tool-catalog drift gate — skipped (no catalog/doc paths in push)"
@@ -229,11 +247,14 @@ then
   if ! py_has_deps; then
     echo "[pre-push] 2/3 shim gate — WARNING: '$PY' lacks project deps; deferring to CI." >&2
     echo "           Install dev deps for local coverage: pip install -e '.[dev]'" >&2
+    SHIM_STATE="DEFERRED to CI ('$PY' lacks project deps)"
   elif ! "$PY" -m pytest tests/test_shim_reexports.py -q >/dev/null 2>&1; then
     echo "[pre-push] BLOCKED: a memory shim re-export is missing (likely stripped" >&2
     echo "  by 'ruff --fix'). Run: pytest tests/test_shim_reexports.py -q" >&2
     echo "  Restore the dropped 'from .<sibling> import ...' + mark it # noqa: F401." >&2
     exit 1
+  else
+    SHIM_STATE="clean"
   fi
 else
   echo "[pre-push] 2/3 shim re-export integrity gate — skipped (no memory shim in push)"
@@ -334,7 +355,10 @@ if [ -f "$PROHIBITED_FILE" ] && [ -r "$PROHIBITED_FILE" ]; then
   _pat=""
   _n_pat=0
   while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in ''|'#'*) continue ;; esac      # skip blanks + comments
+    # Same skip rule as scan_diff.load_patterns (whitespace-only lines and
+    # indented comments are not patterns), so the two counts agree.
+    _trim="${line#"${line%%[![:space:]]*}"}"
+    case "$_trim" in ''|'#'*) continue ;; esac
     _pat="${_pat}${_pat:+|}${line}"
     _n_pat=$((_n_pat + 1))
   done < "$PROHIBITED_FILE" || true
@@ -372,15 +396,18 @@ fi
 # (_n_pat > 0), else the built-in fallback the warnings above already announced.
 if [ "${_n_pat:-0}" -gt 0 ]; then
   _SCAN_SOURCE=(--patterns "$PROHIBITED_FILE")
+  LEAK_STATE="no leakage (private policy, ${_n_pat} pattern(s))"
 else
   _SCAN_SOURCE=(--inline-pattern "$LEAK_PATTERN")
+  LEAK_STATE="no leakage (built-in fallback only; BENCH PATTERNS NOT CHECKED)"
 fi
 _scan_rc=0
 _scanned=0
 for r in "${RANGES[@]}"; do
   # Only addition lines matter -- deletions cannot leak to the remote. The
-  # scanner skips `+++` headers itself.
-  git diff "$r" -- '**' "${EXCLUDES[@]}" "$SCANNER_SELFTEST" 2>/dev/null \
+  # scanner skips `+++` headers itself. git's stderr stays visible: under
+  # pipefail a failed diff blocks, and the reason must be on screen.
+  git diff "$r" -- '**' "${EXCLUDES[@]}" "$SCANNER_SELFTEST" \
     | python3 "$_SCANNER" "${_SCAN_SOURCE[@]}" \
         --exclude-identities "$PLACEHOLDER_IDENTITIES" \
     || _scan_rc=1
@@ -420,4 +447,4 @@ if [ -n "$CODE_CHANGED" ]; then
 REMINDER
 fi
 
-echo "[pre-push] OK — drift clean, no leakage detected."
+echo "[pre-push] OK — drift gate: $DRIFT_STATE; shim gate: $SHIM_STATE; leakage scan: $LEAK_STATE."

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_config.py
-sha1: d8bfa4c352d6
-mtime_utc: 2026-10-15T20:36:05.586174+00:00
-generated_utc: 2026-10-15T20:36:29.225387+00:00
+sha1: 5a7dcb5ca1cd
+mtime_utc: 2026-10-16T18:49:02.328254+00:00
+generated_utc: 2026-10-16T19:03:59.022810+00:00
 private: false
 ---
 
@@ -79,7 +79,7 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 487)
+- `sqlite3.connect()  → `db_path`` (line 664)
 
 
 ---
@@ -88,10 +88,13 @@ _(none detected)_
 
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.config (settings)`
+- `m3_core.locking (file_lock)`
+- `m3_core.paths (canonical_path, main_db_path)`
 - `m3_core.paths (configured_chatlog_db)`
 - `m3_core.paths (configured_main_db, pin_chatlog_db, pin_database)`
 - `m3_core.paths (resolve_config_file)`
 - `m3_core.paths (resolve_engine_file)`
+- `m3_core.runtime (utc_iso)`
 
 ---
 
@@ -100,6 +103,7 @@ _(none detected)_
 - `.chatlog_config.json`
 - `.chatlog_ingest_cursor.json`
 - `.chatlog_state.json`
+- `.reason.json`
 - `agent_chatlog.db`
 - `agent_memory.db`
 - `alt_chatlog.db`

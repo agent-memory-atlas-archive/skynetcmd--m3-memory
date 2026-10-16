@@ -724,19 +724,20 @@ class SqliteBackend:
         *,
         conflict_target: str,
     ) -> int:
-        """`INSERT OR IGNORE` — SQLite puts the decision in the VERB.
+        """`ON CONFLICT (target) DO NOTHING` — skips a conflict on the NAMED key only.
 
-        `conflict_target` is accepted for seam symmetry and deliberately unused:
-        OR IGNORE skips on ANY constraint violation, not a named one. Narrowing
-        it would need the ON CONFLICT form, which SQLite also supports but which
-        would diverge from the dialect's `insert_or_ignore()` idiom the rest of
-        the codebase uses.
+        Not `INSERT OR IGNORE`: that skips ANY constraint violation, so a row
+        breaking NOT NULL or CHECK vanished silently here while PostgreSQL raises
+        for it — a sync that "pulled" rows it dropped. The targeted form behaves
+        the same on both backends.
         """
         if not rows:
             return 0
-        del conflict_target  # see docstring
         d = self.dialect()
-        sql = f"{d.insert_or_ignore()} {table} ({', '.join(columns)}) VALUES ({d.placeholder(len(columns))})"
+        sql = (
+            f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({d.placeholder(len(columns))}) "
+            f"ON CONFLICT {conflict_target} DO NOTHING"
+        )
         cur = conn.cursor()  # type: ignore[attr-defined]
         cur.executemany(sql, rows)
         return len(rows)
@@ -921,7 +922,11 @@ class SqliteBackend:
         fts_query, ok = _compile_fts_query(query, search_mode)
         if not ok or not fts_query:
             return []
-        extra_sql = "".join(f", mi.{c}" for c in extra_columns)
+        # Same filter as the PostgreSQL backend: a column name is interpolated
+        # into SQL, so only bare identifiers pass (callers pre-filter with
+        # memory.search._resolve_extra_columns; this is the backstop).
+        safe_extra = [c for c in extra_columns if str(c).isidentifier()]
+        extra_sql = "".join(f", mi.{c}" for c in safe_extra)
         rows = conn.execute(  # type: ignore[attr-defined]
             f"""
             WITH ranked AS (

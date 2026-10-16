@@ -2,6 +2,7 @@ import json
 import ntpath
 import os
 import posixpath
+import re
 import shutil
 import sys
 
@@ -31,9 +32,10 @@ def _is_installed_layout(m3_repo_root: str) -> bool:
 def _resolve_python_cmd(m3_repo_root: str) -> str:
     """Resolve an ABSOLUTE interpreter that actually has m3's dependencies, so
     hooks/MCP/statusline don't depend on whatever "python" is on PATH (the venv
-    may not be activated when a hook fires). Always forward-slash: Claude Code
-    runs hook commands through a shell (Git Bash on Windows) where backslashes
-    are escapes.
+    may not be activated when a hook fires). Always forward-slash: valid both
+    under cmd.exe (how Claude Code ran hooks on Windows in the 2026-08 outage
+    noted at _hook_env_prefix's caller) and under a POSIX shell, where
+    backslashes are escapes.
 
     Order:
       1. A repo-local .venv — ONLY for a genuine SOURCE checkout. A `.venv`
@@ -134,7 +136,29 @@ def _hook_env_prefix(engine_root: str, config_root: str) -> str:
     """
     if os.name == "nt":
         return ""
-    return f"M3_ENGINE_ROOT={engine_root} M3_CONFIG_ROOT={config_root} "
+    import shlex
+
+    return f"M3_ENGINE_ROOT={shlex.quote(engine_root)} M3_CONFIG_ROOT={shlex.quote(config_root)} "
+
+
+# cmd.exe metacharacters plus whitespace: a path holding any of them must be
+# double-quoted or the hook splits at it.
+_CMD_SPECIAL = re.compile(r"[\s&()\[\]{}^=;!,`~|<>%\']")
+
+
+def _quote_cmd_path(path: str) -> str:
+    """``path`` quoted for the shell a hook / statusLine command runs under.
+
+    Hazard: an unquoted path with a space ("C:/Users/Jo Smith/...") splits into
+    two arguments and the hook dies silently on every fire. Unchanged when no
+    quoting is needed, so existing commands stay byte-identical.
+    Windows: cmd.exe double quotes (paths cannot contain ``"``). POSIX: shlex.
+    """
+    if _is_windows():
+        return f'"{path}"' if _CMD_SPECIAL.search(path) else path
+    import shlex
+
+    return shlex.quote(path)
 
 
 def generate_configs(write: bool = True):
@@ -266,12 +290,14 @@ def generate_configs(write: bool = True):
     _root_pins = _hook_env_prefix(engine_root, config_root)
 
     # Invoke the .py hook directly with the venv interpreter — no /bin/sh, which
-    # doesn't exist on native Windows (it only works today because Claude Code
-    # routes hooks through Git Bash). The .py is the cross-platform entry point.
-    hook_cmd = f"{_root_pins}{python_cmd} {repo('bin/hooks/chatlog/claude_code_precompact.py')}"
+    # does not exist under cmd.exe. The .py is the cross-platform entry point.
+    # Paths are quoted only when they need it (a space in the home directory),
+    # so existing commands stay byte-identical and idempotent.
+    _py = _quote_cmd_path(python_cmd)
+    hook_cmd = f"{_root_pins}{_py} {_quote_cmd_path(repo('bin/hooks/chatlog/claude_code_precompact.py'))}"
     hook_entry = [{"hooks": [{"type": "command", "command": hook_cmd}]}]
 
-    session_start_cmd = f"{_root_pins}{python_cmd} {repo('bin/hooks/chatlog/session_start_capture_check.py')}"
+    session_start_cmd = f"{_root_pins}{_py} {_quote_cmd_path(repo('bin/hooks/chatlog/session_start_capture_check.py'))}"
     session_start_entry = [
         {
             "hooks": [
@@ -343,7 +369,7 @@ def generate_configs(write: bool = True):
         "hooks": claude_hooks,
         "statusLine": {
             "type": "command",
-            "command": f"{python_cmd} {repo('bin/statusline-command.sh')}",
+            "command": f"{_py} {_quote_cmd_path(repo('bin/statusline-command.sh'))}",
         },
         "enabledPlugins": {"m3@skynetcmd": True},
         "extraKnownMarketplaces": {"skynetcmd": {"source": {"source": "github", "repo": "skynetcmd/m3-memory"}}},
@@ -353,9 +379,12 @@ def generate_configs(write: bool = True):
     # Reused by install_claude_settings(), which reads it back with getattr.
     generate_configs._last_claude = claude  # type: ignore[attr-defined]
     if not write:
-        return
-    _write_json(os.path.join(config_dir, "claude-settings.json"), claude)
-    print(f"Generated claude-settings.json ({python_cmd}, engine root {engine_root}, config root {config_root})")
+        return None
+    ok = True
+    if _write_json(os.path.join(config_dir, "claude-settings.json"), claude):
+        print(f"Generated claude-settings.json ({python_cmd}, engine root {engine_root}, config root {config_root})")
+    else:
+        ok = False
 
     # ── gemini-settings.json ──────────────────────────────────────────────────
     gemini_path = os.path.join(config_dir, "gemini-settings.json")
@@ -391,30 +420,32 @@ def generate_configs(write: bool = True):
     if "security" not in gemini:
         gemini["security"] = {"auth": {"selectedType": "gemini-api-key"}}
 
-    _write_json(gemini_path, gemini)
-    print(f"Generated gemini-settings.json ({python_cmd})")
+    if _write_json(gemini_path, gemini):
+        print(f"Generated gemini-settings.json ({python_cmd})")
+    else:
+        ok = False
 
     # ── .mcp.json (project-level) ────────────────────────────────────────────
-    # Deliberately EMPTY of the m3 servers. Claude Code reads BOTH its user
-    # settings.json (claude-settings.json above, which carries the COMPLETE defs
-    # with env blocks) AND a project-local .mcp.json — so declaring the same
-    # servers in both made Claude Code launch each bridge TWICE. A call routed to
-    # the redundant (bare, env-less) bridge could hang indefinitely on code
-    # without a per-tool timeout — the 2h43m memory_write hang, 2026-07-02.
-    # Single registration source = single launch. If you WANT a server scoped to
-    # only this project, add it here (with a full env block) AND remove it from
-    # settings.json — never both.
+    # Deliberately EMPTY of the m3 servers. Claude Code reads server definitions
+    # from ~/.claude.json (`claude mcp add`, where `m3 setup` registers m3_memory
+    # with root pins), plugins, AND a project-local .mcp.json — NOT from
+    # settings.json. Declaring m3 here as well launched the bridge TWICE; a call
+    # routed to the redundant env-less copy could hang (the 2h43m memory_write
+    # hang, 2026-07-02). Single registration source = single launch.
     mcp_data = {
         "//": (
-            "m3 MCP servers are registered once, in your Claude Code user "
-            "settings.json (with env blocks). Do NOT also list them here — "
+            "m3's MCP server is registered once for Claude Code, via "
+            "`claude mcp add` (~/.claude.json, with root pins) or the m3 plugin. "
+            "Do NOT also list it here — "
             "duplicate registration double-launches the bridge and can hang a "
             "tool call. See `m3 doctor` (flags duplicates) / `m3 doctor --fix`."
         ),
         "mcpServers": {},
     }
-    _write_json(os.path.join(m3_repo_root, ".mcp.json"), mcp_data)
-    print("Generated .mcp.json (empty — servers live in settings.json to avoid double-launch)")
+    if _write_json(os.path.join(m3_repo_root, ".mcp.json"), mcp_data):
+        print("Generated .mcp.json (empty — m3's Claude server is registered via `claude mcp add` or the plugin)")
+    else:
+        ok = False
 
     # ── .aider.conf.yml ───────────────────────────────────────────────────────
     aider_path = os.path.join(m3_repo_root, ".aider.conf.yml")
@@ -426,6 +457,7 @@ def generate_configs(write: bool = True):
             with open(aider_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
             print("Updated [M3_MEMORY_ROOT] in .aider.conf.yml")
+    return ok
 
 
 def _write_json(path, data):
@@ -438,10 +470,14 @@ def _write_json(path, data):
     # which inherits that re-exec. See tests/test_cross_platform_config.py.
     from m3_core.atomic_io import atomic_write
 
+    # Returns False after printing the path and error; the caller then skips
+    # its "Generated" line and generate_configs() returns False.
     try:
         atomic_write(path, json.dumps(data, indent=2) + "\n")
-    except Exception as e:  # atomic_write already removed its temp file
-        print(f"Failed to write {os.path.basename(path)}: {e}")
+    except Exception as e:  # noqa: BLE001 -- atomic_write already removed its temp file
+        print(f"[X] failed to write {path}: {type(e).__name__}: {e}")
+        return False
+    return True
 
 
 def _m3_repo_root():
@@ -454,6 +490,9 @@ def _is_m3_command(cmd, repo_root_fwd):
     root path or the known m3 script markers — never on a hardcoded user path."""
     if not isinstance(cmd, str):
         return False
+    # Older vintages wrote native Windows paths; match in forward slashes
+    # (the comparison only — the command itself is never rewritten here).
+    cmd = cmd.replace("\\", "/")
     markers = (
         repo_root_fwd,
         "bin/hooks/chatlog/",
@@ -521,15 +560,13 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
     if settings_path is None:
         settings_path = os.path.join(os.path.expanduser("~"), ".claude", "settings.json")
 
-    # Load existing live settings (preserve everything we don't own).
-    if os.path.exists(settings_path):
-        with open(settings_path, encoding="utf-8") as f:
-            try:
-                live = json.load(f)
-            except json.JSONDecodeError:
-                live = {}
-    else:
-        live = {}
+    # Load existing live settings (preserve everything we don't own). A file
+    # that exists but will not parse raises SettingsUnreadable: merging into {}
+    # would replace the user's whole file, and unattended callers (chatlog init,
+    # doctor --fix-hooks, upgrade) would do it silently.
+    from m3_core.config.claude_settings import read_json_object
+
+    live = read_json_object(settings_path)
     before = json.dumps(live, indent=2, sort_keys=True)
 
     # 1. hooks — replace m3-owned list entries in place, keep user hooks.
@@ -624,11 +661,12 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
     #    pre-rename key (`m3`) so an upgrader is covered too. Merge — never clobber
     #    a user's own disables. A user who deliberately prefers the plugin removes
     #    these two ids.
-    _plugin_ids = ["plugin:m3:memory", "plugin:m3:m3"]
+    from m3_core.config.claude_settings import PLUGIN_SERVER_IDS
+
     disabled = live.get("disabledMcpServers")
     if not isinstance(disabled, list):
         disabled = []
-    for _pid in _plugin_ids:
+    for _pid in PLUGIN_SERVER_IDS:
         if _pid not in disabled:
             disabled.append(_pid)
     live["disabledMcpServers"] = disabled
@@ -671,8 +709,12 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
         else:
             atomic_write(settings_path, text)
     except OSError as e:
-        print(f"Failed to write {settings_path}: {e}. Nothing was installed; see {guard.history} if it exists.")
-        return {"changed": False, "path": settings_path, "diff": diff}
+        # Raise, not return changed=False: callers read that as "already up to
+        # date" and would report success over a failed write.
+        raise RuntimeError(
+            f"observed: writing {settings_path} failed ({e}); nothing was installed. "
+            f"inspect: {guard.history} (if present) and the file's permissions"
+        ) from e
     print(f"Installed m3 hooks + statusLine into {settings_path}")
     return {"changed": True, "path": settings_path, "diff": diff}
 
@@ -695,8 +737,12 @@ if __name__ == "__main__":
     a = ap.parse_args()
 
     if a.install_claude:
-        install_claude_settings(
-            a.settings_path, assume_yes=a.yes, dry_run=a.dry_run, keep_status_line=a.keep_status_line
-        )
+        try:
+            install_claude_settings(
+                a.settings_path, assume_yes=a.yes, dry_run=a.dry_run, keep_status_line=a.keep_status_line
+            )
+        except Exception as exc:  # noqa: BLE001 -- report, exit nonzero
+            print(f"[X] {exc}", file=sys.stderr)
+            sys.exit(1)
     else:
-        generate_configs()
+        sys.exit(0 if generate_configs() is not False else 1)

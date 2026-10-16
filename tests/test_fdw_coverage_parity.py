@@ -93,7 +93,8 @@ class TestPerTableConflictSemantics:
     def test_items_and_tasks_use_timestamp_lww(self):
         for table in ("memory_items", "tasks"):
             sql = _sql_for(table)
-            assert f"wh.{table}.updated_at < EXCLUDED.updated_at" in sql
+            assert f"EXCLUDED.updated_at > wh.{table}.updated_at" in sql
+            assert f"wh.{table}.updated_at IS NULL" in sql, "a stored row with no timestamp must accept"
 
     def test_secrets_uses_version_precedence_not_timestamp(self):
         """⚠ The one that would have been silently wrong.
@@ -106,7 +107,10 @@ class TestPerTableConflictSemantics:
         assert "EXCLUDED.version > wh.synchronized_secrets.version" in sql
         assert "EXCLUDED.version = wh.synchronized_secrets.version" in sql
         # And it must NOT be a bare timestamp comparison.
-        assert "wh.synchronized_secrets.updated_at < EXCLUDED.updated_at" not in sql
+        assert "EXCLUDED.updated_at > wh.synchronized_secrets.updated_at" in sql.split("EXCLUDED.version =", 1)[1], (
+            "the timestamp may only break ties WITHIN one version"
+        )
+        assert "wh.synchronized_secrets.updated_at IS NULL" not in sql
 
     def test_secrets_is_not_delta_filtered_by_timestamp(self):
         """ts_col is None on purpose.

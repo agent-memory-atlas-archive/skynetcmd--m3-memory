@@ -150,7 +150,8 @@ async def test_corroboration_on_strengthens_existing(monkeypatch, tmp_path):
         )
         conn.execute(
             "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
-            (existing_id, _pack_vec(vec), "test", len(vec)),
+            # A compatible embed tag: the contradiction scan compares one space only.
+            (existing_id, _pack_vec(vec), importlib.import_module("memory.config").EMBED_MODEL, len(vec)),
         )
         conn.commit()
 

@@ -11,13 +11,11 @@ from __future__ import annotations
 
 import importlib
 import sys
-import types
 
 
 def test_an_import_failure_falls_back_to_the_generic_bridge(monkeypatch):
     sa = importlib.import_module("sync_all")
-    mb = importlib.import_module("memory.backends")
-    monkeypatch.setattr(mb, "active_backend", lambda: types.SimpleNamespace(name="postgres"))
+    monkeypatch.setattr(sa, "_local_backend_name", lambda: "postgres")
     monkeypatch.setitem(sys.modules, "pg_fdw_sync", None)  # makes `import pg_fdw_sync` raise
     reasons: list[str] = []
     monkeypatch.setattr(sa, "_set_fdw_reason", reasons.append)

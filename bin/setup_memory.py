@@ -210,8 +210,9 @@ config = {
 
 # 6. Detect a Claude Code install and offer the recommended hook install.
 #    This is the SAFE, re-runnable path: it merges m3's SessionStart capture-check
-#    hook + PreCompact/Stop hooks + statusLine + mcpServers into the live
-#    settings.json idempotently (an upgrade replaces m3's own entries in place —
+#    hook + PreCompact/Stop hooks + statusLine into the live settings.json
+#    (pruning stale m3 mcpServers there: Claude Code reads servers only from
+#    ~/.claude.json) idempotently (an upgrade replaces m3's own entries in place —
 #    no duplicate or conflicting lines), backing up first and prompting before
 #    writing. Prefer this over the manual paste below.
 claude_dir = pathlib.Path(os.path.expanduser("~")) / ".claude"

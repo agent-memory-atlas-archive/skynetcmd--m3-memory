@@ -2,8 +2,8 @@
 
 Implements the ``crewai.memory.storage.backend.StorageBackend`` Protocol (v1.10+)
 over m3's one canonical in-process dispatch — no HTTP, no subprocess, no mem0.
-Reuses the framework-agnostic ``M3Client`` from the langchain adapter (it has zero
-langchain coupling) as the shared dispatch core (§2 narrow seam; §4 pool reuse).
+Uses the shared integration client ``m3_memory.integrations._client.M3Client``
+(one dispatch core for every integration; one pool).
 
 THE m3 EDGE — cross-agent memory (dual-embed on write):
 CrewAI embeds with its OWN embedder and hands ``save`` records that already carry
@@ -38,7 +38,7 @@ import logging
 from datetime import datetime
 from typing import Any, cast
 
-from ..langchain.m3client import M3Client
+from .._client import M3Client
 from . import mapping
 
 _logger = logging.getLogger("m3_memory.crewai")

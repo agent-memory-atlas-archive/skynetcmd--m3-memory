@@ -42,6 +42,21 @@ import tempfile as _tempfile  # noqa: E402
 # test stores and wrote pre-up backups into the real ~/.m3/engine/backups (~6 per
 # PostgreSQL run). Registered first, so these removals run after every later
 # atexit hook.
+# The developer's REAL engine root, resolved BEFORE the pin below replaces it
+# (same precedence as m3_core.paths: M3_ENGINE_ROOT > M3_MEMORY_ROOT/engine >
+# ~/.m3/engine). Watched by _real_spill_dir_untouched.
+_REAL_ENGINE_ROOT = _os.environ.get("M3_ENGINE_ROOT") or (
+    _os.path.join(_os.environ["M3_MEMORY_ROOT"], "engine")
+    if _os.environ.get("M3_MEMORY_ROOT")
+    else _os.path.join(_os.path.expanduser("~"), ".m3", "engine")
+)
+try:  # m3_config.toml [paths] engine_root outranks the env var; ask the owner
+    from m3_memory._roots import engine_root as _real_engine_root_fn
+
+    _REAL_ENGINE_ROOTS = {_REAL_ENGINE_ROOT, _real_engine_root_fn()}
+except Exception:  # noqa: BLE001 — not importable this early: the env rule above
+    _REAL_ENGINE_ROOTS = {_REAL_ENGINE_ROOT}
+_REAL_TEMP_FOR_SPILL = _tempfile.gettempdir()
 for _var, _prefix in (
     ("M3_CONFIG_ROOT", "m3-test-config-"),
     ("M3_ENGINE_ROOT", "m3-test-engine-"),
@@ -807,6 +822,89 @@ def _real_claude_config_untouched():
             "Stub the writer (setup_wizard._register_claude_server, environment_probe.repair, "
             "generate_configs) or redirect the home folder to tmp_path. Restore the file from its "
             ".backup_history or a .bak.",
+            pytrace=False,
+        )
+
+
+# The developer's REAL chatlog spill dir. Test runs once appended 144 turns
+# aimed at pytest/temp stores into it (the spill dir was bound at import), which
+# the live drain then retried until quarantine. Only appended LINES are judged,
+# and only by their target: the live writer may spill into its own store during
+# a run, and that is not a test's doing.
+_REAL_SPILL_DIRS = tuple(Path(r) / "chatlog_spill" for r in sorted(_REAL_ENGINE_ROOTS))
+
+
+def _real_spill_sizes() -> dict[str, int]:
+    """{path: size} of the live day files directly under the real spill dir(s)."""
+    out: dict[str, int] = {}
+    for d in _REAL_SPILL_DIRS:
+        try:
+            entries = list(d.iterdir())
+        except OSError:
+            continue
+        for p in entries:
+            if p.suffix == ".jsonl" and ".draining-" not in p.name:
+                try:
+                    out[str(p)] = p.stat().st_size
+                except OSError:
+                    continue
+    return out
+
+
+def _test_lines_in(path: str, start: int) -> int:
+    """Complete lines appended after byte ``start`` whose target is a temp-dir
+    store or missing — what a test writes, never the live writer. Reads only
+    each line's ``_db_path``; never reports content."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(start)
+            chunk = fh.read()
+    except OSError:
+        return 0
+    n = 0
+    temp = _os.path.normcase(_os.path.realpath(_REAL_TEMP_FOR_SPILL))
+    for raw in chunk.split(b"\n")[:-1]:  # the last piece is "" or a partial line
+        try:
+            target = json.loads(raw).get("_db_path")
+        except (ValueError, AttributeError):
+            continue
+        if not target:
+            n += 1
+            continue
+        t = _os.path.normcase(_os.path.realpath(str(target)))
+        try:
+            if _os.path.commonpath([t, temp]) == temp:
+                n += 1
+        except ValueError:
+            continue
+    return n
+
+
+def _real_spill_offenders(before: dict[str, int]) -> list[str]:
+    offenders = []
+    for path, size in _real_spill_sizes().items():
+        start = before.get(path, 0)
+        if size < start:
+            start = 0  # replaced: judge the whole file
+        if size > start:
+            n = _test_lines_in(path, start)
+            if n:
+                offenders.append(f"{path} (+{n} line(s) aimed at a temp-dir store)")
+    return offenders
+
+
+@pytest.fixture(autouse=True)
+def _real_spill_dir_untouched():
+    """Fail the test that spills chatlog turns into the REAL engine's spill dir."""
+    before = _real_spill_sizes()
+    yield
+    offenders = _real_spill_offenders(before)
+    if offenders:
+        pytest.fail(
+            "this test spilled chatlog turns into the REAL spill dir: " + ", ".join(offenders) + ". "
+            "Resolve the spill dir through chatlog_config.spill_dir() (engine root at call time) "
+            "or set chatlog_config.SPILL_DIR to a tmp dir. Do not delete the user's file; "
+            "report it so the lines can be moved out.",
             pytrace=False,
         )
 
@@ -1980,6 +2078,10 @@ def m3_sandbox(monkeypatch, tmp_path):
     _cc = sys.modules.get("chatlog_config")
     if _cc is not None and hasattr(_cc, "CONFIG_PATH"):
         monkeypatch.setattr(_cc, "CONFIG_PATH", str(tmp_path / "config" / ".chatlog_config.json"))
+        # The spill dir resolves from the (sandboxed) engine root at call time;
+        # clear an explicit override an earlier in-process `--spill-dir` left.
+        if hasattr(_cc, "SPILL_DIR"):
+            monkeypatch.setattr(_cc, "SPILL_DIR", None)
         # Its resolved config is cached per process: without this, a test reads the
         # db_path the PREVIOUS test's sandbox file named (a reaped tmp dir).
         _cc.invalidate_cache()

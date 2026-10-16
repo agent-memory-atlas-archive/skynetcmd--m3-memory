@@ -318,3 +318,47 @@ def test_strip_harness_case_insensitive_and_attrs():
     content = 'x<System-Reminder foo="bar">payload</System-Reminder>y'
     stripped, n = chatlog_redaction.strip_harness_framing(content)
     assert n == 1 and stripped == "xy"
+
+
+def _py_errors(config):
+    """Compile errors from the pure-Python path (get_compile_errors() reports
+    the Rust core's when the wheel is loaded)."""
+    import chatlog_redaction
+
+    chatlog_redaction.compile_patterns(config)
+    with chatlog_redaction._COMPILE_LOCK:
+        return list(chatlog_redaction._COMPILE_ERRORS)
+
+
+def test_custom_regex_error_never_echoes_the_pattern():
+    """A custom regex is often the secret it is meant to mask; the error names
+    its index, length and the error kind only (parity with m3-redact)."""
+    secret = "sk-live-TOPSECRET-[unclosed"
+    errs = _py_errors({"enabled": True, "patterns": ["custom_regex"], "custom_regex": [r"ok_\d+", secret]})
+    assert errs == [
+        f"custom_regex compilation error: custom_regex[1] ({len(secret)} chars): "
+        "invalid regex syntax; the entry is skipped"
+    ]
+    assert "TOPSECRET" not in errs[0]
+
+
+def test_unknown_pattern_group_is_a_config_error(caplog):
+    """A misspelt group redacts nothing; it must be reported, not ignored."""
+    import chatlog_redaction
+
+    cfg = {"enabled": True, "patterns": ["api_keys", "github_token"], "custom_regex": [], "redact_pii": False}
+    with caplog.at_level("WARNING", logger="chatlog_redaction"):
+        errs = _py_errors(cfg)
+        _py_errors(cfg)  # same config: compiled once, logged once
+    assert errs == [
+        'unknown redaction pattern group "github_token" (patterns[1]); it redacts nothing. '
+        "Known groups: api_keys, bearer_tokens, jwt, aws_keys, github_tokens, custom_regex, pii"
+    ]
+    assert sum("github_token" in r.getMessage() for r in caplog.records) == 1
+    # The known group still works.
+    out, n, _ = chatlog_redaction._scrub_python("sk-ant-" + "a" * 30, cfg)
+    assert n == 1 and "[REDACTED:api_keys]" in out
+
+
+def test_disabled_config_reports_no_errors():
+    assert _py_errors({"enabled": False, "patterns": ["nope"], "custom_regex": ["[bad"]}) == []

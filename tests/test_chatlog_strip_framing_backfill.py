@@ -8,6 +8,7 @@ of rows captured before the fix landed. Drives the real backfill() against an
 isolated chatlog DB — not just the unit stripper.
 """
 
+import importlib
 import json
 import sqlite3
 
@@ -68,6 +69,9 @@ def _seed(db_path):
 @pytest.fixture
 def backfill_env(tmp_path, monkeypatch):
     paths = isolate_chatlog_env(monkeypatch, tmp_path)
+    # A hand-built partial schema, not a migrated store: opt out of the
+    # schema owner (memory.db, reached from get_chatlog_conn), which would migrate it.
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     _seed(paths["db_path"])
     return {"db": paths["db_path"]}
 

@@ -60,7 +60,7 @@ walks you through your first saved memory.
 - **Multi-agent:** per-agent, per-user and per-org scopes, handoffs and shared tasks; concurrent readers and writers are safe. ([Multi-agent](docs/MULTI_AGENT.md))
 - **Tools:** 100+ tools, of which 10 load at startup, about 2% of a 200K context window; the rest load on demand. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
 - **Configuration:** one file, `m3_config.toml`. `m3 config show` prints every setting and where it came from. ([Config reference](docs/CONFIG_REFERENCE.md))
-- **Tested:** 5,000+ tests on Windows, macOS and Linux × Python 3.12–3.15, plus a PostgreSQL (with pgvector) lane on Linux, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
+- **Tested:** 5,700+ tests on Windows, macOS and Linux × Python 3.12–3.15, plus a PostgreSQL (with pgvector) lane on Linux, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
 - **Status:** stable: the core, the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
 - **For AI agents:** [llm-context.md](docs/llm-context.md) lists the real tool names and usage rules, and [features.json](docs/features.json) is the machine-readable summary.
 
@@ -368,7 +368,7 @@ Only 10 schemas register at startup (~3,885 tokens). That set is chosen by measu
 | Gating Mode | Registered Tools | Tokens in Schema | % of 200K Window |
 | :--- | :---: | :---: | :---: |
 | **Lazy (Default)** | **10** | **~3,885** | **1.9%** |
-| Typical Active Session (+`memory` +`admin`) | 61 | ~18,156 | 9.1% |
+| Typical Active Session (+`memory` +`admin`) | 61 | ~18,613 | 9.3% |
 | Eager Mode (`tools.lazy = false`) | 119 | ~29,485 | 14.7% |
 
 > 🛠️ *Note: If your client does not support dynamic tool registration, run `m3 config set tools.lazy false` (or set `lazy = false` under `[tools]` in `m3_config.toml`) to register every tool at startup.*

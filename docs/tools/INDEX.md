@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-14T03:57:13.677893+00:00._
+_Generated 2026-10-16T19:03:59.835215+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -44,7 +44,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/consolidate_beliefs.py](consolidate_beliefs.md) | Autonomous episodic->semantic belief consolidation (knowledge-maintenance P4). |  |
 | [bin/curator_apply.py](curator_apply.md) | Deterministic apply of a curator plan — one entry point, no LLM in the loop. |  |
 | [bin/dashboard_server.py](dashboard_server.md) | M3 Cognitive & Observability Portal. |  |
-| [bin/deep_sync.py](deep_sync.md) | (no docstring) |  |
+| [bin/deep_sync.py](deep_sync.md) | deep_sync.py — commit and push an EXPLICIT list of paths in this checkout. |  |
 | [bin/distill_procedures.py](distill_procedures.md) | Autonomous procedural distillation (tasks → reusable `procedure` memories). |  |
 | [bin/embed_backfill.py](embed_backfill.md) | embed_backfill.py — fill in missing embeddings for memory_items rows. |  |
 | [bin/embed_server.py](embed_server.md) | Local embedding server — OpenAI-compatible /v1/embeddings endpoint. |  |

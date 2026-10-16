@@ -27,7 +27,7 @@ def run(brief: bool = False) -> int:
     importable — that's a deployment issue separate from cascade health
     and is best left to the operator to address via reinstall.
 
-    brief=True prints a single-line summary (for `m3 doctor --brief`)
+    brief=True prints a single-line summary (for `m3 doctor`'s compact default; --verbose clears it)
     from the SAME structured dict — no prose-parsing.
     """
     try:

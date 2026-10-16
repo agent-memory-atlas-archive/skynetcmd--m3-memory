@@ -25,11 +25,6 @@ EXEMPT = {
     "bin/m3_loop_watchdog.py": "restarts m3 when the package is broken (parity: test_os_seam_watchdog_parity)",
     "bin/setup_memory.py": "bootstrap: creates the first venv/store before anything is installed",
     "bin/generate_configs.py": "bootstrap pair with setup_memory.py (tests/test_setup_memory_interpreter.py)",
-    "bin/m3_notification_waiter.py": "the supervisor stays stdlib-only at import to survive `pipx upgrade` (#163)",
-    "bin/hooks/chatlog/claude_code_precompact.py": "agent hook: must never break the host's session",
-    "bin/hooks/chatlog/gemini_cli_onexit.py": "agent hook: must never break the host's session",
-    "bin/hooks/chatlog/openclaw_session_end.py": "agent hook: must never break the host's session",
-    "bin/hooks/chatlog/opencode_session_end.py": "agent hook: must never break the host's session",
     "bin/test_memory_bridge.py": "documented standalone `python3 bin/test_memory_bridge.py` (AGENT_INSTRUCTIONS)",
 }
 
@@ -43,6 +38,9 @@ EXEMPT = {
 _BUDGET = 4
 
 
+_BANNED_PLATFORM = ("system", "machine", "release", "uname", "win32_ver", "mac_ver")
+
+
 def _sites(roots=("bin", "m3_memory"), base: Path = _ROOT) -> tuple[list[str], list[str]]:
     checks, banned = [], []
     for root in roots:
@@ -54,20 +52,28 @@ def _sites(roots=("bin", "m3_memory"), base: Path = _ROOT) -> tuple[list[str], l
             except SyntaxError:
                 continue
             rel = p.relative_to(base).as_posix()
+            # Resolve import aliases (`import sys as _sys`): an alias must not
+            # carry an OS check past the gate. `from sys import platform` and
+            # `from platform import system` are the same checks by another name.
+            mods = {"os": "os", "sys": "sys", "platform": "platform"}
+            for n in ast.walk(tree):
+                if isinstance(n, ast.Import):
+                    for a in n.names:
+                        if a.name in ("os", "sys", "platform"):
+                            mods[a.asname or a.name] = a.name
+                elif isinstance(n, ast.ImportFrom) and n.module in ("os", "sys", "platform"):
+                    for a in n.names:
+                        if (n.module, a.name) in (("os", "name"), ("sys", "platform")):
+                            checks.append(f"{rel}:{n.lineno}")
+                        elif n.module == "platform" and a.name in _BANNED_PLATFORM:
+                            banned.append(f"{rel}:{n.lineno} platform.{a.name}")
             for n in ast.walk(tree):
                 if not (isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)):
                     continue
-                pair = (n.value.id, n.attr)
-                if pair in (("os", "name"), ("sys", "platform")):
+                mod = mods.get(n.value.id)
+                if (mod, n.attr) in (("os", "name"), ("sys", "platform")):
                     checks.append(f"{rel}:{n.lineno}")
-                elif n.value.id == "platform" and n.attr in (
-                    "system",
-                    "machine",
-                    "release",
-                    "uname",
-                    "win32_ver",
-                    "mac_ver",
-                ):
+                elif mod == "platform" and n.attr in _BANNED_PLATFORM:
                     banned.append(f"{rel}:{n.lineno} platform.{n.attr}")
     return checks, banned
 
@@ -97,7 +103,10 @@ def test_the_budget_is_not_stale():
 # (requires_windows / requires_posix / requires_macos / requires_linux /
 # requires_apple_silicon, probed through the seam in conftest) or asks the seam.
 # 70 checks at adoption; 25 single-comparison skipifs became markers.
-_TESTS_BUDGET = 45
+# 2026-10-16: 45 -> 51 is a MEASUREMENT correction, not growth: the gate now
+# resolves import aliases and sees conftest's `import os as _os` sites (5 of
+# them the platform-identity restorer itself, 1 the Windows console guard).
+_TESTS_BUDGET = 51
 
 
 def test_os_checks_in_tests_do_not_grow():
@@ -120,6 +129,17 @@ def test_the_gate_sees_each_form(tmp_path):
     )
     checks, banned = _sites(("bin",), tmp_path)
     assert checks == ["bin/m.py:2", "bin/m.py:3"] and banned == ["bin/m.py:4 platform.system"]
+
+
+def test_the_gate_sees_through_import_aliases(tmp_path):
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "m.py").write_text(
+        "import sys as _sys\nimport platform as _pl\nfrom os import name\n"
+        "a = _sys.platform == 'win32'\nb = _pl.machine()\n",
+        encoding="utf-8",
+    )
+    checks, banned = _sites(("bin",), tmp_path)
+    assert sorted(checks) == ["bin/m.py:3", "bin/m.py:4"] and banned == ["bin/m.py:5 platform.machine"]
 
 
 def test_every_exemption_still_needs_its_own_check():

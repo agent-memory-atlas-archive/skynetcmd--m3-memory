@@ -161,7 +161,14 @@ def test_restore_rejects_a_non_autonomous_reason():
     res = mm.memory_restore_impl(reason="user_delete", dry_run=True)
     assert res["ok"] is False
     assert res["error"] == "reason_not_autonomous"
-    assert res["accepted"] == list(mm._AUTONOMOUS_ARCHIVE_REASONS)
+    assert res["accepted"] == [*mm._AUTONOMOUS_ARCHIVE_REASONS, *mm._POLICY_ARCHIVE_REASONS]
+
+
+def test_policy_reasons_restore_only_when_named(store):
+    """A retention-policy removal is restorable by name, never by the default sweep."""
+    mid = store(importance=0.001, deleted=1, reason="retention_limit")
+    assert mm.memory_restore_impl(memory_id=mid)["would_restore"] == 0
+    assert mm.memory_restore_impl(memory_id=mid, reason="retention_limit")["would_restore"] == 1
 
 
 def test_restore_defaults_to_dry_run(store):

@@ -9,6 +9,7 @@ Deterministic: the helpers are pure list transforms over synthetic ranked data
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
 import sqlite3
 import sys
@@ -75,6 +76,9 @@ def tmp_memory_db(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     pin_database(str(db))
+    # A deliberately partial schema the migrator cannot upgrade (a failed lazy
+    # migration now raises): skip it, as M3_SKIP_MIGRATIONS did.
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     return db
 
 

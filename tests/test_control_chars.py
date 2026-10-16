@@ -97,8 +97,36 @@ def test_non_text_extensions_are_skipped(tmp_path, capsys):
     assert capsys.readouterr().out == ""
 
 
-def test_missing_file_does_not_crash(tmp_path):
-    assert scan(str(tmp_path / "nope.md")) == []
+def test_an_unreadable_file_is_not_reported_clean(tmp_path, capsys):
+    """A file that could not be read was not checked: exit 2, named."""
+    missing = str(tmp_path / "nope.md")
+    assert main([missing]) == 2
+    assert "nope.md" in capsys.readouterr().err
+
+
+def _git(cwd, *args):
+    import subprocess
+
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+def test_staged_scans_the_staged_blob_not_the_working_tree(tmp_path, monkeypatch, capsys):
+    """The commit records the index; a clean working copy must not hide it."""
+    _git(tmp_path, "init", "-q")
+    f = tmp_path / "doc.md"
+    f.write_bytes(b"use \x08ytemuck\n")
+    _git(tmp_path, "add", "doc.md")
+    f.write_bytes(b"use `bytemuck`\n")  # working tree repaired, index still corrupt
+    monkeypatch.chdir(tmp_path)
+    assert main(["--staged"]) == 1
+    assert "doc.md:1:5" in capsys.readouterr().out
+
+
+def test_staged_outside_a_repository_is_an_error_not_a_pass(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    assert main(["--staged"]) == 2
+    assert "cannot list staged files" in capsys.readouterr().err
 
 
 def test_empty_arg_list_is_clean():
