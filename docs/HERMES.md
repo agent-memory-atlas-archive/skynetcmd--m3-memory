@@ -27,6 +27,10 @@ contract asks.
 - **Python 3.12 or newer in Hermes' environment.** Current Hermes installs use
   3.14. A Hermes on Python 3.11 cannot load m3. The provider reports this,
   naming the interpreter, rather than failing silently.
+- **For vector recall, a local embedder** (`m3 embedder --help`: the CPU
+  embedder service, or the native core with `m3 embedder fetch-model`; the
+  BGE-M3 model is about 418 MB from Hugging Face, downloaded only when you set
+  it up). Without one, recall is keyword-only, and m3 logs that once.
 
 ## Install
 
