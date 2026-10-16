@@ -310,8 +310,8 @@ unrelated to the extraction itself.
   [`docs/MEMORY_CORE_MODULARIZATION_LESSONS.md`](../MEMORY_CORE_MODULARIZATION_LESSONS.md)
 - MCP catalog row:
   [`docs/MCP_TOOLS.md`](../MCP_TOOLS.md)
-- Env vars:
-  [`docs/ENVIRONMENT_VARIABLES.md`](../ENVIRONMENT_VARIABLES.md#entity-relation-graph)
+- Settings (`[entity]`, with their legacy env names):
+  [`docs/CONFIG_REFERENCE.md`](../CONFIG_REFERENCE.md#entity)
 - Sibling per-tool docs:
   [`docs/tools/memory_embed.md`](memory_embed.md),
   [`docs/tools/memory_search.md`](memory_search.md)

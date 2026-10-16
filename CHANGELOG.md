@@ -21,6 +21,14 @@ the policy is forward-going only.
 
 ### Security
 
+- **The shell example no longer exports secrets.** `config/zshenv.example`
+  exported the vault key and API keys into every shell, so every program a
+  shell started inherited them. It now shows `m3 secret set` and
+  `m3 config set`, and the guides set options with `m3 config set` instead of
+  shell profiles. **Affected:** anyone who copied the old `zshenv.example` ·
+  **Action:** run `m3 config import-env`, then delete the secret `export`
+  lines from `~/.zshenv` · **Data status:** none.
+
 - **The vault key no longer travels in a child process's environment.** The OS
   installer hands `AGENT_OS_MASTER_KEY` to the step that stores it on stdin.
   An unattended install that finds the key only in the environment names it and
@@ -67,6 +75,28 @@ the policy is forward-going only.
   other machines, use `m3 embedder secure` · **Data status:** none.
 
 ### Added
+
+- **A new `m3_config.toml` lists every setting.** When the config root has no
+  `m3_config.toml`, `m3 setup`, `m3 upgrade` and `m3 config import-env` create
+  it from the shipped `default-m3_config.toml`: every setting with its doc,
+  type and legacy environment names, commented out at its default, so later
+  default changes still apply to settings you leave commented. The shipped
+  file is checked against its SHA-256 first; a mismatch writes nothing and
+  says to reinstall. An existing `m3_config.toml` is never replaced. Values
+  moved in from the environment, and `m3 config set`, now set the key on its
+  commented line; `m3 config unset` comments it out again.
+  **Affected:** installs with no `m3_config.toml` · **Action:** none; to see
+  every setting on an existing install, read `docs/CONFIG_REFERENCE.md` ·
+  **Data status:** none.
+
+- **`docs/ENVIRONMENT_VARIABLES.md` is generated from the config registry.**
+  It lists the environment variables m3 still reads (locators, switches and
+  other programs' names), each legacy environment name with the
+  `m3_config.toml` key or secret it moved to, and retired names, which have
+  no effect. It replaces the hand-written page, which named retired settings
+  and missed many current ones. **Affected:** anyone configuring m3 through
+  environment variables · **Action:** move settings with
+  `m3 config import-env` · **Data status:** none.
 
 - **Hermes Agent memory provider (Hermes 0.22+).** m3-memory registers a
   `hermes_agent.memory_providers` entry point, so installing it into Hermes'

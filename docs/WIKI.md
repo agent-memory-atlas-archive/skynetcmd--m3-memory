@@ -143,7 +143,7 @@ un-drifted so a model outage never blocks a build. It cannot be combined with
 `--check` (the byte-identity determinism check), because the judge is
 non-deterministic by design. Endpoint/model/timeout come from the
 `M3_WIKI_DRIFT_*` env vars (falling back to `M3_WIKI_SYNTH_*`) — see
-[ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#wiki--synthesis--compilation).
+the [`[wiki.synth]`](CONFIG_REFERENCE.md#wikisynth), [`[wiki.compile]`](CONFIG_REFERENCE.md#wikicompile) and [`[wiki.drift]`](CONFIG_REFERENCE.md#wikidrift) settings.
 
 ### The admission gate — which topics earn a synthesis
 

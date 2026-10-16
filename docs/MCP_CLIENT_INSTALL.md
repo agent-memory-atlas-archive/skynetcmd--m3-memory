@@ -401,8 +401,8 @@ detected issue.
 
 - `docs/install_windows.md` / `install_macos.md` / `install_linux.md` —
   OS-level prerequisites and `m3 setup` walkthrough
-- `docs/ENVIRONMENT_VARIABLES.md` — every M3_* env var the cascade
-  understands
+- `docs/ENVIRONMENT_VARIABLES.md` — every M3_* env name m3 still reads, and
+  the `m3_config.toml` key each legacy one moved to
 - `bin/memory/doctor.py` — the diagnostic impl
 - Memory `a18d6a67` — MCP Proxy Integration Architecture (the Aider path; its
   OpenClaw sections are superseded — OpenClaw is a native MCP client since

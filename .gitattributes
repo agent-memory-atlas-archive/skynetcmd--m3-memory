@@ -51,3 +51,7 @@ examples/homelab-dashboard/backend/cache/** binary
 _assets/models/*.gguf filter=lfs diff=lfs merge=lfs -text
 *.tar.gz   binary
 *.zip      binary
+# The shipped default m3_config.toml is hash-verified before m3 copies it. The
+# hash reads CRLF as LF, but pin LF anyway so the wheel carries the exact bytes
+# the generator wrote, whichever OS built it.
+bin/m3_core/config/default-m3_config.toml text eol=lf

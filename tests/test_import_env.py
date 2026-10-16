@@ -183,7 +183,7 @@ def test_a_value_the_shell_works_out_is_never_stored_or_imported(world, capsys):
     # M3_MODELS_ROOT, not M3_ENGINE_ROOT: the test harness pins the engine root
     # in the process environment, which would be a third source.
     assert Path(data["paths"]["models_root"]) == home / ".m3" / "models"
-    assert "mcp" not in data and "disagree" not in out
+    assert not data.get("mcp") and "disagree" not in out  # the default file lists [mcp], empty
 
 
 def test_a_setting_only_in_shell_startup_files_says_the_services_now_use_it(world, capsys):
@@ -357,3 +357,50 @@ def test_setup_moves_an_env_only_warehouse_dsn_where_m3_reads_it(world, capsys):
     setup_wizard._step_import_env()
     assert explain_pg_dsn(PgRole.WAREHOUSE).dsn == "postgresql://u:s3cret@wh.example.invalid/w"
     assert "s3cret" not in capsys.readouterr().out
+
+
+def test_a_new_config_is_the_default_with_imported_values_set_in_place(world, capsys):
+    """No m3_config.toml: import-env copies the shipped default, then a legacy
+    value lands on its own commented line (active exactly once, no stale
+    `# row_cap = ...` left) and a secret goes to the secrets file, never here."""
+    assert not world["cfg"].exists()
+    _rc(world, 'export M3_SEARCH_ROW_CAP=700\nexport M3_PG_URL="postgresql://u:s3cret@h/db"\n')
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    text = world["cfg"].read_text(encoding="utf-8")
+    assert "created" in out and "from m3's defaults" in out and "s3cret" not in out
+    assert text.startswith("# m3 configuration") and "# pool_size = 5" in text
+    lines = text.splitlines()
+    assert lines.count("row_cap = 700") == 1
+    assert not [ln for ln in lines if ln.startswith("# row_cap = ")], "the commented default stayed beside the value"
+    assert _file(world)["search"] == {"row_cap": 700}
+    assert "s3cret" not in text and "M3_PRIMARY_PG_URL" not in text
+    assert _secrets() == {"M3_PRIMARY_PG_URL": "postgresql://u:s3cret@h/db"}
+    assert not world["cfg"].with_name("m3_config.toml.bak").exists(), "a file this run created needs no backup"
+
+
+def test_an_existing_config_is_never_replaced_by_the_default(world, capsys):
+    world["cfg"].write_text("schema_version = 1\n", encoding="utf-8")
+    assert _run(world) == 0
+    text = world["cfg"].read_text(encoding="utf-8")
+    assert text.startswith("schema_version = 1\n") and "# m3 configuration" not in text
+    assert "created" not in capsys.readouterr().out
+
+
+def test_a_tampered_default_stops_the_import_and_writes_nothing(world, capsys, monkeypatch):
+    from m3_core.config import default_file
+
+    bad = world["home"] / default_file.DEFAULT_FILE_NAME
+    bad.write_text("schema_version = 1\n", encoding="utf-8")
+    monkeypatch.setattr(default_file, "DEFAULT_FILE", bad)
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    assert _run(world) == 2
+    assert not world["cfg"].exists()
+    err = capsys.readouterr().err
+    assert str(bad) in err and "reinstall m3" in err
+
+
+def test_dry_run_says_it_would_create_the_file(world, capsys):
+    assert _run(world, "--dry-run") == 0
+    assert not world["cfg"].exists()
+    assert "would create" in capsys.readouterr().out

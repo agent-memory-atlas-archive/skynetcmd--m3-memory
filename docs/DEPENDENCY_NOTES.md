@@ -32,7 +32,7 @@ running locally for embeddings and optional enrichment features.
   Optional: a small chat model (0.5B-1B instruct, e.g. qwen2.5:0.5b or
     llama3.2:1b) for auto-classification, summarization, and consolidation.
     These features are no-ops if no chat model is loaded.
-See QUICKSTART.md and ENVIRONMENT_VARIABLES.md for runtime recommendations
+See QUICKSTART.md and CONFIG_REFERENCE.md (`[llm]`) for runtime recommendations
 across Ollama, LM Studio, llama.cpp --server, vLLM, and LocalAI.
 
 

@@ -168,6 +168,11 @@ before changing it, and every config file it edits keeps a `.bak` copy.
    Keeping the settings keeps your choices (which agents, which embedder, FIPS);
    it does not keep anything that points at the old install. Setup:
 
+   - creates `m3_config.toml` when your config folder has none: every setting
+     with its doc, commented out at its default (uncomment a line, or use
+     `m3 config set`, to change one; a later default change still reaches the
+     ones you leave commented). The file is checked against the copy this
+     version shipped first, and an existing `m3_config.toml` is never replaced;
    - moves settings and keys you kept in environment variables, shell startup
      files or agent configs into m3's own files (`m3_config.toml` and the
      user-only secrets file). The new version no longer reads secrets from the

@@ -38,7 +38,7 @@
 | **Customize what's remembered/forgotten?** | Yes — write-gating, importance, confidence decay, TTL/expiry, and per-agent retention policies ([MEMORY_MODEL.md](MEMORY_MODEL.md)). |
 | **Debugging/introspection?** | Yes — `memory_suggest` returns a per-result score breakdown, `memory_history` shows the audit trail, `memory_verify` checks integrity, and `m3 doctor --fix` diagnoses the store. |
 | **Integrates with my stack?** | Yes — **MCP** (native), **LangChain/LangGraph** ([LANGCHAIN.md](integrations/LANGCHAIN.md)), **CrewAI** (`StorageBackend`; `pip install m3-memory[crewai]`), and **PydanticAI** (tools + `M3MemoryToolset`; `pip install m3-memory[pydantic-ai]`; runs on Python 3.14) are all drop-in. Beyond those, call the MCP tools directly. |
-| **Disable/replace components independently?** | Yes — run as a plain store (`M3_ENABLE_FACT_ENRICHED=0`, `M3_ENABLE_ENTITY_GRAPH=0`), swap the extractor (`M3_EXTRACTION_TYPE`), swap the embedder (`M3_EMBED_URL`/GGUF), or disable the Rust core — all via env vars, no fork ([ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)). |
+| **Disable/replace components independently?** | Yes — run as a plain store (`M3_ENABLE_FACT_ENRICHED=0`, `M3_ENABLE_ENTITY_GRAPH=0`), swap the extractor (`M3_EXTRACTION_TYPE`), swap the embedder (`M3_EMBED_URL`/GGUF), or disable the Rust core — all via settings in `m3_config.toml`, no fork ([CONFIG_REFERENCE.md](CONFIG_REFERENCE.md); legacy env names: [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)). |
 | **Portable data if I migrate away?** | Yes — `memory_export` / `gdpr_export` produce portable JSON (GDPR Article 20), and the store is a plain SQLite file any tool can read. |
 
 ---

@@ -1,5 +1,10 @@
 """`m3 config import-env`: move settings from the legacy places into m3_config.toml.
 
+First, when the config root has no m3_config.toml, the shipped default (every
+setting commented at its default) is verified against its hash and copied there
+(``writer.create_from_default``); an existing file is never replaced. `m3 setup`
+(and so `m3 upgrade`) runs this command, so this is where a new file is made.
+
 Sources are the one sweep (``env_sources.scan``): this process's environment,
 MCP client env blocks (``~/.claude.json`` among them), the ``.env`` files, home rc
 files, the Windows persistent environment and ``.llm_config.json``.
@@ -196,9 +201,22 @@ def run(config: str | None, *, dry_run: bool, non_interactive: bool = False) -> 
 
 def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool) -> int:
     from m3_core.atomic_io import GuardedRewrite, atomic_write
-    from m3_core.config.writer import ConfigWriteError, set_values
+    from m3_core.config.writer import ConfigWriteError, create_from_default, set_values
 
     loc = locate(config)
+    created: str | None = None  # the default text, when this run created the file
+    if not os.path.lexists(loc.file):
+        if dry_run:
+            print(f"m3 config import-env: would create {loc.file} from m3's defaults (every setting commented out)")
+        else:
+            try:
+                if create_from_default(loc):
+                    created = loc.file.read_text(encoding="utf-8")
+            except (OSError, ConfigWriteError, ConfigFileError) as e:
+                print(f"m3 config import-env: {e}", file=sys.stderr)
+                return 2
+            if created is not None:
+                print(f"m3 config import-env: created {loc.file} from m3's defaults (every setting commented out)")
     try:
         current = build(loc)
     except (ConfigFileError, ConfigEnvErrors) as e:
@@ -233,7 +251,9 @@ def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool
     if dry_run:
         return 0
 
-    guard = GuardedRewrite(loc.file, by=BY) if os.path.exists(loc.file) else None
+    # A file this run created from the defaults needs no backup: a rollback
+    # writes the defaults back (the copy stands; only the import is undone).
+    guard = GuardedRewrite(loc.file, by=BY) if os.path.exists(loc.file) and created is None else None
     try:
         if guard is not None:
             guard.begin()
@@ -241,14 +261,14 @@ def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool
         after = build(loc)
     except (OSError, ConfigWriteError, ConfigFileError, ConfigEnvErrors) as e:
         print(f"observed: import-env could not write {loc.file}: {e}", file=sys.stderr)
-        return _restore(guard, loc, atomic_write, f"the write failed: {e}")
+        return _restore(guard, loc, atomic_write, f"the write failed: {e}", created)
     wrong = [k.name for k, v in chosen.items() if not _resolves_from_file(after, k, v)]
     if wrong:
         print(
             f"observed: after the write, {', '.join(wrong)} did not resolve from {loc.file} to the imported value",
             file=sys.stderr,
         )
-        return _restore(guard, loc, atomic_write, f"{', '.join(wrong)} did not resolve from the file")
+        return _restore(guard, loc, atomic_write, f"{', '.join(wrong)} did not resolve from the file", created)
     if guard is not None:
         guard.end(loc.file.read_bytes())
     note = _rename_llm_file(loc, after)
@@ -258,8 +278,11 @@ def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool
     return 0
 
 
-def _restore(guard, loc: Location, atomic_write, reason: str) -> int:
-    if guard is None:  # the file did not exist before: take the new one away
+def _restore(guard, loc: Location, atomic_write, reason: str, created: str | None = None) -> int:
+    if created is not None:  # this run created it from the defaults: back to them
+        atomic_write(loc.file, created)
+        print(f"  restored {loc.file} to m3's defaults", file=sys.stderr)
+    elif guard is None:  # the file did not exist before: take the new one away
         loc.file.unlink(missing_ok=True)
         print(f"  restored: removed the new {loc.file}", file=sys.stderr)
     else:

@@ -80,7 +80,7 @@ LFS-tracked model file and any extra wheels you'll need offline.
    of the projects resolve at all — measured 2026-09-20). A PyPI-first
    fetch would quietly stage an old core and exit 0, which is why
    `m3_memory/rust_core_install.py` cascades **GitHub Release → PyPI → source**
-   in that order. Building from source (Rust ≥1.94 + maturin) is the last
+   in that order. Building from source (Rust ≥1.99 + maturin) is the last
    resort, when no prebuilt wheel matches your platform + Python version.
 
    m3-memory installs and runs correctly without the wheel — the pure-Python

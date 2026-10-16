@@ -31,8 +31,8 @@ It maps those to a pacing mode:
 | `CONTINUOUS` | idle ≥ 60 s | run freely (~0.1 s spacing) |
 
 Thresholds are user-selectable via `M3_GOVERNOR_INITIAL_THRESHOLD` (default 85)
-and `M3_GOVERNOR_LIMIT_THRESHOLD` (default 95). See
-[`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md).
+and `M3_GOVERNOR_LIMIT_THRESHOLD` (default 95), now the `[governor]` keys in
+`m3_config.toml`. See [`CONFIG_REFERENCE.md`](CONFIG_REFERENCE.md#governor).
 
 ### Why a lightweight, non-blocking governor beats cron / nightly / scheduled jobs
 
@@ -264,6 +264,6 @@ M3_CORE_RS_DISABLE=1    # force the pure-Python path for every oxidized operatio
 ```
 
 A missing, stale, or disabled Rust wheel makes m3-memory slower, never broken.
-See [`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md) for the full list of
-governor and oxidation env vars, and `m3 doctor` (`oxidation_probe`) to check
+See [`CONFIG_REFERENCE.md`](CONFIG_REFERENCE.md) for the governor and oxidation
+settings ([`ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md) maps their legacy env names), and `m3 doctor` (`oxidation_probe`) to check
 which native paths are live in your installed wheel.

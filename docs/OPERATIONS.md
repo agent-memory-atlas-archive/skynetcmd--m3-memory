@@ -166,5 +166,5 @@ Reading the breakdown:
   an inflated `importance`; consider superseding or dedup.
 - Use `recency_bias` for "current"/"latest" queries where newer should win.
 
-For deeper ranking tuning, see the retrieval/ranking env knobs documented in
-[ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md).
+For deeper ranking tuning, see the `[search]` settings in
+[CONFIG_REFERENCE.md](CONFIG_REFERENCE.md#search).

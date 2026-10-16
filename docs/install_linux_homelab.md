@@ -126,15 +126,11 @@ python -c "import keyring; print(keyring.get_password('system', 'AGENT_OS_MASTER
 ## Step 6 — Set server addresses *(homelab only)*
 
 ```bash
-export POSTGRES_SERVER="YOUR_SERVER_IP"
+m3 config set sync.warehouse_host YOUR_SERVER_IP
 ```
 
-For persistence across sessions, add these lines to `~/.bashrc` (or `~/.zshrc` if using Zsh):
-
-```bash
-echo 'export POSTGRES_SERVER="YOUR_SERVER_IP"' >> ~/.bashrc
-source ~/.bashrc
-```
+This is stored in `m3_config.toml`, so it persists and reaches m3's background
+services too; no shell profile is needed.
 
 **Skip this step if running fully local.**
 

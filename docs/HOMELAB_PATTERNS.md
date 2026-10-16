@@ -130,7 +130,7 @@ Things we've seen go wrong, and what to do about them:
 ## 🔗 Related docs
 
 - [Multi-agent orchestration](MULTI_AGENT.md) — full multi-agent setup details
-- [Configuration & environment variables](ENVIRONMENT_VARIABLES.md) — what to tune for small boxes
+- [Configuration reference](CONFIG_REFERENCE.md) — what to tune for small boxes ([legacy environment names](ENVIRONMENT_VARIABLES.md))
 - [Architecture](ARCHITECTURE.md) — system design that makes the homelab patterns work
 - [Comparison guide](COMPARISON.md) — when m3 is the right choice and when it isn't
 - [Sovereign substrates table](M3_Comparison_Table.md) — broader landscape view ([interactive version](https://html-preview.github.io/?url=https://github.com/skynetcmd/m3-memory/blob/main/docs/M3_Comparison_Table.html))

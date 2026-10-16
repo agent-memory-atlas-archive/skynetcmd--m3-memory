@@ -8,7 +8,7 @@ Every guide in one place. The [project README](../README.md) is the short tour; 
 | :--- | :--- | :--- |
 | 🚀 **[Getting Started Guide](GETTING_STARTED.md)** | 🏗️ **[System Architecture](ARCHITECTURE.md)** | 🧩 **[LangChain/LangGraph](integrations/LANGCHAIN.md)** |
 | ✨ **[Core Features](CORE_FEATURES.md)** | 🔧 **[Technical Implementation](TECHNICAL_DETAILS.md)** | 🧩 **[Hermes Agent](HERMES.md)** |
-| ⚙️ **[Environment Variables](ENVIRONMENT_VARIABLES.md)** | 🧠 **[Memory Model Guide](MEMORY_MODEL.md)** | 🛡️ **[Compliance Guide](COMPLIANCE.md)** (GDPR, FISMA) |
+| ⚙️ **[Config Reference](CONFIG_REFERENCE.md)** · [Environment Variables](ENVIRONMENT_VARIABLES.md) | 🧠 **[Memory Model Guide](MEMORY_MODEL.md)** | 🛡️ **[Compliance Guide](COMPLIANCE.md)** (GDPR, FISMA) |
 | 🛠️ **[Operations Playbook](OPERATIONS.md)** | ⚡ **[Rust Oxidation benchmarks](OXIDATION_BENCHMARKS.md)** | 🛡️ **[FIPS Cryptographic Boundary](FIPS_MODULE_BOUNDARY.md)** |
 | 🤖 **[Agent Instructions & Rules](AGENT_INSTRUCTIONS.md)** | 🔍 **[Myths & Facts Guide](MYTHS_AND_FACTS.md)** | 🏠 **[Homelab Patterns](HOMELAB_PATTERNS.md)** |
 | 🧩 **[Tool Capability Matrix](CAPABILITY_MATRIX.md)** | 🤖 **[AI Context Injection Profile](llm-context.md)** | 🔢 **[Machine-Readable Features](features.json)** |

@@ -226,3 +226,20 @@ def test_config_reference_and_schema_are_fresh(tmp_path, monkeypatch):
     assert json.loads(_read(committed_schema)) == json.loads(_read(str(tmp_path / "schema.json"))), (
         f"m3_config.schema.json {stale}"
     )
+
+
+def test_default_config_hash_and_environment_page_are_fresh(tmp_path, monkeypatch):
+    """default-m3_config.toml, its SHA-256 module and docs/ENVIRONMENT_VARIABLES.md
+    are generated from the config registry by the same generator."""
+    import gen_config_docs
+
+    committed = {
+        "DEFAULT_OUTPUT": os.path.join(_BIN, "m3_core", "config", "default-m3_config.toml"),
+        "SHA_OUTPUT": os.path.join(_BIN, "m3_core", "config", "_default_config_sha256.py"),
+        "ENV_OUTPUT": os.path.join(_ROOT, "docs", "ENVIRONMENT_VARIABLES.md"),
+    }
+    for attr in ("OUTPUT", "SCHEMA_OUTPUT", *committed):
+        monkeypatch.setattr(gen_config_docs, attr, str(tmp_path / attr))
+    gen_config_docs.main()
+    stale = [os.path.relpath(p, _ROOT) for attr, p in committed.items() if _read(p) != _read(str(tmp_path / attr))]
+    assert not stale, "stale — run `python bin/gen_config_docs.py` and commit:\n  " + "\n  ".join(stale)

@@ -298,7 +298,7 @@ Qwen3/E5/GTE GGUFs out of the box.
 ## Cross-references
 
 - `docs/EMBED_DEPLOYMENT.md` — runtime architecture, build matrix, env vars
-- `docs/ENVIRONMENT_VARIABLES.md` — full env var reference
+- `docs/CONFIG_REFERENCE.md` — every setting (`docs/ENVIRONMENT_VARIABLES.md`: legacy env names)
 - `bin/memory_core.py` — `_augment_embed_text_with_anchors` (1028),
   enrichment cascade (2592-2593), write-site cascade (6326-6330),
   `_embed`/`_embed_many` (2110/2230), model-tag override (113-115)

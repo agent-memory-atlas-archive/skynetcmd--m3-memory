@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-16T19:03:59.835215+00:00._
+_Generated 2026-10-16T23:45:41.868047+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -55,7 +55,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/enrichment_state.py](enrichment_state.md) | Durable per-group enrichment state for m3_enrich. |  |
 | [bin/fetch_sovereign_assets.py](fetch_sovereign_assets.md) | fetch_sovereign_assets.py — Hydrate the _assets/embedder directory for sovereign setup. |  |
 | [bin/gen_capability_matrix.py](gen_capability_matrix.md) | gen_capability_matrix.py — generate docs/CAPABILITY_MATRIX.md from the MCP catalog. |  |
-| [bin/gen_config_docs.py](gen_config_docs.md) | Generate the m3_config.toml reference and JSON Schema from the config registry. |  |
+| [bin/gen_config_docs.py](gen_config_docs.md) | Generate m3's configuration docs and the shipped default config from the registry. |  |
 | [bin/gen_download_badges.py](gen_download_badges.md) | Generate download-count badge data (PyPI + GitHub) for the README. |  |
 | [bin/gen_features_json.py](gen_features_json.md) | gen_features_json.py — generate docs/features.json (machine-readable capabilities). |  |
 | [bin/gen_mcp_inventory.py](gen_mcp_inventory.md) | gen_mcp_inventory.py — Generates docs/MCP_TOOLS.md from mcp_tool_catalog and mcp_proxy. |  |

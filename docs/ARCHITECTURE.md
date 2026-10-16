@@ -269,7 +269,7 @@ Entity types and predicates are defined by a **swappable vocabulary profile**, s
 
 A new `entity_graph: bool` kwarg on `memory_search_routed` walks `entity_relationships` from query-mentioned entities, fuses linked memory items into the result. Variant rows are skipped by default; bench paths opt in via `entity_extractor_variant_allowlist`.
 
-See [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#entity-relation-graph) for all gates.
+See the [`[entity]` settings](CONFIG_REFERENCE.md#entity) for all gates.
 
 ---
 
@@ -321,7 +321,7 @@ sequenceDiagram
 
 A post-write stage extracts atomic facts from stored memories using a configured small language model (SLM). It is **on by default** (`M3_ENABLE_FACT_ENRICHED=1`) but only does work when an enrichment SLM endpoint is reachable; with none configured the queue no-ops. Set `M3_ENABLE_FACT_ENRICHED=0` to disable. Each fact becomes a separate `fact_enriched` row linked back to the source via a `references` edge. The enrichment is **semaphore-gated** (default concurrency: 2) and **non-blocking**: if the enricher semaphore is full, the source write returns immediately and the enrichment is enqueued in `fact_enrichment_queue` for later processing. The `enrich-pending` CLI command (or `enrich_pending` MCP tool) drains the queue with a dry-run / confirm flow and retries up to `M3_FACT_ENRICH_MAX_ATTEMPTS` times on failure (default 3). Verbatim rows are always persisted before enrichment is attempted, so enricher failures never corrupt the primary write.
 
-Items with a non-NULL `variant` (typically benchmark rows) are **skipped by default**; pass `fact_enricher_variant_allowlist={"variant-name", ...}` to opt specific variants in. See [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#fact-enrichment) for all gates and the [fact_enriched profile](../config/slm/fact_enriched.yaml) for SLM configuration.
+Items with a non-NULL `variant` (typically benchmark rows) are **skipped by default**; pass `fact_enricher_variant_allowlist={"variant-name", ...}` to opt specific variants in. See the [`[memory]` settings](CONFIG_REFERENCE.md#memory) (`fact_enrich_*`) for all gates and the [fact_enriched profile](../config/slm/fact_enriched.yaml) for SLM configuration.
 
 ---
 

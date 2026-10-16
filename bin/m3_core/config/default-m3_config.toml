@@ -1,0 +1,1513 @@
+# m3 configuration: m3_config.toml
+
+# GENERATED from m3's config registry by bin/gen_config_docs.py. m3 copies it
+# into the config root once, when no m3_config.toml exists there, and never
+# rewrites a file that exists. Every key: docs/CONFIG_REFERENCE.md.
+#
+# Every setting is listed at its default, COMMENTED OUT. A commented setting
+# follows m3's built-in default, so a later release that changes a default still
+# reaches you, and the values you set stand out. To set one, remove its leading
+# "# " and change the value, or run `m3 config set KEY VALUE`, which does the
+# same in place; `m3 config unset KEY` comments it out again.
+# `m3 config show --origin` prints every setting and where its value came from.
+#
+# A value written <like this> has no fixed default: m3 works it out when it runs
+# (from a root, the host or another setting). Replace all of it, brackets too,
+# if you set one; left as is, the line is not valid TOML and m3 says so.
+#
+# "env (legacy)" lists the environment names a setting answered to before this
+# file. m3 still reads them, below this file, until release N+3;
+# `m3 config import-env` (run by `m3 setup` and `m3 upgrade`) moves them here.
+#
+# Paths: "~" is your home folder on every OS. Use forward slashes, which work
+# on Windows too ("~/m3/engine", "C:/m3/engine"). In double quotes a backslash
+# starts an escape, so write a path with backslashes in single quotes:
+# 'C:\m3\engine'.
+#
+# Secrets (API keys, DSNs, tokens) never go in this file: m3 refuses one here.
+# They live in the user-only secrets file that [secrets] file names (default
+# <config root>/m3_secrets.toml); store one with `m3 secret set NAME`.
+
+schema_version = 1
+
+[audit]
+
+# Record who read which memory, and when (memory_access_log).
+# env (legacy): M3_AUDIT_READ_LOG
+# type: boolean; restart to apply
+# read_log = true
+
+# Days the read-access log keeps a row before maintenance prunes it.
+# env (legacy): M3_AUDIT_READ_LOG_RETENTION_DAYS
+# type: integer; restart to apply
+# read_log_retention_days = 90
+
+[autonomy]
+
+# Let the loop prune the chatlog without review.
+# env (legacy): M3_CHATLOG_PRUNE_AUTO
+# type: boolean; restart to apply
+# chatlog_prune_auto = false
+
+# Let the loop apply belief consolidation without review.
+# env (legacy): M3_CONSOLIDATION_AUTO
+# type: boolean; restart to apply
+# consolidation_auto = false
+
+# Let the loop apply distilled procedures without review.
+# env (legacy): M3_DISTILL_AUTO
+# type: boolean; restart to apply
+# distill_auto = false
+
+[chatlog]
+
+# Queue an observation after an ingest of chatlog.auto_enrich_min_turns or more turns.
+# env (legacy): M3_AUTO_ENRICH
+# type: boolean; restart to apply
+# auto_enrich = false
+
+# Turns an ingest needs before chatlog.auto_enrich queues an observation.
+# env (legacy): M3_AUTO_ENRICH_MIN_TURNS
+# type: integer; restart to apply
+# auto_enrich_min_turns = 10
+
+# Show the chatlog status line.
+# env (legacy): M3_CHATLOG_STATUSLINE, CHATLOG_STATUSLINE
+# type: boolean; restart to apply
+# statusline = true
+
+# Use [!] instead of the warning sign in the status line.
+# env (legacy): M3_CHATLOG_STATUSLINE_ASCII, CHATLOG_STATUSLINE_ASCII
+# type: boolean; restart to apply
+# statusline_ascii = false
+
+[chatlog.db]
+
+# SQLite connections in the chatlog pool.
+# env (legacy): M3_CHATLOG_DB_POOL_SIZE, CHATLOG_DB_POOL_SIZE
+# type: integer; restart to apply
+# pool_size = 4
+
+# Seconds: the chatlog's SQLite busy timeout AND its pool checkout wait (one value, two
+# uses today).
+# env (legacy): M3_CHATLOG_DB_POOL_TIMEOUT, CHATLOG_DB_POOL_TIMEOUT
+# type: integer; restart to apply
+# pool_timeout_s = 10
+
+[chatlog.embed]
+
+# Seconds one sweeper run may take; 0 or less is unbounded.
+# env (legacy): M3_CHATLOG_EMBED_DEADLINE_S, CHATLOG_EMBED_DEADLINE_S
+# type: number; restart to apply
+# deadline_s = 60.0
+
+# Rows one sweeper run embeds.
+# env (legacy): M3_CHATLOG_EMBED_MAX_PER_RUN, CHATLOG_EMBED_MAX_PER_RUN
+# type: integer; restart to apply
+# max_per_run = 10000
+
+[chatlog.spill]
+
+# Attempts to drain a spilled chatlog batch (today .spill_config.json wins).
+# env (legacy): M3_SPILL_MAX_ATTEMPTS
+# type: integer; restart to apply
+# max_drain_attempts = 5
+
+[cloud]
+
+# Allow embedding through the cloud enclave when local tiers fail (privacy gate).
+# env (legacy): M3_ALLOW_CLOUD_FALLBACK
+# type: boolean; restart to apply
+# allow_fallback = false
+
+# Keyring entry holding the enclave token, as service:user or user (service m3_memory).
+# A REFERENCE, not the secret; the secret is M3_CLOUD_AUTH_TOKEN.
+# env (legacy): M3_CLOUD_AUTH_TOKEN_KEYRING
+# type: string; restart to apply
+# auth_token_keyring = <unset>  # default (computed)
+
+# The cloud enclave's URL.
+# env (legacy): M3_CLOUD_ENCLAVE_URL
+# type: string; restart to apply
+# enclave_url = <unset>  # default (computed)
+
+[context]
+
+# M3Context instances kept per process.
+# env (legacy): M3_CONTEXT_CACHE_SIZE
+# type: integer; restart to apply
+# cache_size = 16
+
+[crypto]
+
+# Crypto backend: DEFAULT or WOLFSSL (forced by crypto.fips_mode / fips_strict). (Today
+# an unknown value acts as DEFAULT; it is now an error.)
+# env (legacy): M3_CRYPTO_BACKEND
+# type: string; one of DEFAULT, WOLFSSL; restart to apply
+# backend = "DEFAULT"
+
+# FIPS 140-3 mode: wolfSSL/wolfCrypt is required and any failure is fatal.
+# env (legacy): M3_FIPS_MODE
+# type: boolean; restart to apply
+# fips_mode = false
+
+# Also require the CMVP-validated wolfCrypt build (implies the wolfSSL backend).
+# env (legacy): M3_FIPS_STRICT
+# type: boolean; restart to apply
+# fips_strict = false
+
+# Under crypto.fips_strict, attest that network TLS (Python's ssl and PostgreSQL's
+# libpq) runs on a FIPS 140-3 validated library, e.g. an OS FIPS OpenSSL provider. m3
+# cannot verify this itself; without it, strict mode refuses network TLS. See
+# docs/FIPS_MODULE_BOUNDARY.md.
+# type: boolean; restart to apply
+# tls_validated = false
+
+# The wolfSSL library file tried first; unset searches the trusted lib dirs.
+# env (legacy): M3_WOLFSSL_LIB
+# type: path; restart to apply
+# wolfssl_lib = <unset: searches the trusted lib dirs>  # default (computed)
+
+# Integrity pin for the wolfSSL library; checked when wolfSSL initialises.
+# env (legacy): M3_WOLFSSL_SHA256
+# type: string; restart to apply
+# wolfssl_sha256 = <unset>  # default (computed)
+
+[dashboard]
+
+# Address the dashboard binds.
+# env (legacy): M3_DASHBOARD_HOST
+# type: string; restart to apply
+# host = "127.0.0.1"
+
+# Seconds an endpoint that failed the smoke test is skipped.
+# env (legacy): M3_DASHBOARD_LLM_BLOCK_TTL_S
+# type: number; restart to apply
+# llm_block_ttl_s = 45.0
+
+# Let the dashboard send a small test prompt to each LLM endpoint.
+# env (legacy): M3_DASHBOARD_LLM_SMOKE
+# type: boolean; restart to apply
+# llm_smoke = false
+
+# Seconds an LLM smoke result is cached.
+# env (legacy): M3_DASHBOARD_LLM_SMOKE_TTL_S
+# type: number; restart to apply
+# llm_smoke_ttl_s = 900.0
+
+# Dashboard port.
+# env (legacy): M3_DASHBOARD_PORT
+# type: integer; restart to apply
+# port = 8088
+
+[db]
+
+# Primary storage backend. Set it with `m3 config set db.backend postgres`;
+# M3_DB_BACKEND is read only as a legacy name (below this file) until N+3.
+# env (legacy): M3_DB_BACKEND, DB_BACKEND
+# type: string; one of sqlite, postgres; restart to apply
+# backend = "sqlite"
+
+# SQLite connections in M3Context's pool.
+# env (legacy): M3_DB_POOL_SIZE, DB_POOL_SIZE
+# type: integer; restart to apply
+# pool_size = 5
+
+# Seconds to wait for a pooled SQLite connection.
+# env (legacy): M3_DB_POOL_TIMEOUT, DB_POOL_TIMEOUT
+# type: integer; restart to apply
+# pool_timeout_s = 30
+
+# SQLite mmap_size in bytes; unset keeps the pragma profile's own value.
+# env (legacy): M3_SQLITE_MMAP_SIZE
+# type: integer; restart to apply
+# sqlite_mmap_size = <unset: keeps the pragma profile's own value>  # default (computed)
+
+[db.postgres]
+
+# Schema holding the dispatch queue on PostgreSQL.
+# env (legacy): M3_DISPATCH_PG_SCHEMA
+# type: string; restart to apply
+# dispatch_schema = "m3_dispatch"
+
+# Hosts a PRIMARY store must never connect to (e.g. the warehouse); selecting one is
+# refused.
+# env (legacy): M3_PG_FORBIDDEN_HOSTS
+# type: list of strings; restart to apply
+# forbidden_hosts = []
+
+# pg_dump used for snapshots; unset finds it on PATH. pg_restore is looked for beside
+# it.
+# env (legacy): M3_PG_DUMP
+# type: path
+# pg_dump = <unset: finds it on PATH>  # default (computed)
+
+# pg_restore used to verify snapshots; unset: beside pg_dump, else on PATH.
+# env (legacy): M3_PG_RESTORE
+# type: path
+# pg_restore = <unset: beside pg_dump, else on PATH>  # default (computed)
+
+# Maximum connections in the PostgreSQL pool (at least pool_min).
+# env (legacy): M3_PG_POOL_MAX
+# type: integer; restart to apply
+# pool_max = 16
+
+# Minimum connections in the PostgreSQL pool.
+# env (legacy): M3_PG_POOL_MIN
+# type: integer; restart to apply
+# pool_min = 1
+
+# Rows per bulk upsert page; lower it over a slow link (a deliberate tuning knob).
+# env (legacy): M3_PG_UPSERT_PAGE_SIZE
+# type: integer
+# upsert_page_size = 500
+
+[dispatch]
+
+# Dispatch queue store: separate (its own) or integrated (the main store). (Today an
+# unknown value acts as separate; it is now an error.)
+# env (legacy): M3_DISPATCH_MODE
+# type: string; one of separate, integrated; restart to apply
+# mode = "separate"
+
+[embed]
+
+# Search the disk for a bge-m3 GGUF when embed.gguf is unset.
+# env (legacy): M3_EMBED_GGUF_AUTODETECT
+# type: boolean; restart to apply
+# autodetect = true
+
+# Seconds the GGUF discovery walk may take.
+# env (legacy): M3_EMBED_GGUF_WALK_BUDGET
+# type: number; restart to apply
+# autodetect_budget_s = 2.0
+
+# Texts per bulk embedding request.
+# env (legacy): M3_EMBED_BULK_CHUNK, EMBED_BULK_CHUNK
+# type: integer; restart to apply
+# bulk_chunk = 1024
+
+# Concurrent bulk embedding requests.
+# env (legacy): M3_EMBED_BULK_CONCURRENCY, EMBED_BULK_CONCURRENCY
+# type: integer; restart to apply
+# bulk_concurrency = 4
+
+# Characters per chunk.
+# env (legacy): M3_EMBED_CHUNK_MAX_CHARS
+# type: integer; restart to apply
+# chunk_max_chars = 28000
+
+# Character overlap between chunks.
+# env (legacy): M3_EMBED_CHUNK_OVERLAP_CHARS
+# type: integer; restart to apply
+# chunk_overlap_chars = 8000
+
+# In-process embedder: milliseconds the dispatcher waits to coalesce requests into one
+# batch.
+# env (legacy): M3_EMBED_COALESCE_MS
+# type: integer; restart to apply
+# coalesce_ms = 3
+
+# Other model tags whose vectors share this space.
+# env (legacy): M3_EMBED_COMPATIBLE_MODELS
+# type: list of strings; restart to apply
+# compatible_models = []
+
+# Context length in tokens (also read by the Rust core, as a u32).
+# env (legacy): M3_EMBED_CTX
+# type: integer; restart to apply
+# ctx = 8192
+
+# Embedding dimension.
+# env (legacy): M3_EMBED_DIM, EMBED_DIM
+# type: integer; restart to apply
+# dim = 1024
+
+# Seconds an endpoint that failed discovery is skipped.
+# env (legacy): M3_EMBED_DISCOVERY_NEG_TTL
+# type: number; restart to apply
+# discovery_negative_ttl_s = 60.0
+
+# Entity-name embeddings kept in memory.
+# env (legacy): M3_ENTITY_NAME_EMBED_CACHE_MAX, ENTITY_NAME_EMBED_CACHE_MAX
+# type: integer; restart to apply
+# entity_name_cache_max = 50000
+
+# CA certificate (PEM) that verifies an https embed.fallback_url whose certificate is
+# not publicly trusted, e.g. a private CA. A `tailscale cert` certificate needs none.
+# type: path; restart to apply
+# fallback_ca = <unset>  # default (computed)
+
+# Tag of vectors from the fallback endpoint. Default: embed.model.
+# env (legacy): M3_EMBED_FALLBACK_MODEL_TAG
+# type: string; restart to apply
+# fallback_model_tag = <embed.model>  # default (computed)
+
+# The fallback embedding endpoint (the shared embed server).
+# env (legacy): M3_EMBED_FALLBACK_URL
+# type: string; restart to apply
+# fallback_url = "http://127.0.0.1:8082"
+
+# The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery
+# (embed.autodetect). Not an env override.
+# env (legacy): M3_EMBED_GGUF
+# type: path; restart to apply
+# gguf = <unset: m3's models root, the bundled asset, then discovery (embed.autodetect)>  # default (computed)
+
+# Tag of vectors from the in-process GGUF embedder. Default: embed.space_tag.
+# env (legacy): M3_EMBED_GGUF_MODEL_TAG
+# type: string; restart to apply
+# gguf_model_tag = <embed.space_tag>  # default (computed)
+
+# Seconds to wait for the in-process embedder to load; 0 disables the limit.
+# env (legacy): M3_EMBED_INIT_TIMEOUT_S
+# type: number; restart to apply
+# init_timeout_s = 20.0
+
+# Allow the in-process tier-1 embedder (opt-in, DESIGN_PHILOSOPHIES §8).
+# env (legacy): M3_EMBED_INPROC
+# type: boolean; restart to apply
+# inproc = false
+
+# In-process embedder: the dispatcher's coalescing ceiling in tokens. Unset:
+# embed.streams x embed.ctx.
+# env (legacy): M3_EMBED_MAX_BATCH_TOKENS
+# type: integer; restart to apply
+# max_batch_tokens = <unset: embed.streams x embed.ctx>  # default (computed)
+
+# The embedding model name requested from the endpoint.
+# env (legacy): M3_EMBED_MODEL, EMBED_MODEL
+# type: string; restart to apply
+# model = "text-embedding-bge-m3"
+
+# In-process embedder: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe
+# value).
+# env (legacy): M3_EMBED_N_BATCH
+# type: integer; restart to apply
+# n_batch = <unset: embed.ctx (the only encoder-safe value)>  # default (computed)
+
+# In-process embedder: llama.cpp micro-batch tokens. Unset: embed.ctx (the only
+# encoder-safe value).
+# env (legacy): M3_EMBED_N_UBATCH
+# type: integer; restart to apply
+# n_ubatch = <unset: embed.ctx (the only encoder-safe value)>  # default (computed)
+
+# Allowed deviation from unit norm.
+# env (legacy): M3_EMBED_NORM_TOL
+# type: number; restart to apply
+# norm_tolerance = 0.05
+
+# Reject vectors whose norm is not 1 within embed.norm_tolerance.
+# env (legacy): M3_EMBED_REQUIRE_UNIT_NORM
+# type: boolean; restart to apply
+# require_unit_norm = true
+
+# Seconds a search waits for its query embedding; 0 disables the limit.
+# env (legacy): M3_EMBED_SEARCH_DEADLINE_S
+# type: number; restart to apply
+# search_deadline_s = 8.0
+
+# In-process embedder: sequences packed into one decode call.
+# env (legacy): M3_EMBED_SEQ_MAX
+# type: integer; restart to apply
+# seq_max = 32
+
+# The vector space rows are tagged with; decides search compatibility. Default:
+# embed.model.
+# env (legacy): M3_EMBED_SPACE_TAG
+# type: string; restart to apply
+# space_tag = <embed.model>  # default (computed)
+
+# In-process embedder: worker contexts (each holds a ~4 GiB compute graph at ctx 8192).
+# env (legacy): M3_EMBED_STREAMS
+# type: integer; restart to apply
+# streams = 8
+
+# Tokens per chunk.
+# env (legacy): M3_EMBED_TOKEN_BUDGET
+# type: integer; restart to apply
+# token_budget = 7000
+
+# Token overlap between chunks.
+# env (legacy): M3_EMBED_TOKEN_OVERLAP
+# type: integer; restart to apply
+# token_overlap = 2000
+
+# Embedding endpoint override; unset uses the configured endpoints.
+# env (legacy): M3_EMBED_URL
+# type: string; restart to apply
+# url = <unset: uses the configured endpoints>  # default (computed)
+
+[embed.breaker]
+
+# Seconds the cloud tier's breaker stays open.
+# env (legacy): M3_EMBED_BREAKER_CLOUD_RESET_SECS
+# type: number; restart to apply
+# cloud_reset_s = 60.0
+
+# Consecutive failures that open the cloud tier's breaker.
+# env (legacy): M3_EMBED_BREAKER_CLOUD_THRESHOLD
+# type: integer; restart to apply
+# cloud_threshold = 3
+
+# Seconds the cpu_fallback tier's breaker stays open.
+# env (legacy): M3_EMBED_BREAKER_CPU_FALLBACK_RESET_SECS
+# type: number; restart to apply
+# cpu_fallback_reset_s = 30.0
+
+# Consecutive failures that open the cpu_fallback tier's breaker.
+# env (legacy): M3_EMBED_BREAKER_CPU_FALLBACK_THRESHOLD
+# type: integer; restart to apply
+# cpu_fallback_threshold = 3
+
+# Seconds the embedded tier's breaker stays open.
+# env (legacy): M3_EMBED_BREAKER_EMBEDDED_RESET_SECS
+# type: number; restart to apply
+# embedded_reset_s = 30.0
+
+# Consecutive failures that open the embedded tier's breaker.
+# env (legacy): M3_EMBED_BREAKER_EMBEDDED_THRESHOLD
+# type: integer; restart to apply
+# embedded_threshold = 5
+
+# Seconds the primary tier's breaker stays open.
+# env (legacy): M3_EMBED_BREAKER_PRIMARY_RESET_SECS
+# type: number; restart to apply
+# primary_reset_s = 60.0
+
+# Consecutive failures that open the primary tier's breaker.
+# env (legacy): M3_EMBED_BREAKER_PRIMARY_THRESHOLD
+# type: integer; restart to apply
+# primary_threshold = 3
+
+[embed.gpu]
+
+# Address the GPU embed proxy binds.
+# env (legacy): M3_EMBED_SERVER_GPU_HOST, EMBED_SERVER_GPU_HOST
+# type: string; restart to apply
+# host = "127.0.0.1"
+
+# llama-server's port.
+# env (legacy): M3_LLAMA_PORT, LLAMA_PORT
+# type: integer; restart to apply
+# llama_port = 9904
+
+# llama-server executable. Unset: ~/llama.cpp/bin/llama-server.exe.
+# env (legacy): M3_LLAMA_SERVER_EXE, LLAMA_SERVER_EXE
+# type: path; restart to apply
+# llama_server_exe = <unset: ~/llama.cpp/bin/llama-server.exe>  # default (computed)
+
+# GGUF file llama-server loads. Unset: models/qwen3-q8.gguf under the CURRENT directory
+# (a working-directory-dependent default; 2D fixes it).
+# env (legacy): M3_GGUF_MODEL_PATH, GGUF_MODEL_PATH
+# type: path; restart to apply
+# model_path = <unset: models/qwen3-q8.gguf under the CURRENT directory>  # default (computed)
+
+[embed.http]
+
+# Seconds an idle kept-alive connection lives.
+# env (legacy): M3_EMBED_HTTP_KEEPALIVE_EXPIRY
+# type: number; restart to apply
+# keepalive_expiry_s = 5.0
+
+# HTTP connection pool size.
+# env (legacy): M3_EMBED_HTTP_MAX_CONNS
+# type: integer; restart to apply
+# max_connections = 32
+
+# Kept-alive HTTP connections.
+# env (legacy): M3_EMBED_HTTP_MAX_KEEPALIVE
+# type: integer; restart to apply
+# max_keepalive = 16
+
+[embed.server]
+
+# The m3-embed-server binary; unset uses the wheel's, then PATH.
+# env (legacy): M3_EMBED_SERVER_BIN
+# type: path; restart to apply
+# bin = <unset: uses the wheel's, then PATH>  # default (computed)
+
+# m3-embed-server: milliseconds the dispatcher waits to coalesce requests into one
+# batch.
+# type: integer; restart to apply
+# coalesce_ms = 3
+
+# Concurrent requests; 0 uses the backend's stream pool.
+# env (legacy): M3_EMBED_SERVER_CONCURRENCY
+# type: integer; restart to apply
+# concurrency = 0
+
+# Address the shared embed server binds (also read by the Rust server).
+# env (legacy): M3_EMBED_SERVER_HOST, EMBED_SERVER_HOST
+# type: string; restart to apply
+# host = "127.0.0.1"
+
+# Largest request still treated as interactive.
+# env (legacy): M3_EMBED_INTERACTIVE_MAX_TEXTS
+# type: integer; restart to apply
+# interactive_max_texts = 8
+
+# Slots reserved for interactive (search) requests.
+# env (legacy): M3_EMBED_SERVER_INTERACTIVE_RESERVED
+# type: integer; restart to apply
+# interactive_reserved = 1
+
+# Texts per server batch.
+# env (legacy): M3_EMBED_SERVER_MAX_BATCH
+# type: integer; restart to apply
+# max_batch = 2048
+
+# m3-embed-server: the dispatcher's coalescing ceiling in tokens.
+# type: integer; restart to apply
+# max_batch_tokens = 2048
+
+# m3-embed-server: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe
+# value); a value below embed.ctx is raised to it.
+# type: integer; restart to apply
+# n_batch = <unset: embed.ctx (the only encoder-safe value)>  # default (computed)
+
+# m3-embed-server: llama.cpp micro-batch tokens. Unset: embed.ctx (the only encoder-safe
+# value); a value below embed.ctx is raised to it.
+# type: integer; restart to apply
+# n_ubatch = <unset: embed.ctx (the only encoder-safe value)>  # default (computed)
+
+# Port of the shared embed server (also read by the Rust server, as a u16).
+# env (legacy): M3_EMBED_SERVER_PORT
+# type: integer; restart to apply
+# port = 8082
+
+# m3-embed-server: address (ip or ip:port) of the TLS listener for other machines; unset
+# = loopback only. Set by `m3 embedder secure`; needs tls_cert, tls_key and the
+# M3_EMBED_SERVER_TOKEN_SHA256 secret.
+# type: string; restart to apply
+# remote_listen = <unset: loopback only>  # default (computed)
+
+# m3-embed-server: sequences packed into one decode call.
+# type: integer; restart to apply
+# seq_max = 32
+
+# m3-embed-server: worker contexts. Unset: 2 on a GPU build (cuda/vulkan/metal), 1 on a
+# CPU-only build; each holds a ~4 GiB compute graph at ctx 8192.
+# type: integer; restart to apply
+# streams = <unset: 2 on a GPU build (cuda/vulkan/metal), 1 on a CPU-only build>  # default (computed)
+
+# m3-embed-server: TLS certificate chain (PEM) for embed.server.remote_listen.
+# type: path; restart to apply
+# tls_cert = <unset>  # default (computed)
+
+# m3-embed-server: private key (PEM) of embed.server.tls_cert; must be readable only by
+# its owner.
+# type: path; restart to apply
+# tls_key = <unset>  # default (computed)
+
+[enrich]
+
+# Spending cap for one run, in US dollars; unset is uncapped.
+# env (legacy): M3_ENRICH_BUDGET_USD
+# type: number; restart to apply
+# budget_usd = <unset: uncapped>  # default (computed)
+
+# File listing the conversations to enrich.
+# env (legacy): M3_ENRICH_CONV_LIST
+# type: path; restart to apply
+# conv_list = <unset>  # default (computed)
+
+# Input cap in KiB; unset uses the profile's own.
+# env (legacy): M3_ENRICH_INPUT_MAX_K
+# type: integer; restart to apply
+# input_max_k = <unset: uses the profile's own>  # default (computed)
+
+# Attempts before a conversation is dead-lettered.
+# env (legacy): M3_ENRICH_MAX_ATTEMPTS
+# type: integer; restart to apply
+# max_attempts = 3
+
+# --resume: skip conversations larger than this (KiB).
+# env (legacy): M3_ENRICH_MAX_SIZE_K
+# type: integer; restart to apply
+# max_size_k = <unset>  # default (computed)
+
+# --resume: skip conversations smaller than this (KiB).
+# env (legacy): M3_ENRICH_MIN_SIZE_K
+# type: integer; restart to apply
+# min_size_k = <unset>  # default (computed)
+
+# SLM profile (under config/slm/) m3_enrich uses.
+# env (legacy): M3_ENRICH_PROFILE
+# type: string; restart to apply
+# profile = "enrich_local_qwen"
+
+# --resume: only conversations assigned to this provider.
+# env (legacy): M3_ENRICH_SEND_TO
+# type: string; restart to apply
+# send_to = <unset>  # default (computed)
+
+# Record per-conversation enrichment state (forced on by --resume and budgets).
+# env (legacy): M3_ENRICH_TRACK_STATE
+# type: boolean; restart to apply
+# track_state = false
+
+[entity]
+
+# File listing the conversations to extract entities from.
+# env (legacy): M3_ENTITIES_CONV_LIST
+# type: path; restart to apply
+# conv_list = <unset>  # default (computed)
+
+# Concurrent entity extractions.
+# env (legacy): M3_ENTITY_EXTRACT_CONCURRENCY
+# type: integer; restart to apply
+# extract_concurrency = 2
+
+# Attempts before an entity extraction is given up.
+# env (legacy): M3_ENTITY_EXTRACT_MAX_ATTEMPTS
+# type: integer; restart to apply
+# extract_max_attempts = 3
+
+# Embedding similarity at which two entity names resolve to one entity.
+# env (legacy): M3_ENTITY_RESOLVE_COSINE_MIN
+# type: number; restart to apply
+# resolve_cosine_min = 0.92
+
+# Fuzzy-match score at which two entity names resolve to one entity.
+# env (legacy): M3_ENTITY_RESOLVE_FUZZY_MIN
+# type: number; restart to apply
+# resolve_fuzzy_min = 0.85
+
+# Words never used as graph seeds (case-insensitive).
+# env (legacy): M3_ENTITY_SEED_STOPLIST
+# type: list of strings; restart to apply
+# seed_stoplist = ["yes", "no", "ok", "okay", "thanks", "thank", "hi", "hello", "the", "this", "that", "there", "their", "they", "them", "it", "its"]
+
+# Entity vocabulary. Unset: config/lists/entity_graph_default.yaml (the m3_entities CLI
+# uses entity_graph_m3.yaml; 2D makes them one).
+# env (legacy): M3_ENTITY_VOCAB_YAML
+# type: path; restart to apply
+# vocab_yaml = <unset: config/lists/entity_graph_default.yaml>  # default (computed)
+
+[entity.coalesce]
+
+# Similarity at which two entities merge automatically.
+# env (legacy): M3_ENTITY_COALESCE_AUTOMERGE
+# type: number; restart to apply
+# automerge_cosine = 0.95
+
+# Similarity at which a pair is flagged for review.
+# env (legacy): M3_ENTITY_COALESCE_FLAG
+# type: number; restart to apply
+# flag_cosine = 0.8
+
+# Fuzzy-name score (0-100) that counts as a strong match.
+# env (legacy): M3_ENTITY_COALESCE_FUZZY_HIGH
+# type: integer; restart to apply
+# fuzzy_high = 90
+
+# Entities compared in one block.
+# env (legacy): M3_ENTITY_COALESCE_MAX_BLOCK
+# type: integer; restart to apply
+# max_block = 400
+
+# Largest same_as cluster an automatic merge may build.
+# env (legacy): M3_ENTITY_COALESCE_MAX_CLUSTER
+# type: integer; restart to apply
+# max_cluster = 12
+
+[extraction]
+
+# Function the custom script exposes.
+# env (legacy): M3_EXTRACTION_FUNCTION
+# type: string; restart to apply
+# function = "extract"
+
+# Extraction model; unset picks the best LLM.
+# env (legacy): M3_EXTRACTION_MODEL
+# type: string; restart to apply
+# model = <unset: picks the best LLM>  # default (computed)
+
+# Replaces the built-in prompt.
+# env (legacy): M3_EXTRACTION_PROMPT
+# type: string; restart to apply
+# prompt = <unset>  # default (computed)
+
+# Script for extraction.type = custom_script.
+# env (legacy): M3_EXTRACTION_SCRIPT
+# type: path; restart to apply
+# script = <unset>  # default (computed)
+
+# Extractor: rule_based, an LLM provider, or custom_script. (Today an unknown value acts
+# as rule_based; it is now an error.)
+# env (legacy): M3_EXTRACTION_TYPE
+# type: string; one of rule_based, local_llm, remote_llm, llm, gemini, claude, lmstudio, custom_script; restart to apply
+# type = "rule_based"
+
+# Extraction endpoint.
+# env (legacy): M3_EXTRACTION_URL
+# type: string; restart to apply
+# url = <unset>  # default (computed)
+
+# Extract inline on write instead of queueing.
+# env (legacy): M3_EXTRACTION_WRITE_THROUGH
+# type: boolean; restart to apply
+# write_through = false
+
+[files]
+
+# Corpus a file is ingested into when none is named.
+# env (legacy): M3_FILES_DEFAULT_CORPUS
+# type: string; restart to apply
+# default_corpus = "default"
+
+# Fact extraction on ingest: none, inline, or queued for the loop.
+# env (legacy): M3_FILES_DEFAULT_EXTRACT_MODE
+# type: string; one of none, inline, queue; restart to apply
+# default_extract_mode = "none"
+
+# Leaves shorter than this are not sent to extraction.
+# env (legacy): M3_FILES_EXTRACT_MIN_LEAF_CHARS
+# type: integer; restart to apply
+# extract_min_leaf_chars = 120
+
+# Extraction model. Default: files.summary_model, then the endpoint's discovered model.
+# env (legacy): M3_FILES_EXTRACT_MODEL
+# type: string; restart to apply
+# extract_model = <files.summary_model, then the endpoint's discovered model>  # default (computed)
+
+# Extraction endpoint. Default: files.summary_url, then M3_LMSTUDIO_URL, then the
+# failover list.
+# env (legacy): M3_FILES_EXTRACT_URL
+# type: string; restart to apply
+# extract_url = <files.summary_url, then M3_LMSTUDIO_URL, then the failover list>  # default (computed)
+
+# Follow symbolic links while walking a directory.
+# env (legacy): M3_FILES_FOLLOW_SYMLINKS
+# type: boolean; restart to apply
+# follow_symlinks = false
+
+# Larger files are skipped.
+# env (legacy): M3_FILES_MAX_FILE_BYTES
+# type: integer; restart to apply
+# max_file_bytes = 10485760
+
+# Files one ingest call may take.
+# env (legacy): M3_FILES_MAX_FILES_PER_INGEST
+# type: integer; restart to apply
+# max_files_per_ingest = 10000
+
+# Tokens per chunk leaf.
+# env (legacy): M3_FILES_MAX_LEAF_TOKENS
+# type: integer; restart to apply
+# max_leaf_tokens = 7000
+
+# Seconds to wait for the summary model to load before an ingest.
+# env (legacy): M3_FILES_PREWARM_TIMEOUT_S
+# type: number; restart to apply
+# prewarm_timeout_s = 180.0
+
+# Half-life of the promotability score's recency term (values below 1 act as 1).
+# env (legacy): M3_FILES_PROMO_HALF_LIFE_DAYS
+# type: number; restart to apply
+# promo_half_life_days = 30.0
+
+# Scope given to memories promoted from files.
+# env (legacy): M3_FILES_PROMOTION_SCOPE
+# type: string; restart to apply
+# promotion_scope = "user"
+
+# Summary model. Default: the endpoint's discovered model.
+# env (legacy): M3_FILES_SUMMARY_MODEL
+# type: string; restart to apply
+# summary_model = <the endpoint's discovered model>  # default (computed)
+
+# Summary endpoint. Default: M3_LMSTUDIO_URL; unset disables summaries.
+# env (legacy): M3_FILES_SUMMARY_URL
+# type: string; restart to apply
+# summary_url = <M3_LMSTUDIO_URL>  # default (computed)
+
+[gliner]
+
+# Texts per GLiNER batch.
+# env (legacy): M3_GLINER_BATCH_SIZE
+# type: integer; restart to apply
+# batch_size = 32
+
+# Device: cuda (falls back to mps, then cpu), cpu, or a torch device.
+# env (legacy): M3_GLINER_DEVICE
+# type: string; restart to apply
+# device = "cuda"
+
+# GLiNER model (Hugging Face id).
+# env (legacy): M3_GLINER_MODEL
+# type: string; restart to apply
+# model = "urchade/gliner_large-v2.1"
+
+# Entity confidence threshold.
+# env (legacy): M3_GLINER_THRESHOLD
+# type: number; restart to apply
+# threshold = 0.5
+
+[governor]
+
+# Seconds between checks of .governor_config.json for changes.
+# env (legacy): M3_GOVERNOR_CFG_TTL
+# type: number; restart to apply
+# config_ttl_s = 5.0
+
+# Minutes of feedback the maintenance pass considers.
+# env (legacy): M3_FEEDBACK_WINDOW_MINUTES
+# type: integer; restart to apply
+# feedback_window_minutes = 5
+
+# Load percent at which the governor starts throttling.
+# env (legacy): M3_GOVERNOR_INITIAL_THRESHOLD
+# type: integer; restart to apply
+# initial_threshold = 85
+
+# Load percent at which the governor halts background work.
+# env (legacy): M3_GOVERNOR_LIMIT_THRESHOLD
+# type: integer; restart to apply
+# limit_threshold = 95
+
+# Free RAM (GB) below which background work halts.
+# env (legacy): M3_GOVERNOR_RAM_HALT_GB
+# type: number; restart to apply
+# ram_halt_gb = 1.0
+
+# Free RAM (GB) below which background work throttles.
+# env (legacy): M3_GOVERNOR_RAM_THROTTLE_GB
+# type: number; restart to apply
+# ram_throttle_gb = 4.0
+
+# Free RAM (GB) below which work throttles while the user is idle.
+# env (legacy): M3_GOVERNOR_RAM_THROTTLE_IDLE_GB
+# type: number; restart to apply
+# ram_throttle_idle_gb = 2.0
+
+[gpu]
+
+# Do not probe GPU load.
+# env (legacy): M3_GPU_PROBE_DISABLE
+# type: boolean; restart to apply
+# probe_disabled = false
+
+# Seconds a GPU probe result is cached.
+# env (legacy): M3_GPU_PROBE_TTL
+# type: number; restart to apply
+# probe_ttl_s = 60.0
+
+[identity]
+
+# user_id the LangChain / mem0 surfaces use when a caller passes none (single-user
+# prototyping). Unset: they raise; isolation is never weakened.
+# env (legacy): M3_DEFAULT_USER_ID
+# type: string; restart to apply
+# default_user_id = <unset: they raise>  # default (computed)
+
+# Sync node identity. Default: the host name (upper-cased on Windows).
+# env (legacy): M3_NODE_ID
+# type: string; restart to apply
+# node_id = <the host name (upper-cased on Windows)>  # default (computed)
+
+# Device name stamped on memories. Default: the host name.
+# env (legacy): M3_ORIGIN_DEVICE, ORIGIN_DEVICE
+# type: string; restart to apply
+# origin_device = <the host name>  # default (computed)
+
+[ingest]
+
+# Extract entities with the LLM on ingest.
+# env (legacy): M3_INGEST_AUTO_ENTITIES
+# type: boolean; restart to apply
+# auto_entities = false
+
+# Title memories with the LLM on ingest.
+# env (legacy): M3_INGEST_AUTO_TITLE
+# type: boolean; restart to apply
+# auto_title = false
+
+# Write event rows on chat ingest.
+# env (legacy): M3_INGEST_EVENT_ROWS
+# type: boolean; restart to apply
+# event_rows = true
+
+# Turns a conversation needs for a gist.
+# env (legacy): M3_INGEST_GIST_MIN_TURNS
+# type: integer; restart to apply
+# gist_min_turns = 10
+
+# Write gist rows on chat ingest.
+# env (legacy): M3_INGEST_GIST_ROWS
+# type: boolean; restart to apply
+# gist_rows = true
+
+# Turns between gists.
+# env (legacy): M3_INGEST_GIST_STRIDE
+# type: integer; restart to apply
+# gist_stride = 5
+
+# Write windowed chunks on chat ingest.
+# env (legacy): M3_INGEST_WINDOW_CHUNKS
+# type: boolean; restart to apply
+# window_chunks = true
+
+# Turns per window chunk.
+# env (legacy): M3_INGEST_WINDOW_SIZE
+# type: integer; restart to apply
+# window_size = 3
+
+[install]
+
+# Let `m3` install a missing payload on first run.
+# env (legacy): M3_AUTO_INSTALL
+# type: boolean; restart to apply
+# auto_install = true
+
+# Never download embedding model weights.
+# env (legacy): M3_NO_MODEL_DOWNLOAD
+# type: boolean; restart to apply
+# no_model_download = false
+
+# Seconds an unattended OS package install may take.
+# env (legacy): M3_OS_INSTALL_TIMEOUT_S
+# type: integer; restart to apply
+# os_install_timeout_s = 180
+
+[integrations.hermes]
+
+# Agent id the Hermes plugin writes as.
+# env (legacy): M3_AGENT_ID
+# type: string; restart to apply
+# agent_id = "hermes"
+
+# Hermes Agent's home; unset uses HERMES_HOME, then probed locations.
+# env (legacy): M3_HERMES_HOME
+# type: path; restart to apply
+# home = <unset: uses HERMES_HOME, then probed locations>  # default (computed)
+
+# User id the Hermes plugin writes as.
+# env (legacy): M3_USER_ID
+# type: string; restart to apply
+# user_id = "hermes-user"
+
+[llm]
+
+# Seconds to connect to an endpoint before trying the next.
+# env (legacy): M3_LLM_CONNECT_TIMEOUT
+# type: number; restart to apply
+# connect_timeout_s = 0.3
+
+# LLM endpoints tried in order (base URLs). Empty: llm.url, then LM Studio.
+# env (legacy): M3_LLM_ENDPOINTS_CSV, LLM_ENDPOINTS_CSV
+# type: list of strings; restart to apply
+# endpoints = []
+
+# LM Studio's base URL for the MCP proxy (no M3_ name exists today).
+# env (legacy): LM_STUDIO_BASE
+# type: string; restart to apply
+# lmstudio_base = "http://localhost:1234/v1"
+
+# Include LM Studio in the failover list. Default: on unless llm.url is set.
+# env (legacy): M3_ENABLE_LMSTUDIO_FAILOVER
+# type: boolean; restart to apply
+# lmstudio_failover = <on unless llm.url is set>  # default (computed)
+
+# LM Studio endpoint the files summarizer and extractor fall back to.
+# env (legacy): M3_LMSTUDIO_URL
+# type: string; restart to apply
+# lmstudio_url = <unset>  # default (computed)
+
+# Include Ollama (localhost:11434) in the failover list.
+# env (legacy): M3_ENABLE_OLLAMA_FAILOVER
+# type: boolean; restart to apply
+# ollama_failover = false
+
+# Seconds before an ongoing outage is reported again.
+# env (legacy): M3_LLM_OUTAGE_REPEAT_S
+# type: number; restart to apply
+# outage_repeat_s = 3600.0
+
+# Seconds the MCP proxy waits for a model's reply.
+# env (legacy): M3_LM_READ_TIMEOUT, LM_READ_TIMEOUT
+# type: number; restart to apply
+# read_timeout_s = 4800.0
+
+# Seconds an LLM call may take.
+# env (legacy): M3_LLM_TIMEOUT, LLM_TIMEOUT
+# type: number; restart to apply
+# timeout_s = 45.0
+
+# A custom LLM endpoint, tried first.
+# env (legacy): M3_LLM_URL
+# type: string; restart to apply
+# url = <unset>  # default (computed)
+
+# Seconds an endpoint's usability result is cached.
+# env (legacy): M3_LLM_USABILITY_TTL
+# type: number; restart to apply
+# usability_ttl_s = 60.0
+
+[log]
+
+# Task log size that triggers rotation; 0 disables rotation.
+# env (legacy): M3_LOG_MAX_BYTES
+# type: integer; restart to apply
+# max_bytes = 67108864
+
+# A scheduled task's log file. Default: <logs root>/<task>.log.
+# env (legacy): M3_TASK_LOG_FILE
+# type: path; restart to apply
+# task_log_file = <logs root>/<task>.log  # default (computed)
+
+[loop]
+
+# Seconds a classify pass may take.
+# env (legacy): M3_CLASSIFY_DEADLINE_S
+# type: number; restart to apply
+# classify_deadline_s = 10.0
+
+# Procedure distillation model: slm, llm, or a profile name.
+# env (legacy): M3_DISTILL_MODEL
+# type: string; restart to apply
+# distill_model = "slm"
+
+# Items one loop pass takes (the governor shrinks it).
+# env (legacy): M3_LIMIT_PER_PASS
+# type: integer; restart to apply
+# limit_per_pass = 4
+
+# Items per loop pass under THROTTLED load.
+# env (legacy): M3_GOVERNOR_THROTTLED_LIMIT
+# type: integer; restart to apply
+# throttled_limit = 1
+
+[mcp]
+
+# Let proxies run catalog tools marked not default-allowed. Off: they are blocked.
+# env (legacy): M3_MCP_PROXY_ALLOW_DESTRUCTIVE, MCP_PROXY_ALLOW_DESTRUCTIVE
+# type: boolean; restart to apply
+# allow_destructive = false
+
+# Address the MCP proxy binds.
+# env (legacy): M3_MCP_PROXY_HOST, MCP_PROXY_HOST
+# type: string; restart to apply
+# proxy_host = "127.0.0.1"
+
+[memory]
+
+# Link a new memory to related ones on write.
+# env (legacy): M3_AUTO_RELATED_LINK
+# type: boolean; restart to apply
+# auto_related_link = true
+
+# Only link memories within the same variant.
+# env (legacy): M3_AUTO_RELATED_LINK_SCOPE_BY_VARIANT
+# type: boolean; restart to apply
+# auto_related_link_scope_by_variant = true
+
+# Never switch features on automatically from data volume (an explicit flag still wins).
+# env (legacy): M3_DISABLE_AUTO_ACTIVATION
+# type: boolean; restart to apply
+# disable_auto_activation = false
+
+# Restrict a search to the requesting agent's memories.
+# env (legacy): M3_ENFORCE_AGENT_ISOLATION
+# type: boolean; restart to apply
+# enforce_agent_isolation = false
+
+# Build the entity graph on write.
+# env (legacy): M3_ENABLE_ENTITY_GRAPH
+# type: boolean; restart to apply
+# entity_graph = true
+
+# Concurrent fact extractions.
+# env (legacy): M3_FACT_ENRICH_CONCURRENCY
+# type: integer; restart to apply
+# fact_enrich_concurrency = 2
+
+# Attempts before a fact extraction is given up.
+# env (legacy): M3_FACT_ENRICH_MAX_ATTEMPTS
+# type: integer; restart to apply
+# fact_enrich_max_attempts = 3
+
+# Enrich writes with extracted facts.
+# env (legacy): M3_ENABLE_FACT_ENRICHED
+# type: boolean; restart to apply
+# fact_enriched = true
+
+# Classify memory type inline on write instead of in the loop.
+# env (legacy): M3_INLINE_CLASSIFY
+# type: boolean; restart to apply
+# inline_classify = false
+
+[memory.contradiction]
+
+# Similarity above which a write is checked for contradiction.
+# env (legacy): M3_CONTRADICTION_THRESHOLD, CONTRADICTION_THRESHOLD
+# type: number; restart to apply
+# threshold = 0.92
+
+# Title agreement a contradiction needs: strict, loose or off. (Today any other value
+# acts as off; it is now an error.)
+# env (legacy): M3_CONTRADICTION_TITLE_GATE, CONTRADICTION_TITLE_GATE
+# type: string; one of strict, loose, off; restart to apply
+# title_gate = "loose"
+
+# Memory types never checked for contradiction.
+# env (legacy): M3_CONTRADICTION_TYPE_EXCLUSIONS, CONTRADICTION_TYPE_EXCLUSIONS
+# type: list of strings; restart to apply
+# type_exclusions = ["conversation"]
+
+[memory.corroboration]
+
+# Record corroborating writes instead of storing duplicates.
+# env (legacy): M3_CORROBORATION
+# type: boolean; restart to apply
+# enabled = false
+
+# Similarity above which a write corroborates an existing memory.
+# env (legacy): M3_CORROBORATION_THRESHOLD, CORROBORATION_THRESHOLD
+# type: number; restart to apply
+# threshold = 0.95
+
+[memory.dedup]
+
+# Memories one dedup pass compares.
+# env (legacy): M3_DEDUP_LIMIT, DEDUP_LIMIT
+# type: integer; restart to apply
+# limit = 1000
+
+# Similarity above which two memories are duplicates.
+# env (legacy): M3_DEDUP_THRESHOLD, DEDUP_THRESHOLD
+# type: number; restart to apply
+# threshold = 0.92
+
+[observer]
+
+# Do not embed the observations the observer writes.
+# env (legacy): M3_OBSERVER_NO_EMBED
+# type: boolean; restart to apply
+# no_embed = false
+
+# Record turn-level provenance for observations.
+# env (legacy): M3_OBSERVER_PRECISE_PROVENANCE
+# type: boolean; restart to apply
+# precise_provenance = false
+
+# SLM profile the observer uses.
+# env (legacy): M3_OBSERVER_PROFILE, OBSERVER_PROFILE
+# type: string; restart to apply
+# profile = "observer_local"
+
+[paths]
+
+# The payload's _assets/ directory for a non-packaged install (installer.py
+# _payload_dir); unset uses the packaged one.
+# env (legacy): M3_PATH_ASSETS
+# type: path; restart to apply
+# assets = <unset: uses the packaged one>  # default (computed)
+
+# The bin/ directory of a non-packaged (developer) install; unset uses the packaged one.
+# env (legacy): M3_PATH_BIN
+# type: path; restart to apply
+# bin = <unset: uses the packaged one>  # default (computed)
+
+# The payload's docs/ directory for a non-packaged install (installer.py _payload_dir);
+# unset uses the packaged one.
+# env (legacy): M3_PATH_DOC
+# type: path; restart to apply
+# docs = <unset: uses the packaged one>  # default (computed)
+
+# Databases and runtime state. Default: <memory_root>/engine, else ~/.m3/engine.
+# env (legacy): M3_ENGINE_ROOT
+# type: path; restart to apply
+# engine_root = <memory_root>/engine, else ~/.m3/engine  # default (computed)
+
+# The payload's examples/ directory for a non-packaged install (installer.py
+# _payload_dir); unset uses the packaged one.
+# env (legacy): M3_PATH_EXAMPLES
+# type: path; restart to apply
+# examples = <unset: uses the packaged one>  # default (computed)
+
+# Where the wolfSSL library is trusted from. Default: <config root's parent>/lib.
+# env (legacy): M3_LIB_DIR
+# type: path; restart to apply
+# lib_dir = <config root's parent>/lib  # default (computed)
+
+# Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs.
+# env (legacy): M3_LOGS_ROOT
+# type: path; restart to apply
+# logs_root = <memory_root>/logs, else ~/.m3/logs  # default (computed)
+
+# Legacy master root: config, engine, logs and models derive from it when their own keys
+# are unset. Removed at N+3.
+# env (legacy): M3_MEMORY_ROOT
+# type: path; restart to apply
+# memory_root = <unset>  # default (computed)
+
+# GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models.
+# env (legacy): M3_MODELS_ROOT
+# type: path; restart to apply
+# models_root = <memory_root>/models, else ~/.m3/models  # default (computed)
+
+[promote]
+
+# Model promote_pipeline requests.
+# env (legacy): M3_LM_MODEL, LM_MODEL
+# type: string; restart to apply
+# llm_model = "google/gemma-4-26b-a4b"
+
+# Chat-completions URL (full path) promote_pipeline calls.
+# env (legacy): M3_LM_URL, LM_URL
+# type: string; restart to apply
+# llm_url = "http://localhost:1234/v1/chat/completions"
+
+[reflector]
+
+# SLM profile the reflector uses.
+# env (legacy): M3_REFLECTOR_PROFILE, REFLECTOR_PROFILE
+# type: string; restart to apply
+# profile = "reflector_local"
+
+[search]
+
+# Entity-bypass results surfaced (1-5000; today a larger value is clamped).
+# env (legacy): M3_BYPASS_SURFACE_CAP
+# type: integer; restart to apply
+# bypass_surface_cap = 300
+
+# Blend memory confidence into the score.
+# env (legacy): M3_CONFIDENCE_RANKING
+# type: boolean; restart to apply
+# confidence_ranking = false
+
+# Weight of confidence when search.confidence_ranking is on.
+# env (legacy): M3_CONFIDENCE_WEIGHT
+# type: number; restart to apply
+# confidence_weight = 0.1
+
+# Score drop that counts as the elbow.
+# env (legacy): M3_ELBOW_ABS_THRESHOLD
+# type: number; restart to apply
+# elbow_abs_threshold = 0.05
+
+# Fewest results before elbow truncation applies.
+# env (legacy): M3_ELBOW_MIN_INPUT
+# type: integer; restart to apply
+# elbow_min_input = 20
+
+# Fewest results elbow truncation keeps.
+# env (legacy): M3_ELBOW_MIN_RETURN
+# type: integer; restart to apply
+# elbow_min_return = 8
+
+# How far an expanded result must outscore one it displaces.
+# env (legacy): M3_EXPANSION_DISPLACEMENT_MARGIN
+# type: number; restart to apply
+# expansion_displacement_margin = 2.0
+
+# Top ranks query expansion may not displace.
+# env (legacy): M3_EXPANSION_PROTECTED_RANKS
+# type: integer; restart to apply
+# expansion_protected_ranks = 3
+
+# Weight of a memory's importance in ranking.
+# env (legacy): M3_IMPORTANCE_WEIGHT, IMPORTANCE_WEIGHT
+# type: number; restart to apply
+# importance_weight = 0.15
+
+# Boost for procedures on a procedural intent.
+# env (legacy): M3_INTENT_PROCEDURAL_BOOST
+# type: number; restart to apply
+# intent_procedural_boost = 0.2
+
+# Route searches by intent.
+# env (legacy): M3_INTENT_ROUTING
+# type: boolean; restart to apply
+# intent_routing = true
+
+# Boost for user facts on a user-fact intent.
+# env (legacy): M3_INTENT_USER_FACT_BOOST
+# type: number; restart to apply
+# intent_user_fact_boost = 0.2
+
+# Tokens of observations a two-stage search returns.
+# env (legacy): M3_OBSERVATION_BUDGET_TOKENS
+# type: integer; restart to apply
+# observation_budget_tokens = 4000
+
+# Rank distilled observations ahead of raw turns (also on automatically once 100 exist).
+# env (legacy): M3_PREFER_OBSERVATIONS
+# type: boolean; restart to apply
+# prefer_observations = false
+
+# Route searches by query type.
+# env (legacy): M3_QUERY_TYPE_ROUTING
+# type: boolean; restart to apply
+# query_type_routing = true
+
+# Cross-encoder used to rerank.
+# env (legacy): M3_RERANK_MODEL
+# type: string; restart to apply
+# rerank_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+# Extra results a temporal query fetches.
+# env (legacy): M3_ROUTER_TEMPORAL_K_BUMP
+# type: integer; restart to apply
+# router_temporal_k_bump = 5
+
+# Candidate rows a search reads.
+# env (legacy): M3_SEARCH_ROW_CAP, SEARCH_ROW_CAP
+# type: integer; restart to apply
+# row_cap = 5000
+
+# Turns shorter than this (characters) are down-weighted.
+# env (legacy): M3_SHORT_TURN_THRESHOLD, SHORT_TURN_THRESHOLD
+# type: integer; restart to apply
+# short_turn_threshold = 20
+
+# Index the speaker in chat-turn titles.
+# env (legacy): M3_SPEAKER_IN_TITLE, SPEAKER_IN_TITLE
+# type: boolean; restart to apply
+# speaker_in_title = true
+
+# Multiplier for a superseded memory's score (1.0 = no penalty).
+# env (legacy): M3_SUPERSEDES_PENALTY, SUPERSEDES_PENALTY
+# type: number; restart to apply
+# supersedes_penalty = 0.5
+
+# Score added when the query matches the title.
+# env (legacy): M3_TITLE_MATCH_BOOST, TITLE_MATCH_BOOST
+# type: number; restart to apply
+# title_match_boost = 0.15
+
+# Supporting turns kept per observation.
+# env (legacy): M3_TWO_STAGE_MAX_TURNS_PER_OBS
+# type: integer; restart to apply
+# two_stage_max_turns_per_observation = 3
+
+# Expand observation hits to their source turns (also on automatically once 100
+# observations exist).
+# env (legacy): M3_TWO_STAGE_OBSERVATIONS
+# type: boolean; restart to apply
+# two_stage_observations = false
+
+# Multiplier for raw turns in a two-stage search.
+# env (legacy): M3_TWO_STAGE_TURN_PENALTY
+# type: number; restart to apply
+# two_stage_turn_penalty = 0.7
+
+[secrets]
+
+# The user-only secrets file: every m3 secret, as its value or a pointer to its OS
+# keyring entry. Default: <config root>/m3_secrets.toml.
+# type: path; restart to apply
+# file = <config root>/m3_secrets.toml  # default (computed)
+
+[services]
+
+# Address the macbook status server binds.
+# env (legacy): M3_MACBOOK_STATUS_HOST, MACBOOK_STATUS_HOST
+# type: string; restart to apply
+# macbook_status_host = "127.0.0.1"
+
+[slm]
+
+# Use the SLM to classify search intent.
+# env (legacy): M3_SLM_CLASSIFIER
+# type: boolean; restart to apply
+# classifier = false
+
+# Default SLM profile for intent classification.
+# env (legacy): M3_SLM_PROFILE
+# type: string; restart to apply
+# profile = "default"
+
+# Extra directories searched first for SLM profiles (os.pathsep-separated in env).
+# env (legacy): M3_SLM_PROFILES_DIR
+# type: string; restart to apply
+# profile_dirs = []
+
+[sync]
+
+# Warehouse address (legacy form).
+# env (legacy): M3_SYNC_TARGET_IP, SYNC_TARGET_IP
+# type: string; restart to apply
+# target_ip = <unset>  # default (computed)
+
+# Seconds one warehouse sync may take.
+# env (legacy): M3_PG_SYNC_TIMEOUT
+# type: integer; restart to apply
+# timeout_s = 600
+
+# Warehouse host. Default: sync.target_ip, then the warehouse DSN's host.
+# env (legacy): M3_POSTGRES_SERVER, POSTGRES_SERVER
+# type: string; restart to apply
+# warehouse_host = <sync.target_ip, then the warehouse DSN's host>  # default (computed)
+
+[tools]
+
+# Load MCP tool domains on demand.
+# env (legacy): M3_TOOLS_LAZY
+# type: boolean; restart to apply
+# lazy = true
+
+# MCP tools registered at session start (must include the escape hatch). Unset:
+# .tools_config.json startup_tools, else the shipped set.
+# env (legacy): M3_TOOLS_STARTUP
+# type: list of strings; restart to apply
+# startup = <unset: .tools_config.json startup_tools, else the shipped set>  # default (computed)
+
+# Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30.
+# env (legacy): M3_TOOL_TIMEOUT
+# type: number; restart to apply
+# timeout_s = <unset: each tool's own, else 30>  # default (computed)
+
+[wiki.compile]
+
+# Prose-compile model. Default: wiki.synth.model.
+# env (legacy): M3_WIKI_COMPILE_MODEL
+# type: string; restart to apply
+# model = <wiki.synth.model>  # default (computed)
+
+# Seconds a compile call may take.
+# env (legacy): M3_WIKI_COMPILE_TIMEOUT
+# type: number; restart to apply
+# timeout_s = 60.0
+
+# Prose-compile URL. Default: wiki.synth.url.
+# env (legacy): M3_WIKI_COMPILE_URL
+# type: string; restart to apply
+# url = <wiki.synth.url>  # default (computed)
+
+[wiki.drift]
+
+# Judge model. Default: wiki.synth.model.
+# env (legacy): M3_WIKI_DRIFT_MODEL
+# type: string; restart to apply
+# model = <wiki.synth.model>  # default (computed)
+
+# Seconds a judge call may take.
+# env (legacy): M3_WIKI_DRIFT_TIMEOUT
+# type: number; restart to apply
+# timeout_s = 30.0
+
+# Citation-drift and derivability judge URL. Default: wiki.synth.url.
+# env (legacy): M3_WIKI_DRIFT_URL
+# type: string; restart to apply
+# url = <wiki.synth.url>  # default (computed)
+
+[wiki.synth]
+
+# Synthesis model; unset uses the server's.
+# env (legacy): M3_WIKI_SYNTH_MODEL
+# type: string; restart to apply
+# model = <unset: uses the server's>  # default (computed)
+
+# Seconds a synthesis call may take.
+# env (legacy): M3_WIKI_SYNTH_TIMEOUT
+# type: number; restart to apply
+# timeout_s = 30.0
+
+# Chat-completions URL for wiki synthesis.
+# env (legacy): M3_WIKI_SYNTH_URL
+# type: string; restart to apply
+# url = "http://127.0.0.1:1234/v1/chat/completions"

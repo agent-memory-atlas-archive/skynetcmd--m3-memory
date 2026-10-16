@@ -186,7 +186,7 @@ Pick whichever fits your hardware and runtime:
 >   (your server is tried first; the LM Studio probe is auto-disabled).
 > - **Multiple endpoints, specific order** — `m3 config set llm.endpoints "url1,url2,…"`.
 >
-> See [ENVIRONMENT_VARIABLES → Endpoint discovery & failover](ENVIRONMENT_VARIABLES.md#endpoint-discovery--failover).
+> See [the `[llm]` settings](CONFIG_REFERENCE.md#llm) (endpoint discovery and failover).
 
 m3 picks the largest loaded chat model for enrichment. If you only want
 embedding-based memory, skip this — those features simply become no-ops.
@@ -451,8 +451,8 @@ infrastructure needed. For multi-device sync, you can optionally connect:
   the `M3_CDW_PG_URL` secret (`m3 secret set M3_CDW_PG_URL`; a vault entry
   under the older name `PG_URL` still works)
 
-See [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) for warehouse-sync
-configuration.
+See the `[sync]` settings in [CONFIG_REFERENCE.md](./CONFIG_REFERENCE.md#sync) for
+warehouse-sync configuration.
 
 **PostgreSQL as primary store (not just sync).** Separately from the warehouse
 role above, PostgreSQL can be m3's *primary* live backend instead of SQLite —
@@ -471,4 +471,5 @@ state); without it m3 scores every vector itself.
 - [CORE_FEATURES.md](./CORE_FEATURES.md) — what m3 Memory can do
 - [AGENT_INSTRUCTIONS.md](./AGENT_INSTRUCTIONS.md) — all MCP tools and agent behavioral rules
 - [TECHNICAL_DETAILS.md](./TECHNICAL_DETAILS.md) — search internals, schema, sync, security
-- [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) — credentials and runtime config
+- [CONFIG_REFERENCE.md](./CONFIG_REFERENCE.md) — every setting in `m3_config.toml`, and secrets
+- [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) — the environment names m3 still reads, and where each legacy one moved

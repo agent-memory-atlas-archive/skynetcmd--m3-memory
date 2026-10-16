@@ -5,9 +5,9 @@
 > `reports/bench_optimized.md` once the post-wave-9 run completes.
 
 This document is operator-facing: build, install, configure, and troubleshoot
-the m3 embedder stack on a single host. For environment-variable details,
-cross-reference `docs/ENVIRONMENT_VARIABLES.md` — entries are not duplicated
-here. For the input-side recipe (what text actually gets embedded — cascade,
+the m3 embedder stack on a single host. For setting details, cross-reference
+`docs/CONFIG_REFERENCE.md` (`[embed]` tables; `docs/ENVIRONMENT_VARIABLES.md`
+maps each legacy env name to its key) — entries are not duplicated here. For the input-side recipe (what text actually gets embedded — cascade,
 anchor augmentation, variants, model-tag namespacing, pooling/BOS triplet)
 see `docs/EMBED_INPUT_RECIPE.md`.
 
@@ -653,10 +653,10 @@ one bump per text along the path that served it.
 
 ## Environment variables
 
-The canonical list lives in
-[`docs/ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md). Relevant rows
-for embed deployment, summarized — see that document for full semantics and
-defaults:
+The canonical list lives in [`docs/CONFIG_REFERENCE.md`](CONFIG_REFERENCE.md)
+(the `[embed]` tables); [`docs/ENVIRONMENT_VARIABLES.md`](ENVIRONMENT_VARIABLES.md)
+maps each name below to its key. Relevant rows for embed deployment,
+summarized — see the reference for full semantics and defaults:
 
 | Variable                    | Role                                                               |
 |-----------------------------|--------------------------------------------------------------------|
@@ -783,7 +783,7 @@ that combined report — do not infer numbers from this document.
 - m3-embed-llamacpp crate docs: `C:\Users\<USER>\m3-core-rs\crates\m3-embed-llamacpp\README.md`
 - m3-embed-server crate docs: `C:\Users\<USER>\m3-core-rs\crates\m3-embed-server\README.md`
 - CPU build-tools bootstrap: `C:\Users\<USER>\m3-memory\install_oxidation_buildtools.ps1`
-- Env-var canonical list: `C:\Users\<USER>\m3-memory\docs\ENVIRONMENT_VARIABLES.md`
+- Settings canonical list: `docs/CONFIG_REFERENCE.md` (legacy env names: `docs/ENVIRONMENT_VARIABLES.md`)
 - Bench numbers: `C:\Users\<USER>\m3-core-rs\reports\bench_baseline.md` (wave 0),
   `C:\Users\<USER>\m3-core-rs\reports\bench_optimized.md` (post-wave-9)
 - Hang / fix history: `C:\Users\<USER>\m3-core-rs\reports\hang_diagnosis.md`,

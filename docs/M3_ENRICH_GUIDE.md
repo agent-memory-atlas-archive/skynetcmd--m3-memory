@@ -561,18 +561,17 @@ server command is `m3`.
 > in the results. If they don't, the env didn't propagate — see the
 > [Verify it's active](#verify-its-active) section below.
 
-#### B. Shell environment (CLI users, bench harnesses, scripts)
-
-Add to your `~/.bashrc` / `~/.zshrc` / Windows env:
+#### B. m3_config.toml (CLI users, services, bench harnesses, scripts)
 
 ```bash
-export M3_PREFER_OBSERVATIONS=1
-export M3_TWO_STAGE_OBSERVATIONS=1
+m3 config set search.prefer_observations true
+m3 config set search.two_stage_observations true
 ```
 
-> 🔁 **Open a new shell session** (or `source ~/.bashrc`) for the
-> exports to apply to the current terminal. Existing shells / running
-> processes do not pick up the change.
+> These go into `m3_config.toml`, so every m3 process sees them, including
+> background services that never read your shell profile. Restart m3's
+> services to apply. The old `M3_PREFER_OBSERVATIONS` /
+> `M3_TWO_STAGE_OBSERVATIONS` environment names still work, below the file.
 
 #### C. Scheduled tasks / cron (auto-enrich drain jobs)
 
@@ -667,13 +666,13 @@ SessionEnd, OpenCode session_end), every closed conversation runs through
 
 **1. Enable the auto-enqueue hook on chatlog ingest:**
 
-Add to your shell profile (`.bashrc` / `.zshrc`) or set per-session:
+Set it in `m3_config.toml`, so the chatlog hooks and services see it too:
 
 ```bash
-export M3_AUTO_ENRICH=1
+m3 config set chatlog.auto_enrich true
 # Optional: minimum turns per ingest before enqueue (default 10).
 # Lower if you want short conversations enriched too.
-export M3_AUTO_ENRICH_MIN_TURNS=10
+m3 config set chatlog.auto_enrich_min_turns 10
 ```
 
 The `INSERT OR IGNORE` semantics mean re-ingesting the same conversation

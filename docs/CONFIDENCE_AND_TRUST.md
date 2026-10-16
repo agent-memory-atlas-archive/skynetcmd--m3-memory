@@ -8,7 +8,7 @@ stable beliefs. Every part of this is **additive and off by default** — nothin
 about write or retrieval behavior changes until you opt in.
 
 > Implementation plan & phase history: `docs/plans/KNOWLEDGE_MAINTENANCE_PLAN.md`.
-> All runtime flags: `docs/ENVIRONMENT_VARIABLES.md` → *Knowledge Maintenance*.
+> All runtime flags: `docs/CONFIG_REFERENCE.md` → `[memory]`, `[memory.contradiction]`, `[memory.corroboration]`.
 
 ## The confidence model (hybrid)
 

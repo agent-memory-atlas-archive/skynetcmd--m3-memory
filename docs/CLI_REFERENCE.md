@@ -66,7 +66,7 @@ Every DB-aware script accepts a standardized `--database PATH` flag. To use a na
 5. `M3_DATABASE` environment variable — **legacy**: read only when nothing above names a database, with a one-time warning, until release N+3. m3 itself no longer writes it.
 6. Default: `<engine_root>/agent_memory.db` — i.e. `~/.m3/engine/agent_memory.db`
    (the engine root resolves `M3_ENGINE_ROOT` → `M3_MEMORY_ROOT/engine` → `~/.m3/engine`;
-   see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#roots--precedence-the-single-source-of-truth)).
+   see [Roots and locators](ENVIRONMENT_VARIABLES.md#roots-and-locators)).
    A legacy `memory/agent_memory.db` in a dev checkout is used only if it already
    holds data.
 

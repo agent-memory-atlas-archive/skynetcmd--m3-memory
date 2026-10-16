@@ -131,7 +131,7 @@ Fact extraction (and the LLM summarizer) read these env vars:
 | `M3_FILES_EXTRACT_URL` | Base URL of an OpenAI-compatible chat endpoint, **without** the `/v1` suffix (the code appends `/v1/chat/completions`). E.g. `http://127.0.0.1:1234`. If unset, extraction is unavailable and ingest falls back to extractive summaries. |
 | `M3_FILES_EXTRACT_MODEL` | Model id to request. E.g. `mistralai/ministral-3-14b-reasoning`. Default `qwen3-4b-instruct`. |
 | `M3_FILES_SUMMARY_URL` / `M3_FILES_SUMMARY_MODEL` | Same, for the abstractive file/section summarizer. Falls back to `M3_LMSTUDIO_URL` if set. |
-| `LM_API_TOKEN` | **Required if your endpoint enforces auth** (LM Studio's "require API key" is on by default). Sent as `Authorization: Bearer <token>`. A secret, not an env var: store it with `m3 secret set LM_API_TOKEN` (secrets file / OS keyring) — see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#api-keys--authentication). Omit for tokenless endpoints (e.g. Ollama). |
+| `LM_API_TOKEN` | **Required if your endpoint enforces auth** (LM Studio's "require API key" is on by default). Sent as `Authorization: Bearer <token>`. A secret, not an env var: store it with `m3 secret set LM_API_TOKEN` (secrets file / OS keyring) — see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#secrets-environment-name-to-secrets-file). Omit for tokenless endpoints (e.g. Ollama). |
 
 > **Auth gotcha.** An auth-enabled LM Studio silently rejects requests with no
 > `Authorization` header — extraction produces zero facts with no error. Store

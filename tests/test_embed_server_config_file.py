@@ -363,7 +363,7 @@ def test_migrate_reports_a_differing_value_and_keeps_the_file(tmp_path):
     rep = migrate()
     text = "\n".join(rep.lines())
     assert _file_table()["embed"]["server"]["port"] == 8094, "a value already in the file is not overwritten"
-    assert "crypto" not in _file_table(), "an m3-wide crypto setting is never switched by a migration"
+    assert not _file_table().get("crypto"), "an m3-wide crypto setting is never switched by a migration"
     assert "m3 config set embed.server.port 8093" in text and "m3 config set crypto.fips_mode true" in text
     assert old.exists() and not rep.removed and "kept" in text
 
