@@ -360,9 +360,8 @@ async def run_embed_loop(
         elif items:
             counters.consecutive_fails += 1
             if log is not None:
-                # Say which of the three it was: a store that refuses writes
-                # was reported as "no usable vector", sending the reader to a
-                # healthy embedder.
+                # Name which of the three: blaming the embedder for a write
+                # failure sends the reader to the wrong component.
                 log(
                     f"BATCH_EMPTY: none of {len(items)} row(s) was stored: "
                     f"{n_no_vector} got no vector, {n_bad_dim} had the wrong dimension, "

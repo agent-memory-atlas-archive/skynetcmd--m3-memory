@@ -59,7 +59,6 @@ SCAN_ROOTS = ("bin", "m3_memory")
 # Root-level files that ship as production code. setup.py stages each into
 # m3_memory/ at build time (a gitignored copy): the source is scanned and the
 # staged copy skipped, so a local build and a clean CI checkout count the same.
-# install_os.py was unscanned until this list existed (2026-10-16).
 ROOT_FILES = ("install_os.py",)
 
 # Modules allowed to touch the environment; paths are repo-relative, POSIX style.

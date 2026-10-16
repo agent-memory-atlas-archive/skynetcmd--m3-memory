@@ -59,61 +59,43 @@ the policy is forward-going only.
 
 ### Fixed
 
-- **A separate chatlog store gets its schema on the first flush.** A turn
-  written before any read spilled with "no such table: memory_items".
-  `chatlog_config.chatlog_is_separate()` decides the topology for the
-  connection and for `m3 chatlog status`. **Affected:** split chatlog
-  installs, integrations · **Action:** upgrade · **Data status:** spilled
-  turns drain on the next flush.
-- **GDPR erasure removes every derived row.** Entity links, corroborations,
-  relationships, facts and queue rows of erased memories go, entities only
-  they referenced are deleted with their embeddings, and a separate chatlog
-  store is erased in the same request. A failing wiki hook is reported
-  (`completed_with_failures`). **Affected:** GDPR forget requests ·
-  **Action:** re-run erasure for subjects forgotten before upgrading ·
-  **Data status:** earlier erasures may have left derived rows.
-- **Dedup and consolidate stay inside one tenant.** Dedup compares only within
-  the same user, agent and embedding space and skips pinned rows; consolidate
-  skips a group whose summary, embedding or link fails. **Affected:**
+- **Chat turns are captured on a fresh split install.** The first turn written
+  to a never-used chatlog store spilled instead of being stored; spill files
+  now drain, chatlog hooks run reliably, and the watchdog honours a paused
+  loop. **Affected:** split chatlog installs, integrations (Hermes, LangChain,
+  CrewAI, PydanticAI) · **Action:** upgrade · **Data status:** spilled turns
+  are stored on the next flush.
+
+- **GDPR erasure removes everything derived from a subject's memories**,
+  including in a separate chatlog store, and reports a step that failed.
+  **Affected:** GDPR forget requests · **Action:** re-run erasure for subjects
+  forgotten before upgrading · **Data status:** earlier erasures may have left
+  derived rows.
+
+- **Memory operations stay inside one user and agent.** Dedup, consolidation,
+  contradiction detection and scoped search no longer cross users, agents or
+  embedding models, skip pinned memories, and return in-scope matches a row
+  limit used to drop. Updating a missing memory is an error. **Affected:**
   multi-user or multi-agent stores · **Action:** upgrade ·
   **Data status:** none.
-- **Contradiction detection is scoped.** Candidates come from the backend's
-  vector search within the writer's tenancy and embedding space; an unscoped
-  write never supersedes. A replacement inherits the old row's user and agent.
-  **Affected:** multi-user or multi-agent stores · **Action:** upgrade ·
+
+- **Sync and queues hold up under interruption and concurrency.** An
+  interrupted PostgreSQL sync no longer advances past rows it did not store,
+  and concurrent writers no longer lose queue retry counts. A fact-enrichment
+  run that finds no facts is not repeated every pass (SQLite migration 060).
+  **Affected:** PostgreSQL sync; fact enrichment · **Action:** upgrade (the
+  migration runs on first open) · **Data status:** none.
+
+- **Setup never overwrites a file it cannot read.** Uninstall, the settings
+  writers and the Hermes provider refuse a malformed `settings.json` or
+  `m3.json` instead of replacing it; `m3 doctor` exit codes follow its
+  verdict; Windows permission hints name the user. **Affected:** all installs ·
+  **Action:** none · **Data status:** none.
+
+- **Embedding settings changed at runtime take effect**, and the embed sweep
+  says whether a batch failed for want of a vector, a dimension mismatch or a
+  write error. **Affected:** all installs · **Action:** none ·
   **Data status:** none.
-- **Scoped search returns in-scope matches** the row limit used to cut off,
-  including SQLite keyword search. **Affected:** scoped searches · **Action:**
-  upgrade · **Data status:** none.
-- **`memory_update` of a missing id is an error**; content changes recompute
-  `content_hash` and pass the write content gate. **Affected:** all installs ·
-  **Action:** upgrade · **Data status:** none.
-- **Sync watermarks are stored after the commit**, and both merge paths share
-  one guard. **Affected:** PostgreSQL sync · **Action:** upgrade ·
-  **Data status:** none.
-- **Spill files drain**, chatlog hooks run their `.py` scripts, and the
-  watchdog honours a paused loop. **Affected:** chatlog capture · **Action:**
-  upgrade · **Data status:** none.
-- **Uninstall and settings writers refuse a malformed `settings.json`**
-  instead of replacing it; `m3 doctor` exit codes follow its verdict.
-  **Affected:** all installs · **Action:** upgrade · **Data status:** none.
-- **Windows icacls hints name the user.** `%USERNAME%` stayed literal in
-  PowerShell. **Affected:** Windows · **Action:** none · **Data status:** none.
-- **A fact-enrichment run that yields no facts is not repeated every pass.**
-  SQLite gains `fact_enrichment_queue.status` (migration 060), as PostgreSQL
-  has. **Affected:** SQLite installs with fact enrichment · **Action:** upgrade
-  (the migration runs on first open) · **Data status:** none.
-- **Queue attempt counters no longer lose increments** under concurrent
-  PostgreSQL writers. **Affected:** PostgreSQL · **Action:** upgrade ·
-  **Data status:** none.
-- **Embedding settings changed at runtime take effect** (token ceiling, chunk
-  sizes, bulk chunk, entity-name cache bound) instead of the import-time value.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-- **The embed sweep says why a batch stored nothing:** no vector, wrong
-  dimension, or a failed write (it reported every case as "no usable vector").
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-- **Hermes `m3.json` is not overwritten when it cannot be parsed.**
-  **Affected:** Hermes users · **Action:** none · **Data status:** none.
 
 - **Embedder and HTTP failures say what happened.** Tier-2 probes (doctor,
   `embedder_status`, the shared-embedder check, the watchdog) tell refused,
@@ -801,25 +783,22 @@ the policy is forward-going only.
 
 ### Changed
 
-- **`memory_consolidate` previews by default** (`dry_run` defaults to true) and
-  requires `agent_filter`; `memory_consolidate` and `memory_dedup` are marked
-  destructive. **Affected:** callers of `memory_consolidate` · **Action:** pass
-  `agent_filter` and `dry_run=false` to apply · **Data status:** none.
+- **Destructive operations need an explicit target.** `memory_consolidate`
+  previews unless `dry_run=false` and requires `agent_filter`;
+  `memory_consolidate` and `memory_dedup` are marked destructive;
+  `migrate_memory.py down` requires `--target` (`main`, `chatlog` or
+  `dispatch`); `enrich_pending` over MCP refuses to apply when no fact enricher
+  is configured. **Affected:** scripts and agents calling these · **Action:**
+  pass the target (and `dry_run=false` to apply) · **Data status:** none.
+
 - **An empty, whitespace or `*` query lists memories by their filters**
   (`memory_search`, `memory_search_scored`), ordered by importance then
-  recency. **Affected:** callers passing an empty query · **Action:** none ·
-  **Data status:** none.
-- **`migrate_memory.py down` requires `--target`** (`main`, `chatlog` or
-  `dispatch`). **Affected:** rollback scripts · **Action:** add `--target` ·
-  **Data status:** none.
-- **`enrich_pending` with `dry_run=false` over MCP returns an error** when no
-  fact enricher is configured. **Affected:** MCP callers of `enrich_pending` ·
-  **Action:** none · **Data status:** none.
-- **The Windows cognitive-loop task no longer passes `--background`.**
-  **Affected:** Windows · **Action:** run `m3 schedules repair` from an
-  elevated shell after upgrading · **Data status:** none.
-- **The env-access scanner covers root `install_os.py`** and skips its staged
-  copy. **Affected:** contributors · **Action:** none · **Data status:** none.
+  recency, instead of returning nothing. **Affected:** callers passing an empty
+  query · **Action:** none · **Data status:** none.
+
+- **Windows: the cognitive-loop scheduled task changed.** **Affected:**
+  Windows · **Action:** run `m3 schedules repair` from an elevated shell after
+  upgrading · **Data status:** none.
 
 - **The notification waiter blocks on the dispatch doorbell when the core has it.**
   With a core that ships `m3-dispatchd` and `m3-wait`, the waiter starts the
