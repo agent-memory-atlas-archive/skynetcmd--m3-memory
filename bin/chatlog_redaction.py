@@ -52,11 +52,60 @@ def _rust_debug_str(value: object) -> str:
     return json.dumps(str(value), ensure_ascii=False)
 
 
+_CUSTOM_ERROR_PREFIX = "custom_regex compilation error: "
+
+
+def _unknown_group_error(i: int, name: object) -> str:
+    """THE wording of an unknown-group config error (same as m3-redact)."""
+    return (
+        f"unknown redaction pattern group {_rust_debug_str(name)} (patterns[{i}]); it redacts "
+        f"nothing. Known groups: {', '.join(_EVALUATION_ORDER)}"
+    )
+
+
+def _custom_regex_error(i: int, n_chars: int, kind: str) -> str:
+    """THE wording of a bad custom_regex (same as m3-redact). Never the pattern
+    text, nor the regex engine's message, which quotes it: a custom regex is
+    often the secret it is meant to catch."""
+    return f"{_CUSTOM_ERROR_PREFIX}custom_regex[{i}] ({n_chars} chars): {kind}; the entry is skipped"
+
+
+_SAFE_CUSTOM_ERROR = re.compile(re.escape(_CUSTOM_ERROR_PREFIX) + r"custom_regex\[\d+\] \(\d+ chars\): ")
+
+
+def _withhold_patterns(errors: list[str], config: dict | None) -> list[str]:
+    """Native compile errors in the safe wording. A Rust core older than the
+    m3-redact fix quotes the bad pattern and does not report unknown groups;
+    measured by the message shape, not the core's version."""
+    config = config or {}
+    custom = [p for p in (config.get("custom_regex") or []) if isinstance(p, str)]
+    out = []
+    for e in errors:
+        if e.startswith(_CUSTOM_ERROR_PREFIX) and not _SAFE_CUSTOM_ERROR.match(e):
+            hits = [i for i, p in enumerate(custom) if p and e.startswith(f"{_CUSTOM_ERROR_PREFIX}{p}")]
+            if hits:
+                i = max(hits, key=lambda j: len(custom[j]))  # the longest pattern that prefixes it
+                kind = "invalid regex syntax" if "parse error" in e else "regex error"
+                out.append(_custom_regex_error(i, len(custom[i]), kind))
+            else:
+                out.append(f"{_CUSTOM_ERROR_PREFIX}an entry failed to compile (text withheld); the entry is skipped")
+        else:
+            out.append(e)
+    if config.get("enabled") and not any(e.startswith("unknown redaction pattern group") for e in out):
+        unknown = [
+            _unknown_group_error(i, n) for i, n in enumerate(config.get("patterns") or []) if n not in _EVALUATION_ORDER
+        ]
+        out = unknown + out
+    return out
+
+
 # Module-scope compiled patterns cache
 _COMPILED: dict[str, list[re.Pattern]] = {}
 _LAST_CONFIG_HASH: str | None = None
 _COMPILE_ERRORS: list[str] = []
 _COMPILE_LOCK = threading.Lock()
+# The config of the last scrub() the Rust core handled, for _withhold_patterns.
+_LAST_NATIVE_CONFIG: dict | None = None
 
 
 # ── Harness-framing strip (always-on, independent of secret redaction) ────────
@@ -117,7 +166,7 @@ def get_compile_errors() -> list[str]:
     call. Empty list if all patterns compiled cleanly. When the Rust core handled
     the last scrub(), returns the Rust core's compile errors instead."""
     if m3_core_rs is not None:
-        return list(m3_core_rs.redaction_compile_errors())
+        return _withhold_patterns(list(m3_core_rs.redaction_compile_errors()), _LAST_NATIVE_CONFIG)
     with _COMPILE_LOCK:
         return list(_COMPILE_ERRORS)
 
@@ -152,10 +201,7 @@ def compile_patterns(config: dict) -> None:
         # config error, worded exactly as the Rust core (m3-redact) does.
         for i, name in enumerate(patterns):
             if name not in _EVALUATION_ORDER:
-                msg = (
-                    f"unknown redaction pattern group {_rust_debug_str(name)} (patterns[{i}]); it redacts "
-                    f"nothing. Known groups: {', '.join(_EVALUATION_ORDER)}"
-                )
+                msg = _unknown_group_error(i, name)
                 logger.warning(msg)
                 _COMPILE_ERRORS.append(msg)
 
@@ -267,14 +313,8 @@ def compile_patterns(config: dict) -> None:
                 try:
                     custom_compiled.append((pattern_str, re.compile(pattern_str)))
                 except (re.error, RecursionError, OverflowError) as e:
-                    # Never the pattern text (nor re.error's message, which
-                    # quotes position context): a custom regex is often the
-                    # secret it is meant to catch. Same wording as m3-redact.
                     kind = "invalid regex syntax" if isinstance(e, re.error) else "regex error"
-                    msg = (
-                        f"custom_regex compilation error: custom_regex[{i}] ({len(pattern_str)} chars): "
-                        f"{kind}; the entry is skipped"
-                    )
+                    msg = _custom_regex_error(i, len(pattern_str), kind)
                     logger.warning(msg)
                     _COMPILE_ERRORS.append(msg)
             if custom_compiled:
@@ -304,6 +344,8 @@ def scrub(content: str, config: dict) -> tuple[str, int, list[str]]:
     The kill-switch (M3_CORE_RS_DISABLE=1) forces the Python path.
     """
     if m3_core_rs is not None:
+        global _LAST_NATIVE_CONFIG
+        _LAST_NATIVE_CONFIG = config
         return m3_core_rs.scrub(content, config)
     return _scrub_python(content, config)
 

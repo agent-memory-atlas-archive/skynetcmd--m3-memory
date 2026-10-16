@@ -9,7 +9,6 @@ Deterministic: the helpers are pure list transforms over synthetic ranked data
 from __future__ import annotations
 
 import asyncio
-import importlib
 import os
 import sqlite3
 import sys
@@ -63,12 +62,14 @@ def test_obs_preference_noop_without_observations(monkeypatch):
 # ── _apply_two_stage_expansion ───────────────────────────────────────────────
 @pytest.fixture
 def tmp_memory_db(tmp_path, monkeypatch):
+    from conftest import create_full_main_schema
+
+    # The real schema: the expansion's tenancy filter reads user_id, scope and
+    # the validity columns, and a hand-built table made it fail (and the
+    # expansion silently skip) whenever an earlier test left tenancy config set.
     db = tmp_path / "agent_memory.db"
+    create_full_main_schema(db)
     conn = sqlite3.connect(db)
-    conn.execute(
-        "CREATE TABLE memory_items (id TEXT PRIMARY KEY, content TEXT, title TEXT, "
-        "type TEXT, importance REAL, is_deleted INTEGER DEFAULT 0)"
-    )
     conn.executemany(
         "INSERT INTO memory_items(id, content, title, type, importance) VALUES (?,?,?,?,?)",
         [("turnA", "verbatim turn A", "A", "message", 0.5), ("turnB", "verbatim turn B", "B", "message", 0.5)],
@@ -76,9 +77,6 @@ def tmp_memory_db(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     pin_database(str(db))
-    # A deliberately partial schema the migrator cannot upgrade (a failed lazy
-    # migration now raises): skip it, as M3_SKIP_MIGRATIONS did.
-    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     return db
 
 

@@ -21,6 +21,13 @@ the policy is forward-going only.
 
 ### Security
 
+- **A bad custom redaction regex is never quoted back.** With the native
+  core, `m3 chatlog status` showed the text of a `custom_regex` that failed to
+  compile; it now names the entry's position and length only, and reports an
+  unknown pattern group. **Affected:** installs with the native core and a
+  custom redaction regex that does not compile · **Action:** none ·
+  **Data status:** none.
+
 - **The dashboard and MCP proxy refuse unauthenticated network binds.** The
   dashboard refuses a non-loopback bind when its token cannot be resolved or
   decrypted or the auth module fails to load (it served without auth); on
