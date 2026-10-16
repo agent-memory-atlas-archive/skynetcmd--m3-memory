@@ -163,7 +163,10 @@ def test_an_exported_git_dir_really_redirects_git_in_another_worktree(tmp_path):
     git("add", "f.txt")
     git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "old")
     git("worktree", "add", "-q", "--detach", str(wt), "HEAD")
-    (repo / "f.txt").write_text("new\n", encoding="utf-8")
+    # A different SIZE, not just different bytes: with equal size and mtime git
+    # may trust the index's stat data and skip reading the file (no inode on
+    # Windows), and the diff came back empty in one Windows lane.
+    (repo / "f.txt").write_text("a newer, longer line\n", encoding="utf-8")
     git("add", "f.txt")  # the pushing worktree's index now differs from wt's commit
     hooked = {**os.environ, "GIT_DIR": str(repo / ".git")}
     assert "f.txt" in git("diff", "--name-only", cwd=wt, env=hooked), "inherited GIT_DIR read the other index"
