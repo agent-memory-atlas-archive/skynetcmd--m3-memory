@@ -64,8 +64,8 @@ def test_defaults_are_the_rust_defaults_and_derived_ones_are_unset():
         "embed.max_batch_tokens": None,
         "embed.server.streams": None,
         "embed.server.seq_max": 32,
-        "embed.server.n_batch": 2048,
-        "embed.server.n_ubatch": 512,
+        "embed.server.n_batch": None,  # follows embed.ctx (Rust 98036c4)
+        "embed.server.n_ubatch": None,
         "embed.server.coalesce_ms": 3,
         "embed.server.max_batch_tokens": 2048,
         "embed.server.remote_listen": None,

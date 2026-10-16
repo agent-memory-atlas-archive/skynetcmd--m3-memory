@@ -191,8 +191,8 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `interactive_reserved` | integer | `1` | `M3_EMBED_SERVER_INTERACTIVE_RESERVED` | restart to apply; Slots reserved for interactive (search) requests. |
 | `max_batch` | integer | `2048` | `M3_EMBED_SERVER_MAX_BATCH` | restart to apply; Texts per server batch. |
 | `max_batch_tokens` | integer | `2048` | (none) | restart to apply; m3-embed-server: the dispatcher's coalescing ceiling in tokens. |
-| `n_batch` | integer | `2048` | (none) | restart to apply; m3-embed-server: llama.cpp batch tokens; the core raises a value below embed.ctx to embed.ctx. |
-| `n_ubatch` | integer | `512` | (none) | restart to apply; m3-embed-server: llama.cpp micro-batch tokens; the core raises a value below embed.ctx to embed.ctx. |
+| `n_batch` | integer | (none) | (none) | restart to apply; m3-embed-server: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe value); a value below embed.ctx is raised to it. |
+| `n_ubatch` | integer | (none) | (none) | restart to apply; m3-embed-server: llama.cpp micro-batch tokens. Unset: embed.ctx (the only encoder-safe value); a value below embed.ctx is raised to it. |
 | `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server, as a u16). |
 | `remote_listen` | string | (none) | (none) | restart to apply; m3-embed-server: address (ip or ip:port) of the TLS listener for other machines; unset = loopback only. Set by `m3 embedder secure`; needs tls_cert, tls_key and the M3_EMBED_SERVER_TOKEN_SHA256 secret. |
 | `seq_max` | integer | `32` | (none) | restart to apply; m3-embed-server: sequences packed into one decode call. |

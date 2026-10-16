@@ -307,19 +307,17 @@ EMBED: list[Key] = [
         hi=4096,
     ),
     _int("embed.server.seq_max", (), 32, "m3-embed-server: sequences packed into one decode call.", hi=2**32 - 1),
-    _int(
+    _int_derived(
         "embed.server.n_batch",
         (),
-        2048,
-        "m3-embed-server: llama.cpp batch tokens; the core raises a value below embed.ctx to embed.ctx.",
-        hi=2**32 - 1,
+        "m3-embed-server: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe value); "
+        "a value below embed.ctx is raised to it.",
     ),
-    _int(
+    _int_derived(
         "embed.server.n_ubatch",
         (),
-        512,
-        "m3-embed-server: llama.cpp micro-batch tokens; the core raises a value below embed.ctx to embed.ctx.",
-        hi=2**32 - 1,
+        "m3-embed-server: llama.cpp micro-batch tokens. Unset: embed.ctx (the only encoder-safe value); "
+        "a value below embed.ctx is raised to it.",
     ),
     _int(
         "embed.server.coalesce_ms",

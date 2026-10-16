@@ -594,13 +594,11 @@
             },
             "n_batch": {
               "type": "integer",
-              "description": "m3-embed-server: llama.cpp batch tokens; the core raises a value below embed.ctx to embed.ctx.",
-              "default": 2048
+              "description": "m3-embed-server: llama.cpp batch tokens. Unset: embed.ctx (the only encoder-safe value); a value below embed.ctx is raised to it."
             },
             "n_ubatch": {
               "type": "integer",
-              "description": "m3-embed-server: llama.cpp micro-batch tokens; the core raises a value below embed.ctx to embed.ctx.",
-              "default": 512
+              "description": "m3-embed-server: llama.cpp micro-batch tokens. Unset: embed.ctx (the only encoder-safe value); a value below embed.ctx is raised to it."
             },
             "port": {
               "type": "integer",

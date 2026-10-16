@@ -212,44 +212,25 @@ def run(brief: bool = False) -> int:
     env = childenv.child_env()
     env.setdefault("GGML_LOG_LEVEL", "4")  # an operator-set value is inherited and kept
     try:
-        # In brief mode, capture (and discard) the subprocess's own noisy output;
-        # we only report pass/fail from its exit code as a single line.
-        # `doctor` does not exist on every build of this binary. Measured
-        # 2026-09-12 against m3_core_rs 3.9.7: `m3-embed-server doctor` prints
-        # USAGE and exits 2, while `status` works and reports
-        # running/stopped/not installed. Treating that rc 2 as a health FAILURE
-        # reported a fine install as broken -- the same false alarm #167 is
-        # about, one layer down. Probe the subcommand instead of assuming it.
-        sub = "doctor"
-        probe = subprocess.run(
-            [exe, "doctor"],
+        # `status`, the one health verb every build has (no build ships a
+        # `doctor` subcommand; asking for one printed USAGE, exit 2, and read as a
+        # broken install). It reports running / stopped / not installed. Captured
+        # in both modes: an uncaptured child writes straight to the terminal,
+        # ahead of this process's buffered section header.
+        from pathlib import Path
+
+        from m3_memory.embedder_admin import _service_verb_argv
+
+        sub = "status"
+        r = subprocess.run(
+            _service_verb_argv(Path(exe), "status"),  # with --config where the binary reads m3_config.toml
             capture_output=True,
             text=True,
             timeout=TIMEOUT_SECS,
             env=env,
         )
-        if probe.returncode != 0 and "USAGE" in (probe.stdout or "") + (probe.stderr or ""):
-            sub = "status"
-            # Captured in both modes: an uncaptured child writes straight to the
-            # terminal, ahead of this process's buffered section header.
-            from pathlib import Path
-
-            from m3_memory.embedder_admin import _service_verb_argv
-
-            r = subprocess.run(
-                _service_verb_argv(Path(exe), "status"),  # with --config where the binary reads m3_config.toml
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUT_SECS,
-                env=env,
-            )
-            if not brief:
-                print(f"  status   : {(r.stdout or r.stderr or '').strip() or '(no output)'}")
-        else:
-            r = probe
-            if not brief:
-                # The probe already consumed the output; re-emit it.
-                print(r.stdout or "", end="")
+        if not brief:
+            print(f"  status   : {(r.stdout or r.stderr or '').strip() or '(no output)'}")
 
         if brief:
             if r.returncode == 0:
