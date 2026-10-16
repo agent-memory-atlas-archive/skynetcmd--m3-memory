@@ -246,7 +246,10 @@ def fast_embedder_available() -> bool:
         return True
     # Tier-2 healthy? A closed/half-open breaker means we'd try the CPU HTTP
     # service (bounded by its read timeout), not skip straight to tier-3.
-    if _CPU_FALLBACK_BREAKER is not None and _CPU_FALLBACK_BREAKER.allow_request():
+    # state(), never allow_request(): allow_request() claims the single
+    # half-open probe, and a predictor holding it leaves the real call refused
+    # with no outcome recorded, so tier 2 would never recover.
+    if _CPU_FALLBACK_BREAKER is not None and _CPU_FALLBACK_BREAKER.state() != "open":
         # Only meaningful if a fallback URL is actually configured; otherwise
         # tier-2 is a no-op and we'd still cascade.
         return bool(getattr(config, "EMBED_FALLBACK_URL", "") or _EMBED_FALLBACK_URL)

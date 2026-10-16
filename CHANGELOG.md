@@ -99,6 +99,13 @@ the policy is forward-going only.
   verdict; Windows permission hints name the user. **Affected:** all installs ·
   **Action:** none · **Data status:** none.
 
+- **The CPU embedder (tier 2) comes back after an outage.** Once its breaker
+  had opened, a background check could take the single retry slot meant for
+  the next real embed, and tier 2 then stayed off until m3 restarted.
+  **Affected:** installs using the shared CPU embedder · **Action:** none ·
+  **Data status:** rows written meanwhile without a vector are filled by
+  `m3 embedder backfill`.
+
 - **Embedding settings changed at runtime take effect**, and the embed sweep
   says whether a batch failed for want of a vector, a dimension mismatch or a
   write error. **Affected:** all installs · **Action:** none ·
