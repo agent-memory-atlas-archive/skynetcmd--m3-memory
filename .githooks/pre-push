@@ -199,7 +199,10 @@ then
       else
         tmp_wt="$(mktemp -d)"
         git worktree add -q --detach "$tmp_wt" "$tip" >/dev/null 2>&1 || { echo "[pre-push] cannot check out $tip to check drift" >&2; exit 1; }
-        (cd "$tmp_wt" && "$PY" bin/check_tool_catalog_drift.py) || drift_rc=1
+        # Git exports GIT_DIR (and friends) to hooks. Left set, every git call in
+        # the temporary checkout reads the PUSHING worktree's index instead, so
+        # the check diffed the pushed commit against a newer one and blocked it.
+        (unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX; cd "$tmp_wt" && "$PY" bin/check_tool_catalog_drift.py) || drift_rc=1
         git worktree remove --force "$tmp_wt" >/dev/null 2>&1
       fi
     done

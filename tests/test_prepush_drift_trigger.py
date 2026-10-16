@@ -26,6 +26,8 @@ import subprocess
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _HOOK = _ROOT / ".githooks" / "pre-push"
 
@@ -124,3 +126,46 @@ def test_every_bin_script_actually_arms_the_gate():
             if not _fires(rel):
                 missed.append(rel)
     assert not missed, f"scripts invisible to the drift gate: {missed}"
+
+
+def _temp_checkout_line() -> str:
+    lines = [ln for ln in _HOOK.read_text(encoding="utf-8").splitlines() if 'cd "$tmp_wt"' in ln]
+    assert len(lines) == 1, lines
+    return lines[0].strip()
+
+
+def test_the_temporary_checkout_does_not_inherit_the_hooks_git_dir():
+    """Git exports GIT_DIR to hooks. Inherited by the drift check in the temporary
+    checkout, `git diff` read the pushing worktree's index: pushing a commit
+    older than HEAD was blocked as "drift" by the newer commit's changes."""
+    line = _temp_checkout_line()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+        assert var in line.split(";")[0] and line.startswith("(unset "), f"{var} must be cleared: {line}"
+
+
+def test_an_exported_git_dir_really_redirects_git_in_another_worktree(tmp_path):
+    """The mechanism the test above guards, demonstrated: with GIT_DIR exported,
+    `git diff` in a second worktree compares against the first one's index."""
+    import os
+    import shutil
+
+    if not shutil.which("git"):
+        pytest.skip(skip_reason("env", "git is not on PATH"))
+    repo, wt = tmp_path / "repo", tmp_path / "wt"
+
+    def git(*a, cwd=repo, env=None):
+        return subprocess.run(["git", *a], cwd=cwd, env=env, capture_output=True, text=True, check=True).stdout
+
+    repo.mkdir()
+    git("init", "-q")
+    git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "base")
+    (repo / "f.txt").write_text("old\n", encoding="utf-8")
+    git("add", "f.txt")
+    git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "old")
+    git("worktree", "add", "-q", "--detach", str(wt), "HEAD")
+    (repo / "f.txt").write_text("new\n", encoding="utf-8")
+    git("add", "f.txt")  # the pushing worktree's index now differs from wt's commit
+    hooked = {**os.environ, "GIT_DIR": str(repo / ".git")}
+    assert "f.txt" in git("diff", "--name-only", cwd=wt, env=hooked), "inherited GIT_DIR read the other index"
+    clean = {k: v for k, v in hooked.items() if k != "GIT_DIR"}
+    assert git("diff", "--name-only", cwd=wt, env=clean).strip() == "", "the temporary checkout itself is clean"
