@@ -43,7 +43,12 @@ def stub_token(monkeypatch):
 
         return D
 
-    return _apply
+    yield _apply
+    # A test that rebuilt the app's middleware leaves it caching THIS test's
+    # gate (token required) for its TTL; the next test file's routes then 401.
+    import dashboard_server as D
+
+    D.app.middleware_stack = None
 
 
 def _middleware(D):

@@ -238,7 +238,9 @@ def test_the_default_follows_the_configured_server_port(m3_settings):
 
 def test_the_resolver_reads_the_legacy_file_and_says_a_malformed_one(m3_settings, monkeypatch, tmp_path, caplog):
     m3_settings()
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
+    from m3_core.seams import roots
+
+    monkeypatch.setattr(roots, "config_root", lambda: str(tmp_path))
     (tmp_path / ".embed_config.json").write_text('{"fallback_url": "http://127.0.0.1:7777"}', encoding="utf-8")
     assert t.fallback_url()[0] == "http://127.0.0.1:7777"
     (tmp_path / ".embed_config.json").write_text("{ not json", encoding="utf-8")
