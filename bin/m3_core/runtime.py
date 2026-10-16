@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from os import PathLike
 from typing import IO, Literal, Union, cast
 
-from m3_core.paths import getenv_compat
+from m3_core.config import settings as _m3cfg
 
 try:
     from dotenv import load_dotenv
@@ -125,12 +125,14 @@ def ensure_utf8() -> None:
         pass
 
 
-# Single source of truth for the local LLM base URL + read timeout. Bridges
-# import this from here instead of redefining it in each bridge.
-# Still overridable via env so dev machines with LM Studio on a
-# different port (or a remote Ollama) work without code edits.
-LM_STUDIO_BASE = os.environ.get("LM_STUDIO_BASE", "http://localhost:1234/v1")
-LM_READ_TIMEOUT = float(getenv_compat("M3_LM_READ_TIMEOUT", "LM_READ_TIMEOUT", "4800.0"))
+# The local LLM base URL + read timeout, for bridges that import them from here
+# instead of redefining them. Registry keys llm.lmstudio_base (env alias
+# LM_STUDIO_BASE) and llm.read_timeout_s (env aliases M3_LM_READ_TIMEOUT,
+# LM_READ_TIMEOUT). Bound once at import: they are public module constants
+# (m3_sdk re-exports both); a reader that must follow an edited file calls
+# m3_core.config.settings.setting() itself.
+LM_STUDIO_BASE: str = str(_m3cfg.setting("llm.lmstudio_base"))
+LM_READ_TIMEOUT: float = float(_m3cfg.setting("llm.read_timeout_s"))
 
 
 class StructuredLogger:

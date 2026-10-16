@@ -82,7 +82,8 @@ FILES_DEFAULT_CORPUS: str = _m3cfg.setting("files.default_corpus")
 
 # Default scope for promoted-to-memory items. Plan §14 Q3: "user" because
 # file content is generally personal-knowledge shaped, not agent-private.
-FILES_DEFAULT_SCOPE: str = os.environ.get("M3_FILES_DEFAULT_SCOPE", "user")
+# RETIRED (keys.RETIRED, user 2026-10-09): no reader; kept for importers. Env has no effect.
+FILES_DEFAULT_SCOPE: str = "user"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -109,12 +110,14 @@ DEFAULT_EXTRACT_MODE: str = _m3cfg.setting("files.default_extract_mode")
 # Per-leaf concurrency for inline extraction. Higher = faster but more
 # memory + more pressure on the LLM endpoint. 2 is conservative; 4 fine
 # on a local LM Studio / Ollama server.
-EXTRACT_CONCURRENCY: int = int(os.environ.get("M3_FILES_EXTRACT_CONCURRENCY", "2"))
+# RETIRED (keys.RETIRED, user 2026-10-09): no reader; kept for importers. Env has no effect.
+EXTRACT_CONCURRENCY: int = 2
 
 # Max attempts per leaf when extraction fails (transient errors). After
 # this many failures the leaf is marked extraction_status='failed' and
 # surfaced in staleness review.
-EXTRACT_MAX_ATTEMPTS: int = int(os.environ.get("M3_FILES_EXTRACT_MAX_ATTEMPTS", "2"))
+# RETIRED (keys.RETIRED, user 2026-10-09): no reader; kept for importers. Env has no effect.
+EXTRACT_MAX_ATTEMPTS: int = 2
 
 # Min characters in a leaf for extraction to be attempted. Tiny leaves
 # rarely contain extractable facts; skip them to save LLM calls.
@@ -134,10 +137,15 @@ PROMOTION_DEFAULT_SCOPE: str = _m3cfg.setting("files.promotion_scope")
 #   M3_MEMORY_DB (explicit core-DB override)  >  m3_sdk core default
 #     (M3_MEMORY_ROOT/memory/agent_memory.db, env-M3_DATABASE-independent).
 # Set M3_MEMORY_DB only if your core store isn't at the default location.
+def _memory_db_env() -> str | None:
+    """The legacy ``M3_MEMORY_DB`` (config.stores.LEGACY_LOCATORS), read in one place."""
+    return os.environ.get("M3_MEMORY_DB") or None
+
+
 def memory_db_path() -> str:
     """Absolute path to the CORE memory DB (agent_memory.db). Independent of
     M3_DATABASE so it stays correct while M3_DATABASE points at the files DB."""
-    explicit = os.environ.get("M3_MEMORY_DB")
+    explicit = _memory_db_env()
     if explicit:
         return canonical_path(expand_user(explicit))
     from m3_sdk import _default_db_path
@@ -147,7 +155,7 @@ def memory_db_path() -> str:
 
 # Back-compat: some callers read the module attribute. Honors M3_MEMORY_DB if set
 # at import time; otherwise None means "resolve via memory_db_path() at call time".
-MEMORY_DB_PATH: str | None = os.environ.get("M3_MEMORY_DB")
+MEMORY_DB_PATH: str | None = _memory_db_env()
 
 
 # ──────────────────────────────────────────────────────────────────────────────

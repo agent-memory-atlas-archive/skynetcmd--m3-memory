@@ -19,11 +19,19 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 # 2026-10-11 (re-baseline at 7687acd3): 611 production violations, 1080 test writes.
 # 2026-10-16: 116 = 109 + the 7 in install_os.py, which ships in the wheel but
 # was never scanned (check_env_access.ROOT_FILES). Not new readers.
-_BUDGET = 116
+# 2026-10-16: 51 after the readers of registry keys moved to the registry, the
+# retired knobs became literals, and the crypto readers moved (separate change).
+_BUDGET = 51
 # Sites marked `# env-owner: <why>`: reading env is
 # their job (root locators, the legacy-name shim, the doctor/import-env scanners).
-_OWNER_BUDGET = 41
-_TESTS_BUDGET = 599
+# 2026-10-16: 60 = 41 + 19 reviewed: payload/root locators (install_os, installer,
+# _bin, chatlog_timing, doctor's root report), the M3_DATABASE and chatlog
+# legacy-name shims, setup_memory's bootstrap, the waiter without m3_core, and
+# install_os naming a secret left in the environment.
+_OWNER_BUDGET = 60
+# 2026-10-16: 595 (crypto tests moved to the config file; one setenv dropped, one
+# added: install_os must name, never store, a master key seen only in env).
+_TESTS_BUDGET = 595
 
 
 def _cea():

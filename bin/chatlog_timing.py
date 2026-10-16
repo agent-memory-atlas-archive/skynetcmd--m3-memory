@@ -52,6 +52,7 @@ def _find_bin() -> str | None:
     here = os.path.dirname(os.path.abspath(__file__))
     cands = [
         here,
+        # env-owner: the payload locator: it finds bin/ before m3_core (and the registry) can import
         os.environ.get("M3_PATH_BIN") or "",
         os.path.expanduser("~/.m3-dev/m3-memory/bin"),
         os.path.expanduser("~/pipx/venvs/m3-memory/Lib/site-packages/m3_memory/bin"),

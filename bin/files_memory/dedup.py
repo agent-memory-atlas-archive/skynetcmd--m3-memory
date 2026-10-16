@@ -49,11 +49,10 @@ logger = logging.getLogger("files_memory.dedup")
 # ──────────────────────────────────────────────────────────────────────────────
 # Tunables
 # ──────────────────────────────────────────────────────────────────────────────
-import os as _os
-
-DEFAULT_THRESHOLD: float = float(_os.environ.get("M3_FILES_DEDUP_THRESHOLD", "0.92"))
-DEFAULT_MAX_PAIRS: int = int(_os.environ.get("M3_FILES_DEDUP_MAX_PAIRS", "500"))
-DEFAULT_LEAF_LIMIT: int = int(_os.environ.get("M3_FILES_DEDUP_LEAF_LIMIT", "10000"))
+# RETIRED (keys.RETIRED, user 2026-10-09): every caller passes its own value; kept for importers. Env has no effect.
+DEFAULT_THRESHOLD: float = 0.92
+DEFAULT_MAX_PAIRS: int = 500
+DEFAULT_LEAF_LIMIT: int = 10000
 
 
 def _cosine_packed(a_bytes: bytes, b_bytes: bytes, dim: int) -> float:

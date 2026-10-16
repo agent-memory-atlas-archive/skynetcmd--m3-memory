@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import logging
 import math
-import os
 import sqlite3
 from datetime import UTC, datetime
 from itertools import batched
@@ -41,9 +40,10 @@ from .db import _db
 logger = logging.getLogger("files_memory.promotability")
 
 
-# Tunables (env-overridable so deployments can dial them without code).
+# Tunables.
 DEFAULT_HALF_LIFE_DAYS: float = _m3cfg.setting("files.promo_half_life_days")
-DEFAULT_SUGGEST_THRESHOLD: float = float(os.environ.get("M3_FILES_PROMO_SUGGEST_THRESHOLD", "0.30"))
+# RETIRED (keys.RETIRED, user 2026-10-09): every caller passes its own value; kept for importers. Env has no effect.
+DEFAULT_SUGGEST_THRESHOLD: float = 0.30
 
 
 def record_leaf_hits(

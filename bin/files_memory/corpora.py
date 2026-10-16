@@ -11,7 +11,7 @@ by `file_nodes.corpus_id`. Per-corpus defaults live in the
   - corpus_delete:   remove a corpus + cascade-delete its file_nodes
                      (DANGEROUS — opt-in via cascade=True; default refuses
                      when files exist)
-  - resolve_default_corpus: cli flag > env > corpus_settings.default >
+  - resolve_default_corpus: cli flag > corpus_settings.default >
                             global default
 
 Per-corpus settings (free-form JSON, recognized keys):
@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from itertools import batched
 from typing import cast
@@ -68,15 +67,13 @@ def resolve_default_corpus(
 ) -> str:
     """Resolution order:
     1. cli_corpus arg (explicit)
-    2. M3_FILES_CORPUS env var
-    3. corpus_settings row with settings.default == true
-    4. config.FILES_DEFAULT_CORPUS (typically 'default')
+    2. corpus_settings row with settings.default == true
+    3. config.FILES_DEFAULT_CORPUS (registry key files.default_corpus)
+
+    M3_FILES_CORPUS is RETIRED (keys.RETIRED, user 2026-10-09): no effect.
     """
     if cli_corpus:
         return cli_corpus
-    env = os.environ.get("M3_FILES_CORPUS", "").strip()
-    if env:
-        return env
     try:
         from memory.backends import dialect as _dialect
 

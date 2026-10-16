@@ -36,6 +36,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def get_m3_root() -> str:
     """Returns the M3 root directory for user state (~/.m3-memory)."""
+    # env-owner: the root locator of a stdlib-only pre-install script (config lives under a root)
     root = os.getenv("M3_MEMORY_ROOT")
     if root:
         # Do NOT abspath a root that is already absolute: os.path.abspath only
@@ -80,7 +81,7 @@ LOGS_DIR = os.path.join(M3_ROOT, "logs")
 REQ_FILE = os.path.join(BASE_DIR, "requirements.txt")
 
 
-def run_cmd(cmd, env=None, *, optional=False, label=None):
+def run_cmd(cmd, env=None, *, optional=False, label=None, stdin_text=None):
     """Run a command. Aborts the install on failure unless ``optional``.
 
     ``optional=True`` is for steps whose failure does not break the install:
@@ -93,9 +94,16 @@ def run_cmd(cmd, env=None, *, optional=False, label=None):
     turned it into "OS setup failed (code 1)" on a routine Windows upgrade. A
     scary error for a step that changes nothing teaches users to ignore the
     next one, which might be real.
+
+    ``stdin_text`` is written to the child's stdin: the channel for a secret,
+    which must not travel in argv or the child's environment.
     """
-    print(f"Running: {' '.join(cmd)}")
+    print(f"Running: {label or ' '.join(cmd)}" if stdin_text is not None else f"Running: {' '.join(cmd)}")
     extra_kw = {}
+    if stdin_text is not None:
+        extra_kw["input"] = stdin_text
+        if not optional:  # optional already passes text=True
+            extra_kw["text"] = True
     if sys.platform == "win32":
         si = subprocess.STARTUPINFO()
         si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -116,6 +124,36 @@ def run_cmd(cmd, env=None, *, optional=False, label=None):
     return True
 
 
+# Run in the target interpreter, where the payload's dependencies are installed.
+# The key arrives on stdin, never in the child's environment or argv (both are
+# readable by other processes of the same user); argv[1] is the payload's bin/.
+# m3_core.secret_store is the one owner of storing a secret: it writes the OS
+# keyring (service "system"), verifies the read-back, and points the secrets file
+# at the entry. Its errors name what failed, never the value.
+_STORE_MASTER_KEY = """
+import sys
+sys.path.insert(0, sys.argv[1])
+value = sys.stdin.read().strip()
+try:
+    from m3_core import secret_store
+    where = secret_store.store_in_keyring("AGENT_OS_MASTER_KEY", value)
+    print("Saved AGENT_OS_MASTER_KEY (" + where + ").")
+except Exception as e:
+    print("Failed to store AGENT_OS_MASTER_KEY: " + type(e).__name__ + ": " + str(e))
+    print("Store it later from a terminal: m3 secret set AGENT_OS_MASTER_KEY --keyring")
+"""
+
+
+def _store_master_key(python_exe, master_key):
+    """Store the key through m3_core.secret_store in ``python_exe``. Non-fatal:
+    the install works without it, and the failure is printed with the fix."""
+    run_cmd(
+        [python_exe, "-c", _STORE_MASTER_KEY, os.path.join(BASE_DIR, "bin")],
+        stdin_text=master_key,
+        label="store AGENT_OS_MASTER_KEY",
+    )
+
+
 def setup_master_key(python_exe):
     """Prompts the user to configure the AGENT_OS_MASTER_KEY using the python keyring."""
     print("\n" + "=" * 50)
@@ -127,28 +165,24 @@ def setup_master_key(python_exe):
 
     # Non-interactive path (Claude Code Bash / SSH / CI): getpass() on a stdin
     # with no TTY raises EOFError, which used to abort the ENTIRE post-install
-    # (incl. later config regen). Never prompt without a TTY. If the key is in
-    # the env, store it silently; otherwise skip (it is already "press Enter to
-    # skip" for interactive users) and let the user configure it later.
+    # (incl. later config regen). Never prompt without a TTY: skip (it is already
+    # "press Enter to skip" for interactive users) and say how to store it later.
+    # A key seen only in this process's environment is NAMED, never stored: m3
+    # stores secrets from the console or from persistent places only
+    # (`m3 config import-env`), and never reads them from the environment.
     if not sys.stdin.isatty():
-        env_key = os.environ.get("AGENT_OS_MASTER_KEY", "").strip()
-        if env_key:
-            script = (
-                "import os, keyring\n"
-                "keyring.set_password('system', 'AGENT_OS_MASTER_KEY',"
-                " os.environ['AGENT_OS_MASTER_KEY'])\n"
-                "print('\\u2705 Saved AGENT_OS_MASTER_KEY to native OS keyring"
-                " (from environment).')\n"
+        # env-owner: names a secret still set in the environment (never reads or stores its value)
+        in_env = bool(os.environ.get("AGENT_OS_MASTER_KEY", "").strip())
+        print(
+            "Non-interactive session: skipping master key prompt."
+            + (
+                " AGENT_OS_MASTER_KEY is set in the environment, which m3 does not read or store for secrets."
+                if in_env
+                else ""
             )
-            env = os.environ.copy()
-            env["AGENT_OS_MASTER_KEY"] = env_key
-            run_cmd([python_exe, "-c", script], env=env)
-        else:
-            print(
-                "Non-interactive session: skipping master key prompt. "
-                "Set AGENT_OS_MASTER_KEY in the environment or run "
-                "`m3 setup` in a terminal to configure synced API keys later."
-            )
+            + " Store it later from a terminal: `m3 secret set AGENT_OS_MASTER_KEY --keyring` (prompts),"
+            " or `m3 config import-env` (moves it from your rc files, .env, MCP config and registry)."
+        )
         return
 
     while True:
@@ -159,23 +193,7 @@ def setup_master_key(python_exe):
 
         confirm_key = getpass.getpass("Confirm AGENT_OS_MASTER_KEY: ").strip()
         if master_key == confirm_key:
-            # We use the venv python to set the keyring so we know the module is available
-            script = """
-import os
-import keyring
-master_key = os.environ.get('AGENT_OS_MASTER_KEY')
-if not master_key:
-    print('❌ Master key not found in environment.')
-    exit(1)
-try:
-    keyring.set_password('system', 'AGENT_OS_MASTER_KEY', master_key)
-    print('✅ Successfully saved AGENT_OS_MASTER_KEY to native OS keyring!')
-except Exception as e:
-    print(f'❌ Failed to save to keyring: {e}')
-"""
-            env = os.environ.copy()
-            env["AGENT_OS_MASTER_KEY"] = master_key
-            run_cmd([python_exe, "-c", script], env=env)
+            _store_master_key(python_exe, master_key)
             break
         else:
             print("❌ Passwords do not match. Please try again.")

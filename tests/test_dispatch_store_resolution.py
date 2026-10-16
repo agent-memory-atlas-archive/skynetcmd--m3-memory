@@ -71,18 +71,26 @@ class TestStoreResolution(_CleanEnv):
         self.assertEqual(P.dispatch_store_mode(), "integrated")
         self.assertTrue(P.resolve_dispatch_db().endswith("agent_memory.db"))
 
-    def test_an_unrecognised_mode_falls_back_to_separate(self):
+    def test_an_unrecognised_mode_is_refused_never_integrated(self):
         """Never silently integrate on a typo: that would put ephemeral churn
-        into the permanent store, which is the outcome the split prevents."""
-        for bogus in ("hybrid", "Separate ", "", "yes"):
+        into the permanent store, which is the outcome the split prevents. The
+        registry key dispatch.mode refuses a value outside separate/integrated
+        (it used to fall back to separate silently); case and spaces are not typos."""
+        from m3_core.config import settings as st
+        from m3_core.config.resolve import ConfigEnvErrors
+
+        for ok in ("Separate ", "", " INTEGRATED"):
+            with self.subTest(mode=ok):
+                os.environ["M3_DISPATCH_MODE"] = ok
+                st._reset_for_tests()
+                self.assertEqual(P.dispatch_store_mode(), "integrated" if "INTEGRATED" in ok else "separate")
+        for bogus in ("hybrid", "yes"):
             with self.subTest(mode=bogus):
                 os.environ["M3_DISPATCH_MODE"] = bogus
-                self.assertTrue(
-                    P.resolve_dispatch_db().endswith("agent_dispatch.db"),
-                    f"observed: mode={bogus!r} resolved to the MAIN store\n"
-                    "possible: the mode comparison widened beyond 'integrated'\n"
-                    "inspect: dispatch_store_mode in bin/m3_core/paths.py",
-                )
+                st._reset_for_tests()
+                with self.assertRaises(ConfigEnvErrors):
+                    P.resolve_dispatch_db()
+        st._reset_for_tests()
 
     def test_an_explicit_path_wins(self):
         os.environ["M3_DISPATCH_DB"] = os.path.join("custom", "x.db")
@@ -92,8 +100,9 @@ class TestStoreResolution(_CleanEnv):
         """The chatlog has integrated/separate/hybrid; dispatch takes the first
         two. Hybrid exists there because chatlog_promote copies rows into
         canonical memory, and a delivery record has no equivalent."""
-        os.environ["M3_DISPATCH_MODE"] = "hybrid"
-        self.assertEqual(P.dispatch_store_mode(), "separate")
+        from m3_core.config import REGISTRY
+
+        self.assertEqual(REGISTRY.get("dispatch.mode").validate.choices, ("separate", "integrated"))
 
 
 class TestMigrationsDirIsCodeNotData(_CleanEnv):

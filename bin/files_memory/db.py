@@ -83,7 +83,9 @@ def _resolve_path(path: str | None) -> str:
         from m3_core.config.stores import files_db_path
 
         return files_db_path(store)
-    env = os.environ.get("M3_FILES_DB_PATH")
+    from m3_core.paths import configured_files_db
+
+    env = configured_files_db()
     if env:
         return canonical_path(env)
     return config.FILES_DB_PATH

@@ -437,9 +437,15 @@ def _roots_section() -> None:
     mem = get_m3_root()
     cfg_root = get_m3_config_root()
     eng_root = get_m3_engine_root()
-    print(f"  memory root (repo/state): {mem}  {_src('M3_MEMORY_ROOT', '~/.m3-memory')}")
-    print(f"  config root:              {cfg_root}  {_src('M3_CONFIG_ROOT', '~/.m3/config')}")
-    print(f"  engine root (DBs):        {eng_root}  {_src('M3_ENGINE_ROOT', '~/.m3/engine')}")
+    # env-owner: doctor reports which root a pin set
+    mem_src = _src("M3_MEMORY_ROOT", "~/.m3-memory")
+    # env-owner: doctor reports which root a pin set
+    cfg_src = _src("M3_CONFIG_ROOT", "~/.m3/config")
+    # env-owner: doctor reports which root a pin set
+    eng_src = _src("M3_ENGINE_ROOT", "~/.m3/engine")
+    print(f"  memory root (repo/state): {mem}  {mem_src}")
+    print(f"  config root:              {cfg_root}  {cfg_src}")
+    print(f"  engine root (DBs):        {eng_root}  {eng_src}")
 
     # Engine DBs presence — the thing users actually care about.
     eng = Path(eng_root)

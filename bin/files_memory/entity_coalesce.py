@@ -35,7 +35,6 @@ returns + bulk review (§3).
 from __future__ import annotations
 
 import logging
-import os
 import re
 import sqlite3
 import time
@@ -67,11 +66,12 @@ def _route_dialect(explicit_path: str | None):
     return dialect_for("sqlite") if explicit_path is not None else _active_dialect()
 
 
-# ── Tunables (env-overridable, mirrors files_dedup) ──────────────────────────
+# ── Tunables (registry keys entity.coalesce.*) ──────────────────────────────
 AUTO_MERGE_COSINE: float = _m3cfg.setting("entity.coalesce.automerge_cosine")
 FLAG_COSINE: float = _m3cfg.setting("entity.coalesce.flag_cosine")
 FUZZY_HIGH: int = _m3cfg.setting("entity.coalesce.fuzzy_high")
-MAX_PAIRS: int = int(os.environ.get("M3_ENTITY_COALESCE_MAX_PAIRS", "1000"))
+# RETIRED (keys.RETIRED, user 2026-10-09): every caller passes its own value; kept for importers. Env has no effect.
+MAX_PAIRS: int = 1000
 MAX_BLOCK: int = _m3cfg.setting("entity.coalesce.max_block")
 # Cluster-growth guardrail (lesson #2): refuse to auto-band a pair that would
 # grow a same_as cluster beyond this — route to review instead.

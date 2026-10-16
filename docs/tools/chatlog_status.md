@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_status.py
-sha1: e03bb36cf026
-mtime_utc: 2026-10-16T19:55:03.278459+00:00
-generated_utc: 2026-10-16T19:58:21.365782+00:00
+sha1: 8932316d90fb
+mtime_utc: 2026-10-16T21:49:05.424554+00:00
+generated_utc: 2026-10-16T21:49:54.912027+00:00
 private: false
 ---
 
@@ -23,7 +23,7 @@ Cold call <50ms (no full table scans).
 
 ## Entry points
 
-- `def main()` (line 1082)
+- `def main()` (line 1080)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -40,7 +40,7 @@ Cold call <50ms (no full table scans).
 
 ## Environment variables read
 
-- `M3_FILES_DB_PATH`
+_(none detected)_
 
 ---
 
@@ -56,14 +56,14 @@ Cold call <50ms (no full table scans).
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 767)
+- `subprocess.run()  → `cmd`` (line 765)
 
 **sqlite**
 
 - `sqlite3.connect()  → `chatlog_db`` (line 138)
-- `sqlite3.connect()  → `files_db`` (line 210)
+- `sqlite3.connect()  → `files_db`` (line 208)
 - `sqlite3.connect()  → `main_db`` (line 126)
-- `sqlite3.connect()  → `uri`` (line 308)
+- `sqlite3.connect()  → `uri`` (line 306)
 
 
 ---
@@ -74,7 +74,7 @@ Cold call <50ms (no full table scans).
 - `files_memory.config (files_table)`
 - `files_memory.db (_db)`
 - `files_memory.db (_files_store_is_a_schema)`
-- `m3_core.paths (resolve_engine_file)`
+- `m3_core.paths (configured_files_db, resolve_engine_file)`
 - `m3_core.paths (seam_backend)`
 - `m3_core.seams (childenv)`
 - `m3_core.seams (read_key)`

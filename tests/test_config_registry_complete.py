@@ -28,7 +28,8 @@ def _scanner_names() -> set[str]:
     return {
         f.name
         for f in findings
-        if f.verdict == "violation"
+        # An owner (``# env-owner:``) still reads its name: it must be accounted too.
+        if f.verdict in ("violation", "owner")
         and f.kind in ("read", "write")
         and f.name
         and not f.name.startswith("<")

@@ -156,6 +156,21 @@ class AgentTargets:
         )
 
 
+def _openclaw_token_stored() -> bool:
+    """True when the secrets file lists OPENCLAW_GATEWAY_TOKEN (a value or a
+    keyring pointer): a sign OpenClaw was set up. Presence only, from the file
+    that lists every m3 secret, so detection never reads the keyring (a macOS
+    keychain read can prompt) and never takes a secret from the environment.
+    An unreadable secrets file is not a detection signal; `m3 doctor` reports it."""
+    try:
+        _m3bin.ensure_on_path()
+        from m3_core import secret_store
+
+        return "OPENCLAW_GATEWAY_TOKEN" in secret_store.read_secret_entries()
+    except Exception:  # noqa: BLE001 -- see docstring
+        return False
+
+
 def _detect_agents() -> AgentTargets:
     """Probe PATH (and well-known fallback locations) for each agent CLI."""
     claude = bool(shutil.which("claude"))
@@ -171,14 +186,12 @@ def _detect_agents() -> AgentTargets:
     # OpenClaw speaks MCP natively since 2026.3.22, so detection drives DIRECT
     # wiring (`openclaw mcp set`) — see _wire_openclaw. Signals: openclaw CLI on
     # PATH (npm-global), the well-known npm-global fallback, the user's workspace
-    # dir, or the gateway token env var from a prior setup.
+    # dir, or a gateway token m3 stored from a prior setup.
     openclaw = bool(
         shutil.which("openclaw")
         or os.path.exists(Path.home() / ".npm-global" / "bin" / "openclaw")
         or os.path.isdir(Path.home() / ".openclaw")
-        # Presence only, as a sign OpenClaw is installed: OpenClaw reads its own
-        # token from env. m3 does not take the value from here.
-        or os.environ.get("OPENCLAW_GATEWAY_TOKEN")
+        or _openclaw_token_stored()
     )
     # Hermes Agent uses a file-based plugin (not MCP wiring): detection drives
     # an offer to COPY the m3 provider into the user's hermes-agent checkout.
@@ -1975,7 +1988,8 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     # If LM Studio is NOT reachable but something else is, disable its probe so
     # the user stops paying for a dead :1234 connect on every discovery.
     lmstudio_live = any(label == "LM Studio" for label, *_ in reachable)
-    if not lmstudio_live and os.environ.get("M3_ENABLE_LMSTUDIO_FAILOVER", "").strip() not in ("0", "false", "no"):
+    # llm.lmstudio_failover (env alias M3_ENABLE_LMSTUDIO_FAILOVER): already off -> nothing to announce.
+    if not lmstudio_live and _config.setting("llm.lmstudio_failover") is not False:
         _say("  LM Studio (:1234) not reachable — disabling its probe to avoid a dead connect")
     if not lmstudio_live:
         _record_llm_switch("M3_ENABLE_LMSTUDIO_FAILOVER", "0")

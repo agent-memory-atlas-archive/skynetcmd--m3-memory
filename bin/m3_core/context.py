@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 from sqlite_pragmas import apply_pragmas, profile_for_db, refresh_schema
 
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import describe_http_failure
 from m3_core.gpu import probe_gpu_util
 from m3_core.paths import (
@@ -24,7 +25,6 @@ from m3_core.paths import (
     get_m3_config_root,
     get_m3_engine_root,
     get_m3_root,
-    getenv_compat,
     resolve_backend_name,
     resolve_db_path,
     without_active_store,
@@ -45,8 +45,10 @@ from m3_core.secret_store import loggable_url
 # LRU-bounded to prevent unbounded growth on long-running MCP servers that see
 # many distinct per-call `database` values. Hot paths (default DB, any DB the
 # process accesses repeatedly) get refreshed to most-recently-used on every
-# lookup, so the cap only ever evicts cold paths. Override via M3_CONTEXT_CACHE_SIZE.
-_CONTEXT_CACHE_SIZE = max(2, int(os.environ.get("M3_CONTEXT_CACHE_SIZE", "16")))
+# lookup, so the cap only ever evicts cold paths. Registry key context.cache_size
+# (env alias M3_CONTEXT_CACHE_SIZE). Read once at import: m3_sdk re-exports the
+# constant, and the key is not reloadable (the cap sizes a live cache).
+_CONTEXT_CACHE_SIZE = max(2, int(_m3cfg.setting("context.cache_size")))
 _CONTEXTS: "OrderedDict[str, M3Context]" = OrderedDict()
 _CONTEXTS_LOCK = threading.Lock()
 
@@ -213,7 +215,6 @@ class M3Context:
         one of its env names; anything else returns ``default`` (the environment is
         no longer read here)."""
         from m3_core.config import REGISTRY
-        from m3_core.config import settings as _m3cfg
 
         global _GET_SETTING_WARNED
         if not _GET_SETTING_WARNED:
@@ -234,8 +235,10 @@ class M3Context:
         with self._pool_lock:
             if self._pool is not None:
                 return
-            pool_size = int(getenv_compat("M3_DB_POOL_SIZE", "DB_POOL_SIZE", "5"))
-            pool_timeout = int(getenv_compat("M3_DB_POOL_TIMEOUT", "DB_POOL_TIMEOUT", "30"))
+            # Registry keys db.pool_size / db.pool_timeout_s (env aliases
+            # M3_DB_POOL_SIZE / DB_POOL_SIZE, M3_DB_POOL_TIMEOUT / DB_POOL_TIMEOUT).
+            pool_size = int(_m3cfg.setting("db.pool_size"))
+            pool_timeout = int(_m3cfg.setting("db.pool_timeout_s"))
             pool: queue.Queue[sqlite3.Connection] = queue.Queue(maxsize=pool_size)
             for _ in range(pool_size):
                 try:

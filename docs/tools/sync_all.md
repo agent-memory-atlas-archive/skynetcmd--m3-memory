@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_all.py
-sha1: ded08ee3f6a3
-mtime_utc: 2026-10-16T17:40:30.626398+00:00
-generated_utc: 2026-10-16T19:03:59.757969+00:00
+sha1: 8ce9c3298667
+mtime_utc: 2026-10-16T21:46:47.476346+00:00
+generated_utc: 2026-10-16T21:49:55.584501+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ DB list:
 
 ## Entry points
 
-- `def main()` (line 500)
+- `def main()` (line 501)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -68,7 +68,7 @@ DB list:
 
 **subprocess**
 
-- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 207)
+- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 208)
 
 
 ---
@@ -78,6 +78,7 @@ DB list:
 - `m3_core.config (settings)`
 - `m3_core.dsn (parse_pg_dsn)`
 - `m3_core.paths (apply_early_argv)`
+- `m3_core.paths (configured_warehouse_host)`
 - `m3_core.paths (get_m3_logs_root)`
 - `m3_core.paths (pin_database)`
 - `m3_core.paths (resolve_backend_name)`

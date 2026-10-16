@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Any, TypedDict
 
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import get_m3_config_root
 from m3_core.seams import is_linux, is_macos, is_windows
 
@@ -17,8 +18,14 @@ logger = logging.getLogger("M3_SDK")
 # feed it into telemetry so the governor's max(cpu,ram,gpu,llm) load reacts.
 #
 # Cached with a short TTL: spawning nvidia-smi costs ~30-80ms, and the loop reads
-# telemetry often. Disable with M3_GPU_PROBE_DISABLE=1 (e.g. CPU-only hosts).
-_GPU_PROBE_DISABLE = os.environ.get("M3_GPU_PROBE_DISABLE", "").lower() in ("1", "true", "yes")
+# telemetry often. Disable with `gpu.probe_disabled = true` (env alias
+# M3_GPU_PROBE_DISABLE=1), e.g. on CPU-only hosts.
+#
+# _GPU_PROBE_DISABLE / _GPU_PROBE_TTL are bound once at import from the registry
+# (m3_config.toml > env aliases > default): they are m3_sdk's public, patchable
+# fallbacks. The per-call layer a running daemon follows is .governor_config.json
+# (_gpu_probe_ttl below).
+_GPU_PROBE_DISABLE: bool = bool(_m3cfg.setting("gpu.probe_disabled"))
 # TTL default: 60s, NOT 2s. On Windows, `nvidia-smi` CREATES ITS OWN CONSOLE —
 # neither CREATE_NO_WINDOW nor STARTUPINFO/SW_HIDE suppresses it (both measured
 # 2026-08-29: conhost count rose with the guard correctly applied). So the only
@@ -26,10 +33,9 @@ _GPU_PROBE_DISABLE = os.environ.get("M3_GPU_PROBE_DISABLE", "").lower() in ("1",
 # per-cycle governor path meant a console window every ~2 seconds, which pulls
 # focus out of fullscreen apps (reported live while gaming).
 # 60s still tracks GPU load for a governor that reacts over minutes; set
-# M3_GPU_PROBE_TTL lower only on a host where no one is looking at the screen,
-# or M3_GPU_PROBE_DISABLE=1 to turn the probe off entirely.
-_GPU_PROBE_TTL_DEFAULT = 60.0
-_GPU_PROBE_TTL = float(os.environ.get("M3_GPU_PROBE_TTL", str(_GPU_PROBE_TTL_DEFAULT)))
+# gpu.probe_ttl_s (env alias M3_GPU_PROBE_TTL) lower only on a host where no one
+# is looking at the screen, or gpu.probe_disabled to turn the probe off entirely.
+_GPU_PROBE_TTL: float = float(_m3cfg.setting("gpu.probe_ttl_s"))
 _GPU_TTL_CFG_TTL = 5.0
 _gpu_ttl_cfg_cache: dict[str, Any] = {"ts": 0.0, "mtime": None, "ttl": None, "disabled": None}
 

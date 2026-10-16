@@ -21,6 +21,13 @@ the policy is forward-going only.
 
 ### Security
 
+- **The vault key no longer travels in a child process's environment.** The OS
+  installer hands `AGENT_OS_MASTER_KEY` to the step that stores it on stdin.
+  An unattended install that finds the key only in the environment names it and
+  stores nothing. **Affected:** unattended installs that set
+  `AGENT_OS_MASTER_KEY` · **Action:** run `m3 secret set AGENT_OS_MASTER_KEY
+  --keyring` (or `m3 config import-env`) · **Data status:** none.
+
 - **FIPS mode set in `m3_config.toml` takes effect.** `[crypto] fips_mode`,
   `fips_strict`, `backend`, `wolfssl_lib` and `wolfssl_sha256` were read from
   the environment only, so a process configured by the file, such as a
@@ -80,6 +87,14 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Fixed
+
+- **Settings in `m3_config.toml` reach background services.** The node id,
+  dispatch mode and schema, database pool, LM Studio address and timeout, task
+  logs, GPU probe, context cache and sync warehouse host were read from the
+  environment only, so a service configured by the file ignored them. Legacy
+  environment names still work below the file. **Affected:** services
+  configured through `m3_config.toml` · **Action:** restart m3's services ·
+  **Data status:** none.
 
 - **Chat turns are captured on a fresh split install.** The first turn written
   to a never-used chatlog store spilled instead of being stored; spill files
@@ -811,6 +826,10 @@ the policy is forward-going only.
   **Affected:** Windows · **Action:** none · **Data status:** none.
 
 ### Changed
+
+- **An unknown `dispatch.mode` is an error** naming the key, instead of
+  meaning `separate`. **Affected:** configs with a misspelt dispatch mode ·
+  **Action:** set `dispatch.mode` to a listed value · **Data status:** none.
 
 - **Destructive operations need an explicit target.** `memory_consolidate`
   previews unless `dry_run=false` and requires `agent_filter`;

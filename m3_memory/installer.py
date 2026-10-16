@@ -176,16 +176,19 @@ def bin_dir() -> Path | None:
 
 def docs_dir() -> Path | None:
     """The docs/ directory. $M3_PATH_DOC overrides."""
+    # env-owner: the payload locator (it finds the payload, where the registry lives)
     return _payload_dir("docs", "M3_PATH_DOC")
 
 
 def assets_dir() -> Path | None:
     """The _assets/ directory. $M3_PATH_ASSETS overrides."""
+    # env-owner: the payload locator (it finds the payload, where the registry lives)
     return _payload_dir("_assets", "M3_PATH_ASSETS")
 
 
 def examples_dir() -> Path | None:
     """The examples/ directory. $M3_PATH_EXAMPLES overrides."""
+    # env-owner: the payload locator (it finds the payload, where the registry lives)
     return _payload_dir("examples", "M3_PATH_EXAMPLES")
 
 
@@ -1581,14 +1584,16 @@ def _detect_cdw_target() -> str | None:
     OR a SYNC_TARGET_IP / POSTGRES_SERVER is set. We return only the host so the
     reminder can name where data is auto-syncing — never the password.
     """
-    from m3_sdk import PgRole, getenv_compat, resolve_pg_dsn
+    from m3_sdk import PgRole, resolve_pg_dsn
 
-    # 1. Explicit warehouse IP/host (sync_all.py uses these).
-    host = getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER") or getenv_compat(
-        "M3_SYNC_TARGET_IP", "SYNC_TARGET_IP"
-    )
+    # 1. Explicit warehouse host (sync.warehouse_host, then sync.target_ip): the
+    #    reading sync_all.py uses, from its one owner.
+    _bin.ensure_on_path()
+    from m3_core.paths import configured_warehouse_host
+
+    host = cast("str", configured_warehouse_host())
     if host:
-        return cast("str | None", host.strip())
+        return host
 
     # 2. The warehouse DSN, from the one DSN owner (secrets file, keyring,
     #    vault). Parse out ONLY the host. This is the WAREHOUSE host, not the

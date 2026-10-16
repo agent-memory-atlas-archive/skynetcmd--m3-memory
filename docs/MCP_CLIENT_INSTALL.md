@@ -255,7 +255,7 @@ The wizard flags OpenClaw as detected when any of these is true:
 - `openclaw` on PATH (`shutil.which`)
 - `~/.npm-global/bin/openclaw` exists
 - `~/.openclaw/` workspace directory exists
-- `OPENCLAW_GATEWAY_TOKEN` env var is set
+- m3's secrets file lists `OPENCLAW_GATEWAY_TOKEN` (`m3 secret set OPENCLAW_GATEWAY_TOKEN`); an env var alone is not read
 
 The wiring prompt is offered only when OpenClaw is detected.
 

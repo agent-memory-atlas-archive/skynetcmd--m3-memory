@@ -40,13 +40,10 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
     # CHATLOG_DB / CHATLOG_DB_PATH are NOT here: renaming them to another env name
     # is not the fix (chatlog design, 2026-10-13). configured_chatlog_db() warns
     # with the real one, and doctor / import-env name where they are set.
-    "LM_READ_TIMEOUT": "M3_LM_READ_TIMEOUT",
     # CHROMA_BASE_URL is NOT here: the ChromaDB feature was retired, so there is
     # no live getenv_compat call site for it. It moved to RETIRED_ENV_RENAMES so
     # `m3 doctor` still cleans a stale CHROMA_BASE_URL out of on-disk config. See
     # below.
-    "DB_POOL_SIZE": "M3_DB_POOL_SIZE",
-    "DB_POOL_TIMEOUT": "M3_DB_POOL_TIMEOUT",
     "ORIGIN_DEVICE": "M3_ORIGIN_DEVICE",
     # PG_URL is NOT here: it was split by role (primary vs warehouse), so it lives
     # in ROLE_SPLIT_ENV_RENAMES (-> M3_CDW_PG_URL) and is resolved by the
@@ -489,14 +486,29 @@ def node_id() -> str:
 
     POSIX hostnames ARE case-significant, so normalisation is Windows-only.
 
-    ``M3_NODE_ID`` overrides everything, for a deployment that needs an explicit
-    identity (containers sharing a hostname, or a fleet with a naming scheme).
+    Registry key ``identity.node_id`` (env alias ``M3_NODE_ID``) overrides
+    everything, for a deployment that needs an explicit identity (containers
+    sharing a hostname, or a fleet with a naming scheme). Read per call: a
+    daemon has no shell, so m3_config.toml must reach it.
     """
-    explicit = os.environ.get("M3_NODE_ID")
-    if explicit:
+    from m3_core.config.settings import setting  # config imports this module
+
+    explicit = setting("identity.node_id")
+    if explicit and explicit.strip():
         return explicit.strip()
     host = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node() or "unknown"
     return host.upper() if is_windows() else host
+
+
+def configured_warehouse_host() -> str:
+    """The warehouse host the user configured by name, or "" when none: registry
+    key sync.warehouse_host (env aliases M3_POSTGRES_SERVER, POSTGRES_SERVER),
+    then the legacy-form sync.target_ip (M3_SYNC_TARGET_IP, SYNC_TARGET_IP).
+    The one reading of that pair (sync_all's target and the installer's reminder).
+    Read per call: a value captured at import is the importing process's."""
+    from m3_core.config.settings import setting  # config imports this module
+
+    return (setting("sync.warehouse_host") or setting("sync.target_ip") or "").strip()
 
 
 def dispatch_store_mode() -> str:
@@ -506,12 +518,16 @@ def dispatch_store_mode() -> str:
     because ``chatlog_promote`` copies rows into canonical memory, and a
     delivery record has no equivalent promotion.
 
-    Set ``M3_DISPATCH_MODE=integrated`` to keep dispatch tables in the main
-    store -- reasonable for a single-agent install where a second file is
-    overhead. Anything else, including unset, means separate.
+    Set registry key ``dispatch.mode = "integrated"`` (env alias
+    ``M3_DISPATCH_MODE``) to keep dispatch tables in the main store --
+    reasonable for a single-agent install where a second file is overhead.
+    Unset means separate; a value other than the two is refused by the
+    registry (ConfigEnvErrors / a config-file error naming the key), never
+    read as integrated.
     """
-    mode = (os.environ.get("M3_DISPATCH_MODE") or "").strip().lower()
-    return "integrated" if mode == "integrated" else "separate"
+    from m3_core.config.settings import setting  # config imports this module
+
+    return "integrated" if setting("dispatch.mode") == "integrated" else "separate"
 
 
 def resolve_dispatch_db() -> str:
@@ -587,9 +603,12 @@ def dispatch_pg_schema() -> str:
     and selective dump -- so isolation there is a SCHEMA in the same database,
     not a second database with a second URL and a second pool.
 
-    Several m3 fleets can share one server by giving each its own schema name.
+    Several m3 fleets can share one server by giving each its own schema name:
+    registry key ``db.postgres.dispatch_schema`` (env alias ``M3_DISPATCH_PG_SCHEMA``).
     """
-    return (os.environ.get("M3_DISPATCH_PG_SCHEMA") or "m3_dispatch").strip()
+    from m3_core.config.settings import setting  # config imports this module
+
+    return (setting("db.postgres.dispatch_schema") or "m3_dispatch").strip() or "m3_dispatch"
 
 
 def notification_store_paths() -> "list[str]":
@@ -851,6 +870,7 @@ def configured_main_db() -> str | None:
     global _LEGACY_DB_WARNED
     if _pinned_db:
         return _pinned_db
+    # env-owner: the legacy-name shim for M3_DATABASE (warned; until N+3, M3_DATABASE design Q1)
     legacy = (os.environ.get("M3_DATABASE") or "").strip()
     if not legacy:
         return None
@@ -862,6 +882,13 @@ def configured_main_db() -> str | None:
             "store in m3_config.toml ([stores.<name>]) and pass --store NAME; then remove M3_DATABASE."
         )
     return legacy
+
+
+def configured_files_db() -> str | None:
+    """The files store's SQLite path from the legacy ``M3_FILES_DB_PATH``, or None.
+    A store locator, not a registry key (config.stores.LEGACY_LOCATORS: its home is
+    a store's files part); THE reader, so the files resolvers cannot disagree."""
+    return (os.environ.get("M3_FILES_DB_PATH") or "").strip() or None
 
 
 def pin_chatlog_db(path: "str | os.PathLike[str] | None") -> str | None:
@@ -886,10 +913,15 @@ def configured_chatlog_db() -> str | None:
     # Literal calls, not a loop: the locator drift test finds the legacy names by
     # their call sites.
     found = (
+        # env-owner: chatlog legacy-name shim
         ("M3_CHATLOG_DB_PATH", os.environ.get("M3_CHATLOG_DB_PATH")),
+        # env-owner: chatlog legacy-name shim
         ("CHATLOG_DB_PATH", os.environ.get("CHATLOG_DB_PATH")),
+        # env-owner: chatlog legacy-name shim
         ("M3_CHATLOG_DB", os.environ.get("M3_CHATLOG_DB")),
+        # env-owner: chatlog legacy-name shim
         ("CHATLOG_DB", os.environ.get("CHATLOG_DB")),
+        # env-owner: chatlog legacy-name shim
         ("M3_CHATLOG_DATABASE", os.environ.get("M3_CHATLOG_DATABASE")),
     )
     name, value = next(((n, v.strip()) for n, v in found if v and v.strip()), (None, None))

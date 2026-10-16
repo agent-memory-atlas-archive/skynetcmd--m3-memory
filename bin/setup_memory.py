@@ -62,6 +62,7 @@ elif "--database" in sys.argv:
     i = sys.argv.index("--database")
     if i + 1 < len(sys.argv):
         _override = sys.argv[i + 1]
+# env-owner: bootstrap exception: creates the first SQLite store before m3 (and its registry) imports
 DB = pathlib.Path(_override or os.environ.get("M3_DATABASE") or (BASE / "memory" / "agent_memory.db"))
 MIGS = BASE / "memory" / "migrations"
 

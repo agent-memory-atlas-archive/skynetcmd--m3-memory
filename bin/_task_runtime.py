@@ -104,11 +104,13 @@ def add_log_file_arg(parser) -> None:
 
 
 def _resolve_log_file(log_file) -> pathlib.Path:
-    """Resolution order: explicit arg -> $M3_TASK_LOG_FILE -> <logs root>/<stem>.log."""
+    """Resolution order: explicit arg -> log.task_log_file (m3_config.toml, env
+    alias M3_TASK_LOG_FILE) -> <logs root>/<stem>.log."""
+    configured = None if log_file else _configured("log.task_log_file", None)
     if log_file:
         resolved = pathlib.Path(log_file)
-    elif os.environ.get("M3_TASK_LOG_FILE"):
-        resolved = pathlib.Path(os.environ["M3_TASK_LOG_FILE"])
+    elif configured:
+        resolved = pathlib.Path(configured)
     else:
         stem = pathlib.Path(sys.argv[0]).stem or "task"
         from m3_core.paths import get_m3_logs_root
@@ -116,6 +118,24 @@ def _resolve_log_file(log_file) -> pathlib.Path:
         resolved = pathlib.Path(get_m3_logs_root()) / f"{stem}.log"
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return resolved
+
+
+def _configured(name: str, fallback):
+    """Registry key ``name`` (m3_config.toml > its env names > default), or
+    ``fallback`` when the config cannot be read. Task logging must come up even
+    then (it is how the failure gets recorded), so the failure is printed, naming
+    the key, and the task carries on with the fallback."""
+    try:
+        from m3_core.config import settings as _m3cfg
+
+        return _m3cfg.setting(name)
+    except Exception as e:  # noqa: BLE001 -- see docstring
+        print(
+            f"[m3] WARNING: could not read config key {name} ({type(e).__name__}: {e}); "
+            f"using {fallback!r}. inspect: `m3 config show --origin`",
+            file=sys.__stderr__ or sys.stderr,
+        )
+        return fallback
 
 
 _DEFAULT_LOG_MAX_BYTES = 64 * 1024 * 1024
@@ -134,7 +154,8 @@ def _log_config_path() -> str:
 
 
 def _log_max_bytes(now: float | None = None) -> int:
-    """Rotation cap in bytes. Precedence: config file > env var > default.
+    """Rotation cap in bytes. Precedence: .log_config.json > log.max_bytes (m3_config.toml,
+    env alias M3_LOG_MAX_BYTES) > default.
 
     A config FILE, not an env var alone (§3): none of the headless launchers
     inherit a shell environment — the Windows scheduled task that runs the
@@ -170,7 +191,7 @@ def _log_max_bytes(now: float | None = None) -> int:
                     print(
                         f"[m3] WARNING: log config {_log_config_path()} is "
                         f"unreadable/malformed ({e}) — falling back to "
-                        f"M3_LOG_MAX_BYTES + default until fixed.",
+                        f"log.max_bytes (env alias M3_LOG_MAX_BYTES) + default until fixed.",
                         file=sys.__stderr__ or sys.stderr,
                     )
                     cfg = {}
@@ -182,10 +203,8 @@ def _log_max_bytes(now: float | None = None) -> int:
             return int(val)
         except (TypeError, ValueError):
             pass  # malformed value -> fall through to env/default
-    try:
-        return int(os.environ.get("M3_LOG_MAX_BYTES", str(_DEFAULT_LOG_MAX_BYTES)))
-    except (TypeError, ValueError):
-        return _DEFAULT_LOG_MAX_BYTES
+    # Registry key log.max_bytes (env alias M3_LOG_MAX_BYTES), read per call.
+    return int(_configured("log.max_bytes", _DEFAULT_LOG_MAX_BYTES))
 
 
 def ensure_log_config() -> str:

@@ -25,7 +25,7 @@ from typing import Any
 
 from m3_core.config import REGISTRY as _REGISTRY
 from m3_core.config import settings as _settings
-from m3_core.paths import configured_main_db  # noqa: E402
+from m3_core.paths import configured_files_db, configured_main_db  # noqa: E402
 
 
 def _setting(name: str) -> Any:
@@ -116,11 +116,12 @@ ARCHIVE_DB_PATH: str = _resolve_engine_file("agent_memory_archive.db")
 
 # files.db (FILE_INGESTION_PLAN.md). Separate physical store with its own
 # lifecycle (high-volume, regeneratable, version-tracked, promotable).
-# Resolution order: M3_FILES_DB_PATH env > the engine root (legacy <legacy root>/memory/ fallback).
+# Resolution order: legacy M3_FILES_DB_PATH (configured_files_db) > the engine root
+# (legacy <legacy root>/memory/ fallback).
 # abspath, not Path.absolute(): this is an identity string compared with
 # files_memory.db's own abspath of the same file, and only abspath collapses "..".
 FILES_DB_PATH: str = os.path.abspath(  # noqa: PTH100 — identity string; see above
-    os.environ.get("M3_FILES_DB_PATH") or _resolve_engine_file("files_database.db")
+    configured_files_db() or _resolve_engine_file("files_database.db")
 )
 # When true, the ingester prompts on first-ever invocation to confirm the
 # files.db path (and offers to write M3_FILES_DB_PATH to a user-shell env

@@ -222,7 +222,6 @@ def test_detect_agents_none_found(monkeypatch, tmp_path):
     monkeypatch.setattr(shutil, "which", lambda name: None)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
     monkeypatch.setattr(setup_wizard, "_find_hermes_plugins_dir", lambda: None)
-    monkeypatch.setenv("OPENCLAW_GATEWAY_TOKEN", "")
 
     targets = setup_wizard._detect_agents()
     assert targets.claude is False

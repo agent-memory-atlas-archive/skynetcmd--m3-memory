@@ -447,7 +447,8 @@ def _warn_if_mode_env_set() -> None:
     global _MODE_WARN_EMITTED
     if _MODE_WARN_EMITTED:
         return
-    if "CHATLOG_MODE" in os.environ:
+    # A retired name that is set: the config snapshot is the one env reader.
+    if "CHATLOG_MODE" in _m3cfg.current().retired_env:
         logger.warning(
             "CHATLOG_MODE is deprecated and ignored. The chatlog DB path is now "
             "resolved from --chatlog-db > .chatlog_config.json db_path > the main DB > "

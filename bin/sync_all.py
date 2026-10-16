@@ -80,9 +80,10 @@ PY = _resolve_python()
 
 
 def _warehouse_host_from_env() -> str:
-    """The host env vars, read when asked: a value captured at import is the
-    importing process's environment, not the one sync runs in."""
-    return (_m3cfg.setting("sync.warehouse_host") or _m3cfg.setting("sync.target_ip") or "").strip()
+    """The configured host, read when asked (m3_core.paths owns the reading)."""
+    from m3_core.paths import configured_warehouse_host
+
+    return configured_warehouse_host()
 
 
 def warehouse_target() -> "tuple[str, int, str] | None":

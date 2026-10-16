@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_timing.py
-sha1: 85b935e5c1c3
-mtime_utc: 2026-10-14T03:57:12.504012+00:00
-generated_utc: 2026-10-14T03:57:12.996050+00:00
+sha1: bc6019825e76
+mtime_utc: 2026-10-16T21:46:05.023453+00:00
+generated_utc: 2026-10-16T21:49:54.920437+00:00
 private: false
 ---
 
@@ -49,7 +49,7 @@ seen, which is correct — a partial tail beats a lock.
 
 ## Entry points
 
-- `def main()` (line 163)
+- `def main()` (line 164)
 - `if __name__ == "__main__"` guard
 
 ---

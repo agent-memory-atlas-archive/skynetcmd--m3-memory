@@ -51,6 +51,7 @@ def payload_dir(component: str, env_var: str, must_contain: str | None = None) -
 
 def bin_dir() -> Path | None:
     """The bin/ directory (payload scripts + memory_bridge.py). $M3_PATH_BIN overrides."""
+    # env-owner: the payload locator: it finds bin/, where the registry lives
     return payload_dir("bin", "M3_PATH_BIN", must_contain="memory_bridge.py")
 
 
