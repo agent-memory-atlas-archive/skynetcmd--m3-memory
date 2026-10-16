@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_embed_watchdog.py
-sha1: 2faf9cb28066
-mtime_utc: 2026-10-11T17:03:01.489742+00:00
-generated_utc: 2026-10-11T17:32:12.915900+00:00
+sha1: 9ee2e9054c0a
+mtime_utc: 2026-10-16T12:49:52.973413+00:00
+generated_utc: 2026-10-16T12:53:54.486047+00:00
 private: false
 ---
 
@@ -62,7 +62,7 @@ DESIGN (§1 three-OS, §3 fail-loud/never-silent, §4 cheap, §10a one owner)
 
 ## Entry points
 
-- `def main()` (line 281)
+- `def main()` (line 289)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -89,7 +89,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 253)
+- `subprocess.run()  → `cmd`` (line 261)
 
 
 ---
@@ -97,6 +97,7 @@ _(none detected)_
 ## Notable external imports
 
 - `m3_core.seams (roots)`
+- `m3_core.tier2_client (is_loopback_host)`
 
 ---
 

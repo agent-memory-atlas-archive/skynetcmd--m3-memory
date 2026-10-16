@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server.py
-sha1: 72683f3ff8e7
-mtime_utc: 2026-10-11T17:51:15.699350+00:00
-generated_utc: 2026-10-11T18:07:53.763241+00:00
+sha1: fbeea7cabb70
+mtime_utc: 2026-10-16T12:52:01.568674+00:00
+generated_utc: 2026-10-16T12:53:54.145911+00:00
 private: false
 ---
 
@@ -24,7 +24,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 96)
+- `def main()` (line 97)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -35,7 +35,7 @@ Usage:
 |---|---|---|---|---|---|
 | `--model` | HuggingFace model ID | `DEFAULT_MODEL_ID` | Loads Qwen/Qwen3-Embedding-0.6B via SentenceTransformer | str | Loads specified HuggingFace model instead |
 | `--port` | Port to serve on | `1234` | Serves /v1/embeddings endpoint on localhost:1234 | int | Serves on specified port |
-| `--host` | Host to bind to (default 127.0.0.1; set 0.0.0.0 to serve on LAN) | `_m3cfg.setting('embed.server.host')` | Binds only to 127.0.0.1 (localhost only) | str | Binds to specified host (0.0.0.0 for LAN access) |
+| `--host` | Host to bind to: a loopback address (default 127.0.0.1). This server is plaintext, so any other address is refused; other machines use m3-embed-server's TLS listener. | `_m3cfg.setting('embed.server.host')` | Binds only to 127.0.0.1 (localhost only) | str | Binds to specified host (0.0.0.0 for LAN access) |
 | `--device` | Device to use (e.g. cuda:0, cpu) | None | Auto-detects: picks cuda:0 if torch.cuda.is_available() else CPU. | str | Forces the SentenceTransformer onto the specified device. |
 
 ---
@@ -63,6 +63,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `fastapi (FastAPI)`
 - `m3_core.config (settings)`
 - `m3_core.gpu (torch_device)`
+- `m3_core.tier2_client (EXIT_CONFIG_REFUSED, plaintext_bind_refusal)`
 - `pydantic (BaseModel, Field)`
 - `sentence_transformers (SentenceTransformer)`
 - `uvicorn`

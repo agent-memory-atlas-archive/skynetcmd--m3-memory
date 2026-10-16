@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server_inproc.py
-sha1: 1fad11665c66
-mtime_utc: 2026-10-12T15:22:21.779444+00:00
-generated_utc: 2026-10-12T15:38:20.206141+00:00
+sha1: 0ecd192fd51e
+mtime_utc: 2026-10-16T12:51:04.394636+00:00
+generated_utc: 2026-10-16T12:53:54.158462+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 
 ## Entry points
 
-- `def main()` (line 545)
+- `def main()` (line 546)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -61,7 +61,7 @@ Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
 | `--port` |  | `_m3cfg.setting('embed.server.port')` |  | int |  |
-| `--host` | Bind host. Default 127.0.0.1 (loopback only — the embedder is not a LAN service). Set 0.0.0.0 ONLY deliberately. | `_m3cfg.setting('embed.server.host')` |  | str |  |
+| `--host` | Bind host: a loopback address (default 127.0.0.1). This server is plaintext, so any other address is refused; other machines use m3-embed-server's TLS listener. | `_m3cfg.setting('embed.server.host')` |  | str |  |
 | `--log-file` |  | None |  | str |  |
 
 ---
@@ -92,6 +92,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.config (settings)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
+- `m3_core.tier2_client (EXIT_CONFIG_REFUSED, plaintext_bind_refusal)`
 - `memory (config)`
 - `memory.embed (_EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf)`
 - `numpy`

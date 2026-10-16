@@ -60,6 +60,7 @@ import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from m3_core.config import settings as _m3cfg
+from m3_core.tier2_client import EXIT_CONFIG_REFUSED, plaintext_bind_refusal
 from pydantic import BaseModel, Field
 
 # bin/ on path so sibling modules import when run as a script.
@@ -548,14 +549,19 @@ def main() -> int:
     parser.add_argument(
         "--host",
         default=_m3cfg.setting("embed.server.host"),
-        help="Bind host. Default 127.0.0.1 (loopback only — the embedder is not a "
-        "LAN service). Set 0.0.0.0 ONLY deliberately.",
+        help="Bind host: a loopback address (default 127.0.0.1). This server is plaintext, so any "
+        "other address is refused; other machines use m3-embed-server's TLS listener.",
     )
     parser.add_argument("--log-file", default=None)
     from m3_core.paths import add_config_arg
 
     add_config_arg(parser)  # pinned already (pin_from_argv); declared for --help
     args = parser.parse_args()
+
+    refusal = plaintext_bind_refusal(args.host, "the Python embed server")
+    if refusal:
+        print(refusal, file=sys.__stderr__ or sys.stderr)
+        return EXIT_CONFIG_REFUSED
 
     if args.log_file:
         # Bound the log at startup before opening the handle. This server runs

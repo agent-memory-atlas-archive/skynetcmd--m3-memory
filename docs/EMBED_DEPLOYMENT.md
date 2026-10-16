@@ -502,6 +502,46 @@ m3 embedder status                 # confirm which backend each process reports
 To simply go back to the default (shared) topology, run `m3 embedder shared` —
 that writes the config and prints the three steps to bring the server up.
 
+### Serving other machines (TLS and a bearer token)
+
+The embed server receives raw memory text, and the vectors it returns can be
+partly inverted back to it. So its normal listener (`embed.server.host`) must be
+a loopback address and is plaintext; a non-loopback host is refused (exit 78),
+by the Rust `m3-embed-server` and by every Python embed server alike.
+
+To let other machines use one embedder, the Rust `m3-embed-server` adds a
+**second listener** that always requires TLS 1.3 and a bearer token. The loopback
+listener, and everything on this machine that uses it, is unchanged.
+
+```bash
+# On the server. Put it on a private network first; Tailscale is recommended,
+# and gives a publicly trusted certificate for the machine's tailnet name:
+tailscale cert myhost.example-tailnet.ts.net      # writes the .crt and .key here
+m3 embedder secure --listen 100.64.0.7 \
+    --cert myhost.example-tailnet.ts.net.crt --key myhost.example-tailnet.ts.net.key
+m3 embedder stop && m3 embedder start             # prints the token to give clients
+
+# On each client:
+m3 secret set M3_EMBED_SERVER_TOKEN               # paste the token
+m3 config set embed.fallback_url https://myhost.example-tailnet.ts.net:8082
+# Only for a certificate from a private CA:
+m3 config set embed.fallback_ca /path/to/ca.pem
+```
+
+- `--listen` takes an IP or `IP:port` (the port defaults to the loopback one).
+  On Windows the server's config lives under `%PROGRAMDATA%`, so run `secure`
+  from an elevated prompt.
+- The server stores only the token's SHA-256; `/health` needs no token.
+- Clients send the token only over `https://` (or to loopback), never in
+  plaintext to another machine.
+- Tailscale decides who can reach the port; TLS and the token still apply inside
+  it. WireGuard's algorithms are not FIPS-approved, so Tailscale alone is never
+  the FIPS-ready layer: m3 is FIPS 140-3 ready on this path when the server is
+  the `fips` build of m3-embed-server (AWS-LC's FIPS module), and
+  `crypto.fips_strict` refuses the listener from any other build. For a
+  validated deployment end to end, see [FIPS_MODULE_BOUNDARY.md](FIPS_MODULE_BOUNDARY.md).
+- `m3 embedder secure --off` removes the listener; `--new-token` rotates the token.
+
 ## Draining an embed backlog
 
 Rows that failed to embed (or predate an embedder) stay FTS-searchable but are

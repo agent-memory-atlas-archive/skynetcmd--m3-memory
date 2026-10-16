@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 import time
 
 import uvicorn
@@ -101,10 +102,17 @@ def main():
     parser.add_argument(
         "--host",
         default=_m3cfg.setting("embed.server.host"),
-        help="Host to bind to (default 127.0.0.1; set 0.0.0.0 to serve on LAN)",
+        help="Host to bind to: a loopback address (default 127.0.0.1). This server is plaintext, so "
+        "any other address is refused; other machines use m3-embed-server's TLS listener.",
     )
     parser.add_argument("--device", default=None, help="Device to use (e.g. cuda:0, cpu)")
     args = parser.parse_args()
+    from m3_core.tier2_client import EXIT_CONFIG_REFUSED, plaintext_bind_refusal
+
+    refusal = plaintext_bind_refusal(args.host, "embed_server.py")
+    if refusal:
+        print(refusal, file=sys.stderr)
+        sys.exit(EXIT_CONFIG_REFUSED)
 
     model_name = "qwen3-embedding"
 

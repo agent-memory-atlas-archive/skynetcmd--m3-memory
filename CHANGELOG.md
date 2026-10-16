@@ -19,7 +19,35 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Security
+
+- **Embed servers serve plaintext only on loopback.** The shared embed server
+  and the Python embed servers refuse a non-loopback bind address (exit 78),
+  since they receive raw memory text. **Affected:** setups binding an embed
+  server to a LAN address or `0.0.0.0` · **Action:** bind `127.0.0.1`; to serve
+  other machines, use `m3 embedder secure` · **Data status:** none.
+
+### Added
+
+- **`m3 embedder secure`: the shared embed server for other machines.** Adds a
+  second listener to m3-embed-server with TLS 1.3 (rustls on aws-lc-rs; the
+  `fips` build uses AWS-LC's FIPS module) and a bearer token, stored server-side
+  as its SHA-256. The loopback listener is unchanged. Clients set
+  `M3_EMBED_SERVER_TOKEN` and an `https://` `embed.fallback_url`, plus
+  `embed.fallback_ca` for a private CA; the token is never sent in plaintext to
+  another machine. **Affected:** multi-machine setups · **Action:** optional ·
+  **Data status:** none.
+
 ### Fixed
+
+- **The embed watchdog guards only a server on this machine.** With
+  `fallback_url` on another machine it restarted the local service whenever that
+  server was unreachable. **Affected:** shared mode with a remote server ·
+  **Action:** none · **Data status:** none.
+
+- **`m3 doctor` and `embedder_status` probe `https://` embed servers.** Both
+  used a plaintext-only HTTP client and now share one probe. **Affected:**
+  `https://` fallback URLs · **Action:** none · **Data status:** none.
 
 - **Warehouse sync probes the address it connects to.** With `hostaddr` in the
   DSN, the reachability check resolved the host name instead, which may name only

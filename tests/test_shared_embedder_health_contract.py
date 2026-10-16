@@ -9,7 +9,7 @@ as [FAIL] on every install running the Rust embedder (the shipped default). Thes
 tests pin both accepted contracts + the genuinely-down / malformed cases so the
 stale-contract bug cannot silently return.
 
-Hermetic: urllib.request.urlopen is mocked (no live server, CI-safe). The logic
+Hermetic: tier2_client.urlopen is mocked (no live server, CI-safe). The logic
 is pure HTTP/JSON with no OS branch, so one test covers all three supported OSes.
 """
 
@@ -33,11 +33,13 @@ class _FakeResp:
 
 
 def _mock_urlopen(monkeypatch, body: str) -> None:
+    from m3_core import tier2_client
+
     @contextlib.contextmanager
-    def _fake(url, timeout=3.0):  # noqa: ARG001 — signature parity
+    def _fake(url, *, timeout, data=None, extra_headers=None):  # noqa: ARG001 — signature parity
         yield _FakeResp(body)
 
-    monkeypatch.setattr(P.urllib.request, "urlopen", _fake)
+    monkeypatch.setattr(tier2_client, "urlopen", _fake)
 
 
 def test_plaintext_ok_is_healthy(monkeypatch):
@@ -86,9 +88,11 @@ def test_bad_scheme_is_rejected():
 def test_connection_error_is_down(monkeypatch):
     """urlopen raising (connection refused / timeout) → 'down', never propagates."""
 
-    def _boom(url, timeout=3.0):  # noqa: ARG001
+    from m3_core import tier2_client
+
+    def _boom(url, *, timeout, data=None, extra_headers=None):  # noqa: ARG001
         raise OSError("connection refused")
 
-    monkeypatch.setattr(P.urllib.request, "urlopen", _boom)
+    monkeypatch.setattr(tier2_client, "urlopen", _boom)
     state, _ = P._server_health("http://127.0.0.1:8082")
     assert state == "down"

@@ -179,9 +179,16 @@ def main():
     parser.add_argument(
         "--host",
         default=_m3cfg.setting("embed.gpu.host"),
-        help="Host to bind to (default 127.0.0.1; set 0.0.0.0 to serve on LAN)",
+        help="Host to bind to: a loopback address (default 127.0.0.1). This server is plaintext, so "
+        "any other address is refused; other machines use m3-embed-server's TLS listener.",
     )
     args = parser.parse_args()
+    from m3_core.tier2_client import EXIT_CONFIG_REFUSED, plaintext_bind_refusal
+
+    refusal = plaintext_bind_refusal(args.host, "embed_server_gpu.py")
+    if refusal:
+        print(refusal, file=sys.stderr)
+        sys.exit(EXIT_CONFIG_REFUSED)
 
     if not os.path.exists(GGUF_MODEL_PATH):
         logger.error(f"Model not found at {GGUF_MODEL_PATH}")

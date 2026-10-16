@@ -352,10 +352,9 @@ def _shared_embedder_status() -> None:
         return
     # Health-check the shared server. A dead endpoint here is the trap to surface.
     try:
-        import urllib.request
+        from m3_core import tier2_client
 
-        # scheme validated to http(s) above, so B310's file:// concern can't apply
-        with urllib.request.urlopen(f"{url}/health", timeout=3) as r:  # nosec B310
+        with tier2_client.urlopen(f"{url}/health", timeout=3) as r:
             raw = r.read().decode("utf-8", "replace").strip()
         # Accept BOTH health contracts: the Rust m3-embed-server returns plaintext
         # "OK", the Python embed_server_inproc.py returns JSON {"status":...}.

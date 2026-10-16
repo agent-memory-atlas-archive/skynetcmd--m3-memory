@@ -38,6 +38,9 @@ ExecStart=[M3_PYTHON] [M3_MEMORY_ROOT]/bin/embed_server_inproc.py --port 8082 [M
 # fleet defers to this one process.
 Restart=always
 RestartSec=10
+# Except a refused configuration (EX_CONFIG: a non-loopback host on this
+# plaintext server). A restart cannot cure it; the log says what does.
+RestartPreventExitStatus=78
 # NOTE: deliberately NO StartLimitBurst/StartLimitIntervalSec override here.
 # systemd's start-limit is a restart BUDGET, and an exhausted budget is the
 # exact failure this server hit on Windows (2026-09-13: SCM spent RESTART x3

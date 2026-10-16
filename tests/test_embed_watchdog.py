@@ -234,6 +234,20 @@ def test_malformed_config_is_loud_and_stands_down(cfg_root, monkeypatch):
     assert calls.cmds == []
 
 
+@pytest.mark.parametrize("url", ["https://embed-host.example.ts.net:8082", "https://100.100.50.63:8082"])
+def test_a_server_on_another_machine_is_not_restarted_here(cfg_root, monkeypatch, url):
+    """A fallback_url on another machine is that machine's to supervise:
+    restarting this host's service could not bring it back."""
+    m = _load(cfg_root)
+    _write_shared(cfg_root, url=url)
+    monkeypatch.setattr(m, "server_healthy", lambda u: False)
+    calls = _Calls()
+    monkeypatch.setattr(m.subprocess, "run", calls)
+    for _ in range(3):
+        assert m.main() == 0
+    assert calls.cmds == []
+
+
 def test_custom_fallback_url_is_honored(cfg_root, monkeypatch):
     """The port is configuration, not a constant — a host that moved the
     server must still be guarded."""

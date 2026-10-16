@@ -362,6 +362,10 @@
           "description": "Entity-name embeddings kept in memory.",
           "default": 50000
         },
+        "fallback_ca": {
+          "type": "string",
+          "description": "CA certificate (PEM) that verifies an https embed.fallback_url whose certificate is not publicly trusted, e.g. a private CA. A `tailscale cert` certificate needs none."
+        },
         "fallback_model_tag": {
           "type": "string",
           "description": "Tag of vectors from the fallback endpoint. Default: embed.model."

@@ -127,6 +127,15 @@ EMBED: list[Key] = [
         "http://127.0.0.1:8082",
         "The fallback embedding endpoint (the shared embed server).",
     ),
+    Key(
+        name="embed.fallback_ca",
+        parse=parse_path,
+        default=None,
+        env_names=(),
+        reloadable=False,
+        doc="CA certificate (PEM) that verifies an https embed.fallback_url whose certificate is not "
+        "publicly trusted, e.g. a private CA. A `tailscale cert` certificate needs none.",
+    ),
     _float(
         "embed.discovery_negative_ttl_s",
         ("M3_EMBED_DISCOVERY_NEG_TTL",),

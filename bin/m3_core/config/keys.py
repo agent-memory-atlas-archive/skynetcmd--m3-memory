@@ -248,6 +248,10 @@ SECRETS: list[Key] = [
     _secret("GEMINI_API_KEY", "Gemini API key."),
     _secret("M3_CLOUD_AUTH_TOKEN", "Bearer token for the tier-4 cloud embedder."),
     _secret("M3_SERVE_TOKEN", "Bearer token `m3 serve` requires."),
+    _secret(
+        "M3_EMBED_SERVER_TOKEN",
+        "Bearer token for the shared embed server's listener for other machines (`m3 embedder secure`).",
+    ),
     _secret("OPENCLAW_GATEWAY_TOKEN", "OpenClaw gateway token."),
     _secret("MCP_PROXY_KEY", "Shared token the MCP proxy requires; unset runs it without auth (warned)."),
     _secret("XAI_API_KEY", "xAI API key (the connect_xai_grok profile)."),

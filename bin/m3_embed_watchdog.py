@@ -162,6 +162,14 @@ def shared_mode() -> tuple[bool, str]:
     return bool(cfg.get("disable_inproc_embedder")), url
 
 
+def _is_loopback_url(url: str) -> bool:
+    """True when ``url`` names this machine. tier2_client imports only the
+    stdlib, so the watchdog stays independent of the embedder."""
+    from m3_core.tier2_client import is_loopback_host
+
+    return is_loopback_host(urllib.parse.urlsplit(url).hostname)
+
+
 def server_healthy(url: str) -> bool:
     """True when the server answers /health. This is the server's own
     contract, so the check is identical for the Rust binary and the Python
@@ -283,6 +291,11 @@ def main() -> int:
     if not enabled:
         # Not an error and not a warning: an unshared host has no :8082 by
         # design, and a message here would be the false alarm §3 forbids.
+        return 0
+    if not _is_loopback_url(url):
+        # The shared server is on another machine (its listener for other
+        # machines); that machine's own watchdog supervises it. Restarting the
+        # local service could not bring a remote server back.
         return 0
 
     state = _read_state()

@@ -204,7 +204,7 @@ The Rust binding crate (`m3-core-py`) will accept both legacy and `M3_`-prefixed
 
 ## Auth/credential vars (3) — NOT namespaced
 
-These follow secrets-manager naming convention and stay unprefixed. They route through the auth surface adjacent to `M3Hasher`. FIPS validation via `ring` is mandatory.
+These follow secrets-manager naming convention and stay unprefixed. They route through the auth surface adjacent to `M3Hasher`. Their cryptography goes through `crypto_provider` (see `docs/FIPS_MODULE_BOUNDARY.md`), never the Rust core's `ring`, which is not a validated module.
 
 | Var | Reader | Notes |
 |---|---|---|

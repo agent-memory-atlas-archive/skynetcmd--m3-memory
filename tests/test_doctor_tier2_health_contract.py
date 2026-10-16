@@ -29,31 +29,28 @@ class _FakeResp:
     def read(self) -> bytes:
         return self._body
 
+    def __enter__(self):
+        return self
 
-class _FakeConn:
-    """Stands in for http.client.HTTPConnection: returns a scripted response
-    per requested path. /metrics defaults to 404 (the shared server has none)."""
-
-    def __init__(self, responses: dict[str, _FakeResp]) -> None:
-        self._responses = responses
-        self._path: str | None = None
-
-    def request(self, method: str, path: str) -> None:
-        self._path = path
-
-    def getresponse(self) -> _FakeResp:
-        return self._responses.get(self._path, _FakeResp(404, '{"detail":"Not Found"}'))
-
-    def close(self) -> None:
-        pass
+    def __exit__(self, *exc) -> None:
+        return None
 
 
 def _patch_conn(monkeypatch, responses: dict[str, _FakeResp]) -> None:
-    monkeypatch.setattr(
-        _doctor.http.client,
-        "HTTPConnection",
-        lambda host, port, timeout=None: _FakeConn(responses),
-    )
+    """Script tier2_client.urlopen per path. A missing path is a 404, raised
+    as urllib does; /metrics defaults to that (the shared server has none)."""
+    import urllib.error
+    import urllib.parse
+
+    from m3_core import tier2_client
+
+    def fake(url, *, timeout, data=None, extra_headers=None):
+        path = urllib.parse.urlsplit(url).path
+        if path not in responses:
+            raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+        return responses[path]
+
+    monkeypatch.setattr(tier2_client, "urlopen", fake)
 
 
 def test_tier2_accepts_shared_json_health(monkeypatch):

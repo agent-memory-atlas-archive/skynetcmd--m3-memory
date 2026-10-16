@@ -30,6 +30,7 @@ from typing import cast
 import httpx as _httpx
 from embedding_utils import unpack as _unpack
 from llm_failover import get_best_embed
+from m3_core import tier2_client
 from m3_core.aio import gather_or_cancel
 from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
@@ -259,13 +260,10 @@ def recover_if_fallback_healthy(timeout: float = 1.5) -> bool:
     server isn't answering (nothing changed). Stdlib-only probe; never raises.
     """
     import json as _json
-    import urllib.request
 
     url = f"{_EMBED_FALLBACK_URL}/health"
     try:
-        # nosec B310 — url is built from _EMBED_FALLBACK_URL (http(s):// endpoint
-        # from trusted runtime config, default 127.0.0.1:8082); no file:/custom scheme.
-        with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 — loopback URL from trusted config  # nosec B310
+        with tier2_client.urlopen(url, timeout=timeout) as resp:
             if resp.status != 200:
                 return False
             body = _json.loads(resp.read().decode("utf-8", "replace"))
@@ -1162,6 +1160,9 @@ def _get_embed_client() -> _httpx.AsyncClient:
                     limits=limits,
                     timeout=timeout,
                     http2=False,
+                    # An https tier-2 server is verified with m3's TLS context
+                    # (and embed.fallback_ca); plain http keeps httpx's default.
+                    verify=tier2_client.verify_for(_EMBED_FALLBACK_URL),
                 )
                 _EMBED_CLIENT_LOOP_ID = loop_id
                 _shared_embed_client = _EMBED_CLIENT
@@ -1212,7 +1213,10 @@ async def _exact_windows(text: str) -> list[tuple[int, int]] | None:
         url = f"{_EMBED_FALLBACK_URL}/tokenize/windows"
         try:
             r = await _get_embed_client().post(
-                url, json={"input": text, "budget": TOKEN_BUDGET, "overlap": TOKEN_OVERLAP}, timeout=15.0
+                url,
+                json={"input": text, "budget": TOKEN_BUDGET, "overlap": TOKEN_OVERLAP},
+                headers=tier2_client.headers(url),
+                timeout=15.0,
             )
             if r.status_code in (404, 405):
                 _TOKENIZE_ROUTE_ABSENT = True
@@ -1450,7 +1454,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                 # fast-lane instead of queuing it behind bulk ingestion (the
                 # "MCP server locked up" wedge). The server also infers this
                 # from the batch size of 1, but the header makes it explicit.
-                headers={"X-M3-Embed-Priority": "interactive"},
+                headers={"X-M3-Embed-Priority": "interactive", **tier2_client.headers(_EMBED_FALLBACK_URL)},
                 timeout=_httpx.Timeout(config.EMBED_TIMEOUT_CONNECT, read=config.EMBED_TIMEOUT_READ),
             )
             resp.raise_for_status()
@@ -1899,7 +1903,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         resp_ = await client_.post(
             f"{_EMBED_FALLBACK_URL}/embedding",
             json={"input": chunk_texts},
-            headers={"X-M3-Embed-Priority": "bulk"},
+            headers={"X-M3-Embed-Priority": "bulk", **tier2_client.headers(_EMBED_FALLBACK_URL)},
             timeout=_httpx.Timeout(config.EMBED_TIMEOUT_CONNECT, read=config.EMBED_TIMEOUT_READ * 4),
         )
         if resp_.status_code >= 400:
@@ -2139,69 +2143,5 @@ async def embedder_status_impl() -> dict:
     Use `memory_doctor` for a broader cascade health check (tier 1 GGUF +
     tier 2 service + DB integrity + roundtrip smoke).
     """
-    import http.client
-    from urllib.parse import urlparse
-
     url = _m3cfg.setting("embed.fallback_url") or "http://127.0.0.1:8082"
-    parsed = urlparse(url)
-    host = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 8082
-
-    res: dict = {
-        "status": "offline",
-        "url": url,
-        "host": host,
-        "port": port,
-        "health": None,
-        "model": None,
-        "metrics": None,
-        "error": None,
-    }
-
-    try:
-        conn = http.client.HTTPConnection(host, port, timeout=2)
-        # /health is a fast liveness probe
-        conn.request("GET", "/health")
-        resp = conn.getresponse()
-        body = resp.read().decode(errors="replace").strip()
-        conn.close()
-        res["health"] = body
-        # Accept BOTH the legacy plaintext "OK" and the JSON health contract every
-        # current embed server actually returns ({"status":"ok"|"loading",...}).
-        # The old `body != "OK"` check flagged a healthy JSON-returning server as
-        # unhealthy 100% of the time. Mirrors bin/memory/doctor.py:_probe_tier2.
-        healthy = resp.status == 200
-        if healthy and body != "OK":
-            try:
-                hj = json.loads(body)
-                healthy = hj.get("status") in ("ok", "loading")
-                if hj.get("model"):
-                    res["model"] = hj.get("model")
-            except (json.JSONDecodeError, AttributeError):
-                healthy = False
-        if not healthy:
-            res["status"] = f"unhealthy-{resp.status}"
-            return res
-
-        # /metrics returns {in_flight, model, p50_ms, p99_ms, queue_depth}
-        conn = http.client.HTTPConnection(host, port, timeout=2)
-        conn.request("GET", "/metrics")
-        mresp = conn.getresponse()
-        if mresp.status == 200:
-            try:
-                metrics = json.loads(mresp.read().decode())
-                res["metrics"] = metrics
-                # Only override the health-JSON model when /metrics actually
-                # reports one (the shared server has no /metrics → keep health).
-                res["model"] = metrics.get("model") or res["model"]
-            except json.JSONDecodeError:
-                pass
-        conn.close()
-
-        res["status"] = "online"
-    except (ConnectionRefusedError, OSError, http.client.HTTPException) as e:
-        res["error"] = f"{type(e).__name__}: {e}"
-    except Exception as e:
-        res["error"] = f"{type(e).__name__}: {e}"
-
-    return res
+    return await asyncio.to_thread(tier2_client.probe, url, 2.0)

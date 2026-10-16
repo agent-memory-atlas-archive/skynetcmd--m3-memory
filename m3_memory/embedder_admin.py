@@ -1646,6 +1646,66 @@ def cmd_unshared(args: argparse.Namespace) -> int:
     return 0
 
 
+_EMBED_TOKEN_SECRET = "M3_EMBED_SERVER_TOKEN"
+
+
+def cmd_secure(args: argparse.Namespace) -> int:
+    """Add (or with --off remove) m3-embed-server's listener for other machines:
+    TLS with the given certificate, plus a bearer token. The loopback listener
+    is untouched. The token is minted inside the FIPS boundary, the server keeps
+    only its SHA-256, and this machine's copy goes to the secrets file once the
+    server has accepted the settings."""
+    pair = _binary_and_gguf_or_fail()
+    if not pair:
+        return 1
+    binary, gguf = pair
+    if args.off:
+        rc = _service_cmd(binary, gguf, "secure", "--off")
+        if rc == 0:
+            print("     Restart to apply:  m3 embedder stop && m3 embedder start")
+        return rc
+    missing = [f"--{n}" for n in ("listen", "cert", "key") if not getattr(args, n)]
+    if missing:
+        print(f"Error: {', '.join(missing)} required (or --off).", file=sys.stderr)
+        return 2
+
+    from crypto_provider import get_sha256
+    from m3_core.secret_store import get_secret, set_secret
+    from m3_http_auth import generate_token
+
+    existing = None if args.new_token else (get_secret(_EMBED_TOKEN_SECRET) or "").strip()
+    token = existing or generate_token()
+    rc = _service_cmd(
+        binary,
+        gguf,
+        "secure",
+        "--listen",
+        args.listen,
+        "--cert",
+        os.path.abspath(args.cert),
+        "--key",
+        os.path.abspath(args.key),
+        "--token-sha256",
+        get_sha256(token.encode("utf-8")),
+    )
+    if rc != 0:
+        return rc  # the server said why; nothing was stored
+    if token != existing:
+        set_secret(_EMBED_TOKEN_SECRET, token)
+        print(f"[OK] new bearer token stored here as secret {_EMBED_TOKEN_SECRET}.")
+    print("\nNext:")
+    print("  1. Restart the server:  m3 embedder stop && m3 embedder start")
+    print("  2. On each machine that should use it:")
+    print(f"       m3 secret set {_EMBED_TOKEN_SECRET}          (paste the token below when asked)")
+    print("       m3 config set embed.fallback_url https://<this machine's name>:<port>")
+    print("     If the certificate comes from a private CA, also:")
+    print("       m3 config set embed.fallback_ca <that CA's certificate .pem>")
+    print("  Keep the listener on a private network: Tailscale is recommended, and")
+    print("  `tailscale cert <machine>.<tailnet>.ts.net` gives a trusted certificate and key.")
+    print(f"\n  token (secret; share it only with those machines):\n    {token}")
+    return 0
+
+
 def cmd_backfill(args: argparse.Namespace) -> int:
     """Drain unembedded rows (delegates to bin/embed_backfill.py).
 
@@ -1816,6 +1876,22 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         help="Revert to per-process in-process embedders (remove .embed_config.json).",
     )
     p_unshared.set_defaults(func=cmd_unshared)
+
+    p_secure = sub.add_parser(
+        "secure",
+        help="Let other machines use the shared embed server: a TLS listener with a bearer token "
+        "(loopback is unchanged). Keep it on a private network such as Tailscale.",
+    )
+    p_secure.add_argument(
+        "--listen", help="Address for other machines: IP or IP:port (e.g. this machine's tailnet IP)."
+    )
+    p_secure.add_argument("--cert", help="TLS certificate chain (PEM), e.g. from `tailscale cert`.")
+    p_secure.add_argument("--key", help="Its private key (PEM); must be readable only by you.")
+    p_secure.add_argument(
+        "--new-token", action="store_true", help="Mint a new token instead of reusing the stored one."
+    )
+    p_secure.add_argument("--off", action="store_true", help="Remove the listener for other machines.")
+    p_secure.set_defaults(func=cmd_secure)
 
     p_backfill = sub.add_parser(
         "backfill",

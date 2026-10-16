@@ -127,6 +127,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `dim` | integer | `1024` | `M3_EMBED_DIM`, `EMBED_DIM` | restart to apply; Embedding dimension. |
 | `discovery_negative_ttl_s` | number | `60.0` | `M3_EMBED_DISCOVERY_NEG_TTL` | restart to apply; Seconds an endpoint that failed discovery is skipped. |
 | `entity_name_cache_max` | integer | `50000` | `M3_ENTITY_NAME_EMBED_CACHE_MAX`, `ENTITY_NAME_EMBED_CACHE_MAX` | restart to apply; Entity-name embeddings kept in memory. |
+| `fallback_ca` | path | (none) | (none) | restart to apply; CA certificate (PEM) that verifies an https embed.fallback_url whose certificate is not publicly trusted, e.g. a private CA. A `tailscale cert` certificate needs none. |
 | `fallback_model_tag` | string | (none) | `M3_EMBED_FALLBACK_MODEL_TAG` | restart to apply; Tag of vectors from the fallback endpoint. Default: embed.model. |
 | `fallback_url` | string | `http://127.0.0.1:8082` | `M3_EMBED_FALLBACK_URL` | restart to apply; The fallback embedding endpoint (the shared embed server). |
 | `gguf` | path | (none) | `M3_EMBED_GGUF` | restart to apply; The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery (embed.autodetect). Not an env override. |
@@ -529,6 +530,7 @@ Secrets are never read from this file, or from the environment. Each resolves fr
 | `M3_AGENT_OS_SALT_HEX` | `M3_AGENT_OS_SALT_HEX` | yes | The vault's device salt. |
 | `M3_CDW_PG_URL` | `M3_CDW_PG_URL`, `PG_URL` | no | DSN of the pg_sync data warehouse. |
 | `M3_CLOUD_AUTH_TOKEN` | `M3_CLOUD_AUTH_TOKEN` | no | Bearer token for the tier-4 cloud embedder. |
+| `M3_EMBED_SERVER_TOKEN` | `M3_EMBED_SERVER_TOKEN` | no | Bearer token for the shared embed server's listener for other machines (`m3 embedder secure`). |
 | `M3_PRIMARY_PG_URL` | `M3_PRIMARY_PG_URL`, `M3_PG_URL` | yes | DSN of a PostgreSQL primary store. |
 | `M3_SERVE_TOKEN` | `M3_SERVE_TOKEN` | no | Bearer token `m3 serve` requires. |
 | `MCP_PROXY_KEY` | `MCP_PROXY_KEY` | no | Shared token the MCP proxy requires; unset runs it without auth (warned). |

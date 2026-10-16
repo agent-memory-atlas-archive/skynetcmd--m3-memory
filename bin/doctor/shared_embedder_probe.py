@@ -28,7 +28,6 @@ import json
 import os
 import subprocess
 import sys
-import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
@@ -273,7 +272,9 @@ def _server_health(url: str, timeout: float = 3.0) -> tuple[str, dict]:
     if urlparse(url).scheme not in ("http", "https"):
         return "bad-scheme", {}
     try:
-        with urllib.request.urlopen(f"{url}/health", timeout=timeout) as r:  # nosec B310 — scheme checked
+        from m3_core import tier2_client
+
+        with tier2_client.urlopen(f"{url}/health", timeout=timeout) as r:
             raw = r.read().decode("utf-8", "replace").strip()
         # Accept BOTH health contracts: the Rust m3-embed-server returns plaintext
         # "OK", the Python embed_server_inproc.py returns JSON {"status":...}. The

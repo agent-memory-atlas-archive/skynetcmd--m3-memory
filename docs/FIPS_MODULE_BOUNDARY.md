@@ -89,7 +89,8 @@ validated module enforces its own role separation per its CMVP certificate.
 | Random numbers: keys, IVs, salts, tokens | `crypto_provider`: wolfCrypt's DRBG (the OS CSPRNG with FIPS off) | as above |
 | HTTPS from m3 | Python's `ssl` module, which is **OpenSSL** (the optional `wolfssl` Python package is rarely installed) | Python's OpenSSL runs a validated FIPS provider, e.g. an OS FIPS mode, and the operator attests it (`crypto.tls_validated`) |
 | PostgreSQL (primary store, warehouse) | **libpq**, with the OpenSSL it is linked to; `psycopg2-binary` bundles its own | `psycopg2` is built from source against a validated OS OpenSSL, attested as above |
-| Rust core HTTP client (only for a remote `https://` embedder) | rustls (ring) | never; it is to be removed from the core, and remote HTTPS will go through m3's Python client |
+| Shared embed server's listener for other machines (`m3-embed-server`, `remote_listen`; TLS 1.3, AES-GCM, P-256/P-384, bearer token stored as its SHA-256) | rustls on **aws-lc-rs** | the `fips` build of m3-embed-server links AWS-LC's FIPS module; under `crypto.fips_strict` the server refuses this listener from any other build. Its loopback listener is plaintext and stays on this machine |
+| Clients of that listener (`embed.fallback_url` = `https://…`) | `crypto_provider`'s TLS 1.3 context (Python's `ssl`), trusting `embed.fallback_ca` when set | as HTTPS from m3 above |
 | Agent doorbell (`m3-dispatchd`) | none: local IPC only (Unix socket, Windows named pipe), access decided by the OS | nothing to validate |
 
 PostgreSQL's libpq has no wolfSSL backend (its TLS support is OpenSSL-based), so
