@@ -1,5 +1,5 @@
 """A shell without a usable systemd user session (measured on a Proxmox host,
-2026-10-15, `su bhaba` from root): m3 reruns itself into a running manager the
+2026-10-15, `su <user>` from root): m3 reruns itself into a running manager the
 shell lost, names the one-time fix when there is none, and never retires the old
 embedder where the new service could not start."""
 

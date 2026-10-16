@@ -95,7 +95,7 @@ def test_write_json_reports_failure(tmp_path, capsys):
 @pytest.mark.parametrize(
     "os_name,path,want",
     [
-        ("Windows", "C:/Users/bhaba/x/pythonw.exe", "C:/Users/bhaba/x/pythonw.exe"),
+        ("Windows", "C:/Users/alex/x/pythonw.exe", "C:/Users/alex/x/pythonw.exe"),
         ("Windows", "C:/Users/Jo Smith/x/pythonw.exe", '"C:/Users/Jo Smith/x/pythonw.exe"'),
         ("Linux", "/home/u/v/bin/python3", "/home/u/v/bin/python3"),
         ("Linux", "/home/Jo Smith/v/bin/python3", "'/home/Jo Smith/v/bin/python3'"),

@@ -792,7 +792,7 @@ def resolve_db_path(explicit: str | None = None) -> str:
     joining it onto the CWD (§3 fail loud, never silent)::
 
         M3_DATABASE=postgresql://u:p@host:5432/agent_memory
-        -> C:\\Users\\bhaba\\.m3-dev\\m3-memory\\postgresql:\\u:p@host:5432\\agent_memory
+        -> C:\\Users\\alex\\.m3-dev\\m3-memory\\postgresql:\\u:p@host:5432\\agent_memory
 
     Nothing rejects that path; SQLite simply creates an empty database at it.
     The caller then reads and writes a real store that is silently EMPTY, while
