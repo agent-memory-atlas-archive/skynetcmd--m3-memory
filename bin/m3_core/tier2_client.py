@@ -66,7 +66,13 @@ def _token() -> str | None:
     # reads the secrets file per request and a new token needs no restart.
     from m3_sdk import get_secret_cached
 
-    return (get_secret_cached(SECRET_NAME) or "").strip() or None
+    try:
+        return (get_secret_cached(SECRET_NAME) or "").strip() or None
+    except Exception as e:  # noqa: BLE001 — a secrets fault must not fail an embed; the server's 401 says the rest
+        from m3_core.errors import log_swallowed
+
+        log_swallowed(logger, e, "cannot resolve %s (%s); tier-2 requests go without it", SECRET_NAME, e)
+        return None
 
 
 @functools.cache

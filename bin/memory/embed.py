@@ -1160,8 +1160,10 @@ def _get_embed_client() -> _httpx.AsyncClient:
                     limits=limits,
                     timeout=timeout,
                     http2=False,
-                    # An https tier-2 server is verified with m3's TLS context
-                    # (and embed.fallback_ca); plain http keeps httpx's default.
+                    # With an https tier-2 URL this client verifies every https
+                    # endpoint it serves with m3's TLS 1.3 context plus
+                    # embed.fallback_ca, as m3's main HTTP client already does;
+                    # with plain http it keeps httpx's default.
                     verify=tier2_client.verify_for(_EMBED_FALLBACK_URL),
                 )
                 _EMBED_CLIENT_LOOP_ID = loop_id

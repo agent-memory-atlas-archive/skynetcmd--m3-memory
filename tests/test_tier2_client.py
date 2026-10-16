@@ -49,6 +49,16 @@ def test_no_token_set_sends_nothing(monkeypatch):
     assert t.headers("https://embed.example.ts.net:8082") == {}
 
 
+def test_a_secrets_fault_sends_no_token_instead_of_failing_the_embed(monkeypatch):
+    import m3_sdk
+
+    def boom(name):
+        raise RuntimeError("secrets file refused")
+
+    monkeypatch.setattr(m3_sdk, "get_secret_cached", boom)
+    assert t.headers("https://embed.example.ts.net:8082") == {}
+
+
 def test_only_http_urls_are_opened():
     with pytest.raises(ValueError, match="not an http"):
         t.urlopen("file:///etc/passwd", timeout=1)
