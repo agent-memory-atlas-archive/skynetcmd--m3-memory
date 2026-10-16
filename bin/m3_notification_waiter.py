@@ -786,12 +786,16 @@ def _wait_via_m3_wait(args, endpoint: str, binary: str) -> int | None:
     try:
         rc = subprocess.run(cmd, **_no_window()).returncode  # nosec B603 - argv list, no shell
     except OSError as exc:
-        _warn(f"m3-wait did not start ({exc!r}); polling instead. inspect: {binary}")
+        _warn(f"m3-wait did not start: {exc!r}. observed: binary {binary}, endpoint {endpoint}. polling instead")
         return None
     if rc == _M3_WAIT_NO_DAEMON:
         return None  # the daemon is an accelerator; polling is the normal fallback
     if rc not in (0, 2):
-        _warn(f"m3-wait exited {rc}; polling instead. inspect: its stderr above, and m3-dispatchd's log")
+        _warn(
+            f"m3-wait exited {rc} (1: an error it printed above, or --confirm failed; other: the confirm "
+            f"command's own code). observed: binary {binary}, endpoint {endpoint}, readers {args.agent_ids}. "
+            "polling instead. inspect: the stderr above"
+        )
         return None
     return rc
 

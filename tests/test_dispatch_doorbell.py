@@ -221,4 +221,6 @@ def test_every_reader_that_sees_a_message_is_told_once(stores, capsys, tmp_path)
     orchestration.notify_impl("probe@4", "handoff", {})
     assert w._confirm(bare) == 0
     assert w._confirm(inst) == 0, "the instance waiter missed mail the bare waiter confirmed first"
+    assert w._confirm(bare) == w._KEEP_WAITING, "the bare waiter re-reported: its baseline was overwritten"
+    assert w._confirm(inst) == w._KEEP_WAITING, "the instance waiter re-reported: its baseline was overwritten"
     capsys.readouterr()
