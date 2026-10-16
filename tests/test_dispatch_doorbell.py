@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import shutil
 import sqlite3
 import subprocess
 import sys
@@ -96,26 +95,17 @@ def test_the_waiter_polls_when_there_is_no_daemon():
     assert w._doorbell_wait(None, ["a"], 1.0) is None
 
 
-def _dispatchd() -> str | None:
-    """The m3-dispatchd binary: on PATH, or shipped in the m3_core_rs package."""
-    found = shutil.which("m3-dispatchd")
-    if found:
-        return found
-    try:
-        import m3_core_rs
+def _core_bin(base: str) -> str | None:
+    """A core-wheel binary, located as m3 locates it (m3_memory._core_bins)."""
+    from m3_core.seams import core_bins
 
-        pkg = pathlib.Path(m3_core_rs.__file__).parent
-    except ImportError:
-        return None
-    for name in ("m3-dispatchd", "m3-dispatchd.exe"):
-        if (pkg / name).is_file():
-            return str(pkg / name)
-    return None
+    found = core_bins.core_binary(base)
+    return str(found) if found else None
 
 
 @pytest.fixture
 def daemon(tmp_path):
-    exe = _dispatchd()
+    exe = _core_bin("m3-dispatchd")
     if not exe:
         pytest.skip(skip_reason("dep", "m3-dispatchd is not installed (a core with the dispatch daemon)"))
     endpoint = doorbell.endpoint_for(str(tmp_path / "engine"))
@@ -168,3 +158,67 @@ def test_notify_wakes_a_blocked_waiter(daemon, stores, monkeypatch):
     th.join(15)
     assert got["w"]["wake"] == "mail" and got["w"]["recipients"] == ["probe@7"], json.dumps(got)
     assert time.perf_counter() - t < 2.0
+
+
+def test_m3_wait_wakes_on_a_python_send_and_runs_the_confirm_command(daemon, stores, monkeypatch):
+    """Python ring -> daemon -> m3-wait -> the confirm command, live."""
+    from memory import orchestration
+
+    exe = _core_bin("m3-wait")
+    if not exe:
+        pytest.skip(skip_reason("dep", "m3-wait is not installed (a core with the waiter binary)"))
+    monkeypatch.setattr(doorbell, "endpoint_for", lambda root: daemon)
+    assert doorbell.wait(daemon, ["probe"], 0)["wake"] == "resync"  # registered: the next wake is mail
+    confirm = [
+        sys.executable,
+        "-c",
+        "import json,os,sys; print(json.loads(os.environ['M3_WAKE'])['wake']); sys.exit(0)",
+    ]
+    proc = subprocess.Popen(
+        [exe, "--endpoint", daemon, "--reader", "probe", "--timeout", "20", "--", *confirm],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    time.sleep(0.3)
+    orchestration.notify_impl("probe@7", "handoff", {})
+    out, _ = proc.communicate(timeout=20)
+    assert proc.returncode == 0 and out.strip() == "mail", (proc.returncode, out)
+
+
+def test_the_confirm_step_reports_new_mail_once(stores, capsys, tmp_path):
+    """What m3-wait runs per wake: exit 0 with the new ids, then 75 (wait again).
+    The first run has no baseline, so mail already waiting is reported once."""
+    import argparse
+
+    import m3_notification_waiter as w
+
+    from memory import orchestration
+
+    orchestration.notify_impl("probe@2", "handoff", {})  # arrived before any waiter ran
+    args = argparse.Namespace(agent_ids=["probe"], ack=False, engine_root=str(tmp_path))
+    assert w._confirm(args) == 0
+    assert len(json.loads(capsys.readouterr().out.strip().splitlines()[-1])["new_notifications"]["probe"]) == 1
+    assert w._confirm(args) == w._KEEP_WAITING
+    orchestration.notify_impl("probe@3", "handoff", {})
+    assert w._confirm(args) == 0
+    assert len(json.loads(capsys.readouterr().out.strip().splitlines()[-1])["new_notifications"]["probe"]) == 1
+    assert w._confirm(args) == w._KEEP_WAITING, "the same arrival was reported twice"
+
+
+def test_every_reader_that_sees_a_message_is_told_once(stores, capsys, tmp_path):
+    """A message to probe@4 reaches a bare `probe` waiter AND a `probe@4` waiter.
+    Receipt is one stamp per row, so it cannot be the baseline: the second
+    waiter would never wake. Each reader set keeps its own."""
+    import argparse
+
+    import m3_notification_waiter as w
+
+    from memory import orchestration
+
+    bare = argparse.Namespace(agent_ids=["probe"], ack=False, engine_root=str(tmp_path))
+    inst = argparse.Namespace(agent_ids=["probe@4"], ack=False, engine_root=str(tmp_path))
+    w._confirm(bare), w._confirm(inst)  # take baselines
+    orchestration.notify_impl("probe@4", "handoff", {})
+    assert w._confirm(bare) == 0
+    assert w._confirm(inst) == 0, "the instance waiter missed mail the bare waiter confirmed first"
+    capsys.readouterr()

@@ -307,6 +307,11 @@ def is_windows() -> bool:
     return sys.platform == "win32"
 
 
+def executable_name(base: str) -> str:
+    """``base`` as this OS names an executable file (``.exe`` on Windows)."""
+    return base + ".exe" if is_windows() else base
+
+
 def is_macos() -> bool:
     return sys.platform == "darwin"
 
@@ -445,12 +450,19 @@ def dispatch_endpoint(engine_root: str) -> str:
         import getpass
 
         return rf"\\.\pipe\m3-dispatch-{getpass.getuser()}-{tag}"
-    path = os.path.join(root, ".internal", "dispatch.sock")
-    if len(path.encode("utf-8")) < 100:
-        return path
     import tempfile
 
-    return os.path.join(tempfile.gettempdir(), f"m3-dispatch-{current_uid()}-{tag}.sock")
+    # The first that fits the limit. A long TMPDIR made the temp fallback itself
+    # too long (125 bytes in a macOS pytest sandbox), and the daemon could not
+    # bind; /tmp always fits. The socket is 0600 and peer-checked, so a shared
+    # directory exposes nothing.
+    name = f"m3-dispatch-{current_uid()}-{tag}.sock"
+    candidates = (
+        os.path.join(root, ".internal", "dispatch.sock"),
+        os.path.join(tempfile.gettempdir(), name),
+        os.path.join("/tmp", name),  # nosec B108 - a 0600 socket named per uid; the daemon checks the peer uid
+    )
+    return next(c for c in candidates if len(c.encode("utf-8")) < 100)
 
 
 def port_listener_is_mine(port: int, procs: Any) -> bool | None:

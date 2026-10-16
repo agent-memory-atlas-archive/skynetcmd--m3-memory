@@ -674,6 +674,14 @@ the policy is forward-going only.
 
 ### Changed
 
+- **The notification waiter waits in `m3-wait` when the dispatch daemon runs.**
+  With `m3-dispatchd` running and a core that ships `m3-wait`, the waiter blocks
+  there (about 19 MB committed in all, against about 515 MB for the polling child)
+  and confirms each wake in the store. On that path, mail that arrived while no
+  waiter ran is reported at its first wake. Without the daemon or `m3-wait`, it
+  polls as before. **Affected:** installs running `m3-dispatchd` · **Action:**
+  none · **Data status:** none.
+
 - **m3's background jobs show under their own names on macOS and Linux.** Login items
   and process lists read `m3-cognitive-loop`, `m3-sync`, `m3-dashboard` and so on instead
   of seven entries named `python`. Each job runs through a launcher of that name, which

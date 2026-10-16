@@ -26,6 +26,7 @@ if _ilu.find_spec("m3_memory") is None:
         _sys.path.append(str(_root))
 
 from m3_memory import _childenv as childenv  # noqa: E402  (child-process env owner, stdlib-only)
+from m3_memory import _core_bins as core_bins  # noqa: E402  (core-wheel executables, stdlib-only)
 from m3_memory import _root_migration as root_migration  # noqa: E402  (Root-1 migration, stdlib-only)
 from m3_memory import _roots as roots  # noqa: E402  (the root-directory owner, stdlib-only)
 from m3_memory._platform import (  # noqa: E402
@@ -34,6 +35,7 @@ from m3_memory._platform import (  # noqa: E402
     current_uid,
     detached_spawn_kwargs,
     dispatch_endpoint,
+    executable_name,
     hidden_window_kwargs,
     is_apple_silicon,
     is_linux,
@@ -59,10 +61,12 @@ __all__ = [
     "PY",
     "childenv",
     "console_has_person",
+    "core_bins",
     "current_uid",
     "detached_spawn_kwargs",
     "dispatch_endpoint",
     "event_loop_timer_slack",
+    "executable_name",
     "hidden_window_kwargs",
     "is_apple_silicon",
     "is_linux",

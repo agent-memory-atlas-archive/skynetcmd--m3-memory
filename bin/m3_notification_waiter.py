@@ -598,6 +598,12 @@ def main() -> int:
         "survives the ack.",
     )
     ap.add_argument("--child", action="store_true")
+    ap.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Internal: run by m3-wait on each wake. Stamp receipt on new mail and print it "
+        "(exit 0), or exit 75 when nothing is new.",
+    )
     try:
         from m3_core.paths import add_config_arg
 
@@ -612,6 +618,21 @@ def main() -> int:
 
     if args.child:
         return pg_child_loop(args)
+    if args.confirm:
+        return _confirm(args)
+
+    # With m3-dispatchd running and m3-wait installed, the wait is held there and
+    # this interpreter imports none of the store. Otherwise, the paths below.
+    bell, wait_bin = _doorbell_endpoint(args.engine_root), _m3_wait_binary()
+    if bell and wait_bin:
+        while True:
+            if args.supervise:
+                args.agent_ids = refresh_agent_ids(args.agent_ids)
+            rc = _wait_via_m3_wait(args, bell, wait_bin)
+            if rc is None:
+                break  # fall through to polling
+            if not args.supervise:
+                return rc
 
     if not _has_change_signal(notification_stores(args.engine_root)[0]):
         if args.supervise:
@@ -656,6 +677,123 @@ def _doorbell_wait(endpoint: str | None, agent_ids: list[str], timeout_s: float)
     from m3_core import doorbell
 
     return doorbell.wait(endpoint, agent_ids, timeout_s)
+
+
+# m3-wait's exit codes, and the one its confirm command uses to wait again.
+_M3_WAIT_NO_DAEMON = 3
+_KEEP_WAITING = 75
+
+
+def _baseline_path(engine_root: str, agent_ids: list[str]) -> pathlib.Path:
+    """Where --confirm keeps the unread ids it last reported, per reader set (the
+    daemon's key too). Per reader set, not per row: one message can reach several
+    readers (a bare type and its instance), and each must see it once."""
+    import hashlib
+
+    # A file name, not security (outside the FIPS boundary, as dispatch_endpoint's tag).
+    key = hashlib.sha256("\n".join(sorted(set(agent_ids))).encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+    return pathlib.Path(engine_root) / ".internal" / "waiter" / f"{key}.json"
+
+
+def _confirm(args) -> int:
+    """One wake, confirmed in the store: report unread ids that are new since the
+    last report (exit 0, receipt stamped), or exit 75 so m3-wait waits again.
+    Run by m3-wait per wake, as a fresh process, so the baseline lives in a file.
+
+    With no file yet (first run, or after it was removed), the baseline is empty:
+    mail that arrived while no waiter ran is reported at the first wake, which
+    is a resync."""
+    try:
+        from memory.orchestration import (
+            notifications_ack_all_impl,
+            notifications_mark_received_impl,
+            notifications_unread_ids_impl,
+        )
+    except ImportError as e:
+        _warn(f"--confirm cannot import m3's store: {e}")
+        return 1
+    path = _baseline_path(args.engine_root, args.agent_ids)
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        saved = {}
+    except (OSError, ValueError) as exc:
+        _warn(f"unreadable waiter baseline {path} ({exc!r}); reporting all unread mail once")
+        saved = {}
+    hits, now_all = {}, {}
+    for a in args.agent_ids:
+        # Not unread_ids(): it answers an empty set on a failed read, which here
+        # would be saved as the baseline and re-report the whole inbox later.
+        try:
+            now = {str(x) for x in notifications_unread_ids_impl(a)}
+        except Exception as exc:  # noqa: BLE001 -- reported; the baseline is left as it was
+            _warn(f"--confirm could not read {a!r}'s inbox: {exc!r}")
+            return 1
+        now_all[a] = sorted(now)
+        gained = now - set(saved.get(a, []))
+        if gained:
+            hits[a] = sorted(gained)
+    from m3_core.atomic_io import atomic_write
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(path, json.dumps(now_all))
+    if not hits:
+        return _KEEP_WAITING
+    for a in hits:
+        notifications_mark_received_impl(a)
+    acked = {}
+    if args.ack:
+        for a in hits:
+            notifications_ack_all_impl(a)
+            acked[a] = hits[a]
+    print(json.dumps({"new_notifications": hits, "received": dict.fromkeys(hits, True), "acked": acked}), flush=True)
+    return 0
+
+
+def _pinning_argv() -> list[str]:
+    """This process's --config/--set arguments, so a child reads the same settings."""
+    out, argv = [], sys.argv[1:]
+    for i, a in enumerate(argv):
+        if a in ("--config", "--set") and i + 1 < len(argv):
+            out += [a, argv[i + 1]]
+        elif a.startswith(("--config=", "--set=")):
+            out.append(a)
+    return out
+
+
+def _m3_wait_binary() -> str | None:
+    try:
+        from m3_core.seams import core_bins
+    except ImportError:
+        return None
+    found = core_bins.core_binary("m3-wait")
+    return str(found) if found else None
+
+
+def _wait_via_m3_wait(args, endpoint: str, binary: str) -> int | None:
+    """Block in m3-wait (about 1 MB committed) instead of this interpreter, and
+    confirm each wake with ``--confirm``. None when it cannot serve (no daemon,
+    or m3-wait failed: reported), so the caller polls as before."""
+    cmd = [binary, "--endpoint", endpoint, "--timeout", str(args.timeout)]
+    for a in args.agent_ids:
+        cmd += ["--reader", a]
+    cmd += ["--", sys.executable, os.path.abspath(__file__), "--confirm", "--engine-root", args.engine_root]
+    for a in args.agent_ids:
+        cmd += ["--agent-id", a]
+    if args.ack:
+        cmd.append("--ack")
+    cmd += _pinning_argv()
+    try:
+        rc = subprocess.run(cmd, **_no_window()).returncode  # nosec B603 - argv list, no shell
+    except OSError as exc:
+        _warn(f"m3-wait did not start ({exc!r}); polling instead. inspect: {binary}")
+        return None
+    if rc == _M3_WAIT_NO_DAEMON:
+        return None  # the daemon is an accelerator; polling is the normal fallback
+    if rc not in (0, 2):
+        _warn(f"m3-wait exited {rc}; polling instead. inspect: its stderr above, and m3-dispatchd's log")
+        return None
+    return rc
 
 
 def _wait_once(args) -> int:

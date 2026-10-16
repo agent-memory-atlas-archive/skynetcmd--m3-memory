@@ -100,15 +100,31 @@ daemon. SQLite stores are single-machine and ring directly.
 ### Waiter
 
 The waiter keeps its contract (exit 0 on new mail, 2 on timeout), so no agent
-integration changes. It becomes a thin client: subscribe, block, exit. Shipped
-as a small Rust binary in the core wheel, it starts in milliseconds and holds a
-few MB. With no daemon it falls back to today's polling.
+integration changes. With the daemon running and `m3-wait` (core wheel)
+installed, it hands the wait to `m3-wait`, which blocks on the doorbell and runs
+`m3_notification_waiter --confirm` on each wake. The daemon issues no SQL, so the
+confirm step reads the store: it reports unread ids new since its last report
+and stamps their receipt (exit 0), or exits 75 and `m3-wait` waits again. Its
+baseline is a small file per reader set under the engine root's `.internal/`,
+not `received_at`: receipt is one stamp per row, and one message can reach
+several readers (a bare type and its instance), each of which must wake. With no
+file yet, mail that arrived while no waiter ran is reported at the first wake.
+
+Measured on Windows (2026-10-16), single-shot waiter blocked: the Python parent
+17.9 MB committed plus `m3-wait` 0.9 MB, against 515 MB for the polling child;
+send to report about 1 s, mostly the confirm step starting. With no daemon, no
+`m3-wait`, or a failing `m3-wait` (reported), the waiter polls as before.
+
+Rings may carry an `origin` node; a wake lists the origins it covers, so a
+waiter can tell mail relayed from another machine (phase 2).
 
 ### Supervision and packaging
 
-`m3-dispatchd` ships in the `m3_core_rs` wheel beside `m3-embed-server` and is
-installed by the same per-OS service installers (launchd, systemd user units,
-Task Scheduler). It is per OS user, like the socket. It is a separate binary
+`m3-dispatchd` ships in the `m3_core_rs` wheel beside `m3-embed-server`. It is
+per OS user, like the socket, so m3's Python installer registers it as a
+per-user job (launchd agent, systemd user unit, logon task), as it does the
+cognitive loop, and passes the endpoint the OS seam chooses. The embed server's
+Rust service code installs a machine-wide service and is not reused. It is a separate binary
 rather than a second listener inside the embed server: the embed server may be
 GPU-bound and restarts for model changes, and messaging must not inherit that.
 

@@ -265,23 +265,9 @@ def _server_binary() -> Path | None:
     if env_bin and os.path.isfile(Path(env_bin)):
         return Path(env_bin)
 
-    try:
-        import m3_core_rs
+    from m3_memory._core_bins import core_binary
 
-        wheel_dir = Path(m3_core_rs.__file__).parent
-        exe_name = "m3-embed-server.exe" if is_windows() else "m3-embed-server"
-        for candidate in (
-            wheel_dir / exe_name,
-            wheel_dir / "bin" / exe_name,
-            wheel_dir.parent / exe_name,
-        ):
-            if os.path.isfile(candidate):
-                return candidate
-    except ImportError:
-        pass
-
-    on_path = shutil.which("m3-embed-server")
-    return Path(on_path) if on_path else None
+    return core_binary("m3-embed-server")
 
 
 def _ensure_executable(binary: Path) -> None:

@@ -116,18 +116,20 @@ def test_m3_memory_puts_bin_on_the_path_only_through_its_owner():
     assert not hits, "use m3_memory._bin.ensure_on_path(): " + ", ".join(hits)
 
 
-def test_the_roots_owner_imports_only_stdlib_and_the_lower_seams():
+@pytest.mark.parametrize("owner", [_ROOTS, _ROOT / "m3_memory" / "_core_bins.py"], ids=lambda p: p.name)
+def test_the_stdlib_only_owners_import_only_stdlib_and_the_lower_seams(owner):
     """m3_memory/_roots.py is imported by code that must run without m3_core (the
-    installed package, the crypto layer, the chatlog hooks), so it may reach only
-    the stdlib and the version/OS seams."""
-    names = _imports(_ROOTS)
+    installed package, the crypto layer, the chatlog hooks), and _core_bins.py by
+    the notification waiter before the rest of m3, so each may reach only the
+    stdlib and the version/OS seams."""
+    names = _imports(owner)
     allowed = ("m3_memory._pyver", "m3_memory._platform")
     foreign = {
         m
         for m in names
         if m.split(".")[0] not in sys.stdlib_module_names and m != "__future__" and not m.startswith(allowed)
     }
-    assert not foreign, f"m3_memory/_roots.py may import only the stdlib, _pyver and _platform: {foreign}"
+    assert not foreign, f"m3_memory/{owner.name} may import only the stdlib, _pyver and _platform: {foreign}"
 
 
 def test_the_database_seam_does_not_import_business_logic():
@@ -215,7 +217,12 @@ def test_m3_core_seams_reexports_the_seams_unchanged():
     pf = importlib.import_module("m3_memory._platform")
     pv = importlib.import_module("m3_memory._pyver")
     # The stdlib-only owners are re-exported as modules, so their functions stay their own.
-    module_owners = {"roots": "_roots", "childenv": "_childenv", "root_migration": "_root_migration"}
+    module_owners = {
+        "roots": "_roots",
+        "childenv": "_childenv",
+        "root_migration": "_root_migration",
+        "core_bins": "_core_bins",
+    }
     for name, mod in module_owners.items():
         assert getattr(seams, name) is importlib.import_module(f"m3_memory.{mod}"), f"m3_core.seams.{name} is not {mod}"
     for name in (n for n in seams.__all__ if n not in module_owners):

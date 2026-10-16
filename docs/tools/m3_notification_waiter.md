@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: fcbeab8cac2c
-mtime_utc: 2026-10-16T00:09:58.102364+00:00
-generated_utc: 2026-10-16T00:10:04.173038+00:00
+sha1: 5fd1c82a8c8f
+mtime_utc: 2026-10-16T04:12:41.695424+00:00
+generated_utc: 2026-10-16T04:12:48.845717+00:00
 private: false
 ---
 
@@ -49,6 +49,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 | `--supervise` | Never exit: after each detection, re-arm and keep waiting. For an ONSTART scheduled task, which needs a long-lived process. Without it the waiter is single-shot, which is what a runtime wants when the process EXIT is the wake signal. | `False` |  | store_true |  |
 | `--ack` | Ack on detection. OFF BY DEFAULT, deliberately: the notifications table has only `read_at` -- no separate 'received' column -- so acking here destroys the only record that a message was unread. Measured on this machine: 29 of 30 recent notifications carried NO task_id, so 'the task state machine tracks it' is false for ~97 percent of real traffic. Enable this only where every watched kind is backed by a task whose own state survives the ack. | `False` |  | store_true |  |
 | `--child` |  | `False` |  | store_true |  |
+| `--confirm` | Internal: run by m3-wait on each wake. Stamp receipt on new mail and print it (exit 0), or exit 75 when nothing is new. | `False` |  | store_true |  |
 | `--config` |  | None |  | str |  |
 
 ---
@@ -71,6 +72,7 @@ _(none detected)_
 **subprocess**
 
 - `subprocess.Popen()  → `cmd`` (line 407)
+- `subprocess.run()  → `cmd`` (line 787)
 - `subprocess.run()` (line 238)
 
 
@@ -79,10 +81,12 @@ _(none detected)_
 ## Notable external imports
 
 - `m3_core (doorbell)`
+- `m3_core.atomic_io (atomic_write)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (notification_store_paths)`
 - `m3_core.paths (resolve_backend_name)`
+- `m3_core.seams (core_bins)`
 - `m3_core.seams (roots)`
 - `memory (db)`
 - `memory.backends (dialect)`
