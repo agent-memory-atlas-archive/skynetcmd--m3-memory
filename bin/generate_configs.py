@@ -149,7 +149,7 @@ _CMD_SPECIAL = re.compile(r"[\s&()\[\]{}^=;!,`~|<>%\']")
 def _quote_cmd_path(path: str) -> str:
     """``path`` quoted for the shell a hook / statusLine command runs under.
 
-    Hazard: an unquoted path with a space ("C:/Users/Jo Smith/...") splits into
+    Hazard: an unquoted path with a space ("D:/Apps/Jo Smith/...") splits into
     two arguments and the hook dies silently on every fire. Unchanged when no
     quoting is needed, so existing commands stay byte-identical.
     Windows: cmd.exe double quotes (paths cannot contain ``"``). POSIX: shlex.

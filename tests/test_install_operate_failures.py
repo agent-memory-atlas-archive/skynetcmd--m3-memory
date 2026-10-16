@@ -95,8 +95,8 @@ def test_write_json_reports_failure(tmp_path, capsys):
 @pytest.mark.parametrize(
     "os_name,path,want",
     [
-        ("Windows", "C:/Users/alex/x/pythonw.exe", "C:/Users/alex/x/pythonw.exe"),
-        ("Windows", "C:/Users/Jo Smith/x/pythonw.exe", '"C:/Users/Jo Smith/x/pythonw.exe"'),
+        ("Windows", "D:/Apps/alex/x/pythonw.exe", "D:/Apps/alex/x/pythonw.exe"),
+        ("Windows", "D:/Apps/Jo Smith/x/pythonw.exe", '"D:/Apps/Jo Smith/x/pythonw.exe"'),
         ("Linux", "/home/u/v/bin/python3", "/home/u/v/bin/python3"),
         ("Linux", "/home/Jo Smith/v/bin/python3", "'/home/Jo Smith/v/bin/python3'"),
     ],
@@ -328,9 +328,9 @@ def test_chatlog_config_failure_is_unknown_not_ok(monkeypatch, capsys):
 def test_extract_paths_handles_quoted_paths_with_spaces_and_posix_interpreters():
     from doctor import environment_probe as ep
 
-    assert ep._extract_paths('"C:/Users/Jo Smith/v/pythonw.exe" "C:/Users/Jo Smith/b/hook.py"') == [
-        "C:/Users/Jo Smith/v/pythonw.exe",
-        "C:/Users/Jo Smith/b/hook.py",
+    assert ep._extract_paths('"D:/Apps/Jo Smith/v/pythonw.exe" "D:/Apps/Jo Smith/b/hook.py"') == [
+        "D:/Apps/Jo Smith/v/pythonw.exe",
+        "D:/Apps/Jo Smith/b/hook.py",
     ]
     assert ep._extract_paths("/home/u/venv/bin/python3 /home/u/b/hook.py") == [
         "/home/u/venv/bin/python3",
