@@ -4,6 +4,7 @@ If Rust and Python diverge on ANY input, that's a finding to document, not hide.
 """
 
 import importlib
+import importlib.util
 import os
 import sys
 
@@ -18,17 +19,19 @@ _BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
-# Import the module fresh with the kill-switch forced ON so we get a handle to
-# the pure-Python implementation regardless of wheel presence. We then call its
-# _scrub_python directly (the Python reference) and compare to m3_core_rs.scrub.
+# A PRIVATE copy of the module, loaded with the kill-switch on, as the pure-Python
+# reference. Never replace sys.modules["chatlog_redaction"]: this runs at
+# collection, and the swap left every later importer on a Python-only module
+# while chatlog_core kept the native one, so their compile errors disagreed by
+# test order.
 _prev = os.environ.get("M3_CORE_RS_DISABLE")
 os.environ["M3_CORE_RS_DISABLE"] = "1"
 try:
-    if "chatlog_redaction" in sys.modules:
-        del sys.modules["chatlog_redaction"]
-    import chatlog_redaction as _clr_py  # noqa: E402
-
-    importlib.reload(_clr_py)
+    _spec = importlib.util.spec_from_file_location(
+        "_chatlog_redaction_python_ref", os.path.join(_BIN, "chatlog_redaction.py")
+    )
+    _clr_py = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_clr_py)
 finally:
     if _prev is None:
         del os.environ["M3_CORE_RS_DISABLE"]
