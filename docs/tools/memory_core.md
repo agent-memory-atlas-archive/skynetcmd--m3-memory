@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_core.py
-sha1: c8d30791e841
-mtime_utc: 2026-10-14T03:55:58.756545+00:00
-generated_utc: 2026-10-14T03:57:13.431882+00:00
+sha1: 886fddd2fdf5
+mtime_utc: 2026-10-16T15:03:18.620243+00:00
+generated_utc: 2026-10-16T15:27:52.827838+00:00
 private: false
 ---
 
@@ -104,6 +104,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `catalog.spec (VALID_MEMORY_TYPES)`
 - `catalog.spec (VALID_RELATIONSHIP_TYPES)`
 - `importlib`
+- `m3_core.errors (describe_http_failure)`
 - `m3_core.errors (log_swallowed)`
 - `memory (records)`
 - `memory.backends (active_backend)`

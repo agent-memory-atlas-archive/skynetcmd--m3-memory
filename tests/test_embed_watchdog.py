@@ -21,6 +21,13 @@ from pathlib import Path
 import pytest
 
 _BIN = Path(__file__).resolve().parent.parent / "bin"
+if str(_BIN) not in sys.path:
+    sys.path.insert(0, str(_BIN))
+
+from m3_core.tier2_client import Diagnosis  # noqa: E402
+
+_UP = Diagnosis("ok", "http://127.0.0.1:8082 is serving")
+_DOWN = Diagnosis("refused", "nothing accepted the connection at http://127.0.0.1:8082 (connection refused)")
 
 
 def _load(cfg_root: Path):
@@ -87,7 +94,7 @@ def test_recovers_after_supervisor_budget_would_be_exhausted(cfg_root, monkeypat
     long after any OS supervisor would have stopped retrying."""
     m = _load(cfg_root)
     _write_shared(cfg_root)
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
@@ -119,7 +126,7 @@ def test_first_miss_does_not_act(cfg_root, monkeypatch):
     a false alarm is a violation, not a safe default)."""
     m = _load(cfg_root)
     _write_shared(cfg_root)
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
@@ -130,7 +137,7 @@ def test_first_miss_does_not_act(cfg_root, monkeypatch):
 def test_second_consecutive_miss_acts(cfg_root, monkeypatch):
     m = _load(cfg_root)
     _write_shared(cfg_root)
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
@@ -143,7 +150,7 @@ def test_recovery_resets_the_failure_counter(cfg_root, monkeypatch):
     m = _load(cfg_root)
     _write_shared(cfg_root)
     healthy = {"v": False}
-    monkeypatch.setattr(m, "server_healthy", lambda url: healthy["v"])
+    monkeypatch.setattr(m, "server_check", lambda url: _UP if healthy["v"] else _DOWN)
     monkeypatch.setattr(m.subprocess, "run", _Calls())
 
     m.main()  # miss 1
@@ -156,7 +163,7 @@ def test_recovery_resets_the_failure_counter(cfg_root, monkeypatch):
 def test_healthy_server_is_never_touched(cfg_root, monkeypatch):
     m = _load(cfg_root)
     _write_shared(cfg_root)
-    monkeypatch.setattr(m, "server_healthy", lambda url: True)
+    monkeypatch.setattr(m, "server_check", lambda url: _UP)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
@@ -169,7 +176,7 @@ def test_backoff_prevents_fork_bomb(cfg_root, monkeypatch):
     """A server that crashes on startup must not be restarted every tick."""
     m = _load(cfg_root)
     _write_shared(cfg_root)
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
@@ -184,7 +191,7 @@ def test_backoff_prevents_fork_bomb(cfg_root, monkeypatch):
 def test_backoff_expires(cfg_root, monkeypatch):
     m = _load(cfg_root)
     _write_shared(cfg_root)
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
@@ -203,7 +210,7 @@ def test_backoff_expires(cfg_root, monkeypatch):
 def test_unshared_host_is_a_noop(cfg_root, monkeypatch):
     m = _load(cfg_root)
     _write_shared(cfg_root, enabled=False)
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
@@ -240,7 +247,7 @@ def test_a_server_on_another_machine_is_not_restarted_here(cfg_root, monkeypatch
     restarting this host's service could not bring it back."""
     m = _load(cfg_root)
     _write_shared(cfg_root, url=url)
-    monkeypatch.setattr(m, "server_healthy", lambda u: False)
+    monkeypatch.setattr(m, "server_check", lambda u: _DOWN)
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
     for _ in range(3):
@@ -257,9 +264,9 @@ def test_custom_fallback_url_is_honored(cfg_root, monkeypatch):
 
     def _probe(url):
         seen.append(url)
-        return False
+        return _DOWN
 
-    monkeypatch.setattr(m, "server_healthy", _probe)
+    monkeypatch.setattr(m, "server_check", _probe)
     monkeypatch.setattr(m.subprocess, "run", _Calls())
     m.main()
     assert seen == ["http://127.0.0.1:9999"]
@@ -297,7 +304,7 @@ def test_unelevated_failure_is_reported_not_swallowed(cfg_root, monkeypatch):
     m = _load(cfg_root)
     _write_shared(cfg_root)
     monkeypatch.setattr(m, "_os_name", lambda: "Windows")
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
     monkeypatch.setattr(m.subprocess, "run", _Calls(returncode=5))
     said: list[str] = []
     m.log = lambda msg: said.append(msg)
@@ -319,7 +326,7 @@ def test_subprocess_failure_to_spawn_is_non_fatal(cfg_root, monkeypatch):
     """A missing sc.exe/systemctl must not take the watchdog down."""
     m = _load(cfg_root)
     _write_shared(cfg_root)
-    monkeypatch.setattr(m, "server_healthy", lambda url: False)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
 
     def _boom(cmd, **kw):
         raise OSError("not found")
@@ -353,25 +360,87 @@ def test_health_probe_refusal_is_logged(capsys):
 
 
 def test_health_probe_still_accepts_http_and_https(monkeypatch):
-    """The guard must not break the real path."""
+    """The guard must not break the real path; the request goes through
+    tier2_client (token + TLS trust), not a bare urlopen."""
+    import contextlib
+
     import m3_embed_watchdog as w
+    from m3_core import tier2_client
 
     class _R:
         status = 200
 
-        def __enter__(self):
-            return self
+        def read(self):
+            return b'{"status":"ok"}'
 
-        def __exit__(self, *a):
-            return False
+    seen = []
 
-    seen = {}
+    @contextlib.contextmanager
+    def _fake(url, *, timeout, data=None, extra_headers=None):
+        seen.append(url)
+        yield _R()
 
-    def _fake(url, timeout=None):
-        seen["url"] = url
-        return _R()
-
-    monkeypatch.setattr(w.urllib.request, "urlopen", _fake)
+    monkeypatch.setattr(tier2_client, "urlopen", _fake)
     assert w.server_healthy("http://127.0.0.1:8082") is True
-    assert seen["url"] == "http://127.0.0.1:8082/health"
+    assert seen[-1] == "http://127.0.0.1:8082/health"
     assert w.server_healthy("https://example.invalid") is True
+
+
+# ── reachable-but-misconfigured is reported, never restarted ────────────────
+@pytest.mark.parametrize(
+    "diag",
+    [
+        Diagnosis(
+            "auth-rejected", "http://127.0.0.1:8082 answered HTTP 401", "`m3 secret set M3_EMBED_SERVER_TOKEN`", 401
+        ),
+        Diagnosis(
+            "tls-untrusted", "https://127.0.0.1:8082 presented a certificate", "`m3 config set embed.fallback_ca`"
+        ),
+        Diagnosis("unhealthy-503", "http://127.0.0.1:8082 reports degraded (HTTP 503): breaker open", "inspect", 503),
+    ],
+    ids=lambda d: d.state,
+)
+def test_a_reachable_misconfigured_server_is_never_restarted(cfg_root, monkeypatch, diag):
+    m = _load(cfg_root)
+    _write_shared(cfg_root)
+    monkeypatch.setattr(m, "server_check", lambda url: diag)
+    calls = _Calls()
+    monkeypatch.setattr(m.subprocess, "run", calls)
+    said: list[str] = []
+    m.log = lambda msg: said.append(msg)
+    for _ in range(4):
+        assert m.main() == 0
+    assert calls.cmds == [], "a start cannot cure a server that answers"
+    told = [s for s in said if diag.state in s]
+    assert len(told) == 1, "said once per state, not every tick"
+    assert "fix:" in told[0] and "not restarting" in told[0]
+
+
+def test_a_401_from_the_real_probe_is_auth_rejected(cfg_root, monkeypatch):
+    """End to end through tier2_client: the watchdog sends the token and
+    reads a 401 as misconfigured, not as down."""
+    import io
+    import urllib.error
+
+    from m3_core import tier2_client
+
+    m = _load(cfg_root)
+
+    def _fake(url, *, timeout, data=None, extra_headers=None):
+        raise urllib.error.HTTPError(url, 401, "Unauthorized", None, io.BytesIO(b""))
+
+    monkeypatch.setattr(tier2_client, "urlopen", _fake)
+    d = m.server_check("http://127.0.0.1:8082")
+    assert d.state == "auth-rejected" and d.answering
+
+
+def test_a_failed_start_is_said(cfg_root, monkeypatch):
+    m = _load(cfg_root)
+    _write_shared(cfg_root)
+    monkeypatch.setattr(m, "server_check", lambda url: _DOWN)
+    monkeypatch.setattr(m.subprocess, "run", _Calls(returncode=1))
+    said: list[str] = []
+    m.log = lambda msg: said.append(msg)
+    m.main()
+    m.main()
+    assert any("did not succeed" in s for s in said)

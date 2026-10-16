@@ -60,10 +60,11 @@ def _main_path_endpoints() -> list[str]:
         return []
 
 
-def _reach(endpoint: str, timeout: float = 3.0) -> tuple[str, list[str]]:
-    """Return (state, models). state in {'ok','auth','down','bad-scheme'}."""
+def _reach(endpoint: str, timeout: float = 3.0) -> tuple[str, list[str], str]:
+    """Return (state, models, detail). state in {'ok','auth','http-<code>','down','bad-scheme'};
+    detail names what was observed (status or exception) for the message."""
     if urlparse(endpoint).scheme not in ("http", "https"):
-        return "bad-scheme", []
+        return "bad-scheme", [], f"scheme {urlparse(endpoint).scheme!r} is not http/https"
     try:
         _ensure_path()
         from files_memory.config import llm_auth_headers
@@ -78,11 +79,15 @@ def _reach(endpoint: str, timeout: float = 3.0) -> tuple[str, list[str]]:
 
             body = json.loads(r.read().decode("utf-8", "replace"))
         models = [m.get("id", "") for m in body.get("data", []) if isinstance(m, dict)]
-        return "ok", [m for m in models if m]
+        return "ok", [m for m in models if m], ""
     except urllib.error.HTTPError as e:
-        return ("auth" if e.code in (401, 403) else "down"), []
-    except Exception:  # noqa: BLE001
-        return "down", []
+        # An answering server is not "down": a 404 is usually a URL missing /v1,
+        # a 5xx a failing server.
+        if e.code in (401, 403):
+            return "auth", [], f"HTTP {e.code}"
+        return f"http-{e.code}", [], f"HTTP {e.code} on GET /models"
+    except Exception as e:  # noqa: BLE001
+        return "down", [], f"{type(e).__name__}: {str(e) or '(no message)'}"
 
 
 def _classify_thinking(body: dict) -> str | None:
@@ -179,7 +184,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
     if brief:
         return 0
 
-    state, models = _reach(endpoint)
+    state, models, detail = _reach(endpoint)
     if state == "ok":
         shown = ", ".join(models[:3]) if models else "no models loaded"
         glyph = "✅" if models else "⚠️ "
@@ -232,5 +237,13 @@ def run(brief: bool = False, fix: bool = False) -> int:
             "resolve — set LM_API_TOKEN in the OS keyring (headless-safe)."
         )
         return 1
-    print(f"⚠️  file-extraction LLM: {endpoint} not reachable — inline/queue extraction will no-op until it serves.")
+    if state.startswith("http-"):
+        hint = " (check the URL ends in /v1)" if state == "http-404" else ""
+        print(
+            f"⚠️  file-extraction LLM: {endpoint} answered {detail}{hint} — inline/queue extraction will no-op until it serves."
+        )
+        return 1
+    print(
+        f"⚠️  file-extraction LLM: {endpoint} not reachable ({detail}) — inline/queue extraction will no-op until it serves."
+    )
     return 1

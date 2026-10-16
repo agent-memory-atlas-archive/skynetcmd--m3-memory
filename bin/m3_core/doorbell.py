@@ -17,10 +17,38 @@ may connect (see the daemon's ``ipc`` module).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
+import time
+
+logger = logging.getLogger("m3.doorbell")
 
 RING_BUDGET_S = 0.25  # the most a writer waits on a ring, daemon up or not
+# A daemon that ANSWERS with an error (or garbage) is not an absent daemon: it is
+# a fault the caller's fallback hides. Warn, at most once per key per window,
+# because wait() runs in a loop.
+_WARN_WINDOW_S = 300.0
+_warned_at: dict[tuple[str, str], float] = {}
+
+
+def _warn_daemon_fault(op: str, endpoint: str, observed: str) -> None:
+    key = (op, observed[:40])
+    now = time.monotonic()
+    if now - _warned_at.get(key, -_WARN_WINDOW_S) < _WARN_WINDOW_S:
+        return
+    _warned_at[key] = now
+    logger.warning(
+        "m3-dispatchd at %s answered %s with %s; falling back (%s). "
+        "inspect: the daemon log (m3-dispatchd.log under the logs root); repeats suppressed for %ds",
+        endpoint,
+        op,
+        observed,
+        "the ring is not delivered, waiters poll" if op == "/ring" else "the waiter polls",
+        int(_WARN_WINDOW_S),
+    )
+
+
 # Daemons this process started. Never waited for, by design (they outlive us);
 # holding the handles keeps Popen from reporting them as leaked children.
 _STARTED: list = []
@@ -89,10 +117,15 @@ def ring(endpoint: str, recipients: list[str]) -> bool:
 
     def send() -> None:
         try:
-            status, _ = _request(endpoint, "POST", "/ring", {"recipients": recipients[:1000]}, RING_BUDGET_S)
+            status, payload = _request(endpoint, "POST", "/ring", {"recipients": recipients[:1000]}, RING_BUDGET_S)
             done.append(status == 204)
-        except (OSError, ValueError, IndexError):
+            if status != 204:
+                _warn_daemon_fault("/ring", endpoint, f"HTTP {status} {json.dumps(payload)[:200] if payload else ''}")
+        except OSError:
+            done.append(False)  # not reachable: the expected "no daemon" answer
+        except (ValueError, IndexError) as exc:
             done.append(False)
+            _warn_daemon_fault("/ring", endpoint, f"an unparseable reply ({type(exc).__name__}: {exc})")
 
     t = threading.Thread(target=send, daemon=True, name="m3-doorbell-ring")
     t.start()
@@ -111,9 +144,15 @@ def wait(endpoint: str, readers: list[str], timeout_s: float) -> dict | None:
         status, payload = _request(
             endpoint, "POST", "/wait", {"readers": readers, "timeout_s": timeout_s}, timeout_s + 10.0
         )
-    except (OSError, ValueError, IndexError):
+    except OSError:
+        return None  # not reachable: the expected "no daemon" answer
+    except (ValueError, IndexError) as exc:
+        _warn_daemon_fault("/wait", endpoint, f"an unparseable reply ({type(exc).__name__}: {exc})")
         return None
-    return payload if status == 200 and isinstance(payload, dict) else None
+    if status == 200 and isinstance(payload, dict):
+        return payload
+    _warn_daemon_fault("/wait", endpoint, f"HTTP {status} {json.dumps(payload)[:200] if payload is not None else ''}")
+    return None
 
 
 def endpoint_for(engine_root: str) -> str | None:

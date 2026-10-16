@@ -1606,6 +1606,12 @@ INDEX_HTML = """
             try {
                 const res = await fetch("/api/graph");
                 const data = await res.json();
+                if (!res.ok || data.error) {
+                    // Render the failure: an empty canvas would read as "no entities".
+                    const st = document.getElementById("physicsStatus");
+                    if (st) { st.innerText = "Graph load failed: " + (data.error || ("HTTP " + res.status)); st.style.color = "var(--m3-neon-amber)"; }
+                    return;
+                }
 
                 const oldNodesMap = new Map(nodes.map(n => [n.id, n]));
 

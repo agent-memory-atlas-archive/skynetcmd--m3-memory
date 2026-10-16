@@ -29,7 +29,7 @@ from typing import cast
 
 import httpx as _httpx
 from embedding_utils import unpack as _unpack
-from llm_failover import get_best_embed
+from llm_failover import _auth_headers, get_best_embed
 from m3_core import tier2_client
 from m3_core.aio import gather_or_cancel
 from m3_core.config import settings as _m3cfg
@@ -259,23 +259,26 @@ def recover_if_fallback_healthy(timeout: float = 1.5) -> bool:
     Returns True if the fallback was healthy and breakers were reset; False if the
     server isn't answering (nothing changed). Stdlib-only probe; never raises.
     """
-    import json as _json
-
-    url = f"{_EMBED_FALLBACK_URL}/health"
-    try:
-        with tier2_client.urlopen(url, timeout=timeout) as resp:
-            if resp.status != 200:
-                return False
-            body = _json.loads(resp.read().decode("utf-8", "replace"))
-    except Exception:  # noqa: BLE001 — a failed readiness probe means not ready; traffic stays where it is
-        return False
+    diag, _body = tier2_client.health(_EMBED_FALLBACK_URL, timeout)
     # READINESS, not mere presence: this function STEERS traffic (the next embed
     # call routes here), so only recover on "ok". "loading" means the server is up
     # but the embedder isn't loaded yet — forcing breakers closed then would steer
     # embeds straight into 500s during the GGUF load window. (Other call sites that
     # accept "loading" are presence/reachability checks, correctly.)
-    if not (isinstance(body, dict) and body.get("status") == "ok"):
+    if diag.state != "ok":
+        if diag.state in ("auth-rejected", "tls-untrusted", "tls-failed", "bad-scheme"):
+            # Up but unusable: no amount of waiting recovers it, so say why
+            # (once per state; this runs on every health-loop tick).
+            _say_on_change(
+                "tier2-recovery",
+                diag.state,
+                logging.WARNING,
+                "tier-2 recovery check: %s (embed.fallback_url from %s)",
+                diag.message(),
+                _EMBED_FALLBACK_SOURCE,
+            )
         return False
+    _LAST_SAID.pop("tier2-recovery", None)
     # Server is back — close breakers and clear the discovery neg-cache so the
     # very next embed call routes to it without a wasted cascade tick.
     reset_embed_breakers()
@@ -416,6 +419,8 @@ _EMBED_GGUF_WALK_BUDGET_S: float = _m3cfg.setting("embed.autodetect_budget_s")
 _EMBED_INIT_TIMEOUT_S: float = _m3cfg.setting("embed.init_timeout_s")
 _embedded_embedder = None
 _embedded_embed_checked = False
+# Why tier 1 did not load, kept for `m3 doctor` (its init-failed line had no cause).
+_EMBEDDED_INIT_ERROR: str | None = None
 
 
 # ── Embedder identity gate ─────────────────────────────────────────────────────
@@ -703,7 +708,7 @@ def _discover_ollama_bge_m3(deadline: float) -> str | None:
 
 def _get_embedded_embedder():
     """Return the in-process EmbeddedEmbedder, or None if unavailable/unsafe."""
-    global _embedded_embedder, _embedded_embed_checked, _EMBED_GGUF_PATH
+    global _embedded_embedder, _embedded_embed_checked, _EMBED_GGUF_PATH, _EMBEDDED_INIT_ERROR
     if _embedded_embed_checked:
         return _embedded_embedder
     _embedded_embed_checked = True
@@ -719,9 +724,12 @@ def _get_embedded_embedder():
     if _EMBED_GGUF_PATH is None:
         return None
     if not hasattr(config.m3_core_rs, "EmbeddedEmbedder"):
+        _EMBEDDED_INIT_ERROR = (
+            f"m3_core_rs lacks EmbeddedEmbedder (wheel built without --features embedded); GGUF={_EMBED_GGUF_PATH}"
+        )
         logger.warning(
             "M3_EMBED_GGUF set but m3_core_rs lacks EmbeddedEmbedder "
-            "(wheel built without --features embedded) — using HTTP"
+            "(wheel built without --features embedded) — using HTTP. fix: `m3 embedder install-gpu`"
         )
         return None
     try:
@@ -751,6 +759,7 @@ def _get_embedded_embedder():
             _t.start()
             _t.join(_EMBED_INIT_TIMEOUT_S)
             if _t.is_alive():
+                _EMBEDDED_INIT_ERROR = f"init exceeded {_EMBED_INIT_TIMEOUT_S:.0f}s (GGUF={_EMBED_GGUF_PATH})"
                 logger.error(
                     "in-process embedder init exceeded %.0fs (GGUF=%s) — "
                     "abandoning it and using HTTP tier-2. Set "
@@ -766,6 +775,7 @@ def _get_embedded_embedder():
             emb = config.m3_core_rs.EmbeddedEmbedder(_EMBED_GGUF_PATH)
             dim = emb.embedding_dim()
         if dim != config.EMBED_DIM:
+            _EMBEDDED_INIT_ERROR = f"GGUF {_EMBED_GGUF_PATH} has dimension {dim}, expected EMBED_DIM {config.EMBED_DIM}"
             logger.error(
                 "M3_EMBED_GGUF dimension %d != EMBED_DIM %d — embedded embedder disabled, using HTTP",
                 dim,
@@ -780,7 +790,14 @@ def _get_embedded_embedder():
         _embedded_embedder = emb
         return emb
     except Exception as e:
-        logger.error("embedded embedder init failed (%s) — using HTTP", e)
+        _EMBEDDED_INIT_ERROR = f"{type(e).__name__}: {e} (GGUF={_EMBED_GGUF_PATH})"
+        logger.error(
+            "embedded embedder init failed for GGUF %s (%s: %s) — using HTTP tier 2. inspect: that file, "
+            "and `m3 doctor --verbose`",
+            _EMBED_GGUF_PATH,
+            type(e).__name__,
+            e,
+        )
         return None
 
 
@@ -810,8 +827,11 @@ def _classify_bulk_post_error(e: BaseException):
     retried as if the network had blipped and its cause never logged."""
     if isinstance(e, _httpx.HTTPStatusError):
         code = e.response.status_code
-        if 400 <= code < 500 and code not in (413, 429):
-            return (_EMBED_PERMANENT, f"HTTP {code}: {e.response.text[:300]}")
+        if 400 <= code < 500 and code not in (408, 413, 429):
+            msg = f"HTTP {code}: {tier2_client.snippet(e.response.text)}"
+            if code in (401, 403):
+                msg += "; fix: `m3 secret set LM_API_TOKEN`"
+            return (_EMBED_PERMANENT, msg)
         return _EMBED_TRANSIENT
     if isinstance(e, _httpx.TransportError):
         return _EMBED_TRANSIENT
@@ -852,6 +872,11 @@ _CTX_OVERFLOW_HINTS = (
 )
 
 
+# m3-embed-server's code for a request body over its byte limit (HTTP 413),
+# distinct from code=input_too_long (one input over n_ctx).
+_BODY_TOO_LARGE = "body_too_large"
+
+
 def _parse_context_overflow(status_code: int, body: str) -> ContextLengthExceeded | None:
     """Build a typed overflow error from an HTTP response, or None.
 
@@ -868,12 +893,17 @@ def _parse_context_overflow(status_code: int, body: str) -> ContextLengthExceede
     """
     if not body:
         return None
+    # A request BODY over the server's byte limit is not an input over n_ctx:
+    # subdividing one input does not help, a smaller batch does (the caller's
+    # 413 is retried and bisected). Its message may share words with the hints.
+    if _BODY_TOO_LARGE in body:
+        return None
     observed = max_tok = None
     try:
         payload = json.loads(body)
         err = payload.get("error") if isinstance(payload, dict) else None
         if isinstance(err, dict):
-            if err.get("code") == "context_length_exceeded":
+            if err.get("code") in ("context_length_exceeded", "input_too_long"):
                 ot, mt = err.get("observed_tokens"), err.get("max_tokens")
                 return ContextLengthExceeded(
                     str(err.get("message") or body)[:2000],
@@ -915,7 +945,6 @@ def _parse_context_overflow(status_code: int, body: str) -> ContextLengthExceede
 #
 # Cost: ~5 us per 1024 rows with the estimator (pure arithmetic). Negligible
 # against ~15 ms/row GPU or ~150-400 ms/row CPU embedding.
-_OVERSIZE_LOG_CHARS = 120
 
 
 def _oversize_report(texts: list[str], counts: list[int]) -> list[tuple[int, int]]:
@@ -937,23 +966,39 @@ def _log_contract_violation(texts: list[str], over: list[tuple[int, int]]) -> No
     layer can know.
     """
     worst_i, worst_n = max(over, key=lambda p: p[1])
-    sample = (texts[worst_i] or "")[:_OVERSIZE_LOG_CHARS].replace("\n", " ")
+    worst = texts[worst_i] or ""
+    # Identified by length and content-hash prefix, never by its text: this is
+    # memory content, and the log is not the place for it.
     logger.error(
         "EMBED_LENGTH_CONTRACT: %d of %d text(s) exceed n_ctx before dispatch; "
-        "worst is %d tokens vs ceiling %d (index %d). "
+        "worst is %d tokens vs ceiling %d (index %d, %d chars, content_hash %s...). "
         "cause: upstream chunking did not bound this text in TOKENS "
         "(character/byte budgets under-count dense content -- code, JSON, CJK "
         "and base64 tokenize 1.6-4x denser than English prose). "
-        "action: subdividing here so no row is lost. "
+        "action: attempting subdivision here; a row that cannot be subdivided is "
+        "logged as lost. "
         "review: M3_EMBED_TOKEN_BUDGET (chunk target), M3_EMBED_CTX (model "
-        "ceiling; do NOT raise -- bge-m3 is trained to 8192 positions). "
-        "sample: %r",
+        "ceiling; do NOT raise -- bge-m3 is trained to 8192 positions).",
         len(over),
         len(texts),
         worst_n,
         TOKEN_CEILING,
         worst_i,
-        sample,
+        len(worst),
+        _content_hash(worst)[:12],
+    )
+
+
+def _log_oversize_loss(text: str, where: str) -> None:
+    """An oversized row that subdivision could not recover is LOST for this
+    pass: say so with what identifies it (never its text)."""
+    logger.error(
+        "EMBED_LENGTH_CONTRACT: %s (%d chars, content_hash %s...) could not be subdivided and embedded; "
+        "it is left without a vector. inspect: the embed log above for the sub-chunk failures; "
+        "`m3 embedder backfill` retries rows without a vector",
+        where,
+        len(text),
+        _content_hash(text)[:12],
     )
 
 
@@ -1090,7 +1135,7 @@ async def _http_bulk_with_subdivide(post_one, texts: list[str]) -> list[list[flo
                 if (
                     not m
                     and not isinstance(e, ContextLengthExceeded)
-                    and not any(h in _low for h in _CTX_OVERFLOW_HINTS)
+                    and (_BODY_TOO_LARGE in _low or not any(h in _low for h in _CTX_OVERFLOW_HINTS))
                 ):
                     results.append(None)
                     continue
@@ -1177,13 +1222,10 @@ def _get_embed_client() -> _httpx.AsyncClient:
     return _EMBED_CLIENT
 
 
-_EMBED_FALLBACK_URL: str = (
-    # A SET embed.fallback_url (m3_config.toml or env) wins; the legacy JSON file
-    # sits below it until it folds (R8); then the default.
-    (_m3cfg.setting("embed.fallback_url") if _m3cfg.explicit("embed.fallback_url") else None)
-    or _EMBED_CFG.get("fallback_url")  # config-file (headless-safe)
-    or "http://127.0.0.1:8082"  # default (the tier-2 port)
-).rstrip("/")
+# A SET embed.fallback_url (m3_config.toml or env) wins; the legacy JSON file
+# sits below it until it folds (R8); then this machine's server. One owner of
+# that precedence (tier2_client.fallback_url), shared with doctor and the watchdog.
+_EMBED_FALLBACK_URL, _EMBED_FALLBACK_SOURCE = tier2_client.fallback_url(_EMBED_CFG)
 
 
 # Set once the shared server answers /tokenize/windows with 404/405 (a core
@@ -1226,9 +1268,25 @@ async def _exact_windows(text: str) -> list[tuple[int, int]] | None:
             elif r.status_code == 200:
                 got = r.json().get("windows")
             else:
-                logger.warning("observed: %s answered %s; using the estimated windows", url, r.status_code)
+                d = tier2_client.classify(r.status_code, url, r.text)
+                _say_on_change(
+                    "token-windows",
+                    d.state,
+                    logging.WARNING,
+                    "observed: %s; using the estimated windows%s",
+                    d.detail,
+                    f". fix: {d.fix}" if d.fix else "",
+                )
         except (_httpx.HTTPError, ValueError) as e:
-            log_swallowed(logger, e, "token windows unavailable from %s (%s); using the estimate", url, e)
+            d = tier2_client.classify(e, url, timeout=15.0)
+            if d.state in ("auth-rejected", "tls-untrusted", "tls-failed"):
+                # A misconfigured server, not a missing feature: the same fault
+                # fails every tier-2 embed, so it is said (once per state).
+                _say_on_change(
+                    "token-windows", d.state, logging.WARNING, "token windows: %s; using the estimate", d.message()
+                )
+            else:
+                log_swallowed(logger, e, "token windows unavailable from %s (%s); using the estimate", url, d.detail)
     if got is None:
         return None
     if not covers(got, len(text)):
@@ -1372,6 +1430,57 @@ def _cloud_auth_token() -> str | None:
     return cached_secret("M3_CLOUD_AUTH_TOKEN", _resolve)
 
 
+# Said once per state change, not per call: a hot path that repeats one fault
+# on every embed floods the log and buries the change that matters.
+_LAST_SAID: dict[str, str] = {}
+
+
+def _say_on_change(key: str, state: str, level: int, msg: str, *args: object) -> bool:
+    """Log ``msg`` when ``key`` enters ``state`` (True), not while it stays there."""
+    if _LAST_SAID.get(key) == state:
+        return False
+    _LAST_SAID[key] = state
+    if msg:
+        logger.log(level, msg, *args)
+    return True
+
+
+def _http_failure(
+    e: BaseException, url: str, *, auth_setting: str | None = None, token_sent: bool | None = None
+) -> str:
+    """One line for a failed embed HTTP request: the endpoint, what was observed
+    (status code and a redacted body snippet, refused, timed out, TLS), and for
+    401/403 the secret to set. Never the request text or a token."""
+    if isinstance(e, (KeyError, IndexError, TypeError)) or (
+        isinstance(e, ValueError) and not isinstance(e, _httpx.HTTPError)
+    ):
+        return f"{tier2_client.where(url)} answered with an unexpected body ({type(e).__name__}: {tier2_client.snippet(e)})"
+    d = tier2_client.classify(e, url, timeout=config.EMBED_TIMEOUT_READ)
+    line = d.detail
+    if d.state == "auth-rejected" and auth_setting:
+        sent = "" if token_sent is None else f" (a token was {'sent' if token_sent else 'not sent'})"
+        line += f"{sent}; fix: `m3 secret set {auth_setting}`"
+    elif d.state in ("tls-untrusted", "tls-failed"):
+        line += "; the endpoint's certificate must be trusted by this machine"
+    return line
+
+
+def _retryable_status(e: BaseException) -> bool:
+    """A failed attempt worth repeating: no HTTP status (network trouble, a read
+    timeout), 5xx, or 408/413/429. Any other 4xx answers the same next time."""
+    if isinstance(e, _httpx.HTTPStatusError):
+        code = e.response.status_code
+        return code >= 500 or code in (408, 413, 429)
+    return True
+
+
+def _lm_token() -> str | None:
+    """LM_API_TOKEN, or None. A placeholder bearer is not "no token": an
+    auth-enabled LM Studio answers 401 to it (llm_failover._auth_headers), so
+    with no token the Authorization header is omitted."""
+    return (_ctx().get_secret("LM_API_TOKEN") or "").strip() or None
+
+
 async def _embed(text: str) -> tuple[list[float] | None, str]:
     # Length contract (see _enforce_length_contract). This path serves SEARCH
     # QUERIES as well as single-row writes, and the query side had NO length
@@ -1389,6 +1498,12 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
         if pooled is not None:
             model = _EMBED_GGUF_MODEL_TAG if _get_embedded_embedder() is not None else config.EMBED_MODEL
             return pooled, model
+        logger.warning(
+            "EMBED_LENGTH_CONTRACT: subdivision of a %d-char text (content_hash %s...) produced no vector; "
+            "sending it whole to the cascade, which may reject it",
+            len(text),
+            _content_hash(text)[:12],
+        )
         # Could not subdivide (single window, or every sub-embed failed) --
         # fall through and let the normal cascade try; it may still succeed on
         # a tier with a larger ceiling, and if not the caller sees the usual
@@ -1460,31 +1575,62 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                 timeout=_httpx.Timeout(config.EMBED_TIMEOUT_CONNECT, read=config.EMBED_TIMEOUT_READ),
             )
             resp.raise_for_status()
-            payload = resp.json()
-            emb = payload["data"][0]["embedding"]
+            try:
+                emb = resp.json()["data"][0]["embedding"]
+            except (ValueError, KeyError, IndexError, TypeError) as shape:
+                raise EmbedFallbackError(
+                    f"{tier2_client.where(_EMBED_FALLBACK_URL)} answered 200 without an embedding "
+                    f"({type(shape).__name__}: {tier2_client.snippet(shape)}); embed.fallback_url may name "
+                    "a server that is not an m3 embed server"
+                ) from shape
             # The CPU HTTP service carries the proper-identity fallback tag, NOT
             # the tier-1 GGUF filename (a historical mis-tag).
             if not _validate_identity(emb, config.EMBED_FALLBACK_MODEL_TAG, "tier2-cpu-http"):
-                raise EmbedFallbackError("output failed embedder-identity check")
+                # The reason was logged once by _validate_identity; a transport
+                # failure must not read like this, nor this like one.
+                raise EmbedFallbackError(
+                    f"{tier2_client.where(_EMBED_FALLBACK_URL)} returned a vector that failed the embedder-identity "
+                    f"check for tag {config.EMBED_FALLBACK_MODEL_TAG!r} (see the 'Embed identity rejected' line)"
+                )
             if _CPU_FALLBACK_BREAKER is not None:
                 _CPU_FALLBACK_BREAKER.record_success()
             _record_embed_backend("cpu-http-fallback", 1)
             return emb, config.EMBED_FALLBACK_MODEL_TAG
         except Exception as e:
-            wrapped = EmbedFallbackError(f"{_EMBED_FALLBACK_URL}: {e}")
-            wrapped.__cause__ = e
             if _CPU_FALLBACK_BREAKER is not None:
                 _CPU_FALLBACK_BREAKER.record_failure()
-            logger.warning(f"{type(wrapped).__name__}: {wrapped} — using primary HTTP")
+            if isinstance(e, EmbedFallbackError):
+                observed = str(e)
+            else:
+                observed = tier2_client.classify(e, _EMBED_FALLBACK_URL, timeout=config.EMBED_TIMEOUT_READ).message()
+            logger.warning(
+                "EmbedFallbackError: tier 2 (embed.fallback_url from %s) failed: %s — trying tier 3 (primary HTTP)",
+                _EMBED_FALLBACK_SOURCE,
+                observed,
+            )
 
     # Tier 3: primary HTTP via llm_failover. Three-attempt internal retry
-    # with exponential backoff (2s, 4s). The breaker gates the WHOLE tier,
-    # not each retry — one tick per _embed call. When open, short-circuit
-    # to the final "return None" without attempting any of the 3 retries
-    # (saving up to ~6s wall-clock per call during a primary outage).
-    if _PRIMARY_BREAKER is not None and not _PRIMARY_BREAKER.allow_request():
-        logger.warning("EmbedPrimaryError: primary breaker open — short-circuiting (state=open)")
-        return None, config.EMBED_MODEL
+    # with exponential backoff (2s, 4s). The breaker gates tier 3 only, not
+    # each retry — one tick per _embed call. When open, tier 3 is skipped
+    # (saving up to ~6s per call during a primary outage) and tier 4 still
+    # runs: it has its own breaker, and a primary outage is when it is needed.
+    cloud_on = bool(config.M3_ALLOW_CLOUD_FALLBACK and config.M3_CLOUD_ENCLAVE_URL)
+    primary_open = _PRIMARY_BREAKER is not None and not _PRIMARY_BREAKER.allow_request()
+    if primary_open:
+        _say_on_change(
+            "primary-breaker",
+            "open",
+            logging.WARNING,
+            "EmbedPrimaryError: tier 3 (primary HTTP) skipped: its breaker opened after repeated failures and "
+            "allows a retry after %.0fs; %s. Said once until it closes; the failures that opened it are logged above.",
+            config.EMBED_BREAKER_PRIMARY_RESET_SECS,
+            "tier 4 (cloud) is tried next" if cloud_on else "no tier 4 is configured, so these embeds return no vector",
+        )
+        if not cloud_on:
+            return None, config.EMBED_MODEL
+    elif _LAST_SAID.get("primary-breaker") == "open":
+        _LAST_SAID["primary-breaker"] = "closed"
+        logger.info("tier 3 (primary HTTP) breaker allows requests again; tier 3 is tried")
 
     try:
         async with asyncio.timeout(30.0):
@@ -1497,76 +1643,101 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
 
     model = config.EMBED_MODEL
     try:
-        try:
-            _track_cost_lazy("embed_calls", len(text.split()) * 2)
-            token = _ctx().get_secret("LM_API_TOKEN") or "lm-studio"
-            client = _get_embed_client()
-            if config._EMBED_URL_OVERRIDE:
-                base_url = config._EMBED_URL_OVERRIDE.rstrip("/")
-                model = config._EMBED_MODEL_OVERRIDE or "bge-m3-GGUF-Q4_K_M.gguf"
-            else:
-                result = await get_best_embed(client, token)
-                if not result:
-                    raise RuntimeError("No primary embedding backend returned by get_best_embed")
-                base_url, model = result
+        if not primary_open:
+            base_url = "the primary endpoint"
+            try:
+                _track_cost_lazy("embed_calls", len(text.split()) * 2)
+                token = _lm_token()
+                client = _get_embed_client()
+                if config._EMBED_URL_OVERRIDE:
+                    base_url = config._EMBED_URL_OVERRIDE.rstrip("/")
+                    model = config._EMBED_MODEL_OVERRIDE or "bge-m3-GGUF-Q4_K_M.gguf"
+                else:
+                    result = await get_best_embed(client, token)
+                    if not result:
+                        raise RuntimeError(
+                            "no endpoint in the configured LLM endpoints advertises an embedding model "
+                            "(llm_failover's warning above lists what each answered)"
+                        )
+                    base_url, model = result
 
-            last_exc = None
-            for attempt in range(3):
-                try:
-                    resp = await client.post(
-                        _embeddings_post_url(base_url),
-                        json={"model": model, "input": text},
-                        headers={"Authorization": f"Bearer {token}"},
-                        timeout=_httpx.Timeout(config.EMBED_TIMEOUT_CONNECT, read=config.EMBED_TIMEOUT_READ),
-                    )
-                    resp.raise_for_status()
-                    emb = resp.json()["data"][0]["embedding"]
+                last_exc: BaseException | None = None
+                attempts = 0
+                for attempt in range(3):
+                    attempts = attempt + 1
+                    try:
+                        resp = await client.post(
+                            _embeddings_post_url(base_url),
+                            json={"model": model, "input": text},
+                            headers=_auth_headers(token),
+                            timeout=_httpx.Timeout(config.EMBED_TIMEOUT_CONNECT, read=config.EMBED_TIMEOUT_READ),
+                        )
+                        resp.raise_for_status()
+                        emb = resp.json()["data"][0]["embedding"]
 
-                    if not _validate_identity(emb, model, "tier3-primary"):
-                        raise RuntimeError(f"primary embed output failed identity (model={model!r})")
+                        if not _validate_identity(emb, model, "tier3-primary"):
+                            raise RuntimeError(f"primary embed output failed identity (model={model!r})")
 
-                    if _PRIMARY_BREAKER is not None:
-                        _PRIMARY_BREAKER.record_success()
-                    _record_embed_backend("http-primary", 1)
-                    return emb, model
-                except Exception as e:
-                    last_exc = e
-                    # A connection-level failure (refused / DNS / connect-timeout)
-                    # means the server isn't there — retrying with 2s/4s backoff
-                    # can't bring it up and just stalls the COLD cascade (the
-                    # historical "no tier reachable takes ~minutes" headache). Fail
-                    # fast on those; keep the backoff only for genuinely transient
-                    # failures (read timeout, 5xx) where a retry can actually help.
-                    if isinstance(e, (_httpx.ConnectError, _httpx.ConnectTimeout)):
-                        break
-                    if attempt < 2:
-                        wait = 2 * (2**attempt)
-                        logger.warning(f"Embedding attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
-                        await asyncio.sleep(wait)
+                        if _PRIMARY_BREAKER is not None:
+                            _PRIMARY_BREAKER.record_success()
+                        _record_embed_backend("http-primary", 1)
+                        return emb, model
+                    except Exception as e:
+                        last_exc = e
+                        # A connection-level failure (refused / DNS / connect-timeout)
+                        # means the server isn't there — retrying with 2s/4s backoff
+                        # can't bring it up and just stalls the COLD cascade (the
+                        # historical "no tier reachable takes ~minutes" headache). A
+                        # 4xx other than 408/413/429 answers the same next time.
+                        # Keep the backoff only where a retry can help.
+                        if isinstance(e, (_httpx.ConnectError, _httpx.ConnectTimeout)) or not _retryable_status(e):
+                            break
+                        if attempt < 2:
+                            wait = 2 * (2**attempt)
+                            logger.warning(
+                                "Embedding attempt %d of 3 to %s (model %s) failed: %s. Retrying in %ds...",
+                                attempt + 1,
+                                base_url,
+                                model,
+                                _http_failure(e, base_url, auth_setting="LM_API_TOKEN", token_sent=token is not None),
+                                wait,
+                            )
+                            await asyncio.sleep(wait)
 
-            # All 3 attempts exhausted — tick the breaker once for the whole
-            # call, then wrap the last exception for log clarity.
-            if _PRIMARY_BREAKER is not None:
-                _PRIMARY_BREAKER.record_failure()
-            wrapped = EmbedPrimaryError(f"{base_url}: {last_exc}")
-            wrapped.__cause__ = last_exc
-            logger.error(f"{type(wrapped).__name__}: {wrapped} after 3 attempts")
-            from llm_failover import clear_embed_cache
+                # Attempts exhausted (or stopped early) — tick the breaker once
+                # for the whole call.
+                if _PRIMARY_BREAKER is not None:
+                    _PRIMARY_BREAKER.record_failure()
+                assert last_exc is not None  # the loop ran and did not return
+                logger.error(
+                    "EmbedPrimaryError: tier 3 at %s (model %s) failed after %d attempt(s): %s",
+                    base_url,
+                    model,
+                    attempts,
+                    _http_failure(last_exc, base_url, auth_setting="LM_API_TOKEN", token_sent=token is not None),
+                )
+                from llm_failover import clear_embed_cache
 
-            clear_embed_cache()
-        except Exception as e:
-            if _PRIMARY_BREAKER is not None:
-                _PRIMARY_BREAKER.record_failure()
-            wrapped = EmbedPrimaryError(str(e))
-            wrapped.__cause__ = e
-            logger.warning(f"Primary HTTP fallback exception: {wrapped} — attempting Tier 4 fallback if allowed")
-            from llm_failover import clear_embed_cache
+                clear_embed_cache()
+            except Exception as e:
+                if _PRIMARY_BREAKER is not None:
+                    _PRIMARY_BREAKER.record_failure()
+                logger.warning(
+                    "EmbedPrimaryError: tier 3 (%s) could not run: %s: %s — %s",
+                    base_url,
+                    type(e).__name__,
+                    e,
+                    "trying tier 4 (cloud)" if cloud_on else "no tier 4 is configured",
+                )
+                from llm_failover import clear_embed_cache
 
-            clear_embed_cache()
+                clear_embed_cache()
 
         # Fall through to Tier 4 Cloud Enclave if enabled
-        if config.M3_ALLOW_CLOUD_FALLBACK and config.M3_CLOUD_ENCLAVE_URL:
+        if cloud_on:
             if _CLOUD_BREAKER is None or _CLOUD_BREAKER.allow_request():
+                cloud_token: str | None = None
+                post_url = (config.M3_CLOUD_ENCLAVE_URL or "").rstrip("/")
                 try:
                     # 1. PII Redaction Gate
                     from chatlog_redaction import scrub
@@ -1593,8 +1764,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                     if cloud_token:
                         headers["Authorization"] = f"Bearer {cloud_token}"
 
-                    url = config.M3_CLOUD_ENCLAVE_URL.rstrip("/")
-                    post_url = _embeddings_post_url(url)
+                    post_url = _embeddings_post_url((config.M3_CLOUD_ENCLAVE_URL or "").rstrip("/"))
 
                     resp = await client.post(
                         post_url,
@@ -1615,7 +1785,13 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                 except Exception as cloud_err:
                     if _CLOUD_BREAKER is not None:
                         _CLOUD_BREAKER.record_failure()
-                    logger.error(f"Tier 4 Cloud Enclave failed: {cloud_err}. Routing payload back to local fallback.")
+                    # Tier 4 is the last tier: nothing runs after it.
+                    logger.error(
+                        "Tier 4 Cloud Enclave failed: %s — this embed returns no vector (tier 4 is the last tier)",
+                        _http_failure(
+                            cloud_err, post_url, auth_setting="M3_CLOUD_AUTH_TOKEN", token_sent=cloud_token is not None
+                        ),
+                    )
 
         return None, model
     finally:
@@ -1657,11 +1833,21 @@ async def embed_for_search(text: str, *, embed_fn=None, gate: bool = True) -> tu
     """
     _fn = embed_fn if embed_fn is not None else _embed
     if gate and not fast_embedder_available():
-        logger.info(
-            "search embed skipped: no fast embedder tier available — "
-            "degrading to FTS-only results (query vector not computed)"
+        breakers = get_embed_breaker_state()
+        _say_on_change(
+            "search-gate",
+            f"skip:{breakers.get('cpu_fallback')}",
+            logging.WARNING,
+            "search embed skipped: tier 1 is not loaded in this process and the tier-2 breaker for %s is %s "
+            "(it opened after repeated failures, logged above as EmbedFallbackError) — degrading to "
+            "FTS-only results until it closes. Said once per state. inspect: `m3 doctor`",
+            _EMBED_FALLBACK_URL,
+            breakers.get("cpu_fallback"),
         )
         return None, config.EMBED_MODEL
+    if _LAST_SAID.get("search-gate", "").startswith("skip"):
+        _LAST_SAID["search-gate"] = "ok"
+        logger.info("search embed: a fast embedder tier is available again; query vectors resume")
 
     deadline = config.EMBED_SEARCH_DEADLINE_S
     if not deadline or deadline <= 0:
@@ -1674,8 +1860,10 @@ async def embed_for_search(text: str, *, embed_fn=None, gate: bool = True) -> tu
         logger.warning(
             "search embed exceeded %.1fs deadline — degrading to FTS-only "
             "results. A tier is slow but not tripping its breaker; check the "
-            "embed server (:8082) / primary endpoint health.",
+            "embed server (%s) and the primary endpoint: `m3 doctor`. "
+            "Set M3_EMBED_SEARCH_DEADLINE_S to change the deadline.",
             deadline,
+            _EMBED_FALLBACK_URL,
         )
         return None, config.EMBED_MODEL
 
@@ -1694,9 +1882,16 @@ async def _embed_many_cloud_fallback(
         return
 
     if _CLOUD_BREAKER is not None and not _CLOUD_BREAKER.allow_request():
-        logger.warning("Cloud Enclave breaker is open. Skipping Tier 4 fallback.")
+        logger.warning(
+            "Cloud Enclave breaker is open (repeated failures; retries after %.0fs). Skipping tier 4: %d row(s) "
+            "are left without a vector.",
+            config.EMBED_BREAKER_CLOUD_RESET_SECS,
+            len(cloud_indices),
+        )
         return
 
+    token: str | None = None
+    post_url = config.M3_CLOUD_ENCLAVE_URL.rstrip("/")
     try:
         # 1. PII Redaction Gate
         from chatlog_redaction import scrub
@@ -1736,7 +1931,10 @@ async def _embed_many_cloud_fallback(
         vecs = _order_embeddings(data, len(cloud_texts))
 
         real = [v for v in vecs if v is not None] if vecs is not None else []
-        if vecs is not None and (not real or _validate_identity(real, config.EMBED_MODEL, "tier4-cloud-bulk")):
+        identity_ok = vecs is not None and (
+            not real or _validate_identity(real, config.EMBED_MODEL, "tier4-cloud-bulk")
+        )
+        if identity_ok and vecs is not None:
             _cloud_served = 0
             for idx, vec in zip(cloud_indices, vecs, strict=True):
                 if vec is not None:
@@ -1747,17 +1945,34 @@ async def _embed_many_cloud_fallback(
                 if _CLOUD_BREAKER is not None:
                     _CLOUD_BREAKER.record_success()
                 _record_embed_backend("cloud-enclave", _cloud_served)
+        elif vecs is None:
+            logger.error(
+                "Cloud enclave response for %d inputs from %s could not be aligned (bad/missing index or count) "
+                "— not stored; those rows are left without a vector.",
+                len(cloud_texts),
+                post_url,
+            )
+            if _CLOUD_BREAKER is not None:
+                _CLOUD_BREAKER.record_failure()
         else:
             logger.error(
-                "Cloud enclave response for %d inputs could not be aligned (bad/missing index or count) — not stored.",
+                "Cloud enclave vectors for %d inputs from %s failed the embedder-identity check for model %r "
+                "(see the 'Embed identity rejected' line) — not stored; those rows are left without a vector.",
                 len(cloud_texts),
+                post_url,
+                config.EMBED_MODEL,
             )
             if _CLOUD_BREAKER is not None:
                 _CLOUD_BREAKER.record_failure()
     except Exception as e:
         if _CLOUD_BREAKER is not None:
             _CLOUD_BREAKER.record_failure()
-        logger.error(f"Tier 4 Cloud Enclave bulk failed: {e}. Routing payloads back to local fallback.")
+        logger.error(
+            "Tier 4 Cloud Enclave bulk failed for %d row(s): %s — they are left without a vector "
+            "(tier 4 is the last tier; `m3 embedder backfill` retries them)",
+            len(cloud_indices),
+            _http_failure(e, post_url, auth_setting="M3_CLOUD_AUTH_TOKEN", token_sent=token is not None),
+        )
 
 
 def _filled(out: list[tuple[list[float] | None, str] | None], model: str) -> list[tuple[list[float] | None, str]]:
@@ -1792,6 +2007,8 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         _fallback_model = _EMBED_GGUF_MODEL_TAG if _get_embedded_embedder() is not None else config.EMBED_MODEL
         for _i in sorted(_over_idx):
             _pooled = await _recover_oversized_single(_embed_batch_for_recovery, texts[_i])
+            if _pooled is None:
+                _log_oversize_loss(texts[_i], f"bulk row {_i} of {len(texts)}")
             _out[_i] = (_pooled, _fallback_model)
         return [r if r is not None else (None, _fallback_model) for r in _out]
 
@@ -1885,9 +2102,10 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                 miss_indices = [miss_indices[j] for j in still_missing_local]
                 miss_texts = [miss_texts[j] for j in still_missing_local]
                 logger.warning(
-                    "Embedded bulk: %d oversized row(s) embedded via subdivide; "
-                    "%d still unresolved — falling back to CPU HTTP for those.",
+                    "Embedded bulk: %d of %d row(s) embedded one by one after an n_ctx overflow (oversized ones "
+                    "subdivided); %d still unresolved — falling back to CPU HTTP for those.",
                     len(resolved) - len(still_missing_local),
+                    len(resolved),
                     len(still_missing_local),
                 )
             else:
@@ -1921,7 +2139,10 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             # diagnostic away entirely once a proxy (nginx/FastAPI) wraps the
             # upstream message in its own envelope -- the very information the
             # oversize recovery needs.
-            raise RuntimeError(f"CPU embedder HTTP {resp_.status_code}: {body[:2000]}")
+            hint = ""
+            if resp_.status_code in (401, 403):
+                hint = f" — fix: {tier2_client.classify(resp_.status_code, _EMBED_FALLBACK_URL).fix}"
+            raise RuntimeError(f"CPU embedder HTTP {resp_.status_code}: {body[:2000]}{hint}")
         data_ = resp_.json()["data"]
         v_ = _order_embeddings(data_, len(chunk_texts))
         if v_ is None:
@@ -1937,6 +2158,10 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         # Retag to the proper-identity fallback tag (not the tier-1 GGUF name)
         # and gate: rows failing identity stay in the miss set and cascade.
         kept_local = _accept_bulk(out, miss_indices, vecs, config.EMBED_FALLBACK_MODEL_TAG, "tier2-cpu-http-bulk")
+        # The server answered with vectors: evidence it is up, for the breaker
+        # the interactive path and fast_embedder_available() read.
+        if _CPU_FALLBACK_BREAKER is not None:
+            _CPU_FALLBACK_BREAKER.record_success()
         if not kept_local:
             _record_embed_backend("cpu-http-fallback", len(miss_texts))
             return _filled(out, cache_model)
@@ -1966,16 +2191,28 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             miss_indices = [miss_indices[j] for j in still_missing_local]
             miss_texts = [miss_texts[j] for j in still_missing_local]
             logger.warning(
-                "CPU HTTP fallback: %d oversized row(s) embedded via subdivide; "
-                "%d still unresolved — using primary HTTP for those.",
+                "CPU HTTP fallback: %d of %d row(s) embedded one by one after an n_ctx overflow (oversized ones "
+                "subdivided); %d still unresolved — using primary HTTP for those.",
                 len(resolved) - len(still_missing_local),
+                len(resolved),
                 len(still_missing_local),
             )
         else:
-            logger.warning(f"CPU HTTP fallback ({_EMBED_FALLBACK_URL}) bulk failed ({e}) — using primary HTTP")
+            diag = tier2_client.classify(e, _EMBED_FALLBACK_URL, timeout=config.EMBED_TIMEOUT_READ * 4)
+            # Only "nothing answers" opens the breaker: a 5xx or a bad body from
+            # a live server is not the outage the breaker short-circuits.
+            if not diag.answering and diag.state != "error" and _CPU_FALLBACK_BREAKER is not None:
+                _CPU_FALLBACK_BREAKER.record_failure()
+            observed = diag.message() if diag.state != "error" else f"{type(e).__name__}: {tier2_client.snippet(e)}"
+            logger.warning(
+                "CPU HTTP fallback bulk failed for %d row(s) (embed.fallback_url from %s): %s — using primary HTTP",
+                len(miss_texts),
+                _EMBED_FALLBACK_SOURCE,
+                observed,
+            )
 
     _track_cost_lazy("embed_calls", sum(len(t.split()) * 2 for t in miss_texts))
-    token = _ctx().get_secret("LM_API_TOKEN") or "lm-studio"
+    token = _lm_token()
     client = _get_embed_client()
     if config._EMBED_URL_OVERRIDE:
         base_url = config._EMBED_URL_OVERRIDE.rstrip("/")
@@ -1985,6 +2222,16 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         if not result:
             for i in miss_indices:
                 out[i] = (None, config.EMBED_MODEL)
+            cloud_on = bool(config.M3_ALLOW_CLOUD_FALLBACK and config.M3_CLOUD_ENCLAVE_URL)
+            logger.warning(
+                "Bulk embed: %d of %d row(s) unembedded by tiers 1-2, and tier 3 has no endpoint serving an "
+                "embedding model (llm_failover's warning lists what each endpoint answered); %s",
+                len(miss_indices),
+                len(texts),
+                "handing them to tier 4 (cloud)"
+                if cloud_on
+                else "no tier 4 is configured, so they are left without a vector (`m3 embedder backfill` retries them)",
+            )
             await _embed_many_cloud_fallback(out, miss_indices, texts)
             return _filled(out, cache_model)
         base_url, model = result
@@ -1997,12 +2244,14 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
     #   _EMBED_TRANSIENT       -> retryable (timeout / 5xx / 413 / 429)
     #   (_EMBED_PERMANENT,msg) -> non-retryable 4xx; don't retry or bisect
 
-    async def _post_once(chunk_texts: list[str]):
+    async def _post_once_detailed(chunk_texts: list[str]):
+        """(result, what was observed): the result is _post_once's; the text
+        keeps a transient failure's cause for the drop message."""
         try:
             resp = await client.post(
                 _embeddings_post_url(base_url),
                 json={"model": model, "input": chunk_texts},
-                headers={"Authorization": f"Bearer {token}"},
+                headers=_auth_headers(token),
                 timeout=_httpx.Timeout(config.EMBED_TIMEOUT_CONNECT, read=config.EMBED_TIMEOUT_READ * 4),
             )
             resp.raise_for_status()
@@ -2012,15 +2261,21 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                 # Response can't be aligned to inputs — treat as transient (a
                 # smaller batch via bisect may return a clean index), never
                 # store mis-aligned vectors.
-                return _EMBED_TRANSIENT
-            return ordered
+                return _EMBED_TRANSIENT, f"the response for {len(chunk_texts)} input(s) could not be aligned to them"
+            return ordered, ""
         except Exception as e:  # noqa: BLE001 — classified; never escapes the bulk path
-            return _classify_bulk_post_error(e)
+            return _classify_bulk_post_error(e), _http_failure(
+                e, base_url, auth_setting="LM_API_TOKEN", token_sent=token is not None
+            )
+
+    async def _post_once(chunk_texts: list[str]):
+        return (await _post_once_detailed(chunk_texts))[0]
 
     async def _post_chunk(chunk_texts: list[str]) -> list[list[float] | None]:
+        last_seen = ""
         async with _EMBED_BULK_SEM:
             for attempt in range(3):
-                result = await _post_once(chunk_texts)
+                result, last_seen = await _post_once_detailed(chunk_texts)
                 if isinstance(result, list):
                     return result
                 # Permanent (non-retryable 4xx): stop immediately — no backoff
@@ -2028,7 +2283,10 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                 # once the underlying cause (e.g. wrong embed endpoint) is fixed.
                 if isinstance(result, tuple) and result[0] is _EMBED_PERMANENT:
                     logger.warning(
-                        "Bulk embed: permanent failure (%s) — dropping %d input(s) without retry/bisect.",
+                        "Bulk embed: permanent failure from tier 3 at %s (model %s): %s — dropping %d input(s) "
+                        "without retry/bisect.",
+                        base_url,
+                        model,
                         result[1],
                         len(chunk_texts),
                     )
@@ -2046,7 +2304,14 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             if pooled is not None:
                 logger.info("Bulk embed: recovered oversized single row (len=%d) via subdivide + mean-pool.", len(lone))
                 return [pooled]
-            logger.warning("Bulk embed: dropping single input of len=%d after 3 transient attempts.", len(lone))
+            logger.warning(
+                "Bulk embed: dropping single input of len=%d after 3 transient attempts to tier 3 at %s "
+                "(model %s); last observed: %s",
+                len(lone),
+                base_url,
+                model,
+                last_seen or "no detail",
+            )
             return [None]
         # Only transient/size failures reach here — bisecting can help (smaller
         # batch, or isolate one oversized item). Permanent failures returned above.
@@ -2145,5 +2410,5 @@ async def embedder_status_impl() -> dict:
     Use `memory_doctor` for a broader cascade health check (tier 1 GGUF +
     tier 2 service + DB integrity + roundtrip smoke).
     """
-    url = _m3cfg.setting("embed.fallback_url") or "http://127.0.0.1:8082"
-    return await asyncio.to_thread(tier2_client.probe, url, 2.0)
+    # The URL this process's cascade uses, and where it came from.
+    return await asyncio.to_thread(tier2_client.probe, _EMBED_FALLBACK_URL, 2.0, _EMBED_FALLBACK_SOURCE)

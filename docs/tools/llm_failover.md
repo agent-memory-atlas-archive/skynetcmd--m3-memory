@@ -1,8 +1,8 @@
 ---
 tool: bin/llm_failover.py
-sha1: 35491b0bdd39
-mtime_utc: 2026-10-12T11:44:06.995253+00:00
-generated_utc: 2026-10-12T11:45:06.074034+00:00
+sha1: 44d544c2cc1c
+mtime_utc: 2026-10-16T15:27:16.476246+00:00
+generated_utc: 2026-10-16T15:27:52.635720+00:00
 private: false
 ---
 
@@ -55,6 +55,7 @@ _(none detected)_
 
 - `httpx`
 - `m3_core.config (settings)`
+- `m3_core.secret_store (redacted_snippet)`
 
 ---
 

@@ -528,27 +528,50 @@ def report_available(log: logging.Logger, component: str) -> None:
         log.info(f"{component}: local LLM available again after {(time.monotonic() - state[0]) / 60:.0f} min.")
 
 
-_BEARER_RE = re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{8,}")
-
-
 def raise_for_status_with_body(resp: httpx.Response) -> None:
     """resp.raise_for_status(), but the exception text carries the server's
     error body. httpx's own message omits it, which turned LM Studio's
     "No models loaded" into a bare "400 Bad Request" in every log line."""
     if resp.is_success:
         return
+    from m3_core.secret_store import redacted_snippet
+
     try:
-        body = resp.text[:300].strip()
+        # This text reaches logs: anything bearer-shaped a server echoes back is
+        # blanked (a literal placeholder like "$LM_API_TOKEN" stays readable).
+        body = redacted_snippet(resp.text, 300)
     except Exception:  # noqa: BLE001 — a body we cannot read is still a failure
         body = "<unreadable body>"
-    # This text reaches logs. Blank anything bearer-shaped a server might echo
-    # back (a literal placeholder like "$LM_API_TOKEN" is left readable).
-    body = _BEARER_RE.sub("Bearer [REDACTED]", body)
     raise httpx.HTTPStatusError(
         f"{resp.status_code} {resp.reason_phrase} from {resp.request.url}: {body}",
         request=resp.request,
         response=resp,
     )
+
+
+def _endpoint_failure(e: BaseException, token: str | None) -> str:
+    """What one endpoint probe observed: the status code with a redacted body
+    snippet (and for 401/403 whether a token went and the secret to set), or the
+    exception WITH its message, so a TLS-verify failure does not read like a
+    refused port."""
+    from m3_core.secret_store import redacted_snippet
+
+    if isinstance(e, httpx.HTTPStatusError):
+        code = e.response.status_code
+        try:
+            body = redacted_snippet(e.response.text)
+        except Exception:  # noqa: BLE001 — a body we cannot read is still a status
+            body = ""
+        line = f"HTTP {code}" + (f": {body}" if body else "")
+        if code in (401, 403):
+            sent = "sent" if (token or "").strip() else "not sent"
+            line += f" (a token was {sent}); fix: `m3 secret set LM_API_TOKEN`"
+        return line
+    text = redacted_snippet(e, 300)
+    line = f"{type(e).__name__}: {text}" if text else f"{type(e).__name__} (no message)"
+    if "CERTIFICATE_VERIFY_FAILED" in text:
+        line += " (the endpoint's TLS certificate is not trusted by this machine)"
+    return line
 
 
 def parse_model_size(model_id: str) -> float:
@@ -615,14 +638,8 @@ async def get_best_llm(client: httpx.AsyncClient, token: str) -> tuple[str, str]
             )
             response.raise_for_status()
 
-        except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.warning(f"[llm_failover] {endpoint}: {type(e).__name__}")
-            continue
-        except httpx.HTTPStatusError as e:
-            logger.warning(f"[llm_failover] {endpoint}: HTTPStatusError {e.response.status_code}")
-            continue
-        except Exception as e:
-            logger.warning(f"[llm_failover] {endpoint}: {type(e).__name__}: {e}")
+        except Exception as e:  # noqa: BLE001 — each endpoint's failure is logged, then the next is tried
+            logger.warning("[llm_failover] %s/models: %s", endpoint, _endpoint_failure(e, token))
             continue
 
         # Parse response — handle both OpenAI and Ollama formats
@@ -700,14 +717,8 @@ async def get_smallest_llm(
             )
             response.raise_for_status()
 
-        except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.warning(f"[llm_failover] {endpoint}: {type(e).__name__}")
-            continue
-        except httpx.HTTPStatusError as e:
-            logger.warning(f"[llm_failover] {endpoint}: HTTPStatusError {e.response.status_code}")
-            continue
-        except Exception as e:
-            logger.warning(f"[llm_failover] {endpoint}: {type(e).__name__}: {e}")
+        except Exception as e:  # noqa: BLE001 — each endpoint's failure is logged, then the next is tried
+            logger.warning("[llm_failover] %s/models: %s", endpoint, _endpoint_failure(e, token))
             continue
 
         try:
@@ -741,7 +752,7 @@ async def get_smallest_llm(
     return None
 
 
-async def get_best_embed(client: httpx.AsyncClient, token: str) -> tuple[str, str] | None:
+async def get_best_embed(client: httpx.AsyncClient, token: str | None) -> tuple[str, str] | None:
     """
     Find an embedding model across endpoints, with fallback to any available model.
 
@@ -769,6 +780,7 @@ async def get_best_embed(client: httpx.AsyncClient, token: str) -> tuple[str, st
     if _EMBED_NEG_CACHE_TS and (time.time() - _EMBED_NEG_CACHE_TS) < _EMBED_NEG_TTL:
         return None
 
+    observed: list[str] = []
     for endpoint in LLM_ENDPOINTS:
         try:
             response = await client.get(
@@ -778,26 +790,24 @@ async def get_best_embed(client: httpx.AsyncClient, token: str) -> tuple[str, st
             )
             response.raise_for_status()
 
-        except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.warning(f"[llm_failover] {endpoint}: {type(e).__name__}")
-            continue
-        except httpx.HTTPStatusError as e:
-            logger.warning(f"[llm_failover] {endpoint}: HTTPStatusError {e.response.status_code}")
-            continue
-        except Exception as e:
-            logger.warning(f"[llm_failover] {endpoint}: {type(e).__name__}: {e}")
+        except Exception as e:  # noqa: BLE001 — each endpoint's failure is recorded, then the next is tried
+            seen = _endpoint_failure(e, token)
+            observed.append(f"{endpoint}: {seen}")
+            logger.warning("[llm_failover] %s/models: %s", endpoint, seen)
             continue
 
         # Parse response
         try:
             data = response.json()
         except Exception as e:
+            observed.append(f"{endpoint}: /models body is not JSON ({e})")
             logger.warning(f"[llm_failover] {endpoint}: Failed to parse JSON: {e}")
             continue
 
         models = data.get("data", data.get("models", []))
 
         if not models:
+            observed.append(f"{endpoint}: lists no models")
             continue
 
         # Separate embedding and LLM models
@@ -824,6 +834,7 @@ async def get_best_embed(client: httpx.AsyncClient, token: str) -> tuple[str, st
             embed_models.sort(key=lambda m: 0 if "bge-m3" in m.lower() else 1)
             _EMBED_ENDPOINT_CACHE = (endpoint, embed_models[0])
             return _EMBED_ENDPOINT_CACHE
+        observed.append(f"{endpoint}: {len(other_models)} model(s), none an embedding model")
 
     # No endpoint advertised an EMBEDDING model. Do NOT fall back to a chat-only
     # endpoint: POSTing /embeddings to a chat model returns 400 on every call,
@@ -833,9 +844,20 @@ async def get_best_embed(client: httpx.AsyncClient, token: str) -> tuple[str, st
     # than returning a known-doomed target. Stamp the negative cache so we don't
     # re-probe every call for the next _EMBED_NEG_TTL seconds.
     _EMBED_NEG_CACHE_TS = time.time()
+    if not LLM_ENDPOINTS:
+        logger.warning(
+            "[llm_failover] tier 3 has no LLM endpoints configured, so no embedding endpoint can be found "
+            "(negative-cached %.0fs); the next tier is cloud when enabled, else no vector. "
+            "inspect: `m3 config show` (llm endpoints)",
+            _EMBED_NEG_TTL,
+        )
+        return None
     logger.warning(
-        "[llm_failover] no embedding model found across endpoints — returning "
-        "None so the caller uses its embed fallback (negative-cached %.0fs).",
+        "[llm_failover] no embedding model at any of %d endpoint(s) — observed: %s. Tier 3 is skipped "
+        "(negative-cached %.0fs); the next tier is cloud when enabled, else no vector. "
+        "inspect: load an embedding model (e.g. bge-m3) on one of them, or `m3 config show` (llm endpoints)",
+        len(LLM_ENDPOINTS),
+        "; ".join(observed) or "nothing recorded",
         _EMBED_NEG_TTL,
     )
     return None

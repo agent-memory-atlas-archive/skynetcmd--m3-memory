@@ -27,6 +27,7 @@ from pathlib import Path
 from m3_core.config import settings as _m3cfg
 
 from .cluster import Cluster
+from .synth import CallFailures, call_failure_reason
 
 # Bump when SYSTEM or the user-prompt template below changes. Combined with the
 # stored prompt text, this is what makes a prompt change auditable: a superseded
@@ -134,11 +135,14 @@ def _user_prompt(cluster: Cluster, cfg: ProseCompilerConfig) -> str:
     return "\n".join(lines)
 
 
-def _call_model(cfg: ProseCompilerConfig, user_prompt: str) -> str | None:
-    """POST to the local chat endpoint. None on ANY failure (fail-open)."""
+def _call_model(cfg: ProseCompilerConfig, user_prompt: str, failures: CallFailures | None = None) -> str | None:
+    """POST to the local chat endpoint. None on ANY failure (fail-open); the
+    reason goes to ``failures`` for the run summary."""
     try:
         import httpx  # lazy: only needed when a real compiler is injected
     except ImportError:
+        if failures is not None:
+            failures.record("httpx is not installed")
         return None
 
     headers = {"Content-Type": "application/json"}
@@ -173,9 +177,14 @@ def _call_model(cfg: ProseCompilerConfig, user_prompt: str) -> str | None:
     try:
         r = httpx.post(cfg.url, json=payload, headers=headers, timeout=cfg.timeout_s)
         r.raise_for_status()
-        text = r.json()["choices"][0]["message"]["content"]
-        return _clean(text)
-    except Exception:
+        choice = r.json()["choices"][0]
+        text = _clean(choice["message"]["content"])
+        if not text and failures is not None:
+            failures.record(f"empty reply (finish_reason={choice.get('finish_reason')!r})")
+        return text
+    except Exception as e:  # noqa: BLE001 -- fail open; the reason is tallied for the summary
+        if failures is not None:
+            failures.record(call_failure_reason(e, cfg.url))
         return None
 
 
@@ -224,6 +233,7 @@ class LLMProseCompiler:
         self.model = self.cfg.model
         self.calls = 0
         self.failures = 0
+        self.failure_reasons = CallFailures()
 
     def prompt_text(self) -> str:
         """The audit record of HOW pages are compiled: the system instruction
@@ -240,11 +250,11 @@ class LLMProseCompiler:
 
     def compile(self, cluster: Cluster) -> str | None:
         self.calls += 1
-        prose = _call_model(self.cfg, _user_prompt(cluster, self.cfg))
+        prose = _call_model(self.cfg, _user_prompt(cluster, self.cfg), self.failure_reasons)
         if not prose:
             self.failures += 1
             return None
         return prose
 
     def summary(self) -> str:
-        return f"prose-compiler: {self.calls} calls, {self.failures} failed"
+        return f"prose-compiler: {self.calls} calls, {self.failures} failed" + self.failure_reasons.suffix()

@@ -497,23 +497,50 @@ def _port_in_use(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bo
         return False
 
 
-def _service_reports_installed(binary: Path, gguf: Path) -> bool:
-    """True if the service manager says the service exists. `status` prints
-    'running'/'stopped' when registered and 'not installed' otherwise, so parse
-    its stdout rather than trusting the exit code alone."""
-    env = _embed_server_env(gguf)
+# Why the last `status` probe could not run, or None when it ran. "Could not
+# ask" is a third answer, distinct from "not installed"/"not running": a caller
+# that acts on the answer (cmd_start auto-installs) must not act on a guess.
+_LAST_STATUS_UNKNOWN: str | None = None
+_STATUS_UNKNOWN_SAID: set[str] = set()
+
+
+def _run_status(binary: Path, gguf: Path, timeout: float) -> str | None:
+    """`<binary> status` output, or None when it could not be run (said once per
+    distinct cause, and recorded in _LAST_STATUS_UNKNOWN)."""
+    global _LAST_STATUS_UNKNOWN
     try:
         out = subprocess.run(
             [str(binary), "status"],
-            env=env,
+            env=_embed_server_env(gguf),
             check=False,
             capture_output=True,
             text=True,
-            timeout=15,
+            timeout=timeout,
         )
-    except (OSError, subprocess.SubprocessError):
+    except Exception as e:  # noqa: BLE001 — probe must never raise into setup (§3); reported below
+        why = f"{type(e).__name__}: {e}"
+        _LAST_STATUS_UNKNOWN = why
+        if why not in _STATUS_UNKNOWN_SAID:
+            _STATUS_UNKNOWN_SAID.add(why)
+            print(
+                f"[!] could not run `{binary} status` ({why}): the embedder service's state is UNKNOWN, "
+                "not 'not installed'. inspect: `m3 embedder status`",
+                file=sys.stderr,
+            )
+        return None
+    _LAST_STATUS_UNKNOWN = None
+    return f"{out.stdout}\n{out.stderr}"
+
+
+def _service_reports_installed(binary: Path, gguf: Path) -> bool:
+    """True if the service manager says the service exists. `status` prints
+    'running'/'stopped' when registered and 'not installed' otherwise, so parse
+    its stdout rather than trusting the exit code alone. False when `status`
+    could not run; _LAST_STATUS_UNKNOWN then says why."""
+    out = _run_status(binary, gguf, 15)
+    if out is None:
         return False
-    blob = f"{out.stdout}\n{out.stderr}".lower()
+    blob = out.lower()
     if "not installed" in blob:
         return False
     # Any state word at all means the manager knows about the service. Matching
@@ -589,20 +616,11 @@ def _service_reports_running(binary: Path, gguf: Path) -> bool:
 
     Companion to _service_reports_installed: an exit code cannot distinguish
     "start failed" from "already running", but `status` prints the real state.
-    Returns False on any error — never claim running without evidence.
+    Returns False on any error — never claim running without evidence — and
+    says so (_run_status) rather than letting it read as "stopped".
     """
-    try:
-        proc = subprocess.run(
-            [str(binary), "status"],
-            env=_embed_server_env(gguf),
-            capture_output=True,
-            text=True,
-            timeout=20,
-            check=False,
-        )
-    except Exception:  # noqa: BLE001 — probe must never raise into setup (§3)
-        return False
-    return _status_says_running(f"{proc.stdout}\n{proc.stderr}")
+    out = _run_status(binary, gguf, 20)
+    return out is not None and _status_says_running(out)
 
 
 # Phrases that mean NOT running. Checked before the positive tokens because a
@@ -793,20 +811,29 @@ _SERVE_WAIT_S = 60.0
 
 
 def _wait_serving_impl(port: int, timeout: float = _SERVE_WAIT_S) -> bool:
-    """True once GET /health on the embed port returns 200, within ``timeout``."""
+    """True once GET /health on the embed port returns 200, within ``timeout``.
+    On giving up, prints the last thing observed (refused, timeout, an HTTP
+    status), classified by the one tier-2 classifier."""
     import urllib.request
 
+    from m3_core.tier2_client import classify
+
+    url = f"http://127.0.0.1:{port}"
+    last: BaseException | int | None = None
     deadline = time.monotonic() + timeout
     while True:
         try:
             with urllib.request.urlopen(  # nosec B310 — fixed http:// loopback URL
-                f"http://127.0.0.1:{port}/health", timeout=2
+                f"{url}/health", timeout=2
             ) as r:
                 if r.status == 200:
                     return True
-        except OSError:
-            pass
+                last = int(r.status)
+        except OSError as e:
+            last = e
         if time.monotonic() >= deadline:
+            seen = classify(last, url).message() if last is not None else "no attempt completed"
+            print(f"[!] {url}/health, last observed after {timeout:.0f}s: {seen}", file=sys.stderr)
             return False
         time.sleep(0.5)
 
@@ -893,7 +920,7 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, q
             "  A stray `embed_server_inproc.py` from an earlier install is the usual\n"
             "  culprit: it answers the port, but no service manager owns it.\n"
             "  Stop it, then run: m3 embedder start\n"
-            "  Tier-1 in-process GGUF embedding keeps working meanwhile.",
+            f"  {tier1_availability()}",
             file=sys.stderr,
         )
         return rc
@@ -902,7 +929,7 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, q
         f"[!] m3-embed-server is REGISTERED but `status` does not report it "
         f"running{exited}.\n"
         f"{_start_failure_hint(gguf)}\n"
-        "  Tier-1 in-process GGUF embedding keeps working meanwhile.",
+        f"  {tier1_availability()}",
         file=sys.stderr,
     )
     return rc
@@ -1005,10 +1032,10 @@ def _locate_gguf_or_explain() -> Path | None:
         return fetched
 
     print(
-        f"Note: the optional CPU-embedder GGUF ({BGE_M3_FILENAME}) isn't present, so\n"
-        "  the always-on :8082 server can't be installed. This is NOT a failure —\n"
-        "  m3 embeds via its in-process / HTTP tiers regardless.\n"
-        "  To add it later:\n"
+        f"Note: the embedder model ({BGE_M3_FILENAME}) isn't present, so the always-on\n"
+        f"  server on port {_embed_server_port()} can't be installed.\n"
+        f"  {tier1_availability()}\n"
+        "  To add it:\n"
         "    • m3 embedder fetch-model     (downloads ~418 MB into ~/.m3/models)\n"
         "    • or point M3_EMBED_GGUF at a hand-downloaded bge-m3 GGUF,\n"
         "  then re-run `m3 embedder install`.",
@@ -1101,9 +1128,7 @@ def cmd_install(args: argparse.Namespace) -> int:
             "",
             "  Alternative: set M3_EMBED_SERVER_BIN to point at a prebuilt binary.",
             "",
-            "  NOTE: Tier-2 (this service) is optional. Tier-1 in-process GGUF",
-            "  embedding is already active and fully functional — m3 works without",
-            "  this service. Install it only for faster cold-start performance.",
+            f"  {tier1_availability()}",
         ]
         print("\n".join(lines), file=sys.stderr)
         return 1
@@ -1185,9 +1210,7 @@ def cmd_install(args: argparse.Namespace) -> int:
                 start_rc = _service_cmd(binary, gguf, "start")
             return _verify_started_or_explain(binary, gguf, start_rc=start_rc)
         print(
-            f"[!] `m3-embed-server install` exited {rc}\n"
-            f"{_install_failure_hint(gguf)}\n"
-            "  Tier-1 in-process GGUF is active and sufficient — this step is optional.",
+            f"[!] `m3-embed-server install` exited {rc}\n{_install_failure_hint(gguf)}\n  {tier1_availability()}",
             file=sys.stderr,
         )
         return rc
@@ -1215,7 +1238,7 @@ def _binary_and_gguf_or_fail() -> tuple[Path, Path] | None:
         print(
             "Error: m3-embed-server not installed.\n"
             "  Run `m3 embedder install-gpu` to install it (prebuilt wheel, no Rust needed for CPU).\n"
-            "  Tier-1 in-process GGUF embedding is active and sufficient — this service is optional.",
+            f"  {tier1_availability()}",
             file=sys.stderr,
         )
         return None
@@ -1236,7 +1259,18 @@ def cmd_start(args: argparse.Namespace) -> int:
     # start-troubleshooting advice (systemd/nohup), not the real fix. When the
     # binary exists but the service isn't registered, auto-install it (locate
     # GGUF + register + start) so `m3 embedder start` "just works".
+    global _LAST_STATUS_UNKNOWN
+    _LAST_STATUS_UNKNOWN = None
     if not _service_reports_installed(binary, gguf):
+        if _LAST_STATUS_UNKNOWN is not None:
+            # Installing over a service whose state could not be read could
+            # replace a working registration; say what failed instead.
+            print(
+                f"Error: cannot tell whether m3-embed-server is registered ({_LAST_STATUS_UNKNOWN}), so it was "
+                f"neither installed nor started. inspect: `{binary} status`; then `m3 embedder install`.",
+                file=sys.stderr,
+            )
+            return 1
         print("[~] m3-embed-server is not registered as a service — installing it now.")
         return cmd_install(args)
     _warn_if_port_busy("start")
@@ -1455,6 +1489,24 @@ def shared_mode_enabled() -> bool:
             return bool((json.load(f) or {}).get("disable_inproc_embedder"))
     except (OSError, ValueError):
         return False
+
+
+def tier1_availability() -> str:
+    """Whether m3 still embeds while the shared server is down, said for THIS
+    machine's configuration. In-process embedding (tier 1) is opt-in (embed.py's
+    _INPROC_ALLOWED), so "tier 1 keeps working" is false on a default install."""
+    if shared_mode_enabled():
+        return (
+            "Shared mode is on (.embed_config.json disables the in-process embedder), so every m3 process "
+            "embeds through this server: embedding is DOWN until it serves (rows written meanwhile can be "
+            "filled later with `m3 embedder backfill`)."
+        )
+    if os.path.exists(_embed_config_path()) or _config.setting("embed.inproc"):
+        return "In-process embedding is allowed here, so m3 processes that have a GGUF embed in-process meanwhile."
+    return (
+        "No .embed_config.json and embed.inproc is off, so m3 processes embed through this server too: "
+        "embedding is DOWN until it serves."
+    )
 
 
 def shared_gguf_is(path: str) -> bool:
@@ -1690,20 +1742,41 @@ def cmd_secure(args: argparse.Namespace) -> int:
     )
     if rc != 0:
         return rc  # the server said why; nothing was stored
-    if token != existing:
+    minted = token != existing
+    if minted:
         set_secret(_EMBED_TOKEN_SECRET, token)
         print(f"[OK] new bearer token stored here as secret {_EMBED_TOKEN_SECRET}.")
     print("\nNext:")
     print("  1. Restart the server:  m3 embedder stop && m3 embedder start")
     print("  2. On each machine that should use it:")
-    print(f"       m3 secret set {_EMBED_TOKEN_SECRET}          (paste the token below when asked)")
+    paste = "paste the token below when asked" if minted else "paste this machine's stored token when asked"
+    print(f"       m3 secret set {_EMBED_TOKEN_SECRET}          ({paste})")
     print("       m3 config set embed.fallback_url https://<this machine's name>:<port>")
     print("     If the certificate comes from a private CA, also:")
     print("       m3 config set embed.fallback_ca <that CA's certificate .pem>")
     print("  Keep the listener on a private network: Tailscale is recommended, and")
     print("  `tailscale cert <machine>.<tailnet>.ts.net` gives a trusted certificate and key.")
-    print(f"\n  token (secret; share it only with those machines):\n    {token}")
+    if minted:
+        print(f"\n  token (secret; shown once; share it only with those machines):\n    {token}")
+    else:
+        # A reused token was shown when it was minted; printing it on every run
+        # puts the credential in each terminal scrollback and log for nothing.
+        print(
+            f"\n  The existing token was reused and is not shown again. It is stored as secret "
+            f"{_EMBED_TOKEN_SECRET} in {_secrets_location()}; `--new-token` mints and shows a new one "
+            "(every client then needs it)."
+        )
     return 0
+
+
+def _secrets_location() -> str:
+    """Where the embed token is stored, for a message; never raises."""
+    try:
+        from m3_core.secret_store import secrets_file_path
+
+        return str(secrets_file_path())
+    except Exception as e:  # noqa: BLE001 — a message helper; the token itself was already stored
+        return f"the secrets file (its path could not be resolved: {type(e).__name__}: {e})"
 
 
 def cmd_backfill(args: argparse.Namespace) -> int:

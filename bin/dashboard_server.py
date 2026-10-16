@@ -57,6 +57,7 @@ _apply_early_argv()
 import asyncio
 import html
 import json
+import logging
 import os
 import re
 import sys
@@ -157,10 +158,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 # Ensure bin/ is on path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from m3_core.errors import log_swallowed
 from m3_sdk import active_database, resolve_db_path
 from memory.db import _db
 from memory.search import memory_search_scored_impl
 from memory_maintenance import gdpr_export_impl, gdpr_forget_impl
+
+# Faults go through logging (lands in --log-file in the detached child); the
+# operator-facing startup lines stay print() for the interactive launcher.
+_log = logging.getLogger("dashboard")
 
 PORT = 8088
 HOST = "127.0.0.1"
@@ -483,7 +489,8 @@ function wake(full){alpha=Math.min(1, full?1:Math.max(alpha,0.35));
 function color(t){return t==="person"?"hsl(270,100%,75%)":t==="place"?"hsl(180,100%,50%)":t==="topic"?"hsl(38,100%,55%)":"hsl(145,100%,45%)";}
 async function loadGraph(){
   try{
-    const d=await (await fetch("/api/graph")).json();
+    const r=await fetch("/api/graph");const d=await r.json();
+    if(!r.ok||d.error){setStatus("Load failed: "+(d.error||("HTTP "+r.status)),"#f59e0b");return;}
     const old=new Map(nodes.map(n=>[n.id,n]));
     nodes=d.nodes.map(n=>{const e=old.get(n.id);return {...n,x:e?e.x:canvas.width/2+(Math.random()-.5)*300,y:e?e.y:canvas.height/2+(Math.random()-.5)*300,vx:0,vy:0};});
     links=d.links.map(l=>({...l,source:nodes.find(n=>n.id===l.source),target:nodes.find(n=>n.id===l.target)})).filter(l=>l.source&&l.target);
@@ -616,9 +623,27 @@ loadGraph().then(()=>{setTimeout(fitToView,1200);updateEmpty();});
 # --- FastAPI Setup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    active = resolve_db_path(None)
-    print(f"M3 Cognitive Portal serving SQLite database: {active}", flush=True)
-    print(f"Server available at http://{HOST}:{PORT}", flush=True)
+    # Name the backend actually selected (not "SQLite" unconditionally) and the
+    # address actually bound (not the module defaults).
+    try:
+        from memory.backends import resolve_backend_name
+
+        backend = resolve_backend_name()
+    except Exception as e:  # noqa: BLE001 -- the banner reports, never blocks startup
+        backend = f"unresolved ({type(e).__name__}: {e})"
+    if backend == "sqlite":
+        where = resolve_db_path(None)
+    else:
+        try:
+            from m3_core.secret_store import mask_dsn_passwords
+            from m3_sdk import PgRole, resolve_pg_dsn
+
+            where = mask_dsn_passwords(resolve_pg_dsn(PgRole.PRIMARY) or "(no DSN resolved)")
+        except Exception as e:  # noqa: BLE001
+            where = f"(DSN unresolved: {type(e).__name__})"
+    host, port = _resolve_host_port(_bound_host, _bound_port)
+    print(f"M3 Cognitive Portal serving {backend} store: {where}", flush=True)
+    print(f"Server available at http://{host}:{port}", flush=True)
     yield
 
 
@@ -641,26 +666,145 @@ app = FastAPI(title="M3 Cognitive Portal", description="Observability and Browse
 # page's hx-get/hx-post targets are relative paths, so the same-origin cookie
 # covers them with no per-call wiring.
 _COOKIE_NAME = "m3_dash"
+_SERVICE_HEADER = "X-M3-Service"
+_SERVICE_MARKER = "m3-dashboard"
+
+
+def _fallback_is_loopback(host: str) -> bool:
+    """Loopback test for when m3_http_auth itself cannot be imported.
+
+    m3_http_auth.is_loopback is the owner; this exists only because the owner is
+    unavailable by definition here. Literal loopback addresses plus "localhost";
+    any other name resolves to "not loopback" -> refuse.
+    """
+    import ipaddress
+
+    h = (host or "").strip().strip("[]").lower()
+    if h == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(h).is_loopback
+    except ValueError:
+        return False
+
+
+class _AuthAssessment:
+    """What the dashboard's auth gate should do for one bind, and why.
+
+    ``problem`` is set when the gate is open or deny-all because of a FAULT (auth
+    module missing, token resolution raised, token present-but-undecryptable,
+    vault probe failed) rather than because no token is configured. ``refusal``
+    is set when startup must refuse (non-loopback with no usable token).
+    """
+
+    __slots__ = ("problem", "refusal", "required", "verifier")
+
+    def __init__(self, verifier, required: bool, problem: str | None = None, refusal: str | None = None):
+        self.verifier = verifier
+        self.required = required
+        self.problem = problem
+        self.refusal = refusal
+
+
+def _assess_dashboard_auth(host: str) -> _AuthAssessment:
+    """Decide the gate for `host`. Never raises -- a probe must not break startup.
+
+    Loopback + no token configured stays open (the documented historical
+    default). Every other no-token outcome on a non-loopback bind is deny-all,
+    and every FAULT is named in ``problem`` so it is never silent.
+    """
+    try:
+        import m3_http_auth as _auth
+    except Exception as exc:  # noqa: BLE001 -- a broken payload; decide without the module
+        loop = _fallback_is_loopback(host)
+        cause = (
+            f"the auth module m3_http_auth could not be imported ({type(exc).__name__}: {str(exc) or '(no message)'})"
+        )
+        if loop:
+            return _AuthAssessment(
+                None,
+                False,
+                problem=f"{cause}; serving loopback {host} WITHOUT authentication. Repair the payload: m3 update",
+            )
+        return _AuthAssessment(
+            None,
+            True,
+            problem=f"{cause}; non-loopback bind {host} denies every request. Repair the payload: m3 update",
+            refusal=f"Refusing to bind {host}: {cause}, so no token can be checked.\n"
+            "  Repair the payload:  m3 update\n"
+            "  (a loopback bind, e.g. --host 127.0.0.1, still starts)",
+        )
+
+    loop = _auth.is_loopback(host)
+    state = None
+    try:
+        token, state = _auth.resolve_token()
+    except Exception as exc:  # noqa: BLE001 -- treated as UNKNOWN: never advise minting a token
+        token = None
+        fault = (
+            f"resolving {_auth.SECRET_NAME} raised {type(exc).__name__}: {str(exc) or '(no message)'}, so whether a "
+            "token exists is unknown. Inspect: m3 doctor. Do NOT run `m3 serve --generate-token` until resolved "
+            "(it can clobber a working token)."
+        )
+    else:
+        fault = None
+        if not token and state in (_auth.TokenState.PRESENT_UNDECRYPTABLE, _auth.TokenState.UNKNOWN):
+            try:
+                _auth.preflight(host, None, state)
+            except _auth.AuthConfigError as e:
+                fault = str(e)
+
+    if token:
+        return _AuthAssessment(_auth.StaticTokenVerifier(token), True)
+    if loop:
+        problem = (
+            f"the dashboard on loopback {host} is serving WITHOUT authentication because a configured token "
+            f"could not be used:\n{fault}"
+            if fault
+            else None
+        )
+        return _AuthAssessment(None, False, problem=problem)
+    # Non-loopback, no usable token: deny everything (never allow) and refuse at startup.
+    refusal = (
+        f"Refusing to bind {host}: no usable {_auth.SECRET_NAME}.\n{fault}"
+        if fault
+        else (
+            f"Refusing to bind {host}: no {_auth.SECRET_NAME} configured.\n"
+            "  The dashboard exposes memory browsing and delete/override routes.\n"
+            "  Generate a token first:  m3 serve --generate-token\n"
+            "  (loopback binds still start without one)"
+        )
+    )
+    problem = f"non-loopback bind {host} has no usable {_auth.SECRET_NAME}, so every request is refused (401)" + (
+        f":\n{fault}" if fault else ". Generate one: m3 serve --generate-token"
+    )
+    return _AuthAssessment(None, True, problem=problem, refusal=refusal)
+
+
+# One stderr warning per distinct auth problem: the middleware re-assesses every
+# few seconds, and repeating an unchanged warning per request buries it.
+_auth_problems_reported: set[str] = set()
+
+
+def _report_auth_problem(problem: str | None) -> None:
+    if problem and problem not in _auth_problems_reported:
+        _auth_problems_reported.add(problem)
+        print(f"[warn] m3 dashboard auth: {problem}", file=sys.stderr, flush=True)
+
+
+# The address this process actually bound (set by run_dashboard's foreground
+# path). Hazard: the gate deciding "loopback" from config while the server was
+# started with `--host 0.0.0.0` would serve an exposed bind unauthenticated.
+_bound_host: str | None = None
+_bound_port: int | None = None
 
 
 def _dashboard_auth_config() -> tuple[object | None, bool]:
     """Return (verifier, required). Never raises -- a probe must not break startup."""
-    try:
-        import m3_http_auth as _auth
-    except Exception:  # noqa: BLE001 -- module missing => historical no-auth behavior
-        return None, False
-
-    host, _port = _resolve_host_port(None, None)
-    try:
-        token, _state = _auth.resolve_token()
-    except Exception:  # noqa: BLE001
-        token = None
-
-    if token:
-        return _auth.StaticTokenVerifier(token), True
-    # No usable token. On a non-loopback bind that is a refusal condition, handled
-    # at startup in main(); here it means "deny everything" rather than "allow".
-    return None, not _auth.is_loopback(host)
+    host = _bound_host or _resolve_host_port(None, None)[0]
+    a = _assess_dashboard_auth(host)
+    _report_auth_problem(a.problem)
+    return a.verifier, a.required
 
 
 class DashboardAuthMiddleware(BaseHTTPMiddleware):
@@ -708,6 +852,13 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
 
     @override
     async def dispatch(self, request, call_next):
+        response = await self._gate(request, call_next)
+        # Identity marker on EVERY response, 401s included, so the launcher can
+        # tell "a dashboard holds the port" from "another process holds it".
+        response.headers[_SERVICE_HEADER] = _SERVICE_MARKER
+        return response
+
+    async def _gate(self, request, call_next):
         verifier, required = self._config()
         if not required:
             return await call_next(request)
@@ -741,9 +892,20 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
 
         # Identical response whether the token was absent, malformed or wrong --
         # no oracle. `verifier is None` (non-loopback bind, no token) lands here
-        # too, so an exposed dashboard denies rather than serves.
+        # too, so an exposed dashboard denies rather than serves; that cause is
+        # reported once on stderr by _report_auth_problem, not in the response.
+        try:
+            import m3_http_auth as _auth
+
+            _auth.log_rejected_bearer(request.client.host if request.client else None, "m3 dashboard")
+        except Exception as exc:  # noqa: BLE001 -- logging a rejection must not change the response
+            log_swallowed(_log, exc, "dashboard: could not log a rejected request: %s", exc)
         return JSONResponse(
-            {"error": "unauthorized"},
+            {
+                "error": "unauthorized",
+                "hint": "send 'Authorization: Bearer <M3_SERVE_TOKEN>', or open the one-time "
+                "sign-in URL printed by `m3 dashboard --show-url` on the server",
+            },
             status_code=401,
             headers={"WWW-Authenticate": 'Bearer realm="m3-dashboard"'},
         )
@@ -779,12 +941,25 @@ class DbScopeMiddleware(BaseHTTPMiddleware):
         if configured_main_db():
             # Operator pinned it; the env var outranks us by design.
             return await call_next(request)
+        selected = request.cookies.get("selected_db", "main")
         try:
-            store = selected_db_store(request.cookies.get("selected_db", "main"))
-        except Exception:
-            # Never fail a request over store selection -- fall through to the
-            # default resolution the handler would have used anyway.
-            return await call_next(request)
+            store = selected_db_store(selected)
+        except Exception as e:  # noqa: BLE001
+            # Never fail a request over store selection -- serve the default
+            # store, but say so: the page would otherwise show the default
+            # store's data under the viewer's selected-store label.
+            _log.warning(
+                "dashboard: selected store %r did not resolve (%s: %s); serving the default store for %s",
+                selected,
+                type(e).__name__,
+                e,
+                request.url.path,
+            )
+            response = await call_next(request)
+            response.headers["X-M3-Store-Fallback"] = (
+                f"selected store {ascii(selected)[:80]} unavailable; default served"
+            )
+            return response
         with active_database(store):
             return await call_next(request)
 
@@ -1326,6 +1501,7 @@ async def get_health(request: Request):
         "<div class='hero-title'>System Health</div>"
         "<div class='hero-sub'>Backend identity, store integrity, inference status, and governor load — the same signals as <code>m3 doctor</code>.</div>"
         "</div></div>"
+        "<div id='healthFetchErr' style='display:none;color:#ff5c6c;font-size:0.85rem;margin-bottom:0.6rem;'></div>"
         f"<div id='healthPanel'>{skeleton}</div>"
         "</div>"
         # Fetch the real panel immediately, then re-fetch every 5s (governor
@@ -1334,9 +1510,17 @@ async def get_health(request: Request):
         # while hidden (don't waste cycles polling an unfocused tab).
         "<script>"
         "(function(){"
+        # A failed refresh is shown above the panel (which keeps the last good
+        # data, labelled stale) instead of leaving the skeleton or stale numbers
+        # with no sign anything went wrong.
+        " var errEl=document.getElementById('healthFetchErr');"
+        " function showErr(m){errEl.textContent='Health refresh failed: '+m+"
+        "  ' (data below is from the last successful refresh, if any).';errEl.style.display='block';}"
         " async function fetchPanel(){"
         "  try{var r=await fetch('/api/health',{cache:'no-store'});"
-        "   if(r.ok)document.getElementById('healthPanel').innerHTML=await r.text();}catch(e){}"
+        "   if(r.ok){document.getElementById('healthPanel').innerHTML=await r.text();errEl.style.display='none';}"
+        "   else{showErr('HTTP '+r.status+(r.status===401?' (not signed in: reopen the sign-in URL)':''));}"
+        "  }catch(e){showErr((e&&e.message?e.message:String(e))+' (is the dashboard still running?)');}"
         " }"
         " fetchPanel();"  # initial fill — regardless of visibility
         " setInterval(function(){ if(!document.hidden) fetchPanel(); },5000);"
@@ -1424,7 +1608,7 @@ def _render_health_panel() -> str:
     except Exception as e:  # noqa: BLE001 — the panel must render even if a probe dies
         return (
             f'<div class="memory-card"><h3 style="color: var(--m3-neon-amber);">'
-            f"Health data unavailable</h3><p>{e}</p></div>"
+            f"Health data unavailable</h3><p>{html.escape(f'{type(e).__name__}: {e}')}</p></div>"
         )
 
     def esc(s: object) -> str:
@@ -1462,7 +1646,7 @@ def _render_health_panel() -> str:
             f'<strong style="color:{color};">Why:</strong>'
             f'<ul style="margin:0.3rem 0 0 1.1rem;padding:0;">{items}</ul></div>'
         )
-    elif tone == "ok":
+    elif tone == "ok" and not h.get("probe_errors"):
         reasons_html = (
             '<div style="margin-top:0.4rem;color:var(--m3-neon-emerald);'
             'font-size:0.85rem;">All subsystems nominal.</div>'
@@ -1542,11 +1726,12 @@ def _render_health_panel() -> str:
         parts.append(f'<p style="color:var(--m3-neon-amber);">{esc(b["note"])}</p>')
     for st in b.get("stores", []):
         present = st.get("present")
-        pill = (
-            '<span style="color:var(--m3-neon-emerald);">present</span>'
-            if present
-            else '<span style="color:hsl(210,15%,55%);">absent</span>'
-        )
+        if st.get("error"):
+            pill = f'<span style="color:#ff5c6c;">present but UNREADABLE — {esc(st["error"])}</span>'
+        elif present:
+            pill = '<span style="color:var(--m3-neon-emerald);">present</span>'
+        else:
+            pill = '<span style="color:hsl(210,15%,55%);">absent</span>'
         rows = st.get("rows")
         rows_txt = f"{rows:,} rows" if isinstance(rows, int) else "—"
         shared = " (shared with core)" if st.get("shared") else ""
@@ -1624,7 +1809,7 @@ def _render_health_panel() -> str:
                 )
             else:
                 hstat = hop.get("status", "down")
-                hc = "#ff5c6c" if hstat in ("down", "no_model", "auth_failed") else "var(--m3-neon-amber)"
+                hc = "#ff5c6c" if hstat in ("down", "no_model", "auth_failed", "bad_url") else "var(--m3-neon-amber)"
                 # For cloud, "no_model" is impossible; auth_failed reads as a key issue.
                 htxt = f"✕ {esc(hstat)}" + (f" — {esc(hop.get('detail'))}" if hop.get("detail") else "")
             arrow = "" if idx == 0 else '<span style="color:hsl(210,15%,40%);">↳ </span>'
@@ -2026,8 +2211,10 @@ async def get_graph(request: Request):
                 for l in leaves:
                     nodes.append({"id": l[0], "name": f"Chunk {l[2]}", "type": "chunk"})
                     links.append({"source": l[1], "target": l[0], "predicate": "contains"})
-        except Exception as e:
-            print(f"Failed to query files graph: {e}", flush=True)
+        except Exception as e:  # noqa: BLE001 -- returned as a 500 the page renders, not an empty graph
+            msg = f"files graph query failed on {selected_db_path}: {type(e).__name__}: {e}"
+            _log.warning("dashboard: %s", msg)
+            return JSONResponse({"nodes": [], "links": [], "error": msg}, status_code=500, headers=_no_cache)
         return JSONResponse({"nodes": nodes, "links": links}, headers=_no_cache)
 
     try:
@@ -2048,8 +2235,10 @@ async def get_graph(request: Request):
                         links.append(
                             {"source": r["from_entity"], "target": r["to_entity"], "predicate": r["predicate"]}
                         )
-    except Exception as e:
-        print(f"Failed to load graph database items: {e}", flush=True)
+    except Exception as e:  # noqa: BLE001 -- an empty 200 would read as "no entities yet"
+        msg = f"graph query failed on the {selected_db} store: {type(e).__name__}: {e}"
+        _log.warning("dashboard: %s", msg)
+        return JSONResponse({"nodes": [], "links": [], "error": msg}, status_code=500, headers=_no_cache)
 
     return JSONResponse({"nodes": nodes, "links": links}, headers=_no_cache)
 
@@ -3059,14 +3248,27 @@ async def trigger_maintenance_task(action: str):
     # not inherit whichever store a viewer happened to have selected.
     main_db = os.path.abspath(get_db_paths()["main"])
 
-    # Resolve Chatlog DB path
+    # Resolve the chatlog DB path. Hazard: falling back to main on failure ran
+    # chatlog decay (destructive with --apply) against the MAIN store. The
+    # chatlog actions are refused below instead; a unified topology resolves
+    # to main through resolve_config itself, not through this fallback.
+    chatlog_db = ""
+    chatlog_err = ""
     try:
         from chatlog_config import resolve_config
 
         config = resolve_config()
         chatlog_db = os.path.abspath(config.db_path)
-    except Exception:
-        chatlog_db = main_db
+    except Exception as e:  # noqa: BLE001 -- reported to the operator for the actions that need it
+        chatlog_err = f"{type(e).__name__}: {str(e) or '(no message)'}"
+    if action in ("decay_dry", "decay_apply") and not chatlog_db:
+        _log.warning("refused maintenance %s: chatlog store did not resolve: %s", action, chatlog_err)
+        return HTMLResponse(
+            content=f"[Error] Refused '{action}': the chatlog store could not be resolved ({chatlog_err}), "
+            "and running chatlog decay against the main store would delete the wrong rows. "
+            "Inspect: m3 chatlog status (and the .chatlog_config.json under the config root).",
+            status_code=500,
+        )
 
     cmd_map = {
         "decay_dry": [sys.executable, os.path.join(os.path.dirname(__file__), "chatlog_decay.py"), "--db", chatlog_db],
@@ -3256,13 +3458,20 @@ def dashboard_show_url(host: str | None = None, port: int | None = None) -> int:
     resolved_host, resolved_port = _resolve_host_port(host, port)
     try:
         import m3_http_auth as _auth
-    except ImportError:
-        print("Auth module unavailable; the dashboard is running without a token.", file=sys.stderr)
+    except ImportError as exc:
+        print(
+            f"Cannot build a sign-in URL: the auth module m3_http_auth failed to import ({exc}).\n"
+            "  Repair the payload:  m3 update",
+            file=sys.stderr,
+        )
         return 1
 
     token, _state = _auth.resolve_token()
-    if _state is _auth.TokenState.PRESENT_UNDECRYPTABLE:
-        print(f"{_auth.SECRET_NAME} exists but cannot be decrypted on this device.", file=sys.stderr)
+    if _state in (_auth.TokenState.PRESENT_UNDECRYPTABLE, _auth.TokenState.UNKNOWN):
+        try:
+            _auth.preflight(resolved_host, None, _state)
+        except _auth.AuthConfigError as e:  # carries the cause and the do-not-regenerate warning
+            print(str(e), file=sys.stderr)
         return 1
     if not token:
         if _auth.is_loopback(resolved_host):
@@ -3313,6 +3522,32 @@ def _port_already_serving(host: str, port: int, timeout: float = 1.0) -> bool:
             return True
     except OSError:
         return False
+
+
+def _port_holder_is_dashboard(host: str, port: int, timeout: float = 2.0) -> bool | None:
+    """True if the listener on host:port answers with the dashboard marker header.
+
+    False = something answered HTTP without the marker (another service), or
+    did not speak HTTP at all. None = nothing reachable. Probes a path no route
+    serves, so it costs a 404 (or a 401 when the gate is on) -- both carry the
+    marker from DashboardAuthMiddleware.
+    """
+    import urllib.error
+    import urllib.request
+
+    probe = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host  # nosec B104 -- comparison, not a bind
+    if ":" in probe and not probe.startswith("["):
+        probe = f"[{probe}]"
+    url = f"http://{probe}:{port}/__m3_identity__"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:  # noqa: S310  # nosec B310 - fixed http:// URL built above
+            headers = r.headers
+    except urllib.error.HTTPError as e:
+        headers = e.headers
+    except (urllib.error.URLError, OSError, ValueError):
+        # Refused -> nothing there. Accepts TCP but no HTTP answer -> another process.
+        return False if _port_already_serving(host, port) else None
+    return (headers.get(_SERVICE_HEADER) or "") == _SERVICE_MARKER
 
 
 def _live_dashboards() -> list:
@@ -3395,28 +3630,49 @@ def _dashboard_pids_by_cmdline() -> set[int]:
     return pids
 
 
-def _kill_pid(pid: int) -> bool:
-    """Terminate a pid cross-platform (taskkill /F on Windows, SIGTERM on POSIX)."""
+_STOP_CONFIRM_S = 5.0
+
+
+def _kill_pid(pid: int) -> str | None:
+    """Terminate a pid cross-platform (taskkill /F on Windows, SIGTERM on POSIX).
+
+    Returns None once the process is confirmed GONE, else the reason it is not
+    (non-zero taskkill exit with its output, the OSError, or still alive after
+    the wait). Hazard: reporting "stopped" from having sent the signal left a
+    live server holding the port.
+    """
     import subprocess
+
+    from m3_core.process import pid_is_alive
 
     try:
         if is_windows():
             from _task_runtime import no_window_kwargs
 
-            subprocess.run(
+            r = subprocess.run(
                 ["taskkill", "/F", "/PID", str(pid)],  # noqa: S603,S607
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
                 check=False,
                 **no_window_kwargs(),
             )
+            if r.returncode != 0 and pid_is_alive(pid):
+                out = " ".join(((r.stderr or "") + " " + (r.stdout or "")).split())[:300]
+                return f"taskkill exited {r.returncode}: {out or '(no output)'}"
         else:
             import signal
 
             os.kill(pid, signal.SIGTERM)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+    except ProcessLookupError:
+        return None  # already gone
+    except Exception as exc:  # noqa: BLE001 -- reported to the caller, never as success
+        return f"{type(exc).__name__}: {str(exc) or '(no message)'}"
+    deadline = time.monotonic() + _STOP_CONFIRM_S
+    while pid_is_alive(pid):
+        if time.monotonic() >= deadline:
+            return f"signal sent but the process is still alive after {int(_STOP_CONFIRM_S)}s"
+        time.sleep(0.1)
+    return None
 
 
 def dashboard_status(host: str | None = None, port: int | None = None) -> int:
@@ -3456,19 +3712,30 @@ def dashboard_stop() -> int:
         print("dashboard: not running — nothing to stop.")
         return 0
 
+    failed: set[int] = set()
     for pid in sorted(all_pids):
-        if _kill_pid(pid):
-            tag = "" if pid in reg_pids else " (unregistered)"
+        tag = "" if pid in reg_pids else " (unregistered)"
+        why = _kill_pid(pid)
+        if why is None:
             print(f"dashboard: stopped (pid {pid}){tag}.")
         else:
-            print(f"dashboard: could not stop pid {pid}.")
-    # Reap registry entries for the ones we knew about.
+            failed.add(pid)
+            print(
+                f"dashboard: could NOT stop pid {pid}{tag}: {why}.\n"
+                "  It may run elevated or as another user; stop it from an elevated shell "
+                f"(taskkill /F /PID {pid} on Windows, kill {pid} on macOS/Linux).",
+                file=sys.stderr,
+            )
+    # Reap registry entries only for processes confirmed gone: an entry for a
+    # survivor is what lets `--status` keep reporting it.
     for p in live:
+        if p.pid in failed:
+            continue
         try:
             p.path.unlink(missing_ok=True)
         except OSError:
             pass
-    return 0
+    return 1 if failed else 0
 
 
 def _spawn_detached(host: str, port: int) -> int:
@@ -3487,14 +3754,19 @@ def _spawn_detached(host: str, port: int) -> int:
     # handoff is ignored once the child reads config, and it would silently fall
     # back to the default address.
     script = os.path.abspath(__file__)
-    args = [script, "--foreground", "--host", host, "--port", str(port)]
+    # The child's stdio is DEVNULL (detached, windowless), so without --log-file
+    # every startup fault it prints vanishes. Same file the boot task uses.
+    from m3_core.paths import get_m3_logs_root
+
+    log_file = os.path.join(str(get_m3_logs_root()), "dashboard.log")
+    args = [script, "--foreground", "--host", host, "--port", str(port), "--log-file", log_file]
     if is_windows():
         # pythonw.exe (GUI subsystem) = the OS never allocates a console → no
         # window, no flash. CREATE_NO_WINDOW belts-and-braces the no-console
         # guarantee; DETACHED_PROCESS lets the child outlive this process/terminal.
         pyw = sys.executable.replace("python.exe", "pythonw.exe")
         exe = pyw if os.path.exists(pyw) else sys.executable
-        subprocess.Popen(  # noqa: S603
+        proc = subprocess.Popen(  # noqa: S603
             [exe, *args],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -3507,7 +3779,7 @@ def _spawn_detached(host: str, port: int) -> int:
         # the no-window intent for the regression guard; a no-op off Windows).
         from _task_runtime import no_window_kwargs
 
-        subprocess.Popen(  # noqa: S603
+        proc = subprocess.Popen(  # noqa: S603
             [sys.executable, *args],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -3515,9 +3787,42 @@ def _spawn_detached(host: str, port: int) -> int:
             start_new_session=True,
             **no_window_kwargs(),
         )
-    print(f"m3 dashboard started in background → http://{host}:{port}", flush=True)
-    print("  (keeps running after you close this window; stop with `m3 dashboard --stop`)", flush=True)
-    return 0
+    return _confirm_spawn(proc, host, port, log_file)
+
+
+# How long the launcher waits for the detached child to answer before saying
+# so. Startup imports the storage stack, which can take several seconds.
+_SPAWN_CONFIRM_S = 15.0
+
+
+def _confirm_spawn(proc, host: str, port: int, log_file: str) -> int:
+    """Report what the detached child actually did: listening, exited, or not yet answering."""
+    deadline = time.monotonic() + _SPAWN_CONFIRM_S
+    while True:
+        rc = proc.poll()
+        if rc is not None:
+            print(
+                f"m3 dashboard FAILED to start: the background server (pid {proc.pid}) exited with code {rc}.\n"
+                f"  Its output is in {log_file}\n"
+                "  Run it in this terminal to see the error directly:  m3 dashboard --foreground",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 1
+        if _port_holder_is_dashboard(host, port, timeout=1.0) is True:
+            print(f"m3 dashboard started in background (pid {proc.pid}) → http://{host}:{port}", flush=True)
+            print("  (keeps running after you close this window; stop with `m3 dashboard --stop`)", flush=True)
+            return 0
+        if time.monotonic() >= deadline:
+            print(
+                f"m3 dashboard launched (pid {proc.pid}) but is NOT yet answering on http://{host}:{port} "
+                f"after {int(_SPAWN_CONFIRM_S)}s; it is still running.\n"
+                f"  Check `m3 dashboard --status` shortly, and its log: {log_file}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 0
+        time.sleep(0.25)
 
 
 def run_dashboard(host: str | None = None, port: int | None = None, *, background: bool = True) -> int:
@@ -3537,22 +3842,13 @@ def run_dashboard(host: str | None = None, port: int | None = None, *, backgroun
     # A non-loopback bind with no token would publish the portal -- and every
     # /api/audit/*-delete route on it -- to the network. Refuse rather than serve.
     # A loopback bind with no token is the historical default and still starts.
-    try:
-        import m3_http_auth as _auth
-
-        _tok, _state = _auth.resolve_token()
-        if not _tok and not _auth.is_loopback(resolved_host):
-            print(
-                f"Refusing to bind {resolved_host}: no {_auth.SECRET_NAME} configured.\n"
-                "  The dashboard exposes memory browsing and delete/override routes.\n"
-                "  Generate a token first:  m3 serve --generate-token\n"
-                "  (loopback binds still start without one)",
-                file=sys.stderr,
-                flush=True,
-            )
-            return 1
-    except ImportError:
-        pass  # auth module unavailable -> historical behavior
+    # A fault on loopback (undecryptable token, failed vault probe, missing auth
+    # module) still starts -- the documented default -- but is named on stderr.
+    _assess = _assess_dashboard_auth(resolved_host)
+    if _assess.refusal:
+        print(_assess.refusal, file=sys.stderr, flush=True)
+        return 1
+    _report_auth_problem(_assess.problem)
 
     if background:
         # INTERACTIVE launch path (`m3 dashboard`): don't spawn a second detached
@@ -3571,13 +3867,26 @@ def run_dashboard(host: str | None = None, port: int | None = None, *, backgroun
         if _dashboard_pids_by_cmdline():
             print(f"m3 dashboard already running → http://{resolved_host}:{resolved_port}")
             return 0
-        if _port_already_serving(resolved_host, resolved_port):
+        holder = _port_holder_is_dashboard(resolved_host, resolved_port)
+        if holder is True:
             print(f"m3 dashboard already serving → http://{resolved_host}:{resolved_port}")
             return 0
+        if holder is False:
+            print(
+                f"Port {resolved_port} on {resolved_host} is held by ANOTHER process (it answered without the "
+                f"{_SERVICE_HEADER}: {_SERVICE_MARKER} marker, or not over HTTP); the dashboard was not started.\n"
+                "  Find the holder:  netstat -ano (Windows) / lsof -i :PORT (macOS/Linux)\n"
+                "  Or pick another port:  m3 dashboard --port <N>  (or set dashboard.port in m3_config.toml)",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 1
         return _spawn_detached(resolved_host, resolved_port)
 
     # ── Foreground server body (runs in the detached child / scheduled task) ──
     _ensure_std_streams()  # pythonw has no console → bind devnull so writes are safe
+    global _bound_host, _bound_port
+    _bound_host, _bound_port = resolved_host, resolved_port
 
     # Single-instance pre-flight — an OS ADVISORY lock (fcntl/msvcrt), race-free
     # by construction (the old port-probe was check-then-act TOCTOU; two launches

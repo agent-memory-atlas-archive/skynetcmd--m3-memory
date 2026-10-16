@@ -1145,6 +1145,17 @@ def _cmd_serve_generate_token(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
+    if state is auth.TokenState.UNKNOWN and not args.force:
+        # Same hazard as above: a row may exist that this device simply could not probe.
+        print(
+            f"Error: {auth.SECRET_NAME} did not resolve and the vault probe failed, so\n"
+            "  whether a token already exists is unknown (the probe's cause is logged above).\n"
+            "  Generating one now could replicate over a working token elsewhere.\n"
+            "  Inspect the vault store first:  m3 doctor\n"
+            "  Override only if you are sure:  m3 serve --generate-token --force",
+            file=sys.stderr,
+        )
+        return 1
     if existing and not args.force:
         print(
             f"Error: a {auth.SECRET_NAME} is already configured.\n"
@@ -1199,6 +1210,14 @@ def _cmd_serve_show_token(args: argparse.Namespace) -> int:
             "  Most likely written on another machine (the vault replicates, the\n"
             "  encryption salt does not). Restore M3_AGENT_OS_SALT_HEX or check\n"
             "  AGENT_OS_MASTER_KEY.",
+            file=sys.stderr,
+        )
+        return 1
+    if state is auth.TokenState.UNKNOWN:
+        print(
+            f"{auth.SECRET_NAME}: UNKNOWN -- it did not resolve and the vault probe failed\n"
+            "  (cause logged above). Inspect the vault store with `m3 doctor`; do not\n"
+            "  generate a new token until you know none exists.",
             file=sys.stderr,
         )
         return 1
@@ -1275,6 +1294,8 @@ def _cmd_dashboard(args: argparse.Namespace) -> int:
         passthrough = ["--stop"]
     elif getattr(args, "status", False):
         passthrough = ["--status"]
+    elif getattr(args, "show_url", False):
+        passthrough = ["--show-url"]
     else:
         # Starting a server DOES need the web deps — preflight for a clear message.
         missing = []
@@ -2760,6 +2781,11 @@ Examples:
         "--status",
         action="store_true",
         help="Report whether the dashboard is running and its URL.",
+    )
+    p_dashboard.add_argument(
+        "--show-url",
+        action="store_true",
+        help="Print the one-time sign-in URL (includes the token) for opening the dashboard on another device.",
     )
     p_dashboard.add_argument(
         "--foreground",

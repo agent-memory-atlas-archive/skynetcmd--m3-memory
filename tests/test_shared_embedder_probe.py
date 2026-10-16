@@ -18,6 +18,7 @@ if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
 from doctor import shared_embedder_probe as P  # noqa: E402
+from m3_core.tier2_client import Diagnosis  # noqa: E402
 
 from conftest import simulate_os
 
@@ -53,6 +54,23 @@ def _write_shared_config(root, url="http://127.0.0.1:8082"):
     (root / ".embed_config.json").write_text(json.dumps({"disable_inproc_embedder": True, "fallback_url": url}))
 
 
+_DIAGS = {
+    "ok": Diagnosis("ok", "http://127.0.0.1:8082 is serving"),
+    "loading": Diagnosis("loading", "http://127.0.0.1:8082 is up and loading its model"),
+    "down": Diagnosis(
+        "refused",
+        "nothing accepted the connection at http://127.0.0.1:8082 (connection refused)",
+        "`m3 embedder start`",
+    ),
+    "auth": Diagnosis(
+        "auth-rejected",
+        "http://127.0.0.1:8082 answered HTTP 401 (bearer token refused)",
+        "`m3 secret set M3_EMBED_SERVER_TOKEN`",
+        401,
+    ),
+}
+
+
 def _patch(monkeypatch, *, health="ok", rust=False, task=None, rust_state=None):
     """Mock the three detectors. task: True/False/None (None = non-Windows).
 
@@ -62,7 +80,8 @@ def _patch(monkeypatch, *, health="ok", rust=False, task=None, rust_state=None):
     """
     if rust_state is None:
         rust_state = "running" if rust else "absent"
-    monkeypatch.setattr(P, "_server_health", lambda url, timeout=3.0: (health, {"model": "bge", "dim": 1024}))
+    diag = _DIAGS[health]
+    monkeypatch.setattr(P, "_server_health", lambda url, timeout=3.0: (diag, {"model": "bge", "dim": 1024}))
     monkeypatch.setattr(P, "_rust_service_state", lambda: rust_state)
     monkeypatch.setattr(P, "_rust_service_present", lambda: rust_state != "absent")
     monkeypatch.setattr(P, "_task_registered_ok", lambda: task)
@@ -323,3 +342,107 @@ def test_the_probe_mirror_lists_the_installers_settings_files(monkeypatch, os_na
     simulate_os(monkeypatch, os_name)
     mirror = [(label, Path(path)) for label, path in _PROBE_KNOWN_AGENT_SETTINGS()]
     assert mirror == [(label, Path(path)) for label, path in installer._known_agent_settings()]
+
+
+# ── the server check classifies; --fix starts a local server only when that can help ──
+def _no_keepalive_noise(monkeypatch):
+    monkeypatch.setattr(P, "_server_is_someone_elses", lambda: False)
+
+
+def test_a_401_is_misconfigured_and_fix_starts_nothing(monkeypatch, cfg_root, capsys, no_env_leak):
+    _write_shared_config(cfg_root)
+    _patch(monkeypatch, health="auth", rust=True)
+    started = []
+    monkeypatch.setattr(P, "_fix_start_server", lambda: started.append(1) or True)
+    rc = P.run(brief=False, fix=True)
+    out = capsys.readouterr().out
+    assert rc == 1 and started == []
+    assert "answers but is not serving (auth-rejected)" in out
+    assert "m3 secret set M3_EMBED_SERVER_TOKEN" in out
+
+
+def test_a_remote_dead_server_is_not_started_here(monkeypatch, cfg_root, capsys, no_env_leak):
+    _write_shared_config(cfg_root, url="https://gpu-box.example:8082")
+    _patch(monkeypatch, health="down", rust=True)
+    started = []
+    monkeypatch.setattr(P, "_fix_start_server", lambda: started.append(1) or True)
+    P.run(brief=False, fix=True)
+    out = capsys.readouterr().out
+    assert started == [] and "on another machine" in out
+
+
+def test_a_refused_loopback_server_is_started(monkeypatch, cfg_root, capsys, no_env_leak):
+    _write_shared_config(cfg_root)
+    _patch(monkeypatch, health="down", rust=True)
+    started = []
+    monkeypatch.setattr(P, "_fix_start_server", lambda: started.append(1) or False)
+    P.run(brief=False, fix=True)
+    assert started == [1]
+
+
+def test_bad_scheme_is_its_own_finding(monkeypatch, cfg_root, capsys, no_env_leak):
+    _write_shared_config(cfg_root, url="file:///etc/passwd")
+    _patch(monkeypatch, health="ok", rust=True)
+    monkeypatch.setattr(P, "_server_health", lambda url, timeout=3.0: P.tier2_client.health(url, timeout))
+    assert P.run(brief=False, fix=False) == 1
+    out = capsys.readouterr().out
+    assert "not http(s)" in out and "not answering" not in out
+
+
+def test_unreadable_config_is_said_not_read_as_unshared(monkeypatch, cfg_root, capsys, no_env_leak):
+    (cfg_root / ".embed_config.json").write_text("{ not json", encoding="utf-8")
+    _patch(monkeypatch, health="ok", rust=True)
+    assert P.run(brief=False, fix=False) == 1
+    out = capsys.readouterr().out
+    assert "unreadable" in out and "disable_inproc_embedder is false" not in out
+
+
+def test_no_gguf_still_asks_the_service_manager(monkeypatch):
+    """A missing model used to answer 'not-installed' without asking anyone."""
+    from pathlib import Path
+
+    from m3_memory import embedder_admin
+
+    asked = []
+    monkeypatch.setattr(embedder_admin, "_server_binary", lambda: Path("/x/m3-embed-server"))
+    monkeypatch.setattr(embedder_admin, "_find_bundled_gguf", lambda: None)
+    monkeypatch.setattr(embedder_admin, "_service_reports_running", lambda b, g: asked.append(g) or True)
+    assert P._rust_service_state() == "running" and asked
+
+
+def test_a_probe_crash_is_probe_error_not_absent(monkeypatch, cfg_root, capsys, no_env_leak):
+    from m3_memory import embedder_admin
+
+    def boom():
+        raise RuntimeError("sc.exe vanished")
+
+    monkeypatch.setattr(embedder_admin, "_server_binary", boom)
+    assert P._rust_service_state() == "probe-error"
+    assert "sc.exe vanished" in P._PROBE_ERROR
+    assert P._keepalive() == ("rust-service-probe-error", False)
+
+
+def test_plaintext_ok_does_not_print_model_none(monkeypatch, cfg_root, capsys, no_env_leak):
+    _write_shared_config(cfg_root)
+    _patch(monkeypatch, health="ok", rust=True)
+    monkeypatch.setattr(P, "_server_health", lambda url, timeout=3.0: (_DIAGS["ok"], {"status": "ok"}))
+    P.run(brief=False, fix=False)
+    out = capsys.readouterr().out
+    assert "model=None" not in out and "no model reported" in out
+
+
+def test_a_status_query_that_cannot_run_is_unknown_not_unregistered(monkeypatch):
+    from pathlib import Path
+
+    from m3_memory import embedder_admin
+
+    monkeypatch.setattr(embedder_admin, "_server_binary", lambda: Path("/x/m3-embed-server"))
+    monkeypatch.setattr(embedder_admin, "_find_bundled_gguf", lambda: None)
+
+    def cannot_tell(b, g):
+        embedder_admin._LAST_STATUS_UNKNOWN = "sc.exe query timed out"
+        return False
+
+    monkeypatch.setattr(embedder_admin, "_LAST_STATUS_UNKNOWN", None)
+    monkeypatch.setattr(embedder_admin, "_service_reports_running", cannot_tell)
+    assert P._rust_service_state() == "unknown" and "timed out" in P._PROBE_ERROR

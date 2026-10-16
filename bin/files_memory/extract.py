@@ -32,7 +32,7 @@ from typing import Any
 
 from embedding_utils import pack
 from m3_core.config import settings as _m3cfg
-from m3_core.errors import log_swallowed
+from m3_core.errors import log_http_fault
 from m3_core.paths import canonical_path
 
 from . import config
@@ -235,7 +235,7 @@ def _llm_call(content: str, max_tokens: int = 1024) -> str | None:
                     )
             return text
     except Exception as e:
-        log_swallowed(logger, e, "extract LLM call failed: %s", e)
+        log_http_fault(logger, e, "files extract LLM call", "this leaf is recorded as status=failed (no facts)")
         return None
 
 

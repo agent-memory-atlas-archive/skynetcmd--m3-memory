@@ -223,6 +223,39 @@ def mask_dsn_passwords(text: str) -> str:
     return _DSN_PASSWORD.sub(r"\1***\2", text)
 
 
+def loggable_url(url: object, *, path: bool = True) -> str:
+    """``scheme://host[:port]/path`` of ``url`` for an error line: no userinfo,
+    query or fragment (``?key=`` and ``user:pass@`` carry credentials); without
+    the path when ``path`` is False. A value that does not parse as a URL is
+    returned with any DSN password masked."""
+    from urllib.parse import urlsplit
+
+    text = str(url or "")
+    try:
+        parts = urlsplit(text)
+        host = parts.hostname or ""
+        port = parts.port
+    except ValueError:
+        return mask_dsn_passwords(text.split("?", 1)[0])
+    if not parts.scheme or not host:
+        return mask_dsn_passwords(text.split("?", 1)[0])
+    if ":" in host:
+        host = f"[{host}]"
+    return f"{parts.scheme}://{host}{f':{port}' if port else ''}{parts.path if path else ''}"
+
+
+_BEARER_RE = re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+")
+
+
+def redacted_snippet(body: object, limit: int = 200) -> str:
+    """At most ``limit`` characters of a response body or error text for a
+    message: whitespace collapsed, any bearer token replaced. THE redaction for
+    echoing what a server said; a body can quote the request's Authorization."""
+    text = body.decode("utf-8", "replace") if isinstance(body, bytes) else str(body or "")
+    text = " ".join(_BEARER_RE.sub("Bearer [REDACTED]", text).split())
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
 def mask_secret(value: str) -> str:
     """A value safe to show a person choosing between copies: a DSN keeps all
     but its password

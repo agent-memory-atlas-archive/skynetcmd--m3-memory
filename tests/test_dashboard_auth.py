@@ -173,3 +173,76 @@ class TestHttpFlow:
         """
         D = stub_token(None, A.TokenState.MISSING, host="127.0.0.1")
         assert self._client(D).get("/api/health").status_code != 401
+
+
+# ── Faults must never fail open, and must never be silent ─────────────────────
+
+
+def _fresh_problems(D):
+    D._auth_problems_reported.clear()
+
+
+def test_resolution_error_on_non_loopback_denies(stub_token, monkeypatch, capsys):
+    D = stub_token(None, A.TokenState.MISSING, host="0.0.0.0")
+
+    def _boom(*a, **k):
+        raise RuntimeError("vault backend exploded (test)")
+
+    monkeypatch.setattr(A, "resolve_token", _boom)
+    _fresh_problems(D)
+    mw = _middleware(D)
+    assert mw._required is True and mw._verifier is None
+    err = capsys.readouterr().err
+    assert "vault backend exploded" in err
+    assert "Do NOT run `m3 serve --generate-token`" in err
+
+
+def test_undecryptable_token_on_loopback_stays_open_but_says_why(stub_token, capsys):
+    D = stub_token(None, A.TokenState.PRESENT_UNDECRYPTABLE, host="127.0.0.1")
+    _fresh_problems(D)
+    assert _middleware(D)._required is False  # the documented loopback default
+    err = capsys.readouterr().err
+    assert "WITHOUT authentication" in err
+    assert "cannot decrypt" in err
+
+
+def test_missing_auth_module_on_non_loopback_denies(stub_token, monkeypatch):
+    D = stub_token(None, A.TokenState.MISSING, host="0.0.0.0")
+    monkeypatch.setitem(sys.modules, "m3_http_auth", None)  # import -> ImportError
+    a = D._assess_dashboard_auth("0.0.0.0")
+    assert a.required is True and a.verifier is None
+    assert a.refusal and "m3 update" in a.refusal
+
+
+def test_missing_auth_module_on_loopback_stays_open_with_a_problem(stub_token, monkeypatch):
+    D = stub_token(None, A.TokenState.MISSING, host="127.0.0.1")
+    monkeypatch.setitem(sys.modules, "m3_http_auth", None)
+    a = D._assess_dashboard_auth("127.0.0.1")
+    assert a.required is False and a.problem and a.refusal is None
+
+
+def test_startup_refusal_for_undecryptable_on_non_loopback_never_advises_generate(stub_token, capsys):
+    D = stub_token(None, A.TokenState.PRESENT_UNDECRYPTABLE, host="0.0.0.0")
+    assert D.run_dashboard("0.0.0.0", 18099, background=True) == 1
+    err = capsys.readouterr().err
+    assert "Refusing to bind 0.0.0.0" in err
+    assert "Do NOT run `m3 serve --generate-token`" in err
+
+
+def test_bound_host_outranks_config_for_the_gate(stub_token, monkeypatch):
+    """Config says loopback, the server actually bound 0.0.0.0: the gate must deny."""
+    D = stub_token(None, A.TokenState.MISSING, host="127.0.0.1")
+    monkeypatch.setattr(D, "_bound_host", "0.0.0.0")
+    assert _middleware(D)._required is True
+
+
+def test_401_carries_a_hint_and_the_service_marker(stub_token):
+    D = stub_token(_TOKEN)
+    D.app.middleware_stack = None
+    from fastapi.testclient import TestClient
+
+    r = TestClient(D.app).get("/api/health")
+    assert r.status_code == 401
+    assert "hint" in r.json() and "show-url" in r.json()["hint"]
+    assert r.headers.get("X-M3-Service") == "m3-dashboard"
+    assert _TOKEN not in r.text

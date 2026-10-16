@@ -114,7 +114,9 @@ def main():
         print(refusal, file=sys.stderr)
         sys.exit(EXIT_CONFIG_REFUSED)
 
-    model_name = "qwen3-embedding"
+    # The default model keeps its historical tag, which rows it embedded carry;
+    # any other --model is served under its own name, never the default's.
+    model_name = "qwen3-embedding" if args.model == DEFAULT_MODEL_ID else args.model
 
     # Auto-detect device if not specified: cuda:0 > mps (Apple Metal) > cpu.
     # A bare cuda-only check pins Apple Silicon to CPU (DESIGN §1); torch_device()

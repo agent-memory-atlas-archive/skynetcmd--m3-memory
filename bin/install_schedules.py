@@ -1730,14 +1730,18 @@ def _confirm_service_live(name: str, *, deadline_s: float = 25.0):
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=3) as r:  # nosec B310 - localhost
-                if 200 <= r.status < 500:
+                if 200 <= r.status < 400:
                     return True
                 last = f"HTTP {r.status}"
         except urllib.error.HTTPError as e:
-            # Any HTTP status means something is listening and answering.
-            return True if e.code < 500 else f"HTTP {e.code}"
+            # A 4xx proves only that SOMETHING answers. Count it as this service
+            # only when it carries the dashboard's identity marker (a 401 from
+            # the auth gate does); otherwise it may be another program on the port.
+            if e.code < 500 and (e.headers.get("X-M3-Service") or "") == "m3-dashboard":
+                return True
+            last = f"HTTP {e.code} (no m3 service marker -- possibly another program on the port)"
         except Exception as e:  # noqa: BLE001 - not up yet, keep waiting
-            last = type(e).__name__
+            last = f"{type(e).__name__}: {str(e) or '(no message)'}"
         time.sleep(1.5)
     return f"{last} after {deadline_s:.0f}s at {url}"
 

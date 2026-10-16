@@ -435,11 +435,15 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
         resp.raise_for_status()
         summary_text = resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        logger.error(f"Summarization failed: {e}")
+        from m3_core.errors import describe_http_failure
+
+        # describe_http_failure: URL without its query, never the full httpx text.
+        cause = describe_http_failure(e, "POST", body_chars=200)
+        logger.error(f"Summarization failed (model={model!r}): {cause}")
         from llm_failover import clear_failover_caches
 
         clear_failover_caches()
-        return f"Error during LLM summarization: {type(e).__name__}: {e}"
+        return f"Error during LLM summarization (model={model!r}): {cause}"
 
     # 5. Store the summary as a new memory item
     summary_id = str(uuid.uuid4())

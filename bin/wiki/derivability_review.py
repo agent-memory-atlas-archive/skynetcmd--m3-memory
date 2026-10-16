@@ -325,6 +325,10 @@ class ModelDerivabilityJudge:
         self.calls = 0
         self.cache_hits = 0
         self.abstentions = 0
+        from .synth import CallFailures
+
+        self.failure_reasons = CallFailures()
+        self._last_failure = ""
 
     def judge(self, synthesis_content: str, surviving_source_contents: list[str]) -> DerivabilityVerdict:
         from .citation_drift import _judge_hash
@@ -334,6 +338,7 @@ class ModelDerivabilityJudge:
         if cached is not None:
             self.cache_hits += 1
             return DerivabilityVerdict(synthesis_id="?", derivable=cached[0], reason=cached[1])
+        self._last_failure = ""
         reply = self._call_model(_build_deriv_prompt(synthesis_content, surviving_source_contents))
         self.calls += 1
         # _parse_verdict extracts a boolean under key 'drifted'; our key is
@@ -341,17 +346,23 @@ class ModelDerivabilityJudge:
         derivable, reason = _parse_bool(reply or "", "derivable")
         if derivable is None:
             self.abstentions += 1
+            if self._last_failure:
+                reason = f"judge call failed (fail-open, no verdict): {self._last_failure}"
         else:
             self._write_cache(digest, derivable, reason)
         return DerivabilityVerdict(synthesis_id="?", derivable=derivable, reason=reason)
 
     def summary(self) -> str:
-        return f"derivability judge: {self.calls} judged, {self.cache_hits} cached, {self.abstentions} abstained"
+        return (
+            f"derivability judge: {self.calls} judged, {self.cache_hits} cached, {self.abstentions} abstained"
+            + self.failure_reasons.suffix()
+        )
 
     def _call_model(self, user_prompt: str) -> str | None:
         try:
             import httpx
         except ImportError:
+            self._fail("httpx is not installed")
             return None
         headers = {"Content-Type": "application/json"}
         token = self._resolve_key(self.cfg.api_key_service)
@@ -373,8 +384,15 @@ class ModelDerivabilityJudge:
             r = httpx.post(self.cfg.url, json=payload, headers=headers, timeout=self.cfg.timeout_s)
             r.raise_for_status()
             return cast("str | None", r.json()["choices"][0]["message"]["content"])
-        except Exception:
+        except Exception as e:  # noqa: BLE001 -- fail open; the reason is recorded on the verdict and summary
+            from .synth import call_failure_reason
+
+            self._fail(call_failure_reason(e, self.cfg.url))
             return None
+
+    def _fail(self, reason: str) -> None:
+        self._last_failure = reason
+        self.failure_reasons.record(reason)
 
     @staticmethod
     def _resolve_key(service: str) -> str | None:

@@ -96,14 +96,14 @@ def test_clean_handles_empty():
 def test_compile_returns_none_when_endpoint_unreachable(monkeypatch):
     """A dead endpoint → None, never an exception. compile.py maps None to
     'compile-failed' and continues the batch."""
-    monkeypatch.setattr(PC, "_call_model", lambda cfg, prompt: None)
+    monkeypatch.setattr(PC, "_call_model", lambda cfg, prompt, *_failures: None)
     comp = PC.LLMProseCompiler()
     assert comp.compile(_cluster(_mem("a"))) is None
     assert comp.failures == 1
 
 
 def test_compile_returns_prose_on_success(monkeypatch):
-    monkeypatch.setattr(PC, "_call_model", lambda cfg, prompt: "COMPILED PAGE")
+    monkeypatch.setattr(PC, "_call_model", lambda cfg, prompt, *_failures: "COMPILED PAGE")
     comp = PC.LLMProseCompiler()
     assert comp.compile(_cluster(_mem("a"))) == "COMPILED PAGE"
 
@@ -134,7 +134,7 @@ import pytest  # noqa: E402
 async def test_drives_the_compile_writer_end_to_end(monkeypatch):
     """Inject the real compiler (HTTP mocked) into compile_cluster and confirm a
     synthesis is written with the compiler's prose — the two halves connect."""
-    monkeypatch.setattr(PC, "_call_model", lambda cfg, prompt: "# Alpha\n\nSynthesized page.")
+    monkeypatch.setattr(PC, "_call_model", lambda cfg, prompt, *_failures: "# Alpha\n\nSynthesized page.")
     comp = PC.LLMProseCompiler()
     c = _cluster(_mem("a", conf=0.9), _mem("b", conf=0.5))
 

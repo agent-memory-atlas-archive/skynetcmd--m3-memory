@@ -125,10 +125,52 @@ def _build_user_prompt(c: Cluster) -> str:
     return "\n".join(lines)
 
 
-def _call_model(cfg: SynthConfig, user_prompt: str) -> str | None:
+class CallFailures:
+    """Why the wiki's fail-open model calls failed, for the run's summary line.
+
+    Fail-open stays (a confused model must never manufacture a finding), but a
+    run that abstained on every item must say WHY, not read as "0 findings".
+    Shared by synth, prose_compiler, citation_drift and derivability_review.
+    """
+
+    def __init__(self) -> None:
+        from collections import Counter
+
+        self.counts: Counter[str] = Counter()
+
+    def record(self, reason: str) -> None:
+        self.counts[reason] += 1
+
+    def suffix(self) -> str:
+        if not self.counts:
+            return ""
+        top, n = self.counts.most_common(1)[0]
+        total = sum(self.counts.values())
+        return f"; {total} model call(s) failed, top reason ({n}x): {top}"
+
+
+def call_failure_reason(exc: BaseException, url: str) -> str:
+    """One-line cause for a failed model call: status or exception, and the URL (no query)."""
+    try:
+        from m3_core.secret_store import loggable_url
+
+        shown = loggable_url(url)
+    except Exception:  # noqa: BLE001 -- fall back to dropping the query by hand
+        shown = (url or "").split("?", 1)[0]
+    response = getattr(exc, "response", None)
+    if response is not None and hasattr(response, "status_code"):
+        return f"HTTP {response.status_code} from {shown}"
+    if isinstance(exc, KeyError | IndexError | TypeError | ValueError):
+        return f"malformed reply from {shown} ({type(exc).__name__}: {exc})"
+    return f"{type(exc).__name__} calling {shown}: {str(exc) or '(no message)'}"
+
+
+def _call_model(cfg: SynthConfig, user_prompt: str, failures: CallFailures | None = None) -> str | None:
     try:
         import httpx  # lazy: only needed when --synthesize is used
     except ImportError:
+        if failures is not None:
+            failures.record("httpx is not installed")
         return None
 
     headers = {"Content-Type": "application/json"}
@@ -164,9 +206,13 @@ def _call_model(cfg: SynthConfig, user_prompt: str) -> str | None:
         r = httpx.post(cfg.url, json=payload, headers=headers, timeout=cfg.timeout_s)
         r.raise_for_status()
         data = r.json()
-        text = data["choices"][0]["message"]["content"]
-        return _clean(text)
-    except Exception:
+        text = _clean(data["choices"][0]["message"]["content"])
+        if not text and failures is not None:
+            failures.record(f"empty reply (finish_reason={data['choices'][0].get('finish_reason')!r})")
+        return text
+    except Exception as e:  # noqa: BLE001 -- fail open; the reason is tallied for the summary
+        if failures is not None:
+            failures.record(call_failure_reason(e, cfg.url))
         return None
 
 
@@ -199,6 +245,7 @@ class Synthesizer:
         self.calls = 0
         self.cache_hits = 0
         self.failures = 0
+        self.failure_reasons = CallFailures()
 
     def lede_for(self, c: Cluster) -> str | None:
         digest = _cluster_hash(c, self.cfg.model)
@@ -207,7 +254,7 @@ class Synthesizer:
         if cached is not None:
             self.cache_hits += 1
             return cached
-        prose = _call_model(self.cfg, _build_user_prompt(c))
+        prose = _call_model(self.cfg, _build_user_prompt(c), self.failure_reasons)
         self.calls += 1
         if not prose:
             self.failures += 1
@@ -216,4 +263,7 @@ class Synthesizer:
         return prose
 
     def summary(self) -> str:
-        return f"synthesis: {self.calls} generated, {self.cache_hits} cached, {self.failures} failed"
+        return (
+            f"synthesis: {self.calls} generated, {self.cache_hits} cached, {self.failures} failed"
+            + self.failure_reasons.suffix()
+        )

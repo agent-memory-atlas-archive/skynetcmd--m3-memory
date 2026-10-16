@@ -21,6 +21,16 @@ the policy is forward-going only.
 
 ### Security
 
+- **The dashboard and MCP proxy refuse unauthenticated network binds.** The
+  dashboard refuses a non-loopback bind when its token cannot be resolved or
+  decrypted or the auth module fails to load (it served without auth); on
+  loopback it starts as before and says why auth is off. The proxy refuses a
+  non-loopback bind without `MCP_PROXY_KEY` and compares keys in constant
+  time. A vault probe failure no longer advises `--generate-token` (which can
+  overwrite a working token). **Affected:** dashboard or proxy bound beyond
+  loopback · **Action:** fix the token (`m3 doctor`) or bind 127.0.0.1 ·
+  **Data status:** none.
+
 - **Embed servers serve plaintext only on loopback.** The shared embed server
   and the Python embed servers refuse a non-loopback bind address (exit 78),
   since they receive raw memory text. **Affected:** setups binding an embed
@@ -39,6 +49,30 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Fixed
+
+- **Embedder and HTTP failures say what happened.** Tier-2 probes (doctor,
+  `embedder_status`, the shared-embedder check, the watchdog) tell refused,
+  timed out, 401/403, untrusted certificate, bad URL and an unhealthy server
+  apart, each with its fix, and all use the same `embed.fallback_url`. The
+  watchdog no longer restarts a server that answers but refuses. LLM, cloud,
+  proxy and dashboard errors name the endpoint (no query string), status and
+  cause; response bodies in logs are redacted; one log line no longer quotes
+  memory text. **Affected:** all installs · **Action:** none ·
+  **Data status:** none.
+
+- **With the local LLM's breaker open, the cloud embed tier still runs.** It
+  was skipped. An unset `LM_API_TOKEN` no longer sends a placeholder bearer
+  that an auth-enabled LM Studio rejects. **Affected:** setups using the cloud
+  tier or LM Studio auth · **Action:** none · **Data status:** none.
+
+- **Honest health and status.** The dashboard no longer reports "All
+  subsystems nominal" when a probe failed, treats a cloud 5xx or 429 as
+  healthy, or shows an unreadable store as absent; `m3 dashboard` start and
+  `--stop` check the result; destructive chatlog maintenance is refused when
+  the chatlog store cannot be resolved (it ran on the main store). The proxy's
+  `/health` reports a failed tool catalog, and upstream key errors are 502s
+  naming the backend's key. **Affected:** dashboard and proxy users ·
+  **Action:** none · **Data status:** none.
 
 - **The embed watchdog guards only a server on this machine.** With
   `fallback_url` on another machine it restarted the local service whenever that

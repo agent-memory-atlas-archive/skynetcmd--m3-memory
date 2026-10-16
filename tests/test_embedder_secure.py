@@ -63,14 +63,16 @@ def test_nothing_is_stored_when_the_server_refuses(world):
     assert secrets == {}
 
 
-def test_a_stored_token_is_reused_unless_asked(world):
+def test_a_stored_token_is_reused_unless_asked(world, capsys):
     secrets, calls, _ = world
     secrets["M3_EMBED_SERVER_TOKEN"] = "x" * 43
     assert ea.cmd_secure(_args()) == 0
     assert secrets["M3_EMBED_SERVER_TOKEN"] == "x" * 43
     assert _sent_digest(calls) == hashlib.sha256(b"x" * 43).hexdigest()
+    assert "x" * 43 not in capsys.readouterr().out, "a reused token is shown only when it was minted"
     assert ea.cmd_secure(_args(new_token=True)) == 0
     assert secrets["M3_EMBED_SERVER_TOKEN"] != "x" * 43
+    assert secrets["M3_EMBED_SERVER_TOKEN"] in capsys.readouterr().out
 
 
 def test_missing_arguments_and_off(world, capsys):

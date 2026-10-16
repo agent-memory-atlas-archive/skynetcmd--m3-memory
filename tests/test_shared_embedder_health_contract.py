@@ -46,47 +46,47 @@ def test_plaintext_ok_is_healthy(monkeypatch):
     """The Rust m3-embed-server replies plaintext 'OK' — must be state 'ok'
     (this is the exact case the old json.loads-first code false-reported down)."""
     _mock_urlopen(monkeypatch, "OK")
-    state, _body = P._server_health("http://127.0.0.1:8082")
-    assert state == "ok", f"plaintext OK must be healthy, got {state!r}"
+    diag, _body = P._server_health("http://127.0.0.1:8082")
+    assert diag.state == "ok", f"plaintext OK must be healthy, got {diag!r}"
 
 
 def test_json_ok_is_healthy(monkeypatch):
     """The Python embed_server_inproc.py replies JSON {'status':'ok',...}."""
     _mock_urlopen(monkeypatch, '{"status": "ok", "model": "bge-m3", "dim": 1024}')
-    state, body = P._server_health("http://127.0.0.1:8082")
-    assert state == "ok"
+    diag, body = P._server_health("http://127.0.0.1:8082")
+    assert diag.state == "ok"
     assert body.get("model") == "bge-m3"
 
 
 def test_json_loading_is_reported_loading(monkeypatch):
     """A warming server replies {'status':'loading'} — surfaced, not treated ok."""
     _mock_urlopen(monkeypatch, '{"status": "loading"}')
-    state, _ = P._server_health("http://127.0.0.1:8082")
-    assert state == "loading"
+    diag, _ = P._server_health("http://127.0.0.1:8082")
+    assert diag.state == "loading"
 
 
-def test_unknown_json_status_is_down(monkeypatch):
+def test_unknown_json_status_is_unhealthy(monkeypatch):
     _mock_urlopen(monkeypatch, '{"status": "boom"}')
-    state, _ = P._server_health("http://127.0.0.1:8082")
-    assert state == "down"
+    diag, _ = P._server_health("http://127.0.0.1:8082")
+    assert diag.state == "unhealthy-200" and "'boom'" in diag.detail
 
 
-def test_non_ok_non_json_is_down(monkeypatch):
-    """A body that is neither 'OK' nor valid JSON must fail SAFE to 'down',
-    never raise (§3)."""
+def test_non_ok_non_json_is_a_bad_response(monkeypatch):
+    """A body that is neither 'OK' nor valid JSON is not the health contract
+    (something else may hold the port); never raises (§3)."""
     _mock_urlopen(monkeypatch, "Internal Server Error")
-    state, _ = P._server_health("http://127.0.0.1:8082")
-    assert state == "down"
+    diag, _ = P._server_health("http://127.0.0.1:8082")
+    assert diag.state == "bad-response" and not diag.serving
 
 
 def test_bad_scheme_is_rejected():
     """A non-http(s) URL is rejected before any network call (nosec B310 guard)."""
-    state, _ = P._server_health("file:///etc/passwd")
-    assert state == "bad-scheme"
+    diag, _ = P._server_health("file:///etc/passwd")
+    assert diag.state == "bad-scheme"
 
 
-def test_connection_error_is_down(monkeypatch):
-    """urlopen raising (connection refused / timeout) → 'down', never propagates."""
+def test_connection_error_is_refused(monkeypatch):
+    """urlopen raising connection refused → 'refused' with the start fix, never propagates."""
 
     from m3_core import tier2_client
 
@@ -94,5 +94,5 @@ def test_connection_error_is_down(monkeypatch):
         raise OSError("connection refused")
 
     monkeypatch.setattr(tier2_client, "urlopen", _boom)
-    state, _ = P._server_health("http://127.0.0.1:8082")
-    assert state == "down"
+    diag, _ = P._server_health("http://127.0.0.1:8082")
+    assert diag.state == "refused" and "m3 embedder start" in diag.fix

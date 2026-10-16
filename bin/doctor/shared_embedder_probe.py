@@ -31,7 +31,9 @@ import sys
 from typing import Any
 from urllib.parse import urlparse
 
+from m3_core import tier2_client
 from m3_core.seams import detached_spawn_kwargs, is_windows, user_env_get
+from m3_core.tier2_client import Diagnosis
 
 
 def _port() -> int:
@@ -61,15 +63,27 @@ def _config_path() -> str:
     return os.path.join(_config_root(), ".embed_config.json")
 
 
+class _ConfigUnreadable(dict):
+    """An empty config that remembers why the file could not be read, so the
+    report says "unreadable" instead of reading it as disable_inproc_embedder=false."""
+
+    def __init__(self, error: str) -> None:
+        super().__init__()
+        self.error = error
+
+
 def _read_config() -> dict | None:
     path = _config_path()
     if not os.path.exists(path):
         return None
     try:
         with open(path, encoding="utf-8") as f:
-            return json.load(f) or {}
-    except Exception:  # noqa: BLE001 — a malformed file is "config broken", handled by caller
-        return {}
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        return _ConfigUnreadable(f"{type(e).__name__}: {e}")
+    if not isinstance(data, dict):
+        return _ConfigUnreadable(f"top level is {type(data).__name__}, not an object")
+    return data
 
 
 def _known_agent_settings() -> list[tuple[str, str]]:
@@ -267,31 +281,16 @@ def _fix_scrub_env_leak() -> tuple[bool, bool]:
     return settings_scrubbed, process_env_remains
 
 
-def _server_health(url: str, timeout: float = 3.0) -> tuple[str, dict]:
-    """Return (state, body). state in {'ok','loading','bad-scheme','down'}."""
-    if urlparse(url).scheme not in ("http", "https"):
-        return "bad-scheme", {}
-    try:
-        from m3_core import tier2_client
+def _server_health(url: str, timeout: float = 3.0) -> tuple[Diagnosis, dict]:
+    """(Diagnosis, /health body) from the one tier-2 classifier: a 401 or an
+    untrusted certificate is a reachable, misconfigured server, never "down".
+    Both health contracts (the Rust server's plaintext OK and JSON) are read
+    there. Non-http(s) URLs are refused unread."""
+    return tier2_client.health(url, timeout)
 
-        with tier2_client.urlopen(f"{url}/health", timeout=timeout) as r:
-            raw = r.read().decode("utf-8", "replace").strip()
-        # Accept BOTH health contracts: the Rust m3-embed-server returns plaintext
-        # "OK", the Python embed_server_inproc.py returns JSON {"status":...}. The
-        # old code json.loads'd unconditionally, so the Rust server's "OK" raised
-        # JSONDecodeError and doctor false-reported a healthy :8082 as down.
-        if raw == "OK":
-            return "ok", {"status": "ok"}
-        try:
-            body = json.loads(raw)
-        except json.JSONDecodeError:
-            return "down", {}
-        status = body.get("status")
-        if status in ("ok", "loading"):
-            return status, body
-        return "down", body
-    except Exception:  # noqa: BLE001
-        return "down", {}
+
+def _is_loopback_url(url: str) -> bool:
+    return tier2_client.is_loopback_host(urlparse(url).hostname)
 
 
 def _payload_bin() -> str:
@@ -328,6 +327,8 @@ def _rust_service_state() -> str:
                         abnormal exit, so a cleanly-stopped or never-started
                         service is NOT a keep-alive)
       'not-installed' — the binary exists on disk but no service is registered
+      'unknown'       — the service manager could not be asked, or did not say
+      'probe-error'   — this probe itself failed (_PROBE_ERROR holds why)
       'absent'        — no binary at all
 
     Why this is not `_server_binary() is not None`: a binary sitting in the wheel
@@ -339,25 +340,40 @@ def _rust_service_state() -> str:
     Delegates to embedder_admin's existing service seam rather than re-deriving
     `sc.exe`/`systemctl` parsing here (§10a: one owner, no copied predicate).
     """
+    global _PROBE_ERROR
     try:
         sys.path.insert(0, os.path.join(_payload_bin(), "..", "m3_memory"))
+        from pathlib import Path
+
         from m3_memory import embedder_admin
 
         binary = embedder_admin._server_binary()
         if binary is None:
             return "absent"
-        gguf = embedder_admin._find_bundled_gguf()
-        if gguf is None:
-            # No model to hand the probe; we can still ask SCM, but the helpers
-            # want a path. Without it we cannot honestly claim a state.
-            return "not-installed"
+        # The registered service carries its own GGUF, so status/query ignore
+        # this path; the placeholder is what `m3 embedder status` passes too.
+        # (Answering "not-installed" for a missing model reported a registered
+        # service as unregistered without asking the service manager.)
+        gguf = embedder_admin._find_bundled_gguf() or Path("/")
+        # A False answer is "could not tell" when the status query itself
+        # failed; embedder_admin records why in _LAST_STATUS_UNKNOWN.
         if embedder_admin._service_reports_running(binary, gguf):
             return "running"
-        if embedder_admin._service_reports_installed(binary, gguf):
-            return "stopped"
-        return "not-installed"
-    except Exception:  # noqa: BLE001 — probe must never crash the doctor (§3)
-        return "absent"
+        if getattr(embedder_admin, "_LAST_STATUS_UNKNOWN", None):
+            _PROBE_ERROR = str(embedder_admin._LAST_STATUS_UNKNOWN)
+            return "unknown"
+        installed = embedder_admin._service_reports_installed(binary, gguf)
+        if getattr(embedder_admin, "_LAST_STATUS_UNKNOWN", None):
+            _PROBE_ERROR = str(embedder_admin._LAST_STATUS_UNKNOWN)
+            return "unknown"
+        return "stopped" if installed else "not-installed"
+    except Exception as e:  # noqa: BLE001 — probe must never crash the doctor (§3); reported as probe-error
+        _PROBE_ERROR = f"{type(e).__name__}: {e}"
+        return "probe-error"
+
+
+# Why _rust_service_state answered 'probe-error' or 'unknown', for the report.
+_PROBE_ERROR = ""
 
 
 def _rust_service_present() -> bool:
@@ -378,7 +394,7 @@ def _keepalive() -> tuple[str, bool]:
     state = _rust_service_state()
     if state == "running":
         return "rust-service", True
-    if state in ("stopped", "not-installed"):
+    if state in ("stopped", "not-installed", "unknown", "probe-error"):
         # The binary is here but nothing will bring :8082 back. Do NOT fall
         # through to the Python task: it is mutually exclusive with the Rust
         # service (both bind :8082), so reporting the task as the keep-alive
@@ -597,20 +613,27 @@ def run(brief: bool = False, fix: bool = False) -> int:
     not fully healthy. With fix=True, repair what's repairable first."""
     cfg = _read_config()
     shared_on = bool(cfg and cfg.get("disable_inproc_embedder"))
-    url = ((cfg or {}).get("fallback_url") or _default_url()).rstrip("/")
+    # The cascade's own precedence (embed.fallback_url > this file > default).
+    url, url_source = tier2_client.fallback_url(cfg or {})
 
     problems: list[str] = []
 
     # 1. Config
-    if cfg is None:
+    if isinstance(cfg, _ConfigUnreadable):
+        problems.append("config-unreadable")
+    elif cfg is None:
         problems.append("config-missing")
     elif not shared_on:
         problems.append("config-not-shared")
 
-    # 2. Server (only meaningful once we know the URL we'd use)
-    health, body = _server_health(url)
-    if health in ("down", "bad-scheme"):
-        problems.append("server-down")
+    # 2. Server (only meaningful once we know the URL we'd use). Three distinct
+    #    faults: nothing listens (startable), a server that answers but refuses
+    #    or fails (a start cannot fix it), and a URL that is not http(s).
+    diag, body = _server_health(url)
+    if diag.state == "bad-scheme":
+        problems.append("server-bad-scheme")
+    elif not diag.serving:
+        problems.append("server-misconfigured" if diag.answering else "server-down")
 
     # 2b. Embedder-model identity: does the served model match the stored vector
     #     space? A foreign model silently writes an incompatible space — tracked
@@ -624,7 +647,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
     # Another account's server holds the port: this account's own service cannot
     # bind there, so its state is not a problem, and starting it (--fix) would
     # only make it fail and retry, loading the model each time.
-    whose = _server_is_someone_elses() if health == "ok" else False
+    whose = _server_is_someone_elses() if diag.state == "ok" else False
     if not ka_ok and whose is not True:
         problems.append("keepalive-missing")
 
@@ -641,17 +664,25 @@ def run(brief: bool = False, fix: bool = False) -> int:
         if "config-missing" in problems or "config-not-shared" in problems:
             if _fix_write_config():
                 problems = [p for p in problems if not p.startswith("config")]
-        if "server-down" in problems:
+        if "server-down" in problems and not _is_loopback_url(url):
+            print(f"  [fix] the server is on another machine ({url}); nothing to start here.")
+        elif "server-down" in problems and diag.state != "refused":
+            # A timeout on loopback means something holds the port but does
+            # not answer; a second server would exit on the instance lock.
+            print(f"  [fix] not starting a server: {diag.message()}")
+        elif "server-down" in problems:
             if _fix_start_server():
                 # re-probe after a short grace so the verdict reflects reality
                 import time
 
                 for _ in range(10):
                     time.sleep(1)
-                    health, body = _server_health(url, timeout=2)
-                    if health in ("ok", "loading"):
+                    diag, body = _server_health(url, timeout=2)
+                    if diag.serving:
                         problems = [p for p in problems if p != "server-down"]
                         break
+                else:
+                    print(f"  [fix] the server did not answer within 10s; last observed: {diag.message()}")
         if "keepalive-missing" in problems:
             # Prefer the Rust OS service; only register the Python task fallback
             # when the Rust binary is absent (mutually exclusive — both bind :8082).
@@ -714,22 +745,37 @@ def run(brief: bool = False, fix: bool = False) -> int:
     print()
     print("=== shared-embedder mode (shipped default) ===")
     print(f"  config   : {_config_path()}")
-    if "config-missing" in problems:
+    if "config-unreadable" in problems:
+        err = cfg.error if isinstance(cfg, _ConfigUnreadable) else "?"
+        print(f"  mode     : [FAIL] .embed_config.json is unreadable ({err}) — shared mode cannot be confirmed.")
+        print("             fix: repair the JSON by hand, or `m3 embedder shared` to rewrite it")
+        print("                  (a rewrite drops any other keys it held; --fix does not do it for you).")
+    elif "config-missing" in problems:
         print("  mode     : [FAIL] .embed_config.json MISSING — shared mode not enabled.")
         print("             fix: `m3 setup` (auto), or `m3 embedder shared`.")
     elif "config-not-shared" in problems:
         print("  mode     : [FAIL] config present but disable_inproc_embedder is false.")
         print("             fix: `m3 embedder shared` (rewrites it correctly).")
     else:
-        print(f"  mode     : SHARED — clients defer to {url}")
+        print(f"  mode     : SHARED — clients defer to {url} ({url_source})")
 
     if "server-down" in problems:
-        print(f"  server   : [FAIL] {url}/health not answering — embeds will slow-cascade")
-        print("             or fail fleet-wide until it serves.")
-        print(f"             fix: start it (`python bin/embed_server_inproc.py --port {_port()}`)")
-        print("                  or register the keep-alive task below.")
+        print(f"  server   : [FAIL] {url}/health not answering ({diag.state}): {diag.detail}")
+        print("             embeds will slow-cascade or fail fleet-wide until it serves.")
+        print(f"             fix: {diag.fix}" if diag.fix else "             fix: start the embed server")
+        if _is_loopback_url(url):
+            print("                  and keep it up with the keep-alive below.")
+    elif "server-misconfigured" in problems:
+        print(f"  server   : [FAIL] answers but is not serving ({diag.state}): {diag.detail}")
+        print(f"             fix: {diag.fix}" if diag.fix else "             fix: inspect the embed server's log")
+        print("                  (`m3 doctor --fix` cannot repair this: starting a server would not change it).")
+    elif "server-bad-scheme" in problems:
+        print(f"  server   : [FAIL] {diag.detail}")
+        print(f"             fix: {diag.fix}")
     else:
-        print(f"  server   : OK (model={body.get('model')}, dim={body.get('dim')}, status={health})")
+        model = body.get("model")
+        detail = f"model={model}, dim={body.get('dim')}" if model else "no model reported"
+        print(f"  server   : OK ({detail}, status={diag.state})")
         for _ln in model_lines:
             print(_ln)
 
@@ -752,6 +798,13 @@ def run(brief: bool = False, fix: bool = False) -> int:
             print("  keepalive: [FAIL] the Rust m3-embed-server binary is on disk but")
             print("             NO service is registered — nothing restarts :8082.")
             print("             fix: `m3 embedder install`  (Windows: ADMIN shell)")
+        case "rust-service-unknown":
+            print("  keepalive: [WARN] the Rust m3-embed-server binary is on disk, but the service")
+            print("             manager could not be asked whether its service is registered or running")
+            print(f"             ({_PROBE_ERROR}), so the keep-alive is unverified. inspect: `m3 embedder status`")
+        case "rust-service-probe-error":
+            print(f"  keepalive: [WARN] the keep-alive probe failed ({_PROBE_ERROR}); unverified.")
+            print("             inspect: `m3 embedder status`")
         case "windows-task":
             print(f"  keepalive: OK — {_TASK} scheduled task (1-min self-heal, Python-server fallback).")
         case _:

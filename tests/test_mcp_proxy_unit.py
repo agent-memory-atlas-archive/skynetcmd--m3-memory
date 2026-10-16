@@ -125,3 +125,163 @@ def test_catalog_schemas_is_the_one_builder(proxy):
     measure_tool_tokens (which uses the uncached one) measures what is served."""
     assert proxy._build_catalog_tools()[0] == proxy.catalog_schemas(include_destructive=False)[0]
     assert _names(proxy.catalog_schemas(include_destructive=True)[0]) >= _DESTRUCTIVE
+
+
+# ── Error mapping: each failure names its backend and cause ──────────────────
+
+
+def _status_error(status: int, url: str = "https://api.x.ai/v1/chat/completions?key=SECRET"):
+    import httpx
+
+    req = httpx.Request("POST", url)
+    return httpx.HTTPStatusError("boom", request=req, response=httpx.Response(status, request=req, text="denied"))
+
+
+def _map(mp, exc):
+    import json as _json
+
+    r = mp._backend_error_response(exc, model="grok-3", btype="openai_compat", base_url=mp.GROK_BASE, agent_id="a")
+    return r.status_code, _json.loads(r.body)["error"]
+
+
+def test_upstream_401_is_a_502_naming_the_backend_key_not_the_proxy_key(proxy):
+    status, err = _map(proxy, _status_error(401))
+    assert status == 502
+    assert "XAI_API_KEY" in err["message"] and "not your MCP_PROXY_KEY" in err["message"]
+
+
+def test_backend_json_error_is_not_reported_as_configuration(proxy):
+    import json as _json
+
+    status, err = _map(proxy, _json.JSONDecodeError("Expecting value", "<html>", 0))
+    assert status == 502 and err["type"] == "backend_error"
+
+
+def test_config_error_keeps_its_own_message(proxy):
+    status, err = _map(proxy, proxy.BackendConfigError("ANTHROPIC_API_KEY is required"))
+    assert status == 500 and "ANTHROPIC_API_KEY" in err["message"]
+
+
+def test_any_timeout_is_a_504_naming_the_settings(proxy):
+    import httpx
+
+    status, err = _map(proxy, httpx.ConnectTimeout("slow"))
+    assert status == 504 and "llm.read_timeout_s" in err["message"]
+
+
+def test_transport_errors_name_the_backend_url(proxy):
+    import httpx
+
+    status, err = _map(proxy, httpx.ConnectError("[Errno 11001] getaddrinfo failed"))
+    assert status == 503 and "api.x.ai" in err["message"] and "getaddrinfo" in err["message"]
+
+
+def test_unexpected_errors_carry_their_message(proxy):
+    status, err = _map(proxy, RuntimeError("the actual cause"))
+    assert status == 500 and "the actual cause" in err["message"]
+
+
+class _Req:
+    def __init__(self, auth=None):
+        self.headers = {"Authorization": auth} if auth is not None else {}
+
+
+def test_missing_header_and_wrong_key_are_worded_differently(proxy, monkeypatch):
+    monkeypatch.setattr(proxy, "_get_proxy_key", lambda: "the-real-key")
+    assert "no Authorization header" in proxy._auth_failure(_Req())
+    assert "mismatch" in proxy._auth_failure(_Req("Bearer nope"))
+    assert proxy._auth_failure(_Req("Bearer the-real-key")) is None
+
+
+def test_no_key_warns_once_not_per_request(proxy, monkeypatch, caplog):
+    monkeypatch.setattr(proxy, "_get_proxy_key", lambda: "")
+    monkeypatch.setattr(proxy, "_no_key_warned", False)
+    with caplog.at_level("WARNING", logger="mcp_proxy"):
+        for _ in range(3):
+            assert proxy._auth_failure(_Req()) is None
+    assert sum("MCP_PROXY_KEY is not set" in r.getMessage() for r in caplog.records) == 1
+
+
+def test_non_loopback_bind_without_a_key_is_refused(proxy, monkeypatch):
+    monkeypatch.setattr(proxy, "_get_proxy_key", lambda: "")
+    assert proxy._refuse_unauthenticated_bind("0.0.0.0")
+    assert proxy._refuse_unauthenticated_bind("127.0.0.1") is None
+    monkeypatch.setattr(proxy, "_get_proxy_key", lambda: "k")
+    assert proxy._refuse_unauthenticated_bind("0.0.0.0") is None
+
+
+def test_catalog_failure_is_degraded_and_retried(proxy, monkeypatch):
+    import sys as _sys
+
+    monkeypatch.setattr(proxy, "_catalog_error", "")
+    monkeypatch.setattr(proxy, "_catalog_retry_at", 0.0)
+    monkeypatch.setitem(_sys.modules, "mcp_tool_catalog", None)  # import -> ImportError
+    proxy._build_catalog_tools()
+    assert proxy._catalog_error and not proxy._catalog_built
+    r = asyncio.run(proxy.health())
+    assert r.status_code == 503
+    monkeypatch.delitem(_sys.modules, "mcp_tool_catalog")
+    monkeypatch.setattr(proxy, "_catalog_retry_at", 0.0)
+    proxy._build_catalog_tools()
+    assert proxy._catalog_built and not proxy._catalog_error
+
+
+def test_malformed_tool_arguments_are_returned_as_a_tool_error_not_run(proxy, monkeypatch):
+    calls = []
+
+    async def _never(name, args, agent_id="x"):
+        calls.append((name, args))
+        return "ran"
+
+    replies = [
+        {
+            "choices": [
+                {
+                    "finish_reason": "tool_calls",
+                    "message": {
+                        "role": "assistant",
+                        "tool_calls": [{"id": "t1", "function": {"name": "memory_search", "arguments": "{not json"}}],
+                    },
+                }
+            ]
+        },
+        {"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "done"}}]},
+    ]
+    seen = []
+
+    async def _call(base, key, messages, model, tools, max_tokens):
+        seen.append(list(messages))
+        return replies.pop(0)
+
+    monkeypatch.setattr(proxy, "_execute_tool", _never)
+    monkeypatch.setattr(proxy, "_call_openai_compat", _call)
+    asyncio.run(proxy._run_with_tools([{"role": "user", "content": "hi"}], "local-model", [], 64, skip_mcp=True))
+    assert calls == []
+    tool_msg = seen[1][-1]
+    assert tool_msg["role"] == "tool" and "was not run" in tool_msg["content"]
+
+
+def test_max_tool_rounds_is_visible_to_the_client(proxy, monkeypatch):
+    loop = {
+        "choices": [
+            {
+                "finish_reason": "tool_calls",
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [{"id": "t", "function": {"name": "x", "arguments": "{}"}}],
+                },
+            }
+        ]
+    }
+
+    async def _call(*a, **k):
+        return {"choices": [dict(loop["choices"][0])]}
+
+    async def _tool(*a, **k):
+        return "ok"
+
+    monkeypatch.setattr(proxy, "MAX_TOOL_ROUNDS", 2)
+    monkeypatch.setattr(proxy, "_call_openai_compat", _call)
+    monkeypatch.setattr(proxy, "_execute_tool", _tool)
+    out = asyncio.run(proxy._run_with_tools([{"role": "user", "content": "hi"}], "local-model", [], 64, skip_mcp=True))
+    assert "MAX_TOOL_ROUNDS" in out["m3_warning"]

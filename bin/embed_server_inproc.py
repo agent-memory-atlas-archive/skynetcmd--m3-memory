@@ -60,7 +60,7 @@ import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from m3_core.config import settings as _m3cfg
-from m3_core.tier2_client import EXIT_CONFIG_REFUSED, plaintext_bind_refusal
+from m3_core.tier2_client import EXIT_CONFIG_REFUSED, is_loopback_host, plaintext_bind_refusal
 from pydantic import BaseModel, Field
 
 # bin/ on path so sibling modules import when run as a script.
@@ -294,22 +294,43 @@ def _load_embedder() -> None:
     """Load the in-process GPU embedder ONCE. Fail loud (§3): a load failure
     exits non-zero — a shared embedder that can't embed must not pretend to."""
     global _embedder, _model_tag, _dim
+    gguf = ""
     try:
         from memory.embed import _EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf
 
         from memory import config
 
-        if config.m3_core_rs is None or not hasattr(config.m3_core_rs, "EmbeddedEmbedder"):
+        if config.m3_core_rs is None:
             logger.error(
-                "observed: m3_core_rs.EmbeddedEmbedder not available. "
-                "cause: the m3-core-rs wheel is missing or was built without "
-                "--features embedded. inspect: run `m3 embedder install-gpu` to "
-                "install/rebuild the wheel; verify the installation with `m3 "
-                "doctor --embed`. This server has nothing to serve — exiting."
+                "observed: the m3_core_rs extension did not import in %s, so there is no embedder to "
+                "load. fix: `m3 embedder install-gpu` installs the m3-core-rs wheel for this interpreter; "
+                "verify with `m3 doctor --verbose`. This server has nothing to serve — exiting.",
+                sys.executable,
+            )
+            sys.exit(2)
+        if not hasattr(config.m3_core_rs, "EmbeddedEmbedder"):
+            logger.error(
+                "observed: m3_core_rs %s imported from %s but has no EmbeddedEmbedder. cause: that wheel "
+                "was built without the `embedded` feature. fix: `m3 embedder install-gpu` replaces it with "
+                "a build that has it; verify with `m3 doctor --verbose`. This server has nothing to serve — exiting.",
+                getattr(config.m3_core_rs, "__version__", "(version unknown)"),
+                getattr(config.m3_core_rs, "__file__", "?"),
             )
             sys.exit(2)
 
-        gguf = (str(_g) if (_g := _m3cfg.setting("embed.gguf")) else "") or discover_bge_m3_gguf()
+        explicit_gguf = str(_g) if (_g := _m3cfg.setting("embed.gguf")) else ""
+        if explicit_gguf and not os.path.isfile(explicit_gguf):
+            # A set path that does not exist is a configuration error; falling
+            # through to discovery would serve a model nobody chose.
+            logger.error(
+                "observed: embed.gguf is set to %s (origin: %s) but no file exists there. fix: point it at "
+                "a bge-m3 GGUF (`m3 config set embed.gguf <path>`), fetch one with `m3 embedder fetch-model`, "
+                "or `m3 config unset embed.gguf` to auto-detect. Nothing to serve — exiting.",
+                explicit_gguf,
+                _m3cfg.origin_of("embed.gguf"),
+            )
+            sys.exit(2)
+        gguf = explicit_gguf or discover_bge_m3_gguf() or ""
         if not gguf:
             logger.error(
                 "observed: no bge-m3 GGUF model found. cause: either "
@@ -351,12 +372,12 @@ def _load_embedder() -> None:
     except SystemExit:
         raise
     except Exception as e:  # noqa: BLE001 — any load failure is fatal for a shared embedder
-        logger.error(
-            "observed: embedder initialization raised an exception (%s: %s). "
-            "possible: corrupt GGUF file, insufficient VRAM, unsupported GPU, "
-            "or a dependency version conflict. inspect: check the full exception "
-            "trace above for specifics; run `m3 doctor --embed` to probe the "
-            "environment. Fatal — exiting without serving.",
+        logger.exception(
+            "observed: loading the embedder from GGUF %s raised %s: %s. "
+            "possible: corrupt or truncated GGUF file, insufficient VRAM, unsupported GPU, "
+            "or a dependency version conflict. inspect: the traceback below; `m3 doctor --verbose` "
+            "probes the environment. Fatal — exiting without serving.",
+            gguf or "(not resolved yet)",
             type(e).__name__,
             e,
         )
@@ -475,6 +496,26 @@ def _context_overflow_response(exc: Exception) -> JSONResponse | None:
     return JSONResponse(status_code=413, content={"error": err})
 
 
+def _embed_failure_response(exc: Exception, n_texts: int) -> JSONResponse:
+    """A structured 500 for an embed failure that is not a length problem.
+
+    FastAPI's default handler answers a bare "Internal Server Error", which
+    hides the cause from the client's log. The message carries the exception
+    type and text (capped), never the input text, which is memory content."""
+    logger.exception(
+        "embed failed for a batch of %d input(s): %s: %s. inspect: the traceback below; GPU/driver "
+        "state and `m3 doctor --verbose`",
+        n_texts,
+        type(exc).__name__,
+        exc,
+    )
+    message = f"{type(exc).__name__}: {exc}"
+    return JSONResponse(
+        status_code=500,
+        content={"error": {"code": "embed_failed", "message": message[:500], "inputs": n_texts}},
+    )
+
+
 @app.post("/embedding")
 async def embedding(req: EmbeddingRequest, request: Request):
     """Tier-2 contract: {"input":[...]} -> {"data":[{"embedding":[...]}]} in order.
@@ -487,11 +528,8 @@ async def embedding(req: EmbeddingRequest, request: Request):
         return {"data": []}
     try:
         vecs = await _embed(texts, interactive=_is_interactive(texts, request))
-    except Exception as e:  # noqa: BLE001 — classified below; non-overflow re-raises
-        resp = _context_overflow_response(e)
-        if resp is None:
-            raise
-        return resp
+    except Exception as e:  # noqa: BLE001 — classified: a 413 for length, a structured 500 otherwise
+        return _context_overflow_response(e) or _embed_failure_response(e, len(texts))
 
     if "application/octet-stream" in (request.headers.get("accept") or ""):
         import numpy as np
@@ -520,10 +558,7 @@ async def v1_embeddings(req: EmbeddingRequest, request: Request):
     try:
         vecs = await _embed(texts, interactive=_is_interactive(texts, request))
     except Exception as e:  # noqa: BLE001 — same classification as /embedding
-        resp = _context_overflow_response(e)
-        if resp is None:
-            raise
-        return resp
+        return _context_overflow_response(e) or _embed_failure_response(e, len(texts))
     return {
         "object": "list",
         "data": [{"object": "embedding", "index": i, "embedding": v} for i, v in enumerate(vecs)],
@@ -615,9 +650,7 @@ def main() -> int:
         )
 
     _load_embedder()  # fail-loud: exits non-zero if the embedder can't load
-    logger.info(
-        "listening on http://%s:%d (loopback=%s)", args.host, args.port, args.host in ("127.0.0.1", "localhost", "::1")
-    )
+    logger.info("listening on http://%s:%d (loopback=%s)", args.host, args.port, is_loopback_host(args.host))
     _run_server(args.host, args.port)
     return 0
 

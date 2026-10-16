@@ -12,9 +12,12 @@ import logging
 import os
 import shutil
 import subprocess
-from typing import cast
+from typing import TYPE_CHECKING
 
 from m3_core.seams import is_windows
+
+if TYPE_CHECKING:
+    from m3_core.tier2_client import Diagnosis
 
 logger = logging.getLogger("memory.doctor.embed_server_probe")
 
@@ -56,24 +59,33 @@ def _resolve_binary() -> str | None:
         return shutil.which(BINARY_NAME)
 
 
-def _port_answers(timeout: float = 2.0) -> bool:
-    """Is something serving on :8082 right now?
+def _port_answers(timeout: float = 2.0) -> Diagnosis:
+    """What answers on this machine's embedder port right now, classified.
 
     The distinction that matters for the verdict: a binary we cannot find but a
     port that answers means the service IS running, however it was started.
     Reporting "not installed" there is the false alarm §3 names -- and it is
     exactly what happened, in the same doctor run whose embedding-cascade line
-    said "healthy -- shared tier-2 embedder online".
+    said "healthy -- shared tier-2 embedder online". Asked through tier2_client
+    (token + TLS trust), so a token-protected server is not read as absent.
     """
-    import urllib.request
+    from m3_core import tier2_client
 
+    return tier2_client.health(f"http://127.0.0.1:{_health_port()}", timeout)[0]
+
+
+def _server_needed() -> bool | None:
+    """Whether m3 processes embed through this server: shared mode, or no
+    .embed_config.json with embed.inproc off (embed.py then defers to it too).
+    None when that cannot be read; it selects message wording only."""
     try:
-        with urllib.request.urlopen(  # nosec B310 — fixed loopback URL
-            f"http://127.0.0.1:{_health_port()}/health", timeout=timeout
-        ) as r:
-            return cast("bool", 200 <= r.status < 300)
-    except Exception:  # noqa: BLE001
-        return False
+        from m3_memory import embedder_admin as ea
+
+        if ea.shared_mode_enabled():
+            return True
+        return not (os.path.exists(ea._embed_config_path()) or ea._config.setting("embed.inproc"))
+    except Exception:  # noqa: BLE001 — only selects message wording
+        return None
 
 
 def _held_by_someone_else() -> bool | str:
@@ -126,7 +138,9 @@ def run(brief: bool = False) -> int:
         # Three states, not two. "Cannot find the binary" and "the service is
         # absent" are different claims, and conflating them reported a live
         # server as missing (#167).
-        if _port_answers():
+        port_diag = _port_answers()
+        needed = _server_needed()
+        if port_diag.serving:
             if brief:
                 print(f"embed-server: serving on :{_health_port()} (binary not located)")
             else:
@@ -134,11 +148,26 @@ def run(brief: bool = False) -> int:
                     f"{BINARY_NAME} not located, but :{_health_port()} answers — "
                     f"the service is running; skipping the Rust-side doctor"
                 )
-        else:
+        elif port_diag.answering:
+            # Something answers but does not serve (401, TLS, unhealthy): a
+            # missing binary is not the story; the shared-embedder line says more.
+            print(
+                f"⚠️  embed-server: binary not located; :{_health_port()} answers but is not serving: {port_diag.message()}"
+            )
+        elif needed is False:
             if brief:
                 print("embed-server: not installed (optional)")
             else:
                 logger.debug(f"{BINARY_NAME} not located; skipping Rust-side doctor")
+        else:
+            # Shared mode (the default) needs a server on this port; "optional"
+            # would invite dismissing the one line that matters.
+            role = "m3 embeds through a server there" if needed else "whether m3 needs one could not be read"
+            print(
+                f"⚠️  embed-server: binary not located and nothing serves on :{_health_port()} "
+                f"({port_diag.detail}); {role}. fix: `m3 embedder install-gpu` then `m3 embedder install`"
+            )
+            return 1
         return 0
     try:
         import datetime
@@ -238,7 +267,9 @@ def run(brief: bool = False) -> int:
                 else:
                     print(f"✅ embed-server: ok{detail}")
             else:
-                print(f"❌ embed-server: FAILED ({sub})")
+                said = ((r.stderr or "").strip() or (r.stdout or "").strip()).splitlines()
+                first = f": {said[-1][:200]}" if said else " (no output)"
+                print(f"❌ embed-server: `{os.path.basename(exe)} {sub}` exited {r.returncode}{first}")
         return r.returncode
     except subprocess.TimeoutExpired:
         print("embed-server: ❌ timed out" if brief else f"  m3-embed-server doctor timed out after {TIMEOUT_SECS}s")

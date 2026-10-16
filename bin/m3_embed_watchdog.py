@@ -55,12 +55,13 @@ import os
 import subprocess
 import sys
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from m3_core.tier2_client import Diagnosis
 
 _BIN = Path(__file__).resolve().parent
 if str(_BIN) not in sys.path:
@@ -159,6 +160,18 @@ def shared_mode() -> tuple[bool, str]:
         )
         return False, _DEFAULT_URL
     url = str(cfg.get("fallback_url") or _DEFAULT_URL).rstrip("/")
+    try:
+        # The cascade's own precedence: a set embed.fallback_url wins over this
+        # file. The config package is heavier than this module; if it cannot
+        # load, guard the file's URL and say so rather than stand down.
+        from m3_core.tier2_client import fallback_url
+
+        url = fallback_url(cfg)[0]
+    except Exception as e:  # noqa: BLE001 — logged; the file's URL is still guarded
+        log(
+            f"WARNING: cannot resolve embed.fallback_url (observed: {type(e).__name__}: {e}); "
+            f"guarding {url} from {EMBED_CONFIG}. inspect: `m3 config get embed.fallback_url`"
+        )
     return bool(cfg.get("disable_inproc_embedder")), url
 
 
@@ -170,32 +183,30 @@ def _is_loopback_url(url: str) -> bool:
     return is_loopback_host(urllib.parse.urlsplit(url).hostname)
 
 
-def server_healthy(url: str) -> bool:
-    """True when the server answers /health. This is the server's own
-    contract, so the check is identical for the Rust binary and the Python
-    embed_server_inproc.py — neither is imported, only asked.
+def server_check(url: str) -> Diagnosis:
+    """The classified /health answer (m3_core.tier2_client, stdlib-only): the
+    server's own contract, identical for the Rust binary and the Python
+    embed_server_inproc.py — neither is imported, only asked. The request
+    carries the bearer token and TLS trust a token-protected or https server
+    needs; without them a healthy server answers 401 or fails the handshake,
+    which once read as "down" and restarted it every tick.
 
-    The scheme is checked before the request. `url` comes from the config's
-    `fallback_url`, so a typo or a hand-edited config could hand urlopen a
-    `file:` or custom scheme, which would read a local path instead of probing
-    a server — and a successful read would report the embedder HEALTHY when
-    nothing is listening. Restricting to http/https makes that a loud False
-    rather than a wrong True.
+    The scheme is checked before the request. `url` comes from configuration,
+    so a typo could hand urlopen a `file:` or custom scheme, which would read a
+    local path instead of probing a server. tier2_client refuses it unread
+    (bad-scheme), and the refusal is logged here.
     """
-    if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+    from m3_core.tier2_client import health
+
+    diag = health(url, _HEALTH_TIMEOUT_S)[0]
+    if diag.state == "bad-scheme":
         log(f"refusing health probe: {url!r} is not an http(s) URL")
-        return False
-    try:
-        # nosec B310 - the scheme is restricted to http/https immediately above,
-        # which is exactly what B310 asks be audited. Load-bearing: removing the
-        # guard must re-trip this finding, so do not move the nosec off it.
-        with urllib.request.urlopen(
-            url + "/health",  # nosec B310
-            timeout=_HEALTH_TIMEOUT_S,
-        ) as r:
-            return cast("bool", 200 <= r.status < 300)
-    except (urllib.error.URLError, OSError, ValueError):
-        return False
+    return diag
+
+
+def server_healthy(url: str) -> bool:
+    """True when the server answers its health contract (ok or loading)."""
+    return server_check(url).serving
 
 
 def _read_state() -> dict:
@@ -211,8 +222,10 @@ def _write_state(d: dict) -> None:
         STATE.parent.mkdir(parents=True, exist_ok=True)
         with open(STATE, "w", encoding="utf-8") as f:
             json.dump(d, f)
-    except OSError:
-        pass
+    except OSError as e:
+        # Without the state file the miss count and the restart backoff reset
+        # every tick: a crash-looping server is then started every tick.
+        log(f"WARNING: cannot write {STATE} (observed: {type(e).__name__}: {e}); backoff is not remembered")
 
 
 def recently_restarted(state: dict) -> bool:
@@ -256,13 +269,17 @@ def restart(reason: str, state: dict) -> int:
         return 0
     cmds, what = _restart_backend()
     log(f"STARTING via {what}: {reason}")
+    started = False
     for cmd in cmds:
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, **no_window_kwargs())
         except (OSError, subprocess.SubprocessError) as e:
-            log(f"  {cmd[0]} failed to spawn: {e}")
+            log(f"  observed: {cmd[0]} failed to spawn ({type(e).__name__}: {e}); inspect: `m3 embedder status`")
             continue
-        if r.returncode != 0:
+        if r.returncode == 0:
+            started = True
+            log(f"  observed: {cmd[0]} exit=0; the next tick checks that the server answers")
+        else:
             # Name what was OBSERVED and what to inspect; never assert a cause
             # the code has not confirmed (§3).
             detail = (r.stderr or r.stdout or "").strip().splitlines()
@@ -276,10 +293,11 @@ def restart(reason: str, state: dict) -> int:
             else:
                 log(
                     f"  possible: no {_SYSTEMD_UNIT if _os_name() == 'Linux' else _LAUNCHD_LABEL} "
-                    f"is registered on this host — the embed server currently "
-                    f"ships an OS service on Windows only; "
-                    f"inspect: `m3 embedder status`"
+                    f"is registered on this host; inspect: `m3 embedder status`; "
+                    f"register the service: `m3 embedder install`"
                 )
+    if not started:
+        log(f"  observed: the start did not succeed; next attempt after the {_MIN_RESTART_GAP_S}s backoff")
     state["last_restart_ts"] = time.time()
     state["consecutive_failures"] = 0
     _write_state(state)
@@ -299,24 +317,37 @@ def main() -> int:
         return 0
 
     state = _read_state()
-    if server_healthy(url):
-        if state.get("consecutive_failures"):
-            log(f"OK: {url} healthy again after {state['consecutive_failures']} failed check(s)")
+    diag = server_check(url)
+    if diag.serving:
+        if state.get("consecutive_failures") or state.get("answering_fault"):
+            log(f"OK: {url} healthy again after {state.get('consecutive_failures') or 0} failed check(s)")
+        state["consecutive_failures"] = 0
+        state.pop("answering_fault", None)
+        _write_state(state)
+        return 0
+
+    if diag.answering:
+        # Reachable but not serving: a 401, an untrusted certificate, an
+        # unhealthy reply. Starting the service cannot change that (a start is
+        # a no-op for a running one), so say it once per state, never restart.
+        if state.get("answering_fault") != diag.state:
+            log(f"observed: {url} answers but is not serving ({diag.state}): {diag.message()}. not restarting it")
+        state["answering_fault"] = diag.state
         state["consecutive_failures"] = 0
         _write_state(state)
         return 0
 
+    state.pop("answering_fault", None)
     fails = int(state.get("consecutive_failures") or 0) + 1
     state["consecutive_failures"] = fails
     _write_state(state)
 
     if fails < _FAILED_CHECKS:
-        log(f"observed: {url}/health unreachable ({fails}/{_FAILED_CHECKS}) — waiting one more tick before acting")
+        log(f"observed: {diag.detail} ({fails}/{_FAILED_CHECKS}) — waiting one more tick before acting")
         return 0
 
     return restart(
-        f"observed: {url}/health unreachable on {fails} consecutive checks; "
-        f"shared mode is ON, so every m3 process depends on it",
+        f"observed: {diag.detail}, on {fails} consecutive checks; shared mode is ON, so every m3 process depends on it",
         state,
     )
 

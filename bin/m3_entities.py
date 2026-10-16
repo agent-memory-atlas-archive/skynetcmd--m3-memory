@@ -56,6 +56,7 @@ from typing import cast
 
 from m3_core.aio import gather_or_cancel
 from m3_core.paths import configured_main_db, pin_database  # noqa: E402
+from m3_core.secret_store import loggable_url  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _BIN = REPO_ROOT / "bin"
@@ -346,7 +347,13 @@ def _build_extractor(
         try:
             r = await client.post(eff_url, json=payload, headers=headers, timeout=profile.timeout_s)
         except (httpx.HTTPError, TimeoutError) as e:
-            raise RuntimeError(f"http error: {type(e).__name__}: {e}") from e
+            from m3_core.errors import describe_http_failure
+
+            raise RuntimeError(
+                f"http error (model={payload.get('model')!r}): {describe_http_failure(e, 'POST')}"
+                if isinstance(e, httpx.HTTPError)
+                else f"http error (model={payload.get('model')!r}) POST {loggable_url(eff_url)}: TimeoutError: {str(e) or '(no message)'}"
+            ) from e
         if r.status_code != 200:
             # A context-overflow 500 is terminal for this row, not transient:
             # the prompt+max_tokens exceed the loaded model's n_ctx, and halving
@@ -355,8 +362,12 @@ def _build_extractor(
             # Surface it as a distinct type so gated() can skip the retry and
             # mark the row 'ctx_error' instead of looping.
             if "context size has been exceeded" in r.text.lower():
-                raise ContextOverflowError(f"http {r.status_code}: {r.text[:300]}")
-            raise RuntimeError(f"http {r.status_code}: {r.text[:300]}")
+                raise ContextOverflowError(
+                    f"http {r.status_code} from {loggable_url(eff_url)} (model={payload.get('model')!r}): {r.text[:300]}"
+                )
+            raise RuntimeError(
+                f"http {r.status_code} from {loggable_url(eff_url)} (model={payload.get('model')!r}): {r.text[:300]}"
+            )
 
         data = r.json()
         # Extract the response text per backend shape.

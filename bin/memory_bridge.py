@@ -482,7 +482,17 @@ if __name__ == "__main__":
         log_swallowed(logger, _e, f"HALT registration skipped: {type(_e).__name__}: {_e}")
     if transport in ("http", "streamable-http", "streamable_http"):
         host = _os.environ.get("M3_HTTP_HOST", "127.0.0.1")
-        port = int(_os.environ.get("M3_HTTP_PORT", "8080"))
+        _raw_port = _os.environ.get("M3_HTTP_PORT", "8080")
+        try:
+            port = int(_raw_port)
+            if not 0 < port < 65536:
+                raise ValueError("out of range 1-65535")
+        except ValueError as _e:
+            logger.error(
+                f"refusing to start the HTTP transport: M3_HTTP_PORT={_raw_port!r} is not a TCP port ({_e}). "
+                "Set it to 1-65535, or pass `m3 serve --port N`."
+            )
+            sys.exit(1)
         path = _os.environ.get("M3_HTTP_PATH", "/mcp")
         # Public hostnames a tunnel/proxy will present in the Host header.
         # Comma-separated so a single env var covers the systemd/docker case;

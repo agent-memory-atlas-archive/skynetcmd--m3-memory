@@ -1,8 +1,8 @@
 ---
 tool: bin/dashboard_server.py
-sha1: 0fc57987485e
-mtime_utc: 2026-10-14T03:55:58.736033+00:00
-generated_utc: 2026-10-14T03:57:13.094529+00:00
+sha1: 6f1f79809bd7
+mtime_utc: 2026-10-16T15:09:58.990870+00:00
+generated_utc: 2026-10-16T15:27:52.486542+00:00
 private: false
 ---
 
@@ -89,6 +89,7 @@ you intend to launch the server with (typically ``.venv``).
 - `chatlog_config (resolve_config)`
 - `m3_halt`
 - `m3_http_auth`
+- `m3_sdk (PgRole, resolve_pg_dsn)`
 - `m3_sdk (acquire_or_exit)`
 - `m3_sdk (active_database)`
 - `m3_sdk (active_database, resolve_db_path)`
@@ -103,11 +104,11 @@ you intend to launch the server with (typically ``.venv``).
 
 **subprocess**
 
-- `subprocess.Popen()  → `[exe, *args]`` (line 3497)
-- `subprocess.Popen()  → `[sys.executable, *args]`` (line 3510)
-- `subprocess.Popen()  → `cmd`` (line 3147)
-- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3366)
-- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3406)
+- `subprocess.Popen()  → `[exe, *args]`` (line 3769)
+- `subprocess.Popen()  → `[sys.executable, *args]`` (line 3782)
+- `subprocess.Popen()  → `cmd`` (line 3349)
+- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3601)
+- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3652)
 
 
 ---
@@ -128,20 +129,22 @@ you intend to launch the server with (typically ``.venv``).
 - `files_memory.db (_files_store_is_a_schema)`
 - `files_memory.search (files_search)`
 - `html`
+- `ipaddress`
 - `m3_core.config (settings)`
+- `m3_core.errors (log_swallowed)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (configured_main_db)`
 - `m3_core.paths (get_m3_engine_root)`
+- `m3_core.paths (get_m3_logs_root)`
+- `m3_core.process (pid_is_alive)`
 - `m3_core.seams (childenv)`
 - `m3_core.seams (detached_spawn_kwargs, is_windows)`
+- `m3_core.secret_store (mask_dsn_passwords)`
 - `memory.backends (active_backend)`
+- `memory.backends (resolve_backend_name)`
 - `memory.config (FILES_DB_PATH)`
 - `memory.db (_db)`
-- `memory.db (_record_history)`
-- `memory.search (memory_search_scored_impl)`
-- `starlette.middleware.base (BaseHTTPMiddleware)`
-- `uvicorn`
 
 ---
 

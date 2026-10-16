@@ -16,6 +16,7 @@ from typing import Any, cast
 import httpx
 from sqlite_pragmas import apply_pragmas, profile_for_db, refresh_schema
 
+from m3_core.errors import describe_http_failure
 from m3_core.gpu import probe_gpu_util
 from m3_core.paths import (
     canonical_path,
@@ -34,6 +35,7 @@ from m3_core.runtime import (
     load_dotenv,
     logger,
 )
+from m3_core.secret_store import loggable_url
 
 # ── Per-path context registry ─────────────────────────────────────────────────
 # Previously a module-global _SQLITE_POOL was used, with singleton M3Context
@@ -69,6 +71,47 @@ def _close_context_pool(ctx: "M3Context") -> None:
 _CIRCUITS: dict[str, Any] = {}
 _CB_THRESHOLD = 3
 _CB_COOLDOWN = 60
+# Why each service's breaker last counted a failure, for the circuit-open error.
+# Kept beside _CIRCUITS because the native (Rust) breaker exposes no cause.
+_CIRCUIT_INFO: dict[str, dict[str, Any]] = {}
+
+
+class CircuitOpenError(httpx.HTTPStatusError):
+    """m3's circuit breaker refused to send the request (the server did not answer).
+
+    Subclasses HTTPStatusError with a synthetic 503 (header ``X-M3-Circuit: open``)
+    so existing handlers keep working; ``isinstance(e, CircuitOpenError)`` tells
+    the two apart.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        request: httpx.Request,
+        response: httpx.Response,
+        service: str,
+        retry_after_s: float | None,
+        last_error: str,
+    ) -> None:
+        super().__init__(message, request=request, response=response)
+        self.service = service
+        self.retry_after_s = retry_after_s
+        self.last_error = last_error
+
+
+def _retryable_status(code: int) -> bool:
+    """5xx, 408 (request timeout) and 429 (rate limited) are transient; other 4xx are not."""
+    return code >= 500 or code in (408, 429)
+
+
+def _circuit_open_until(service: str) -> float:
+    state = _CIRCUITS.get(service)
+    if isinstance(state, dict):
+        return float(state.get("open_until", 0.0))
+    return time.time() + _CB_COOLDOWN  # native breaker: its cooldown, approximately
+
+
 _HTTP_CLIENT: httpx.AsyncClient | None = None
 _HTTP_CLIENT_LOOP_ID: int | None = None
 _HTTP_CLIENT_LOCK = threading.Lock()
@@ -406,14 +449,28 @@ class M3Context:
                 f"request_with_retry: retries must be >= 1; observed: {retries}. inspect: the caller passing retries"
             )
         service = url.split("//")[-1].split("/")[0]
+        shown = loggable_url(url)  # never the query string: it may carry ?key=
 
         if not self._check_circuit(service):
-            # A real request/response pair (503: the service is being withheld),
-            # so a handler reading e.response.status_code works as for any other
-            # HTTP failure instead of raising AttributeError on None.
+            # A distinct error (CircuitOpenError), still an HTTPStatusError with a
+            # real 503 response so handlers reading e.response.status_code work --
+            # but it says it is m3's breaker refusing, not the server answering.
+            info = _CIRCUIT_INFO.get(service, {})
+            remaining = max(0.0, float(info.get("open_until", 0.0)) - time.time())
+            last = info.get("last_error") or "(not recorded)"
             req = httpx.Request(method, url)
-            raise httpx.HTTPStatusError(
-                f"Circuit open for {service}", request=req, response=httpx.Response(503, request=req)
+            msg = (
+                f"circuit breaker OPEN for {service}: request NOT sent ({method} {shown}). "
+                f"{f'~{remaining:.0f}s of cooldown left' if remaining else 'cooldown remaining unknown'}; "
+                f"last failure: {last}"
+            )
+            raise CircuitOpenError(
+                msg,
+                request=req,
+                response=httpx.Response(503, request=req, headers={"X-M3-Circuit": "open"}),
+                service=service,
+                retry_after_s=remaining or None,
+                last_error=last,
             )
 
         client = self.get_async_client()
@@ -422,14 +479,23 @@ class M3Context:
                 resp = await client.request(method, url, **kwargs)
                 resp.raise_for_status()
                 self._record_success(service)
+                _CIRCUIT_INFO.pop(service, None)
                 return resp
             except (httpx.HTTPStatusError, httpx.NetworkError, httpx.TimeoutException) as exc:
+                cause = describe_http_failure(exc, method, body_chars=200)
+                if isinstance(exc, httpx.HTTPStatusError) and not _retryable_status(exc.response.status_code):
+                    # A 4xx (other than 408/429) is the CALLER's request being wrong:
+                    # retrying repeats it, and counting it would open the breaker on
+                    # a healthy server.
+                    logger.error(f"HTTP request rejected, not retried: {cause}")
+                    raise
                 if attempt == retries - 1:
                     self._record_failure(service)
-                    logger.error(f"HTTP Request failed after {retries} attempts: {exc}")
+                    _CIRCUIT_INFO[service] = {"last_error": cause, "open_until": _circuit_open_until(service)}
+                    logger.error(f"HTTP request failed after {retries} attempts: {cause}")
                     raise
                 wait = (2**attempt) + random.uniform(0, 1)  # nosec B311 - backoff jitter, not cryptographic
-                logger.warning(f"Request to {url} failed ({exc}). Retrying in {wait:.1f}s...")
+                logger.warning(f"{cause}. Retrying in {wait:.1f}s (attempt {attempt + 1}/{retries})...")
                 await asyncio.sleep(wait)
         raise AssertionError("unreachable: the last attempt returns or raises")
 

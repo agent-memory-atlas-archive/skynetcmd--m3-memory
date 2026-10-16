@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_proxy.py
-sha1: 4bde303fd5f0
-mtime_utc: 2026-10-14T15:59:03.580708+00:00
-generated_utc: 2026-10-14T15:59:57.481857+00:00
+sha1: 43160a9728b9
+mtime_utc: 2026-10-16T15:05:03.575338+00:00
+generated_utc: 2026-10-16T15:27:52.789607+00:00
 private: false
 ---
 
@@ -119,6 +119,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
+- `m3_http_auth (is_loopback)`
 - `m3_sdk (M3Context)`
 - `m3_sdk (acquire_or_exit)`
 - `m3_sdk (destructive_tools_allowed)`
@@ -132,7 +133,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 583)
+- `httpx.AsyncClient()` (line 659)
 
 
 ---
@@ -141,10 +142,12 @@ _(none detected)_
 
 - `fastapi (FastAPI, HTTPException, Request)`
 - `fastapi.responses (JSONResponse, StreamingResponse)`
+- `hmac`
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
-- `pydantic (BaseModel, Field)`
+- `m3_core.secret_store (loggable_url)`
+- `pydantic (BaseModel, Field, ValidationError)`
 - `uvicorn`
 
 ---

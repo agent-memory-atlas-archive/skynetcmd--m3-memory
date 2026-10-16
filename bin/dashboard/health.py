@@ -20,6 +20,7 @@ from typing import Any
 
 from m3_core.config import settings as _m3cfg
 from m3_core.paths import seam_backend, seam_dialect
+from m3_core.secret_store import loggable_url
 
 
 def _fmt_dual_time(value: object) -> str:
@@ -52,7 +53,9 @@ def _fmt_dual_time(value: object) -> str:
     return f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} ({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})"
 
 
-def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dict:
+def _verdict(
+    inference: dict | None = None, pipeline: dict | None = None, probe_errors: list[str] | None = None
+) -> dict:
     """Overall health verdict + the SPECIFIC reasons it isn't healthy.
 
     Returns {verdict, label, tone, headline, reasons}. ``verdict`` is the raw
@@ -72,7 +75,12 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
     drain until the user acts — that is worth alarming on, unlike a slow tier.
     ``inference``/``pipeline`` are the already-collected blocks (passed in to avoid
     re-probing); when omitted the inference-stall check is skipped.
+    ``probe_errors`` are probes that FAILED to run. Any one of them rules out an
+    all-clear: "HEALTHY" from a check that did not run is a result not checked.
+    The list is appended to in place by the probes run here.
     """
+    if probe_errors is None:
+        probe_errors = []
     try:
         from m3_memory.installer import status_summary
 
@@ -129,15 +137,15 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
                 f"{'/'.join(throttled_res)} load is high{detail}. Interactive use "
                 "is unaffected; queued work simply drains more slowly until load eases."
             )
-    except Exception:  # noqa: BLE001 — governor telemetry is optional
-        pass
+    except Exception as e:  # noqa: BLE001 — governor telemetry is optional, but its failure is reported
+        probe_errors.append(f"governor telemetry: {type(e).__name__}: {str(e) or '(no message)'}")
 
     # Embedder note ONLY when it actually matters: a real embedding BACKLOG (many
     # rows still unembedded). The tier being "pure-Python" is NOT itself a problem
     # when embedding is caught up, and adding the native tier is NOT the fix for a
     # load throttle — so we do not surface the tier as a reason/remedy by default.
     embedder = str(s.get("embedder", ""))
-    unembedded = _unembedded_count()
+    unembedded = _unembedded_count(probe_errors)
     if embedder.startswith("pure-Python") and unembedded > 200:
         reasons.append(
             f"{unembedded:,} items are still awaiting embedding and the current "
@@ -206,6 +214,10 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
         # throughput, not broken data.
         label = "REDUCED PERFORMANCE"
         tone = "warn"
+    elif probe_errors:
+        # Nothing flagged, but some checks never ran: no all-clear.
+        label = "UNVERIFIED"
+        tone = "warn"
     else:
         # No live problem worth flagging (a caught-up pure-Python tier is fine).
         label = "HEALTHY"
@@ -219,7 +231,16 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
         if headline.upper().startswith(raw):
             headline = headline[len(raw) :].lstrip(" ·-—").strip()
             break
-    return {"verdict": verdict, "label": label, "tone": tone, "headline": headline, "reasons": reasons}
+    for err in probe_errors:
+        reasons.append(f"Health check did not run — {err}")
+    return {
+        "verdict": verdict,
+        "label": label,
+        "tone": tone,
+        "headline": headline,
+        "reasons": reasons,
+        "probe_errors": list(probe_errors),
+    }
 
 
 # Human-facing backend names (tall-man / correct casing). The seam uses lowercase
@@ -238,10 +259,11 @@ def _backend_display(name: str) -> str:
     return _BACKEND_DISPLAY.get((name or "").lower(), (name or "unknown").title())
 
 
-def _unembedded_count() -> int:
+def _unembedded_count(probe_errors: list[str] | None = None) -> int:
     """Count live memory_items lacking an embedding (the real 'is embedding
-    behind?' signal). Best-effort, read-only; returns 0 on any error. Backend-
-    blind via the active backend's connection."""
+    behind?' signal). Best-effort, read-only; returns 0 on any error, which is
+    recorded in ``probe_errors`` so a failed count cannot read as "caught up".
+    Backend-blind via the active backend's connection."""
     try:
         from memory.db import _db
 
@@ -251,7 +273,9 @@ def _unembedded_count() -> int:
                 "AND NOT EXISTS (SELECT 1 FROM memory_embeddings me WHERE me.memory_id=mi.id)"
             ).fetchone()
             return int(row[0]) if row else 0
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        if probe_errors is not None:
+            probe_errors.append(f"embedding backlog count: {type(e).__name__}: {str(e) or '(no message)'}")
         return 0
 
 
@@ -372,22 +396,34 @@ def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: 
     # Resolve the key the SAME way m3 does for this profile (its api_key_service),
     # falling back to LM_API_TOKEN only if the profile didn't name one.
     key = ""
+    used = ""  # the secret name whose value is actually sent; messages name THIS one
+    tried = [n for n in (api_key_service, "LM_API_TOKEN") if n]
     try:
         from auth_utils import get_api_key
 
-        if api_key_service:
-            key = get_api_key(api_key_service) or ""
-        if not key:
-            key = get_api_key("LM_API_TOKEN") or ""
+        for name in tried:
+            key = get_api_key(name) or ""
+            if key:
+                used = name
+                break
     except Exception as e:  # noqa: BLE001 -- a health probe reports, never crashes
         # Never the environment: a secret is not read from it.
-        out["detail"] = f"could not resolve the API key ({api_key_service or 'unset'}): {type(e).__name__}: {e}"
+        out["detail"] = (
+            f"could not resolve the API key (tried {', '.join(tried)}): {type(e).__name__}: {str(e) or '(no message)'}"
+        )
         out["auth_missing"] = True
         return out
+    out["api_key_used"] = used
     if not key:
-        out["detail"] = f"no API key ({api_key_service or 'unset'}) resolved"
+        out["detail"] = (
+            f"no API key resolved (tried {', '.join(tried)}{'' if api_key_service else '; the profile names no api_key_service'}). "
+            f"Store one: m3 secret set {tried[0]}"
+        )
         out["auth_missing"] = True
         return out
+    fallback_note = (
+        f" (fell back from {api_key_service}, which is blank)" if api_key_service and used != api_key_service else ""
+    )
 
     is_anthropic = "anthropic.com" in endpoint.lower()
     # /models base: strip a trailing chat path to reach the provider root's /models.
@@ -397,28 +433,40 @@ def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: 
     headers = (
         {"x-api-key": key, "anthropic-version": "2023-06-01"} if is_anthropic else {"Authorization": f"Bearer {key}"}
     )
+    shown = loggable_url(models_url)
     try:
         r = httpx.get(models_url, headers=headers, timeout=httpx.Timeout(connect_timeout, read=read_timeout))
     except Exception as e:  # noqa: BLE001 — network down / DNS / TLS
-        out["detail"] = f"unreachable ({type(e).__name__})"
+        out["detail"] = f"unreachable: GET {shown} raised {type(e).__name__}: {str(e) or '(no message)'}"
         return out
     out["reachable"] = True
+    out["http_status"] = r.status_code
     if r.status_code in (401, 403):
-        out["detail"] = f"HTTP {r.status_code} — API key rejected (check {api_key_service})"
+        out["detail"] = f"HTTP {r.status_code} from {shown} — API key {used}{fallback_note} rejected"
         out["auth_rejected"] = True
         return out
-    if r.status_code >= 400:
-        # Some providers gate /models; a 404/405 still proves reachable+authed
-        # enough for a ping (we didn't get 401). Treat as reachable, model assumed.
-        out["queryable"] = False
+    if r.status_code in (404, 405):
+        # Some providers gate /models; a 404/405 means the host answered and did
+        # not reject the key. That is the whole of a ping: model assumed.
         out["model_loaded"] = True
         out["loaded_confirmed"] = True
-        out["detail"] = f"reachable (key accepted); /models returned HTTP {r.status_code}"
+        out["detail"] = f"reachable, key not rejected; {shown} returned HTTP {r.status_code} (provider gates /models)"
+        return out
+    if r.status_code == 429:
+        out["rate_limited"] = True
+        out["detail"] = (
+            f"HTTP 429 from {shown} — rate limited (key {used}{fallback_note}); "
+            "key validity and availability NOT confirmed until the limit clears"
+        )
+        return out
+    if r.status_code >= 400:
+        kind = "server error" if r.status_code >= 500 else "unexpected client error"
+        out["detail"] = f"HTTP {r.status_code} from {shown} — provider {kind}; availability NOT confirmed"
         return out
     out["queryable"] = True
     out["model_loaded"] = True
     out["loaded_confirmed"] = True
-    out["detail"] = "reachable + key accepted (ping OK, no inference)"
+    out["detail"] = f"reachable + key {used}{fallback_note} accepted (ping OK, no inference)"
     return out
 
 
@@ -528,7 +576,9 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
                 hstatus = str(rh.json().get("status", "")).lower()
             except Exception:  # noqa: BLE001
                 pass
-            if rh.status_code == 200 and hstatus in ("ok", "", "no slot available"):
+            # A JSON status is required: a bare 200 (any web server's /health,
+            # or an empty body) is not llama.cpp saying a model is loaded.
+            if rh.status_code == 200 and hstatus in ("ok", "no slot available"):
                 # 200 → server up with a model loaded. "no slot available" means
                 # loaded AND busy serving — still ready, just saturated.
                 out["reachable"] = True
@@ -547,6 +597,7 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
         pass
 
     # (2) Standard OpenAI /v1/models listing — cache-safe, provider-agnostic.
+    shown = loggable_url(f"{endpoint}/models")
     try:
         r = httpx.get(
             f"{endpoint}/models",
@@ -554,22 +605,33 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
             timeout=httpx.Timeout(connect_timeout, read=read_timeout),
         )
     except Exception as e:  # noqa: BLE001 — connection refused/timeout = backend down
-        out["detail"] = type(e).__name__
+        out["detail"] = f"GET {shown} raised {type(e).__name__}: {str(e) or '(no message)'}"
         return out
     out["reachable"] = True
+    out["http_status"] = r.status_code
     if r.status_code >= 400:
         # Reachable but the /models call itself errored even with m3's own token.
         # Server is UP but we can't read its model list — report honestly, don't
-        # claim "no model". (A 401 here means m3's real calls would fail too.)
-        out["detail"] = f"HTTP {r.status_code} on /models (auth rejected — check LM_API_TOKEN)"
+        # claim "no model". Each status names its own cause.
+        if r.status_code in (401, 403):
+            why = "auth rejected — m3's real calls fail too; set LM_API_TOKEN to the server's key (m3 secret set LM_API_TOKEN)"
+        elif r.status_code == 404:
+            why = "route not found — the endpoint URL is probably missing its /v1 suffix"
+        elif r.status_code >= 500:
+            why = "server error — the LLM server is up but failing"
+        else:
+            why = "unexpected client error"
+        out["detail"] = f"HTTP {r.status_code} from {shown} ({why})"
         return out
     try:
         data = r.json()
-    except Exception:  # noqa: BLE001
-        out["detail"] = "unparseable /models response"
+    except Exception as e:  # noqa: BLE001
+        out["detail"] = f"unparseable response from {shown} (HTTP {r.status_code}, {type(e).__name__})"
         return out
     out["queryable"] = True
-    models = data.get("data", data.get("models", []))
+    models = data.get("data", data.get("models", [])) if isinstance(data, dict) else data
+    if not isinstance(models, list):
+        models = []
     for m in models:
         mid = (m.get("id") or m.get("model", "")) if isinstance(m, dict) else str(m)
         low = mid.lower()
@@ -634,8 +696,8 @@ def _smoke_llm_completion(base_url: str, model: str, token: str, timeout_s: floa
     from llm_failover import apply_thinking_suppression
 
     res = {"ok": False, "status": "down", "model_id": model, "detail": ""}
+    smoke_url = f"{base_url}/chat/completions"
     try:
-        smoke_url = f"{base_url}/chat/completions"
         # Mirror what the product now sends: every local chat caller suppresses
         # reasoning-model thinking. This probe does not read `content` (a
         # well-formed choice is the whole signal), but at max_tokens=1 a
@@ -658,12 +720,21 @@ def _smoke_llm_completion(base_url: str, model: str, token: str, timeout_s: floa
             timeout=httpx.Timeout(min(3.0, timeout_s), read=timeout_s),
         )
     except Exception as e:  # noqa: BLE001 — refused/timeout = backend not taking requests
-        res["detail"] = type(e).__name__
+        res["detail"] = f"POST {loggable_url(smoke_url)} raised {type(e).__name__}: {str(e) or '(no message)'}"
         res["status"] = "down"
         return res
     if r.status_code in (401, 403):
         res["status"] = "auth_failed"
-        res["detail"] = f"HTTP {r.status_code} (auth rejected — check the profile's api_key_service)"
+        # The smoke sends LM_API_TOKEN (_llm_token), so that is the secret to fix.
+        res["detail"] = (
+            f"HTTP {r.status_code} from {loggable_url(smoke_url)} (LM_API_TOKEN rejected — m3 secret set LM_API_TOKEN)"
+        )
+        return res
+    if r.status_code == 404:
+        # A route-not-found is a wrong URL, not a missing model: "load a model"
+        # would send the operator to fix the wrong thing.
+        res["status"] = "bad_url"
+        res["detail"] = f"HTTP 404 from {loggable_url(smoke_url)} — no chat route here; check the endpoint URL (/v1)"
         return res
     if r.status_code >= 400:
         # LM Studio / Ollama return 4xx with a body like "No models loaded" /
@@ -674,7 +745,9 @@ def _smoke_llm_completion(base_url: str, model: str, token: str, timeout_s: floa
         except Exception:  # noqa: BLE001
             pass
         low = body.lower()
-        if "no model" in low or "not loaded" in low or "not found" in low or "load a model" in low:
+        if r.status_code < 500 and (
+            "no model" in low or "not loaded" in low or "not found" in low or "load a model" in low
+        ):
             res["status"] = "no_model"
         else:
             res["status"] = "bad_response"
@@ -774,7 +847,15 @@ def _inference_block_uncached() -> dict:
         endpoints = list(lf.LLM_ENDPOINTS)
         connect_to = getattr(lf, "CONNECT_TIMEOUT", 0.3)
     except Exception as e:  # noqa: BLE001
-        out["detail"] = f"llm_failover unavailable: {e}"
+        # Not "none_configured": the endpoint list could not be READ, so whether
+        # one is configured is unknown.
+        out["status"] = "unknown"
+        out["detail"] = f"llm_failover unavailable: {type(e).__name__}: {str(e) or '(no message)'}"
+        out["remedy"] = (
+            f"Could not load the LLM endpoint list (llm_failover failed to import: {type(e).__name__}: "
+            f"{str(e) or '(no message)'}), so the inference backend was not checked. Inspect: m3 doctor."
+        )
+        out["probe_error"] = out["remedy"]
         return out
 
     if not endpoints:
@@ -830,7 +911,17 @@ def _inference_block_uncached() -> dict:
         if not p.get("queryable", False) and not p.get("loaded_confirmed"):
             # Reachable but /models unreadable (e.g. auth). get_best_llm would skip
             # (raise_for_status), so failover treats this as a failed hop.
-            hop["status"] = "auth_failed" if "401" in str(p.get("detail")) or "403" in str(p.get("detail")) else "down"
+            # Structured status, never a substring of the prose detail (a URL or
+            # model id containing "401" would otherwise read as an auth failure).
+            code = p.get("http_status")
+            if code in (401, 403):
+                hop["status"] = "auth_failed"
+            elif p.get("rate_limited"):
+                hop["status"] = "rate_limited"
+            elif code == 404:
+                hop["status"] = "bad_url"
+            else:
+                hop["status"] = "down"
             hop["detail"] = p.get("detail") or "model list unreadable"
             chain.append(hop)
             continue
@@ -914,6 +1005,9 @@ def _inference_block_uncached() -> dict:
     statuses = [h["status"] for h in chain]
     if all(s == "auth_failed" for s in statuses) and statuses:
         out["status"] = "auth_failed"
+    elif statuses and all(s == "rate_limited" for s in statuses):
+        # Rate limited is not down: availability is simply unconfirmed right now.
+        out["status"] = "unknown"
     elif any(s == "no_model" for s in statuses) and not any(s == "down" for s in statuses):
         out["status"] = "no_model"
     else:
@@ -926,6 +1020,11 @@ def _inference_block_uncached() -> dict:
             f"An LLM server is up but no chat model can serve a request. "
             f"Load a model (`lms load <model>` / `ollama run <model>`); the "
             f"pipeline drains once a model serves. Failover chain: {trail}."
+        )
+    elif out["status"] == "unknown":
+        out["remedy"] = (
+            f"Every LLM endpoint answered HTTP 429 (rate limited), so availability is not "
+            f"confirmed; it re-checks on the next refresh. Failover chain: {trail}."
         )
     elif out["status"] == "auth_failed":
         out["remedy"] = (
@@ -949,14 +1048,18 @@ def _active_backend():
 
 
 def _sqlite_store(db_path: str) -> dict | None:
-    """(path, rows, last_updated) for a SQLite store file, or None if absent."""
+    """(path, rows, last_updated) for a SQLite store file, or None if absent.
+
+    A file that EXISTS but cannot be opened or read returns {"path", "error"}:
+    reporting it as absent would hide a locked/corrupt store behind "not there".
+    """
     if not db_path or not os.path.exists(db_path):
         return None
     try:
         _d = seam_dialect()
         _cm = seam_backend().open_readonly(str(db_path))
-    except Exception:  # noqa: BLE001 — unreachable store → no block to render
-        return None
+    except Exception as e:  # noqa: BLE001 — reported as present-but-unreadable
+        return {"path": db_path, "error": f"open failed: {type(e).__name__}: {str(e) or '(no message)'}"}
     try:
         with _cm as conn:
 
@@ -974,19 +1077,20 @@ def _sqlite_store(db_path: str) -> dict | None:
             elif _has("leaves"):
                 rows = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
             return {"path": db_path, "rows": rows, "last_updated": _fmt_dual_time(last)}
-    except Exception:  # noqa: BLE001 — a health probe never breaks the page
-        return None
+    except Exception as e:  # noqa: BLE001 — a health probe never breaks the page; reported, not hidden
+        return {"path": db_path, "error": f"read failed: {type(e).__name__}: {str(e) or '(no message)'}"}
 
 
 def _backend_block() -> dict:
     """Backend identity + per-store stats, backend-agnostic."""
-    out: dict[str, Any] = {"backend": "unknown", "stores": [], "note": ""}
+    out: dict[str, Any] = {"backend": "unknown", "stores": [], "note": "", "probe_errors": []}
     try:
         from memory.backends import resolve_backend_name
 
         out["backend"] = resolve_backend_name()
     except Exception as e:  # noqa: BLE001
-        out["note"] = f"backend unresolved: {e}"
+        out["note"] = f"backend unresolved: {type(e).__name__}: {str(e) or '(no message)'}"
+        out["probe_errors"].append(out["note"])
         return out
 
     if out["backend"] == "sqlite":
@@ -1020,13 +1124,17 @@ def _backend_block() -> dict:
             if ap:
                 seen.add(ap)
             st = _sqlite_store(path) if path else None
+            err = st.get("error") if st else None
+            if err:
+                out["probe_errors"].append(f"{label} store {path}: {err}")
             out["stores"].append(
                 {
                     "label": label,
                     "path": path or "(not discernible)",
                     "present": st is not None,
-                    "rows": st["rows"] if st else None,
-                    "last_updated": st["last_updated"] if st else "—",
+                    "error": err,
+                    "rows": st.get("rows") if st else None,
+                    "last_updated": st.get("last_updated", "—") if st else "—",
                     "shared": shared,
                 }
             )
@@ -1039,33 +1147,43 @@ def _backend_block() -> dict:
             from m3_core.secret_store import mask_dsn_passwords  # the one masker
 
             masked = mask_dsn_passwords(dsn) if dsn else ""
-            rows, last, reachable = None, "—", False
+            rows, last, reachable, err = None, "—", False, None
             if dsn:
                 from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
 
-                conn = pg_connect(dsn, connect_timeout=5)
-                cur = conn.cursor()
-                cur.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0")
-                rows = cur.fetchone()[0]
                 try:
-                    cur.execute("SELECT MAX(COALESCE(updated_at, created_at)) FROM memory_items")
-                    last = _fmt_dual_time(cur.fetchone()[0])
-                except Exception:  # noqa: BLE001
-                    pass
-                conn.close()
-                reachable = True
+                    conn = pg_connect(dsn, connect_timeout=5)
+                    try:
+                        cur = conn.cursor()
+                        cur.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0")
+                        rows = cur.fetchone()[0]
+                        reachable = True
+                        try:
+                            cur.execute("SELECT MAX(COALESCE(updated_at, created_at)) FROM memory_items")
+                            last = _fmt_dual_time(cur.fetchone()[0])
+                        except Exception:  # noqa: BLE001 -- the count above already proved the store
+                            pass
+                    finally:
+                        conn.close()
+                except Exception as e:  # noqa: BLE001 -- shown on the store card, not as "absent"
+                    err = mask_dsn_passwords(f"{type(e).__name__}: {str(e) or '(no message)'}")
+                    out["probe_errors"].append(f"primary store {masked}: {err}")
             out["stores"].append(
                 {
                     "label": "primary",
                     "path": masked or "(no DSN set)",
-                    "present": reachable,
+                    "present": reachable or err is not None,
+                    "error": err,
                     "rows": rows,
                     "last_updated": last,
                     "shared": False,
                 }
             )
         except Exception as e:  # noqa: BLE001
-            out["note"] = f"backend probe failed: {e}"
+            from m3_core.secret_store import mask_dsn_passwords as _mask
+
+            out["note"] = f"backend probe failed: {_mask(f'{type(e).__name__}: {e}')}"
+            out["probe_errors"].append(out["note"])
     return out
 
 
@@ -1143,27 +1261,40 @@ def _pipeline_block(core_db: str) -> dict:
             )
         gov = collect_governor(core_db)
         out["governor"] = gov if gov.get("available") else None
-    except Exception:  # noqa: BLE001 — pipeline detail is optional
-        pass
+    except Exception as e:  # noqa: BLE001 — pipeline detail is optional, but its failure is reported
+        out["probe_error"] = f"pipeline/queue stats: {type(e).__name__}: {str(e) or '(no message)'}"
     return out
 
 
 def collect_health() -> dict:
-    """One structured health snapshot for the dashboard's System Health view."""
+    """One structured health snapshot for the dashboard's System Health view.
+
+    ``probe_errors`` lists every probe that failed to RUN; the verdict refuses an
+    all-clear while it is non-empty.
+    """
+    probe_errors: list[str] = []
     core_db = ""
     try:
         from m3_sdk import resolve_db_path
 
         core_db = resolve_db_path(None)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        probe_errors.append(f"main store path: {type(e).__name__}: {str(e) or '(no message)'}")
     inference = _inference_block()
+    if inference.get("probe_error"):
+        probe_errors.append(inference["probe_error"])
     pipeline = _pipeline_block(core_db)
+    if pipeline.get("probe_error"):
+        probe_errors.append(pipeline["probe_error"])
+    backend = _backend_block()
+    probe_errors.extend(backend.get("probe_errors") or [])
+    verdict = _verdict(inference=inference, pipeline=pipeline, probe_errors=probe_errors)
     return {
-        "verdict": _verdict(inference=inference, pipeline=pipeline),
-        "backend": _backend_block(),
+        "verdict": verdict,
+        "backend": backend,
         "inference": inference,
         "cdw": _cdw_block(),
         "pipeline": pipeline,
+        "probe_errors": verdict.get("probe_errors", probe_errors),
         "generated_at": _fmt_dual_time(__import__("datetime").datetime.now(__import__("datetime").timezone.utc)),
     }

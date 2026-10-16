@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities.py
-sha1: 4569815e717c
-mtime_utc: 2026-10-13T10:22:46.370698+00:00
-generated_utc: 2026-10-13T10:23:04.493460+00:00
+sha1: 4d1b6a9b045f
+mtime_utc: 2026-10-16T15:05:03.578847+00:00
+generated_utc: 2026-10-16T15:27:52.731509+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 ## Entry points
 
-- `def main()` (line 1265)
+- `def main()` (line 1276)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -103,8 +103,8 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 650)
-- `httpx.AsyncClient()` (line 841)
+- `httpx.AsyncClient()` (line 661)
+- `httpx.AsyncClient()` (line 852)
 
 
 ---
@@ -114,8 +114,10 @@ _(none detected)_
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
+- `m3_core.errors (describe_http_failure)`
 - `m3_core.paths (configured_main_db, pin_database)`
 - `m3_core.paths (get_m3_backups_root, snapshot_stores)`
+- `m3_core.secret_store (loggable_url)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
 

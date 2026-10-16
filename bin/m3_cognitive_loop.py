@@ -1296,7 +1296,7 @@ async def run_embed_pass(args):
                 f"({type(e).__name__}: {e}). "
                 f"possible: embedder is down, "
                 f"store query failed, or an oversized row was skipped. inspect: "
-                f"check the full exception trace; run `m3 doctor --embed` to probe "
+                f"check the full exception trace; run `m3 doctor --verbose` to probe "
                 f"the embedder; check store reachability. Will retry this database "
                 f"next cycle."
             )

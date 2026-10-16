@@ -337,51 +337,32 @@ def _shared_embedder_status() -> None:
         )
         return
 
-    url = (cfg.get("fallback_url") or "http://127.0.0.1:8082").rstrip("/")
-    print(f"  mode:                    SHARED — deferring to {url}")
-    # Reject anything but http(s): the URL comes from a config file, and a
-    # malformed/hostile value (file://, custom scheme) must not turn this health
-    # check into a local-file read (bandit B310). Only http/https reach urlopen.
-    from urllib.parse import urlparse
-
-    if urlparse(url).scheme not in ("http", "https"):
-        print(
-            f"  shared server:           [WARN] fallback_url {url!r} is not http(s) "
-            "— refusing to probe. Fix .embed_config.json."
-        )
-        return
-    # Health-check the shared server. A dead endpoint here is the trap to surface.
     try:
+        _bin.ensure_on_path()
         from m3_core import tier2_client
-
-        with tier2_client.urlopen(f"{url}/health", timeout=3) as r:
-            raw = r.read().decode("utf-8", "replace").strip()
-        # Accept BOTH health contracts: the Rust m3-embed-server returns plaintext
-        # "OK", the Python embed_server_inproc.py returns JSON {"status":...}.
-        # json.loads'ing unconditionally made the Rust server's "OK" raise
-        # JSONDecodeError, so doctor false-reported a healthy :8082 as DOWN.
-        # Mirrors bin/doctor/shared_embedder_probe.py::_server_health.
-        if raw == "OK":
-            body = {"status": "ok"}
-        else:
-            body = json.loads(raw)
-        if body.get("status") == "ok":
-            print(f"  shared server:           OK (model={body.get('model')}, dim={body.get('dim')})")
-        else:
-            print(
-                f"  shared server:           [WARN] responded status={body.get('status')!r} "
-                "(not ready) — embeds will slow-cascade until it's serving."
-            )
-    except Exception as e:  # noqa: BLE001
-        print(
-            f"  shared server:           [WARN] UNREACHABLE at {url} ({type(e).__name__}) "
-            "— m3 is configured to defer to it but it's DOWN."
-        )
-        print(
-            "    Fix: start it (AgentOS_EmbedServer task or "
-            "`python bin/embed_server_inproc.py`), or run `m3 embedder unshared` "
-            "to revert to per-process embedders."
-        )
+    except Exception as e:  # noqa: BLE001 — informational only
+        print(f"  shared server:           UNKNOWN (cannot load the tier-2 client: {type(e).__name__}: {e})")
+        return
+    url, source = tier2_client.fallback_url(cfg)
+    print(f"  mode:                    SHARED — deferring to {url} ({source})")
+    # One classifier for every tier-2 check: a 401 or an untrusted certificate
+    # is a reachable server with the wrong credentials, not a dead one, and gets
+    # its own fix. Non-http(s) URLs are refused unread (bandit B310).
+    diag, body = tier2_client.health(url, timeout=3)
+    if diag.state == "ok":
+        model = body.get("model")
+        detail = f"model={model}, dim={body.get('dim')}" if model else "plaintext OK; no model reported"
+        print(f"  shared server:           OK ({detail})")
+        return
+    if diag.state == "loading":
+        print("  shared server:           [WARN] up but still loading its model — embeds slow-cascade until it serves.")
+        return
+    label = "UNREACHABLE" if not diag.answering else "MISCONFIGURED"
+    print(f"  shared server:           [WARN] {label} ({diag.state}) — {diag.detail}")
+    if diag.fix:
+        print(f"    fix: {diag.fix}")
+    if not diag.answering:
+        print("    m3 is configured to defer to it; or run `m3 embedder unshared` to revert to per-process embedders.")
 
 
 def _crypto_section() -> None:

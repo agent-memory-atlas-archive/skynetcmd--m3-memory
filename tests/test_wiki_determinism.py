@@ -449,7 +449,7 @@ def test_synth_cache_roundtrip(tmp_path):
             import wiki.synth as s
 
             orig = s._call_model
-            s._call_model = lambda cfg, prompt: calls.__setitem__("n", calls["n"] + 1) or "cached prose"
+            s._call_model = lambda cfg, prompt, *_failures: calls.__setitem__("n", calls["n"] + 1) or "cached prose"
             try:
                 return super().lede_for(cluster)
             finally:

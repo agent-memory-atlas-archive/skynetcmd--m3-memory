@@ -119,4 +119,25 @@ def test_tier2_rejects_unparseable_200_body(monkeypatch):
         },
     )
     res = _doctor._probe_tier2()
-    assert res["status"] == "unhealthy-200", res
+    # Not the health contract at all: something else answers the port.
+    assert res["status"] == "bad-response", res
+    assert res["fix"] and "embed.fallback_url" in res["fix"], res
+
+
+def test_tier2_401_is_auth_rejected_with_the_token_fix(monkeypatch):
+    """A token-protected server answering 401 is reachable and misconfigured,
+    never "offline" with no error (the old probe said unhealthy-401, error=None)."""
+    import io
+    import urllib.error
+
+    from m3_core import tier2_client
+
+    def fake(url, *, timeout, data=None, extra_headers=None):
+        raise urllib.error.HTTPError(url, 401, "Unauthorized", None, io.BytesIO(b""))
+
+    monkeypatch.setattr(tier2_client, "urlopen", fake)
+    monkeypatch.setattr(tier2_client, "_token", lambda: None)
+    res = _doctor._probe_tier2()
+    assert res["status"] == "auth-rejected", res
+    assert "m3 secret set M3_EMBED_SERVER_TOKEN" in res["fix"]
+    assert res["source"], "doctor must say where the URL came from"

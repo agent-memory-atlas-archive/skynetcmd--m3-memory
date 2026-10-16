@@ -304,6 +304,10 @@ class ModelDriftJudge:
         self.calls = 0
         self.cache_hits = 0
         self.abstentions = 0
+        from .synth import CallFailures
+
+        self.failure_reasons = CallFailures()
+        self._last_failure = ""
 
     def judge(self, synthesis_content: str, source_contents: list[str]) -> DriftVerdict:
         digest = _judge_hash(synthesis_content, source_contents, self.cfg.model)
@@ -311,12 +315,16 @@ class ModelDriftJudge:
         if cached is not None:
             self.cache_hits += 1
             return DriftVerdict(synthesis_id="?", drifted=cached[0], reason=cached[1])
+        self._last_failure = ""
         reply, finish_reason = self._call_model(_build_judge_prompt(synthesis_content, source_contents))
         self.calls += 1
         drifted, reason = _parse_verdict(reply or "")
         if drifted is None:
             self.abstentions += 1
-            if not (reply or "").strip() and finish_reason == "length":
+            if self._last_failure:
+                # The call itself failed: say so on the verdict, not "empty judge reply".
+                reason = f"judge call failed (fail-open, no finding): {self._last_failure}"
+            elif not (reply or "").strip() and finish_reason == "length":
                 # Distinguish "model ran out of room" from "model said nothing":
                 # a bare "empty judge reply" sent readers looking at the wrong
                 # thing entirely (see DriftConfig.max_tokens).
@@ -330,13 +338,17 @@ class ModelDriftJudge:
         return DriftVerdict(synthesis_id="?", drifted=drifted, reason=reason)
 
     def summary(self) -> str:
-        return f"citation-drift judge: {self.calls} judged, {self.cache_hits} cached, {self.abstentions} abstained"
+        return (
+            f"citation-drift judge: {self.calls} judged, {self.cache_hits} cached, {self.abstentions} abstained"
+            + self.failure_reasons.suffix()
+        )
 
     # -- model call (mirrors wiki.synth._call_model) -------------------------
     def _call_model(self, user_prompt: str) -> tuple[str | None, str]:
         try:
             import httpx  # lazy: only when --check-drift is used
         except ImportError:
+            self._fail("httpx is not installed")
             return None, ""
         headers = {"Content-Type": "application/json"}
         token = self._resolve_key(self.cfg.api_key_service)
@@ -372,8 +384,15 @@ class ModelDriftJudge:
             r.raise_for_status()
             choice = r.json()["choices"][0]
             return choice["message"].get("content"), (choice.get("finish_reason") or "")
-        except Exception:
-            return None, ""  # fail open
+        except Exception as e:  # noqa: BLE001 -- fail open; the reason is recorded on the verdict and summary
+            from .synth import call_failure_reason
+
+            self._fail(call_failure_reason(e, self.cfg.url))
+            return None, ""
+
+    def _fail(self, reason: str) -> None:
+        self._last_failure = reason
+        self.failure_reasons.record(reason)
 
     @staticmethod
     def _resolve_key(service: str) -> str | None:

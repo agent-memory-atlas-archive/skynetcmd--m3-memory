@@ -116,7 +116,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 # Only when run (m3 runs this file as __main__): an importer keeps its own logging.
@@ -165,21 +165,81 @@ def _get_proxy_key() -> str:
     return ctx.get_secret("MCP_PROXY_KEY") or ""
 
 
-def _check_auth(request: Request):
-    """Simple Bearer token check. Returns True if authorized."""
+_no_key_warned = False
+
+
+def _auth_failure(request: Request) -> str | None:
+    """None if the request may proceed, else the client-facing reason it may not.
+
+    No MCP_PROXY_KEY configured = open, by design for the loopback default
+    (`mcp.proxy_host` 127.0.0.1); a non-loopback bind without a key is refused
+    at startup (_refuse_unauthenticated_bind), so "open" never reaches a network
+    bind. Warned ONCE, not per request -- a per-request line buries everything.
+    """
+    global _no_key_warned
     master = _get_proxy_key()
     if not master:
-        # If no key is set, allow (for local development/first-time setup)
-        # However, a warning should be logged.
-        log.warning("MCP_PROXY_KEY is NOT set. Proxy is running without authentication!")
-        return True
+        if not _no_key_warned:
+            _no_key_warned = True
+            log.warning(
+                "MCP_PROXY_KEY is not set: the proxy accepts every request on %s:%s without authentication. "
+                "Set one with: m3 secret set MCP_PROXY_KEY",
+                PROXY_HOST,
+                PROXY_PORT,
+            )
+        return None
 
     auth_header = request.headers.get("Authorization", "")
+    if not auth_header:
+        return "Unauthorized: no Authorization header (send 'Authorization: Bearer <MCP_PROXY_KEY>')"
     if not auth_header.startswith("Bearer "):
-        return False
+        return "Unauthorized: Authorization header is not a Bearer token (send 'Authorization: Bearer <MCP_PROXY_KEY>')"
 
-    token = auth_header.replace("Bearer ", "").strip()
-    return token == master
+    import hmac
+
+    token = auth_header[len("Bearer ") :].strip()
+    if not hmac.compare_digest(token.encode("utf-8"), master.encode("utf-8")):
+        return "Unauthorized: MCP_PROXY_KEY mismatch"
+    return None
+
+
+def _check_auth(request: Request) -> bool:
+    """True if authorized. See _auth_failure for the reason when not."""
+    return _auth_failure(request) is None
+
+
+def _refuse_unauthenticated_bind(host: str) -> str | None:
+    """The startup refusal text for a non-loopback bind with no MCP_PROXY_KEY, else None."""
+    from m3_http_auth import is_loopback
+
+    if is_loopback(host) or _get_proxy_key():
+        return None
+    return (
+        f"Refusing to bind {host}:{PROXY_PORT} without MCP_PROXY_KEY: a non-loopback bind would let anyone "
+        "who can reach it run m3 tools through this proxy.\n"
+        "  Set a key:  m3 secret set MCP_PROXY_KEY\n"
+        "  Or bind loopback (the default):  m3 config set mcp.proxy_host 127.0.0.1"
+    )
+
+
+class BackendConfigError(ValueError):
+    """The proxy's own backend configuration is unusable (e.g. a required key is missing).
+
+    Its own class so a JSONDecodeError (also a ValueError) from a backend reply
+    is never reported to the client as a configuration problem.
+    """
+
+
+# The secret each backend base URL is called with, named in auth-failure
+# messages. Mirrors _route + the _*_key() resolvers below.
+def _backend_key_names(base_url: str) -> str:
+    return {
+        ANTHROPIC_BASE: "ANTHROPIC_API_KEY",
+        GOOGLE_AI_BASE: "GEMINI_API_KEY",
+        GROK_BASE: "XAI_API_KEY",
+        PERPLEXITY_BASE: "PERPLEXITY_API_KEY",
+        OPENAI_BASE: "OPENAI_API_KEY",
+    }.get(base_url, "LM_STUDIO_API_KEY (falls back to LM_API_TOKEN)")
 
 
 def _get_key(service: str) -> str:
@@ -246,6 +306,9 @@ _catalog_mod = None
 _catalog_specs_by_name: dict = {}
 _catalog_tool_schemas: list[dict] = []
 _catalog_built = False
+_catalog_error = ""  # last build failure; non-empty -> /health reports degraded (503)
+_catalog_retry_at = 0.0
+_CATALOG_RETRY_S = 30.0
 
 
 # ── MCP tool definitions ──────────────────────────────────────────────────────
@@ -302,8 +365,13 @@ def catalog_schemas(include_destructive: bool) -> tuple[list[dict], dict]:
 
 def _build_catalog_tools() -> tuple[list[dict], dict]:
     """Lazy-load mcp_tool_catalog and build (openai_schemas, name->spec), cached."""
-    global _catalog_mod, _catalog_specs_by_name, _catalog_tool_schemas, _catalog_built
+    global _catalog_mod, _catalog_specs_by_name, _catalog_tool_schemas, _catalog_built, _catalog_error
+    global _catalog_retry_at
     if _catalog_built:
+        return _catalog_tool_schemas, _catalog_specs_by_name
+    # A failed build is retried after a cooldown, not cached forever: caching it
+    # left the proxy serving zero tools while /health said "ok".
+    if _catalog_error and time.monotonic() < _catalog_retry_at:
         return _catalog_tool_schemas, _catalog_specs_by_name
     try:
         import mcp_tool_catalog as cat
@@ -312,10 +380,18 @@ def _build_catalog_tools() -> tuple[list[dict], dict]:
         schemas, by_name = catalog_schemas(ALLOW_DESTRUCTIVE)
         _catalog_specs_by_name.update(by_name)
         _catalog_tool_schemas.extend(schemas)
+        _catalog_error = ""
+        _catalog_built = True
         log.info(f"Catalog loaded: {len(_catalog_tool_schemas)} tools (ALLOW_DESTRUCTIVE={ALLOW_DESTRUCTIVE})")
     except Exception as exc:
-        log.error(f"Failed to load mcp_tool_catalog: {type(exc).__name__}: {exc}")
-    _catalog_built = True
+        _catalog_error = f"{type(exc).__name__}: {str(exc) or '(no message)'}"
+        _catalog_retry_at = time.monotonic() + _CATALOG_RETRY_S
+        log.exception(
+            "Failed to load mcp_tool_catalog (%s); requests get NO m3 tools until it loads. "
+            'Retrying in %ss. Inspect: the traceback below, or `python -c "import mcp_tool_catalog"` from bin/.',
+            _catalog_error,
+            int(_CATALOG_RETRY_S),
+        )
     return _catalog_tool_schemas, _catalog_specs_by_name
 
 
@@ -591,11 +667,11 @@ def _get_client() -> httpx.AsyncClient:
 async def _call_anthropic(messages: list, model: str, tools: list, max_tokens: int) -> dict:
     api_key = _anthropic_key()
     if not api_key:
-        raise ValueError(
-            "ANTHROPIC_API_KEY is required but not found. "
-            "observed: no API key in environment or system keyring. "
-            "possible: ANTHROPIC_API_KEY env var unset or cleared, keyring not accessible, or credentials were removed. "
-            "inspect: (1) check env: `env | grep ANTHROPIC_API_KEY`; (2) check keyring: `keyring get system ANTHROPIC_API_KEY` (Linux/macOS) or Credential Manager (Windows); (3) if missing, run `m3 configure` to set the key."
+        # m3 never reads a secret from the environment (m3_core.secret_store), so
+        # the old "check env" advice pointed at a source that cannot help.
+        raise BackendConfigError(
+            "ANTHROPIC_API_KEY is required for claude models but did not resolve "
+            "(secrets file -> keyring -> vault). Store it: m3 secret set ANTHROPIC_API_KEY"
         )
 
     system, converted = _messages_oai_to_anthropic(messages)
@@ -704,8 +780,18 @@ async def _run_with_tools(
                 raw = fn.get("arguments", "{}")
                 try:
                     args = json.loads(raw) if isinstance(raw, str) else raw
-                except json.JSONDecodeError:
-                    args = {}
+                    if not isinstance(args, dict):
+                        raise TypeError(f"arguments decode to {type(args).__name__}, not an object")
+                except (json.JSONDecodeError, TypeError) as exc:
+                    # Running the tool with {} would execute it with defaults the
+                    # model never asked for; hand the model the error instead.
+                    log.warning(f"Tool {name}: malformed arguments from model={model} agent={agent_id}: {exc}")
+                    return {
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": f"Tool error: {name} was not run -- its arguments are not a valid JSON object ({exc}). "
+                        "Re-issue the call with a JSON object of arguments.",
+                    }
                 log.info(f"  -> {name}({list(args.keys())})")
                 try:
                     async with asyncio.timeout(300.0):
@@ -722,7 +808,14 @@ async def _run_with_tools(
         tool_results = await gather_or_cancel(*[_exec_one(tc) for tc in tool_calls])
         working.extend(tool_results)
 
-    log.warning(f"Reached MAX_TOOL_ROUNDS ({MAX_TOOL_ROUNDS}) - returning last response")
+    note = (
+        f"stopped after MAX_TOOL_ROUNDS ({MAX_TOOL_ROUNDS}) tool rounds; the model was still requesting tools, "
+        "so this response is the last intermediate one, not a final answer"
+    )
+    log.warning(f"model={model} agent={agent_id}: {note}")
+    # Visible to the client, which otherwise cannot tell a truncated loop from a finished one.
+    if isinstance(response, dict):
+        response["m3_warning"] = note
     return response  # type: ignore[return-value]
 
 
@@ -797,10 +890,16 @@ app = FastAPI(
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> JSONResponse:
     catalog_schemas, _ = _build_catalog_tools()
+    body = _health_body(catalog_schemas)
+    return JSONResponse(content=body, status_code=503 if _catalog_error else 200)
+
+
+def _health_body(catalog_schemas: list) -> dict:
     return {
-        "status": "ok",
+        "status": "degraded" if _catalog_error else "ok",
+        "catalog_error": _catalog_error or None,
         "proxy": "mcp-tool-proxy",
         "version": "2.0.0",
         "tool_counts": {
@@ -825,8 +924,9 @@ async def health() -> dict:
 @app.get("/v1/models")
 async def list_models(request: Request) -> dict:
     """Return known Claude models + whatever LM Studio currently has loaded."""
-    if not _check_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized: MCP_PROXY_KEY mismatch")
+    denied = _auth_failure(request)
+    if denied:
+        raise HTTPException(status_code=401, detail=denied)
 
     models: list[dict] = [
         {"id": "claude-sonnet-4-6", "object": "model", "owned_by": "anthropic"},
@@ -873,19 +973,44 @@ class ChatCompletionRequest(BaseModel):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> JSONResponse:
-    if not _check_auth(request):
+    denied = _auth_failure(request)
+    if denied:
         return JSONResponse(
             status_code=401,
-            content={"error": {"message": "Unauthorized: MCP_PROXY_KEY mismatch", "type": "auth_error"}},
+            content={"error": {"message": denied, "type": "auth_error"}},
         )
+    # A malformed body is a CLIENT fault: WARNING (not ERROR) here, and the
+    # reason goes back to the client, which is the party that can fix it.
     try:
         raw_body = await request.json()
+    except Exception as exc:  # noqa: BLE001 -- JSONDecodeError / UnicodeDecodeError
+        reason = f"request body is not valid JSON: {type(exc).__name__}: {exc}"
+        log.warning("Rejected request from %s: %s", request.client.host if request.client else "?", reason)
+        return JSONResponse(status_code=400, content={"error": {"message": reason, "type": "invalid_request"}})
+    try:
+        if not isinstance(raw_body, dict):
+            raise TypeError(f"expected a JSON object, got {type(raw_body).__name__}")
         body = ChatCompletionRequest(**raw_body)
-    except Exception as exc:
-        log.error(f"Invalid request body: {exc}")
+    except (ValidationError, TypeError) as exc:
+        if isinstance(exc, ValidationError):
+            # loc + msg only: pydantic's "input" field would echo message content back into the log.
+            problems = [f"{'.'.join(str(p) for p in e.get('loc', ()))}: {e.get('msg', '')}" for e in exc.errors()]
+        else:
+            problems = [str(exc)]
+        log.warning(
+            "Rejected request from %s: invalid chat completion body: %s",
+            request.client.host if request.client else "?",
+            "; ".join(problems)[:500],
+        )
         return JSONResponse(
             status_code=400,
-            content={"error": {"message": "Invalid request body", "type": "invalid_request"}},
+            content={
+                "error": {
+                    "message": "Invalid request body: " + "; ".join(problems),
+                    "type": "invalid_request",
+                    "details": problems,
+                }
+            },
         )
 
     model = body.model
@@ -924,41 +1049,64 @@ async def chat_completions(request: Request) -> JSONResponse:
             )
         return JSONResponse(content=result)
 
-    except httpx.ConnectError:
-        log.error("Backend unreachable")
-        return JSONResponse(
-            status_code=503,
-            content={"error": {"message": "Backend unreachable", "type": "connection_error"}},
+    except Exception as exc:  # noqa: BLE001 -- every failure is mapped to a named client error below
+        return _backend_error_response(exc, model=model, btype=btype, base_url=_burl, agent_id=agent_id)
+
+
+def _backend_error_response(
+    exc: BaseException, *, model: str, btype: str, base_url: str, agent_id: str
+) -> JSONResponse:
+    """Map a failure in the tool loop to a client response + one log line naming
+    backend, URL (scheme://host/path only), model and cause."""
+    from m3_core.secret_store import loggable_url
+
+    url = loggable_url(base_url)
+    where = f"backend={btype} url={url} model={model} agent={agent_id}"
+    cause = f"{type(exc).__name__}: {str(exc) or '(no message)'}"
+
+    def _err(status: int, kind: str, message: str) -> JSONResponse:
+        return JSONResponse(status_code=status, content={"error": {"message": message, "type": kind}})
+
+    if isinstance(exc, httpx.TimeoutException):
+        # Connect/read/write/pool timeouts alike: name the settings that bound them.
+        log.error("Backend timed out (%s): %s", where, cause)
+        return _err(
+            504,
+            "timeout_error",
+            f"Backend {url} timed out ({type(exc).__name__}) for model {model}. "
+            f"Limits: connect {CONNECT_TIMEOUT}s, read {READ_TIMEOUT}s (setting llm.read_timeout_s).",
         )
-    except httpx.ReadTimeout:
-        log.error("Backend read timeout")
-        return JSONResponse(
-            status_code=504,
-            content={"error": {"message": "Backend read timeout", "type": "timeout_error"}},
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        body = (exc.response.text or "")[:200]
+        log.error("Backend returned HTTP %s (%s): %s", status, where, body)
+        if status in (401, 403):
+            # The upstream rejected the PROXY's backend key. Passing 401 through
+            # would read as "your MCP_PROXY_KEY is wrong" to the client.
+            return _err(
+                502,
+                "backend_auth_error",
+                f"Backend {url} rejected the proxy's API key with HTTP {status} for model {model}. "
+                f"This is the proxy's {_backend_key_names(base_url)}, not your MCP_PROXY_KEY; "
+                f"fix it on the proxy host: m3 secret set {_backend_key_names(base_url).split(' ')[0]}",
+            )
+        return _err(
+            status if 400 <= status < 500 else 502,
+            "backend_error",
+            f"Backend {url} returned HTTP {status} for model {model}: {body}",
         )
-    except httpx.HTTPStatusError as exc:
-        log.error(f"Backend HTTP {exc.response.status_code}")
-        return JSONResponse(
-            status_code=exc.response.status_code,
-            content={
-                "error": {
-                    "message": exc.response.text[:300],
-                    "type": "backend_error",
-                }
-            },
-        )
-    except ValueError as exc:
-        log.error(f"Config error: {exc}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"message": "Configuration error. Check server logs.", "type": "config_error"}},
-        )
-    except Exception as exc:
-        log.error(f"Unexpected: {type(exc).__name__}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"message": type(exc).__name__, "type": "proxy_error"}},
-        )
+    if isinstance(exc, httpx.TransportError):
+        # DNS failure, refused connection, TLS failure, reset: the backend was not reached.
+        log.error("Backend unreachable (%s): %s", where, cause)
+        return _err(503, "connection_error", f"Backend {url} unreachable for model {model}: {cause}")
+    if isinstance(exc, json.JSONDecodeError):
+        log.error("Backend reply was not JSON (%s): %s", where, cause)
+        return _err(502, "backend_error", f"Backend {url} returned a non-JSON reply for model {model}: {cause}")
+    if isinstance(exc, BackendConfigError):
+        log.error("Proxy configuration error (%s): %s", where, exc)
+        return _err(500, "config_error", str(exc))
+    log.error("Unexpected proxy failure (%s): %s", where, cause, exc_info=exc)
+    return _err(500, "proxy_error", f"Unexpected proxy failure for model {model}: {cause}. See the proxy log.")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -983,6 +1131,11 @@ if __name__ == "__main__":
         log.warning(
             "mcp-proxy: single-instance lock DEGRADED (%s) — running without enforcement", _instance_lock.status.value
         )
+
+    _refusal = _refuse_unauthenticated_bind(PROXY_HOST)
+    if _refusal:
+        log.error(_refusal)
+        sys.exit(1)
 
     catalog_schemas, _ = _build_catalog_tools()
     total_tools = len(PROTOCOL_TOOLS) + len(DEBUG_TOOLS) + len(catalog_schemas)

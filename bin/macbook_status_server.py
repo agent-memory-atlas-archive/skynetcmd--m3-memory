@@ -77,12 +77,12 @@ def check_lm_studio():
             return "up", "no models loaded"
     except urllib.error.HTTPError as exc:
         if exc.code == 401:
-            return "up", "auth required"
-        return "down", f"HTTP {exc.code}"
-    except OSError:
-        return "down", "unreachable"
+            return "up", f"auth required (HTTP 401 from {url})"
+        return "down", f"HTTP {exc.code} from {url}"
+    except OSError as exc:
+        return "down", f"unreachable: {url}: {getattr(exc, 'reason', None) or exc or type(exc).__name__}"
     except Exception as exc:
-        return "down", type(exc).__name__
+        return "down", f"{type(exc).__name__} from {url}: {str(exc) or '(no message)'}"
 
 
 def get_status() -> dict:

@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server.py
-sha1: fbeea7cabb70
-mtime_utc: 2026-10-16T12:52:01.568674+00:00
-generated_utc: 2026-10-16T12:53:54.145911+00:00
+sha1: 246bb599fbe4
+mtime_utc: 2026-10-16T14:51:18.725612+00:00
+generated_utc: 2026-10-16T15:27:52.503148+00:00
 private: false
 ---
 

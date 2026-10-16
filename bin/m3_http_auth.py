@@ -45,8 +45,6 @@ import enum
 import hmac
 import logging
 
-from m3_core.errors import log_swallowed
-
 logger = logging.getLogger("m3_http_auth")
 
 # Service name for the shared bearer token. Survives auth_utils._sanitize_service
@@ -90,6 +88,10 @@ class TokenState(enum.Enum):
     OK = "ok"
     MISSING = "missing"
     PRESENT_UNDECRYPTABLE = "present_undecryptable"
+    # The secret did not resolve AND the vault probe itself failed, so whether a
+    # row exists is not known. Hazard: reporting MISSING here would advise
+    # --generate-token over a row that may be the working token.
+    UNKNOWN = "unknown"
 
 
 class StaticTokenVerifier:
@@ -127,10 +129,48 @@ class StaticTokenVerifier:
     async def verify_token(self, token: str):
         """MCP TokenVerifier hook. Returns an AccessToken, or None to reject."""
         if not self.matches(token):
+            # The MCP hook is handed only the token, so no client address here;
+            # the token itself is never logged.
+            log_rejected_bearer(None, "m3 serve")
             return None
         from mcp.server.auth.provider import AccessToken
 
         return AccessToken(token=token, client_id=_CLIENT_ID, scopes=[], expires_at=None)
+
+
+# Rejected-bearer logging is rate-limited: an unauthenticated scanner must not be
+# able to flood the log. One INFO line per window, carrying the count suppressed.
+_REJECT_LOG_WINDOW_S = 60.0
+_reject_state = {"last": 0.0, "suppressed": 0}
+
+
+def log_rejected_bearer(client: str | None, surface: str) -> None:
+    """Record a rejected bearer attempt server-side (rate-limited INFO, no token)."""
+    import time
+
+    now = time.monotonic()
+    if now - _reject_state["last"] < _REJECT_LOG_WINDOW_S and _reject_state["last"]:
+        _reject_state["suppressed"] += 1
+        return
+    suppressed = int(_reject_state["suppressed"])
+    _reject_state["last"], _reject_state["suppressed"] = now, 0
+    logger.info(
+        "%s: rejected a request with a missing or wrong bearer token (client %s)%s. "
+        "If this is your own client, check it sends 'Authorization: Bearer <%s>' (m3 serve --show-token).",
+        surface,
+        client or "unknown -- not available at this hook",
+        f"; {suppressed} more rejected in the previous {int(_REJECT_LOG_WINDOW_S)}s" if suppressed else "",
+        SECRET_NAME,
+    )
+
+
+def _mcp_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("mcp")
+    except Exception:  # noqa: BLE001 -- only enriches an error message
+        return "unknown"
 
 
 def generate_token() -> str:
@@ -151,7 +191,7 @@ def is_loopback(host: str | None) -> bool:
     return (host or "").strip().lower() in _LOOPBACK_HOSTS
 
 
-def _vault_row_exists(service: str = SECRET_NAME) -> bool:
+def _vault_row_exists(service: str = SECRET_NAME) -> bool | None:
     """True if the vault holds a row for `service` (regardless of decryptability).
 
     Read-only, through the backend seam so it is correct on both SQLite and
@@ -159,9 +199,9 @@ def _vault_row_exists(service: str = SECRET_NAME) -> bool:
     on PG there is no vault FILE, and gating on one would make this silently
     report "no row" for every PG install.
 
-    Best-effort by contract: any failure returns False, which degrades the
-    diagnosis to MISSING rather than breaking startup. A worse message is
-    acceptable; a crash in a probe is not.
+    Best-effort by contract: any failure returns None ("could not tell") and
+    never raises -- a crash in a probe is not acceptable. None must NOT collapse
+    to False: that reports MISSING and advises minting a second token.
     """
     conn = None
     _cm = None
@@ -178,8 +218,15 @@ def _vault_row_exists(service: str = SECRET_NAME) -> bool:
         )
         return cur.fetchone() is not None
     except Exception as exc:  # noqa: BLE001 -- diagnosis aid, never fatal
-        log_swallowed(logger, exc, f"vault probe for {service} failed: {type(exc).__name__}: {exc}")
-        return False
+        # WARNING, not log_swallowed: the outcome (TokenState.UNKNOWN) is
+        # operator-visible and this line is its only cause record.
+        logger.warning(
+            "vault probe for %s failed, so whether a token row exists is unknown: %s: %s. inspect: the vault store (m3 doctor)",
+            service,
+            type(exc).__name__,
+            str(exc) or "(no message)",
+        )
+        return None
     finally:
         if _cm is not None and conn is not None:
             try:
@@ -199,7 +246,10 @@ def resolve_token(service: str = SECRET_NAME) -> tuple[str | None, TokenState]:
     token = (get_secret(service) or "").strip()
     if token:
         return token, TokenState.OK
-    if _vault_row_exists(service):
+    row = _vault_row_exists(service)
+    if row is None:
+        return None, TokenState.UNKNOWN
+    if row:
         return None, TokenState.PRESENT_UNDECRYPTABLE
     return None, TokenState.MISSING
 
@@ -226,6 +276,16 @@ def preflight(host: str, token: str | None, state: TokenState, service: str = SE
             "         or confirm AGENT_OS_MASTER_KEY is present in the OS keyring.\n"
             "  Do NOT run `m3 serve --generate-token` to work around this: it mints a\n"
             "  SECOND token, replicates it, and can clobber the working one."
+        )
+
+    if state is TokenState.UNKNOWN:
+        raise AuthConfigError(
+            f"Could not resolve '{service}', and the vault probe FAILED, so whether a\n"
+            "  token row exists on this device is unknown (cause: the logged\n"
+            f"  'vault probe for {service} failed' warning).\n"
+            "  Inspect: the vault store and its backend -- run `m3 doctor`.\n"
+            "  Do NOT run `m3 serve --generate-token` until that is resolved: if a token\n"
+            "  exists it mints a SECOND one, replicates it, and can clobber the working one."
         )
 
     if state is TokenState.MISSING or not token:
@@ -394,13 +454,16 @@ def attach(mcp, host: str, port: int, token: str, public_hosts: list[str] | None
     """
     if not hasattr(mcp, _VERIFIER_ATTR):
         raise AuthConfigError(
-            f"incompatible mcp version: FastMCP has no '{_VERIFIER_ATTR}' attribute -- "
-            "refusing to start unauthenticated (the token would be silently ignored)"
+            f"incompatible mcp version (installed: {_mcp_version()}): FastMCP has no '{_VERIFIER_ATTR}' "
+            "attribute -- refusing to start unauthenticated (the token would be silently ignored). "
+            "Install the mcp version pinned by m3-memory (m3 upgrade)."
         )
     settings = getattr(mcp, "settings", None)
     if settings is None or not hasattr(settings, "auth"):
         raise AuthConfigError(
-            "incompatible mcp version: FastMCP settings has no 'auth' field -- refusing to start unauthenticated"
+            f"incompatible mcp version (installed: {_mcp_version()}): FastMCP "
+            f"{'has no settings object' if settings is None else 'settings has no auth field'} -- "
+            "refusing to start unauthenticated. Install the mcp version pinned by m3-memory (m3 upgrade)."
         )
 
     auth_settings, verifier = build_auth(host, port, token)
@@ -423,9 +486,18 @@ def attach(mcp, host: str, port: int, token: str, public_hosts: list[str] | None
 
     # Read back: an assignment that did not stick is indistinguishable from one
     # that was never made, and both serve the catalog unauthenticated.
-    if getattr(mcp, _VERIFIER_ATTR, None) is not verifier or settings.auth is not auth_settings:
+    failed = [
+        name
+        for name, ok in (
+            (f"FastMCP.{_VERIFIER_ATTR} (token verifier)", getattr(mcp, _VERIFIER_ATTR, None) is verifier),
+            ("FastMCP.settings.auth (AuthSettings)", settings.auth is auth_settings),
+        )
+        if not ok
+    ]
+    if failed:
         raise AuthConfigError(
-            "auth wiring did not take effect on the FastMCP instance -- refusing to start unauthenticated"
+            f"auth wiring did not take effect on the FastMCP instance (mcp {_mcp_version()}): "
+            f"read-back failed for {', '.join(failed)} -- refusing to start unauthenticated"
         )
     # Same read-back for the rebinding allowlist, wherever it landed. An
     # allowlist that did not stick is indistinguishable from one never built.

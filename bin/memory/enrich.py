@@ -65,7 +65,7 @@ _AUTO_ENTITIES_CACHE: dict[str, list[str]] = {}
 # now re-exports the names through `_resolve_mc_callbacks()` so legacy
 # patching still works.
 from m3_core.config import settings as _m3cfg
-from m3_core.errors import log_swallowed
+from m3_core.errors import log_http_fault, log_swallowed
 
 from .config import FACT_ENRICH_CONCURRENCY
 
@@ -162,7 +162,7 @@ async def _auto_classify(content: str, title: str) -> str:
             _CLASSIFY_CACHE[c_hash] = m_type
             return cast("str", m_type)
     except Exception as e:
-        log_swallowed(logger, e, f"Auto-classification failed: {e}")
+        log_http_fault(logger, e, "auto-classification", "falling back to type 'note'")
         from llm_failover import clear_failover_caches
 
         clear_failover_caches()
@@ -236,7 +236,7 @@ async def _maybe_auto_title(content: str, title: str, force: bool = False) -> st
         _AUTO_TITLE_CACHE[c_hash] = out
         return out
     except Exception as e:
-        log_swallowed(logger, e, f"auto-title failed: {e}")
+        log_http_fault(logger, e, "auto-title", "keeping the original title")
         return title
 
 
@@ -301,7 +301,7 @@ async def _maybe_auto_entities(content: str, force: bool = False) -> list[str]:
         _AUTO_ENTITIES_CACHE[c_hash] = ents
         return list(ents)
     except Exception as e:
-        log_swallowed(logger, e, f"auto-entities failed: {e}")
+        log_http_fault(logger, e, "auto-entities", "no entities extracted for this item")
         return []
 
 

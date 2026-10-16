@@ -126,7 +126,7 @@ async def create_embeddings(req: EmbeddingRequest):
         entry["embedding"] = l2_normalize(np.array(entry["embedding"]))
 
     elapsed = time.perf_counter() - t0
-    logger.info(f"Embedded {len(texts)} text(s) via llama-server in {elapsed:.3f}s (Vulkan)")
+    logger.info(f"Embedded {len(texts)} text(s) via llama-server in {elapsed:.3f}s (CPU, -ngl 0)")
 
     return data
 
@@ -150,27 +150,61 @@ def start_llama_server():
     ]
 
     logger.info(f"Starting llama-server: {' '.join(cmd)}")
-    # Its own process group on Windows (the OS seam owns the flag; {} on POSIX,
-    # where LLAMA_SERVER_EXE can name a POSIX llama-server).
-    llama_process = subprocess.Popen(cmd, **new_process_group_kwargs())
+    try:
+        # Its own process group on Windows (the OS seam owns the flag; {} on POSIX,
+        # where LLAMA_SERVER_EXE can name a POSIX llama-server).
+        llama_process = subprocess.Popen(cmd, **new_process_group_kwargs())
+    except OSError as e:
+        logger.error(
+            f"observed: cannot launch llama-server at {LLAMA_SERVER_EXE} ({type(e).__name__}: {e}). "
+            "fix: set embed.gpu.llama_server_exe (env M3_LLAMA_SERVER_EXE) to the llama-server executable"
+        )
+        return False
 
     # Wait for server to be ready
     max_retries = 30
-    for i in range(max_retries):
-        try:
-            import httpx
-
-            with httpx.Client() as client:
+    last = "no answer yet"
+    with httpx.Client() as client:
+        for _ in range(max_retries):
+            rc = llama_process.poll()
+            if rc is not None:
+                logger.error(
+                    f"observed: llama-server ({LLAMA_SERVER_EXE}) exited with code {rc} before answering "
+                    f"http://localhost:{LLAMA_PORT}/health (model {GGUF_MODEL_PATH}). inspect: run the command "
+                    "above by hand to see its output (it is started with --log-disable)"
+                )
+                return False
+            try:
                 r = client.get(f"http://localhost:{LLAMA_PORT}/health")
                 if r.status_code == 200:
                     logger.info("llama-server is ready.")
                     return True
-        except Exception:
-            pass
-        time.sleep(1)
+                last = f"HTTP {r.status_code}: {r.text[:200]}"
+            except httpx.HTTPError as e:
+                last = f"{type(e).__name__}: {e}"
+            time.sleep(1)
 
-    logger.error("llama-server failed to start in 30s")
+    logger.error(
+        f"observed: llama-server ({LLAMA_SERVER_EXE}, pid {llama_process.pid}) did not answer "
+        f"http://localhost:{LLAMA_PORT}/health within {max_retries}s; last: {last}. Stopping it so it does "
+        f"not hold port {LLAMA_PORT}. inspect: the model at {GGUF_MODEL_PATH} (a large model may need longer), "
+        "and whether another process owns that port (embed.gpu.llama_port / M3_LLAMA_PORT)"
+    )
+    _stop_llama()
     return False
+
+
+def _stop_llama() -> None:
+    """Stop the llama-server child, if any. CTRL_BREAK_EVENT is Windows-only and
+    pairs with the process group above; on POSIX use terminate() (SIGTERM). A bare
+    signal.CTRL_BREAK_EVENT reference AttributeErrors off Windows (§1)."""
+    if not llama_process or llama_process.poll() is not None:
+        return
+    _brk = getattr(signal, "CTRL_BREAK_EVENT", None)
+    if is_windows() and _brk is not None:
+        os.kill(llama_process.pid, _brk)
+    else:
+        llama_process.terminate()
 
 
 def main():
@@ -191,7 +225,16 @@ def main():
         sys.exit(EXIT_CONFIG_REFUSED)
 
     if not os.path.exists(GGUF_MODEL_PATH):
-        logger.error(f"Model not found at {GGUF_MODEL_PATH}")
+        origin = _m3cfg.origin_of("embed.gpu.model_path")
+        how = (
+            f"the default ./models/qwen3-q8.gguf under the current directory {os.getcwd()}"
+            if origin == "default"
+            else f"embed.gpu.model_path (origin: {origin})"
+        )
+        logger.error(
+            f"observed: no model at {GGUF_MODEL_PATH} ({how}). fix: set embed.gpu.model_path "
+            "(env M3_GGUF_MODEL_PATH) to the GGUF file"
+        )
         sys.exit(1)
 
     if start_llama_server():
@@ -200,14 +243,7 @@ def main():
         finally:
             if llama_process:
                 logger.info("Stopping llama-server...")
-                # CTRL_BREAK_EVENT is Windows-only and pairs with the process
-                # group above; on POSIX use terminate() (SIGTERM). A bare
-                # signal.CTRL_BREAK_EVENT reference AttributeErrors off Windows (§1).
-                _brk = getattr(signal, "CTRL_BREAK_EVENT", None)
-                if is_windows() and _brk is not None:
-                    os.kill(llama_process.pid, _brk)
-                else:
-                    llama_process.terminate()
+                _stop_llama()
     else:
         sys.exit(1)
 

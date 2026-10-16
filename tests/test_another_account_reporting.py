@@ -85,7 +85,9 @@ def test_a_failed_ownership_check_is_reported_not_read_as_ours(monkeypatch):
 
 def _stub_probe(monkeypatch, p, *, others: bool, started: list):
     monkeypatch.setattr(p, "_read_config", lambda: {"disable_inproc_embedder": True})
-    monkeypatch.setattr(p, "_server_health", lambda *a, **k: ("ok", {}))
+    from m3_core.tier2_client import Diagnosis
+
+    monkeypatch.setattr(p, "_server_health", lambda *a, **k: (Diagnosis("ok", "serving"), {}))
     monkeypatch.setattr(p, "_classify_embed_model", lambda cfg, body: (None, []))
     monkeypatch.setattr(p, "_keepalive", lambda: ("rust-service", False))
     monkeypatch.setattr(p, "_detect_inproc_env_leak", lambda: [])

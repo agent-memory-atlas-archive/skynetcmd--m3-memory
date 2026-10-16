@@ -13,7 +13,7 @@ Probes the four things that go wrong silently in deployments:
 
 Output is a structured dict, never a message string. Callers can both
 display it and act on it programmatically (e.g. agent decides to install
-the 8082 service when `tier_2.status == 'offline'`).
+the 8082 service when `tier_2.status == 'refused'`; `tier_2.fix` names the repair).
 
 Design notes:
   - Robustness: empty fields are `None`, not missing keys
@@ -53,6 +53,18 @@ logger = logging.getLogger("memory.doctor")
 
 # Per-probe timeout — short, because hangs are exactly what this tool diagnoses.
 PROBE_TIMEOUT_S = 2.0
+# The roundtrip's wall-clock budget. Shorter than one tier's read timeout on
+# purpose (doctor must answer), so its message says so instead of "hung".
+_ROUNDTRIP_DEADLINE_S = 10.0
+
+
+def _embed_read_timeout() -> object:
+    try:
+        from memory import config as _mc
+
+        return _mc.EMBED_TIMEOUT_READ
+    except Exception:  # noqa: BLE001 — only decorates a message
+        return "?"
 
 
 def _probe_tier1() -> dict[str, Any]:
@@ -137,17 +149,22 @@ def _probe_tier1() -> dict[str, Any]:
         emb = _embed_mod._get_embedded_embedder()
         res["embedder_initialized"] = emb is not None
         res["status"] = "online" if emb is not None else "init-failed"
+        if emb is None:
+            res["error"] = getattr(_embed_mod, "_EMBEDDED_INIT_ERROR", None) or (
+                "the embedder returned None without recording a cause; inspect: the MCP server log"
+            )
     except Exception as e:
         res["error"] = f"embedder init: {type(e).__name__}: {e}"
     return res
 
 
 def _probe_tier2() -> dict[str, Any]:
-    """Tier 2: the shared embed server at embed.fallback_url (default :8082)."""
+    """Tier 2: the shared embed server, at the URL the cascade uses (and where
+    that URL came from)."""
     from m3_core import tier2_client
 
-    url = _m3cfg.setting("embed.fallback_url") or "http://127.0.0.1:8082"
-    return tier2_client.probe(url, PROBE_TIMEOUT_S)
+    url, source = tier2_client.fallback_url()
+    return tier2_client.probe(url, PROBE_TIMEOUT_S, source=source)
 
 
 def _probe_db() -> dict[str, Any]:
@@ -222,18 +239,29 @@ async def _probe_roundtrip() -> dict[str, Any]:
     try:
         from memory import embed as _embed_mod
 
+        before = _embed_mod.get_embed_backend_stats()
         t0 = time.perf_counter()
-        async with asyncio.timeout(10.0):
+        async with asyncio.timeout(_ROUNDTRIP_DEADLINE_S):
             vec, model = await _embed_mod._embed("ping")
         res["latency_ms"] = int((time.perf_counter() - t0) * 1000)
         if vec is None:
-            res["error"] = "all cascade tiers returned no vector"
+            res["error"] = (
+                "every cascade tier returned no vector; the tier lines above and the embed log say why each failed"
+            )
             return res
+        after = _embed_mod.get_embed_backend_stats()
+        res["served_by"] = next((k for k, v in after.items() if v > before.get(k, 0)), "cache")
         res["dim"] = len(vec)
         res["model"] = model
         res["status"] = "ok"
     except TimeoutError:
-        res["error"] = "embed call exceeded 10s timeout — cascade is hung"
+        # Observed: no answer within the deadline. Inferred, not checked: a tier
+        # is slow (a single tier's read timeout is longer than this deadline).
+        res["error"] = (
+            f"embed call gave no answer within {_ROUNDTRIP_DEADLINE_S:.0f}s (doctor's deadline; one tier's read "
+            f"timeout is {_embed_read_timeout()}s, so a slow tier can exceed it without being hung). "
+            "inspect: the tier-2 line above and the embed log"
+        )
     except Exception as e:
         res["error"] = f"{type(e).__name__}: {e}"
     return res
@@ -286,14 +314,13 @@ async def memory_doctor_impl() -> dict[str, Any]:
         issues.append(f"tier-1 error: {tier1['error']}")
 
     if not t2_ok:
+        where_from = f", from {tier2['source']}" if tier2.get("source") else ""
         issues.append(
-            f"tier-2 (m3-embed-server at {tier2['url']}) is {tier2['status']}: {tier2.get('error') or 'no error'}"
+            f"tier-2 embed server at {tier2['url']}{where_from} is {tier2['status']}: "
+            f"{tier2.get('error') or 'the probe recorded no detail'}"
         )
-        recommendations.append(
-            "Install/start the m3-embed-server service. On Windows: "
-            "`m3-embed-server.exe install && m3-embed-server.exe start` from "
-            "an elevated shell. On Unix: systemd unit (see EMBED_DEPLOYMENT.md)."
-        )
+        if tier2.get("fix"):
+            recommendations.append(f"tier-2 ({tier2['status']}): {tier2['fix']}")
 
     if not db_ok:
         issues.append(f"DB error: {db.get('error')}")

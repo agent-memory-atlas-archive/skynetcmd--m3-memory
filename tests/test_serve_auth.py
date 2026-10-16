@@ -602,6 +602,29 @@ class TestCliSurface(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(self.cli._cmd_serve(self._args(show_token=True)), 1)
 
+    def test_generate_token_refuses_when_existence_is_unknown(self):
+        """A failed vault probe may be hiding a working token: never mint over it unasked."""
+        import contextlib
+        import io
+
+        A.resolve_token = lambda *a, **k: (None, A.TokenState.UNKNOWN)
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            self.assertEqual(self.cli._cmd_serve(self._args(generate_token=True)), 1)
+        self.assertIn("unknown", err.getvalue())
+        self.assertIn("m3 doctor", err.getvalue())
+
+    def test_show_token_reports_unknown_not_missing(self):
+        import contextlib
+        import io
+
+        A.resolve_token = lambda *a, **k: (None, A.TokenState.UNKNOWN)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(self.cli._cmd_serve(self._args(show_token=True)), 1)
+        self.assertIn("UNKNOWN", err.getvalue())
+        self.assertNotIn("not configured", out.getvalue())
+
 
 class TestResolveTokenStates(unittest.TestCase):
     """resolve_token's three-way outcome, with the secret seam stubbed."""
@@ -637,20 +660,35 @@ class TestResolveTokenStates(unittest.TestCase):
         _, state = self._run_with("   ", False)
         self.assertEqual(state, A.TokenState.MISSING)
 
-    def test_vault_probe_failure_degrades_to_missing(self):
-        """A probe is a diagnosis aid; it must never crash startup."""
-        import m3_sdk
+    def test_vault_probe_failure_is_unknown_not_missing(self):
+        """A probe is a diagnosis aid; it must never crash startup -- and a FAILED
+        probe must not read as "no row", which would advise --generate-token."""
+        import auth_utils
 
-        real_secret = m3_sdk.get_secret
-        real_backend = A.__dict__.get("_vault_row_exists")
-        m3_sdk.get_secret = lambda _s: None
+        real = auth_utils._backend
+
+        def _broken():
+            raise RuntimeError("vault store unreachable (test)")
+
+        auth_utils._backend = _broken
         try:
-            # Real _vault_row_exists against a broken seam -> False, not an exception.
-            self.assertFalse(A._vault_row_exists("definitely-not-a-real-service-name"))
+            with self.assertLogs("m3_http_auth", level="WARNING") as logs:
+                self.assertIsNone(A._vault_row_exists("definitely-not-a-real-service-name"))
         finally:
-            m3_sdk.get_secret = real_secret
-            if real_backend is not None:
-                A._vault_row_exists = real_backend
+            auth_utils._backend = real
+        self.assertIn("vault store unreachable", "\n".join(logs.output))
+
+    def test_failed_probe_resolves_to_unknown(self):
+        _, state = self._run_with(None, None)
+        self.assertEqual(state, A.TokenState.UNKNOWN)
+
+    def test_unknown_preflight_refuses_and_never_advises_generate(self):
+        with self.assertRaises(A.AuthConfigError) as ei:
+            A.preflight("127.0.0.1", None, A.TokenState.UNKNOWN)
+        msg = str(ei.exception)
+        self.assertIn("Do NOT run `m3 serve --generate-token`", msg)
+        self.assertNotIn("Generate a token:", msg)
+        self.assertIn("m3 doctor", msg)
 
 
 if __name__ == "__main__":
@@ -709,3 +747,32 @@ class TestMcpImportSeam(unittest.TestCase):
             "these import an mcp server class directly instead of via "
             "`from mcp_compat import FastMCP`; they will fail on mcp 2.x: " + ", ".join(sorted(offenders)),
         )
+
+
+class TestRejectionLogging(unittest.IsolatedAsyncioTestCase):
+    """A rejected bearer is recorded server-side (rate-limited, never the token)."""
+
+    def setUp(self):
+        A._reject_state.update(last=0.0, suppressed=0)
+        self.addCleanup(A._reject_state.update, last=0.0, suppressed=0)
+
+    async def test_a_rejection_is_logged_once_without_the_token(self):
+        v = A.StaticTokenVerifier(A.generate_token())
+        bad = "attacker-supplied-value-0123456789abcdef"
+        with self.assertLogs("m3_http_auth", level="INFO") as logs:
+            self.assertIsNone(await v.verify_token(bad))
+            self.assertIsNone(await v.verify_token(bad))
+        text = "\n".join(logs.output)
+        self.assertEqual(len(logs.output), 1, "a burst must collapse to one line")
+        self.assertNotIn(bad, text)
+        self.assertIn("rejected", text)
+
+
+class TestAttachNamesTheVersion(unittest.TestCase):
+    def test_missing_verifier_attribute_names_the_installed_mcp_version(self):
+        class _NoVerifier:
+            settings = object()
+
+        with self.assertRaises(A.AuthConfigError) as ei:
+            A.attach(_NoVerifier(), "127.0.0.1", 8080, A.generate_token())
+        self.assertIn("installed:", str(ei.exception))

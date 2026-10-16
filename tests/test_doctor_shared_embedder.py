@@ -48,3 +48,26 @@ def test_malformed_config_is_reported_not_raised(monkeypatch, tmp_path, capsys):
     # must not raise
     out = _run(monkeypatch, tmp_path, capsys)
     assert "UNKNOWN" in out or "unreadable" in out
+
+
+def test_a_401_is_misconfigured_not_down(monkeypatch, tmp_path, capsys):
+    """A token-protected server answering 401 is up: the report names the token
+    fix, never "UNREACHABLE" or "start it"."""
+    import io
+    import urllib.error
+
+    from m3_core import tier2_client
+
+    (tmp_path / ".embed_config.json").write_text(
+        json.dumps({"disable_inproc_embedder": True, "fallback_url": "http://127.0.0.1:8082"})
+    )
+
+    def fake(url, *, timeout, data=None, extra_headers=None):
+        raise urllib.error.HTTPError(url, 401, "Unauthorized", None, io.BytesIO(b""))
+
+    monkeypatch.setattr(tier2_client, "urlopen", fake)
+    monkeypatch.setattr(tier2_client, "_token", lambda: None)
+    out = _run(monkeypatch, tmp_path, capsys)
+    assert "MISCONFIGURED (auth-rejected)" in out
+    assert "m3 secret set M3_EMBED_SERVER_TOKEN" in out
+    assert "UNREACHABLE" not in out and "unshared" not in out

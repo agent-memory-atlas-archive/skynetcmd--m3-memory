@@ -106,6 +106,7 @@ def test_health_routes_render():
             "UNKNOWN",
             "LLM FAILOVER ACTIVE",
             "INFERENCE BACKEND DOWN",
+            "UNVERIFIED",
         )
     )
     assert "report time:" in pbody
@@ -680,3 +681,153 @@ def test_inference_block_cloud_endpoint_never_smokes(monkeypatch):
     inf = H._inference_block_uncached()
     assert inf["status"] == "ok"
     assert inf["backend"] == "Anthropic"
+
+
+# ── Status classification: each HTTP status names its own cause ──────────────
+
+
+@pytest.mark.parametrize(
+    ("status", "confirmed", "flag"),
+    [(404, True, None), (405, True, None), (429, False, "rate_limited"), (500, False, None), (503, False, None)],
+)
+def test_cloud_models_status_is_not_blanket_reachable(monkeypatch, status, confirmed, flag):
+    """Only 404/405 (provider gates /models) count as a ping; 429 and 5xx are not confirmed."""
+    import auth_utils
+    import dashboard.health as H
+    import httpx
+
+    monkeypatch.setattr(auth_utils, "get_api_key", lambda svc: "sk-x")
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _R(status, {}))
+    out = H._probe_cloud_endpoint("https://api.x.ai/v1/chat/completions", "XAI_API_KEY", 0.3, 4.0)
+    assert out["loaded_confirmed"] is confirmed
+    assert out["http_status"] == status
+    if flag:
+        assert out.get(flag)
+    if not confirmed:
+        assert "key accepted" not in out["detail"]
+
+
+def test_cloud_message_names_the_secret_actually_sent(monkeypatch):
+    """The profile names XAI_API_KEY but it is blank; LM_API_TOKEN was sent -> say so."""
+    import auth_utils
+    import dashboard.health as H
+    import httpx
+
+    monkeypatch.setattr(auth_utils, "get_api_key", lambda svc: "tok" if svc == "LM_API_TOKEN" else None)
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _R(401, {}))
+    out = H._probe_cloud_endpoint("https://api.x.ai/v1/chat/completions", "XAI_API_KEY", 0.3, 4.0)
+    assert "LM_API_TOKEN" in out["detail"] and "fell back from XAI_API_KEY" in out["detail"]
+
+
+@pytest.mark.parametrize(("status", "word"), [(401, "auth rejected"), (404, "/v1"), (502, "server error")])
+def test_local_models_error_names_its_cause(monkeypatch, status, word):
+    import dashboard.health as H
+    import httpx
+
+    def _get(url, headers=None, timeout=None):
+        if url.endswith("/models") and "/api/v0/" not in url:
+            return _R(status, {})
+        raise httpx.ConnectError("not this server")
+
+    monkeypatch.setattr(httpx, "get", _get)
+    out = H._probe_llm_endpoint("http://127.0.0.1:9999/v1", 0.3, 1.0)
+    assert out["http_status"] == status
+    assert word in out["detail"]
+    if status != 401:
+        assert "auth rejected" not in out["detail"]
+
+
+def test_llama_health_200_without_json_status_is_not_a_loaded_model(monkeypatch):
+    import dashboard.health as H
+    import httpx
+
+    class _NoJson(_R):
+        def json(self):
+            raise ValueError("not json")
+
+    def _get(url, headers=None, timeout=None):
+        if url.endswith("/health"):
+            return _NoJson(200)
+        if url.endswith("/models") and "/api/v0/" not in url:
+            return _R(200, {"data": []})
+        raise httpx.ConnectError("no")
+
+    monkeypatch.setattr(httpx, "get", _get)
+    out = H._probe_llm_endpoint("http://127.0.0.1:9999/v1", 0.3, 1.0)
+    assert not out["loaded_confirmed"]
+    assert "llama.cpp" not in out["detail"]
+
+
+def test_chain_reads_structured_status_not_detail_substrings():
+    """A detail that merely contains "401" (a port, a model id) is not an auth failure."""
+    import dashboard.health as H
+
+    p = _probe("http://h:4010/v1", "custom", reachable=True, queryable=False, model_loaded=False)
+    p["http_status"] = 500
+    p["detail"] = "HTTP 500 from http://h:4010/v1/models (server error) model-401"
+    H._BLOCK_CACHE.clear()
+    import llm_failover as lf
+
+    mp = pytest.MonkeyPatch()
+    try:
+        mp.setattr(lf, "LLM_ENDPOINTS", ["http://h:4010/v1"])
+        mp.setattr(H, "_probe_llm_endpoint", lambda *a, **k: dict(p))
+        inf = H._inference_block_uncached()
+    finally:
+        mp.undo()
+    assert inf["chain"][0]["status"] == "down"
+
+
+def test_smoke_404_is_bad_url_not_no_model(monkeypatch):
+    import dashboard.health as H
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _R(404, {}, text="Not Found"))
+    res = H._smoke_llm_completion("http://127.0.0.1:9/v1", "m", "tok")
+    assert res["status"] == "bad_url"
+
+
+def test_smoke_auth_failure_names_lm_api_token(monkeypatch):
+    import dashboard.health as H
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _R(401, {}))
+    res = H._smoke_llm_completion("http://127.0.0.1:9/v1", "m", "tok")
+    assert res["status"] == "auth_failed" and "LM_API_TOKEN" in res["detail"]
+
+
+def test_llm_failover_import_failure_is_unknown_not_unconfigured(monkeypatch):
+    import dashboard.health as H
+
+    monkeypatch.setitem(sys.modules, "llm_failover", None)
+    inf = H._inference_block_uncached()
+    assert inf["status"] == "unknown"
+    assert inf.get("probe_error") and "m3 doctor" in inf["remedy"]
+
+
+def test_probe_errors_block_an_all_clear(monkeypatch):
+    import dashboard.health as H
+
+    errs = ["governor telemetry: RuntimeError: boom"]
+    monkeypatch.setattr(H, "_unembedded_count", lambda *a: 0)
+    v = H._verdict(inference={"status": "ok"}, pipeline={"pipelines": []}, probe_errors=errs)
+    if v["label"] in ("NEEDS SETUP", "UNKNOWN"):
+        pytest.skip(skip_reason("env", f"status_summary on this box reports {v['label']}"))
+    assert v["label"] != "HEALTHY" and v["tone"] != "ok"
+    assert any("boom" in r for r in v["reasons"])
+
+
+def test_unreadable_store_is_present_with_error_not_absent(tmp_path, monkeypatch):
+    import dashboard.health as H
+
+    f = tmp_path / "locked.db"
+    f.write_bytes(b"x")
+
+    class _B:
+        def open_readonly(self, path):
+            raise PermissionError("locked (test)")
+
+    monkeypatch.setattr(H, "seam_backend", lambda: _B())
+    st = H._sqlite_store(str(f))
+    assert st is not None and "locked (test)" in st["error"]
+    assert H._sqlite_store(str(tmp_path / "missing.db")) is None
