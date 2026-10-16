@@ -1086,6 +1086,13 @@ the policy is forward-going only.
 
 ### Added
 
+- **Agent mail can wake waiters at once instead of on a one-second poll.** When
+  the Rust core's dispatch doorbell (`m3-dispatchd`) is running, sending a
+  message rings it and each agent's waiter is woken immediately, once per burst
+  (fifty messages, one wake). It runs on local IPC only and does no
+  cryptography. Without it, waiters poll as before. **Affected:** installs
+  running `m3-dispatchd` · **Action:** none · **Data status:** none.
+
 - **Semantic search on SQLite keeps vectors in memory.** With a Rust core that
   has the vector index, m3 holds each store's vectors in memory at a quarter of
   their size and reads only the nearest rows from the database, instead of every

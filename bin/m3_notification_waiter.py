@@ -633,6 +633,31 @@ def main() -> int:
     return _wait_once(args)
 
 
+# Longest one doorbell wait blocks before the waiter confirms by query anyway: a
+# ring lost in transit then costs at most this much delay, never a lost message.
+_BELL_WAIT_S = 60.0
+
+
+def _doorbell_endpoint(engine_root: str) -> str | None:
+    """The m3-dispatchd endpoint for this engine root, or None (no doorbell:
+    a stripped payload, or the client not importable)."""
+    try:
+        from m3_core import doorbell
+
+        return doorbell.endpoint_for(engine_root)
+    except ImportError:
+        return None
+
+
+def _doorbell_wait(endpoint: str | None, agent_ids: list[str], timeout_s: float) -> dict | None:
+    """Block on the doorbell; None when there is no daemon to block on."""
+    if not endpoint:
+        return None
+    from m3_core import doorbell
+
+    return doorbell.wait(endpoint, agent_ids, timeout_s)
+
+
 def _wait_once(args) -> int:
     stores = notification_stores(args.engine_root)
     # STARTUP SWEEP -- stamp receipt on anything already waiting, BEFORE the
@@ -665,13 +690,21 @@ def _wait_once(args) -> int:
         )
         return 1
     deadline = time.time() + args.timeout
+    bell = _doorbell_endpoint(args.engine_root)
 
     while time.time() < deadline:
-        time.sleep(args.interval)
-        cur_fp = change_token(stores)
-        if cur_fp == fp:
-            continue  # nothing written at all
-        fp = cur_fp
+        # With m3-dispatchd running, block until a writer rings instead of
+        # checking once a second. Every outcome -- mail, resync, timeout --
+        # falls through to the SAME confirmation below, so the exit contract is
+        # unchanged; the bounded wait is the safety net for a lost ring. No
+        # daemon (None): poll the change token as before.
+        woke = _doorbell_wait(bell, args.agent_ids, min(_BELL_WAIT_S, max(0.0, deadline - time.time())))
+        if woke is None:
+            time.sleep(args.interval)
+            cur_fp = change_token(stores)
+            if cur_fp == fp:
+                continue  # nothing written at all
+            fp = cur_fp
         hits = {}
         for a in args.agent_ids:
             now = unread_ids(a)

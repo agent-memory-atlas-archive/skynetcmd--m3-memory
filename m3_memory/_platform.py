@@ -399,6 +399,32 @@ def user_service_runtime_dir() -> str | None:
     return None
 
 
+def dispatch_endpoint(engine_root: str) -> str:
+    """Where this engine root's dispatch doorbell (m3-dispatchd) listens.
+
+    One per engine root, so two stores (or a test's sandbox) never share a
+    daemon. Windows: a named pipe, per user and per root. Elsewhere: a Unix
+    socket in the root's ``.internal`` directory, or under the temp directory
+    when that path would exceed the socket path limit (104 bytes on macOS).
+    The name suffix is a non-security hash of the root (usedforsecurity=False:
+    outside the FIPS boundary, as for content keys).
+    """
+    import hashlib
+
+    root = os.path.abspath(engine_root)
+    tag = hashlib.sha256(root.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
+    if is_windows():
+        import getpass
+
+        return rf"\\.\pipe\m3-dispatch-{getpass.getuser()}-{tag}"
+    path = os.path.join(root, ".internal", "dispatch.sock")
+    if len(path.encode("utf-8")) < 100:
+        return path
+    import tempfile
+
+    return os.path.join(tempfile.gettempdir(), f"m3-dispatch-{current_uid()}-{tag}.sock")
+
+
 def port_listener_is_mine(port: int, procs: Any) -> bool | None:
     """Whether one of this user's processes listens on TCP ``port``.
 

@@ -31,6 +31,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import cast
 
+from m3_core.errors import log_swallowed
 from m3_core.paths import node_id
 
 from . import records
@@ -584,6 +585,23 @@ def _store_for_id(notification_id: int | str):
         yield conn, "notifications"
 
 
+def _ring_doorbell(agent_id: str) -> None:
+    """Wake ``agent_id``'s waiter through m3-dispatchd, if one is running.
+
+    The doorbell only says when to look: the message is already committed and
+    is read through this module as before. Never raises.
+    """
+    try:
+        from m3_core import doorbell
+        from m3_core.paths import get_m3_engine_root
+
+        endpoint = doorbell.endpoint_for(get_m3_engine_root())
+        if endpoint:
+            doorbell.ring(endpoint, [agent_id])
+    except Exception as e:  # noqa: BLE001 — a doorbell fault must not fail a sent message
+        log_swallowed(logger, e, "doorbell ring for %s skipped (%s)", agent_id, e)
+
+
 def _dispatch_write_table() -> str:
     """The table a NEW notification is written to.
 
@@ -672,6 +690,11 @@ def notify_impl(agent_id: str, kind: str, payload: dict = None, from_agent: str 
         cur = db.execute(_sql, _args)
         new_id = _d.last_insert_id(cur)
         db.commit()
+
+    # After the commit, never before: a ring for a row that might roll back
+    # would wake a reader to an empty inbox. Best effort and bounded
+    # (doorbell.RING_BUDGET_S): with no daemon running the waiter polls as before.
+    _ring_doorbell(agent_id)
 
     # Sending is activity by the SENDER. The registry lives in the main store,
     # not the dispatch store the message went to. An unregistered sender is

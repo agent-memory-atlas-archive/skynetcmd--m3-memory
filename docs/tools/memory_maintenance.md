@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: a820d6bb2ce2
-mtime_utc: 2026-10-14T03:47:29.832312+00:00
-generated_utc: 2026-10-14T03:47:38.387291+00:00
+sha1: 4446ec421c3b
+mtime_utc: 2026-10-16T00:09:01.451063+00:00
+generated_utc: 2026-10-16T00:10:04.279428+00:00
 private: false
 ---
 
@@ -52,7 +52,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 2340)
+- `httpx.AsyncClient()` (line 2349)
 
 
 ---
@@ -73,6 +73,7 @@ _(none detected)_
 - `memory.db (flush_read_log)`
 - `memory.db (savepoint)`
 - `memory.db (tolerant_schema)`
+- `memory.orchestration (_ring_doorbell)`
 - `wiki.erasure (restrict_derived_on_erasure)`
 - `wiki.ledger (scan_and_flush_on_erasure)`
 

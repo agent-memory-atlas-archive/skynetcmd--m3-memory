@@ -1308,6 +1308,7 @@ def memory_maintenance_impl(
     from memory.db import savepoint as _savepoint
 
     report = []
+    refresh_notified: list[str] = []  # rung after the commit below
     with _db() as db:
         if decay:
             # The floor is a PER-ROW expression, not a constant: a memory the user
@@ -1501,6 +1502,7 @@ def memory_maintenance_impl(
                             f"VALUES ({_p}, 'refresh_due', {_p}, {_p})",
                             (aid, payload, now),
                         )
+                        refresh_notified.append(aid)
                         notified += 1
                     if notified:
                         report.append(f"Refresh queue: notified {notified} agent(s)")
@@ -1525,6 +1527,13 @@ def memory_maintenance_impl(
     except Exception:
         active_path = None
     report.append(_d.compact_storage(sqlite_path=active_path))
+
+    # The refresh notices committed with the block above; wake their waiters.
+    if refresh_notified:
+        from memory.orchestration import _ring_doorbell
+
+        for aid in refresh_notified:
+            _ring_doorbell(aid)
 
     return "Maintenance complete:\n" + "\n".join(report)
 

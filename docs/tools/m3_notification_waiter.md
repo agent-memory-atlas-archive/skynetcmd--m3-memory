@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: 5d06e1c9f4b7
-mtime_utc: 2026-10-12T21:35:23.544145+00:00
-generated_utc: 2026-10-12T21:35:24.553504+00:00
+sha1: fcbeab8cac2c
+mtime_utc: 2026-10-16T00:09:58.102364+00:00
+generated_utc: 2026-10-16T00:10:04.173038+00:00
 private: false
 ---
 
@@ -78,6 +78,7 @@ _(none detected)_
 
 ## Notable external imports
 
+- `m3_core (doorbell)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (notification_store_paths)`
