@@ -31,42 +31,12 @@ sys.path.insert(0, str(REPO / "bin"))
 
 
 def _make_min_schema(db_path: Path) -> None:
-    """Create the minimum schema embed_backfill operates on.
-    Mirrors test_observer.py's pattern but adds
-    memory_embeddings.content_hash which embed_backfill writes to.
-    """
-    conn = sqlite3.connect(str(db_path))
-    conn.executescript("""
-        CREATE TABLE memory_items (
-            id TEXT PRIMARY KEY,
-            type TEXT,
-            title TEXT,
-            content TEXT,
-            metadata_json TEXT,
-            agent_id TEXT,
-            change_agent TEXT,
-            importance REAL,
-            source TEXT,
-            is_deleted INTEGER DEFAULT 0,
-            created_at TEXT,
-            updated_at TEXT,
-            user_id TEXT,
-            scope TEXT,
-            variant TEXT
-        );
-        CREATE TABLE memory_embeddings (
-            id TEXT PRIMARY KEY,
-            memory_id TEXT,
-            embedding BLOB,
-            embed_model TEXT,
-            dim INTEGER,
-            created_at TEXT,
-            content_hash TEXT,
-            UNIQUE(memory_id, embed_model)
-        );
-    """)
-    conn.commit()
-    conn.close()
+    """The real main schema (memory_items + memory_embeddings with content_hash,
+    which embed_backfill writes). A hand-built store is one the lazy migrator
+    cannot upgrade, and its failure now raises instead of being logged."""
+    from conftest import create_full_main_schema
+
+    create_full_main_schema(db_path)
 
 
 def _seed_rows(db_path: Path, rows: list[dict]) -> None:

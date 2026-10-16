@@ -148,7 +148,7 @@ class TestOversizeGuardMeasuresTokens(unittest.TestCase):
         zh = ["数据库", "连接", "失败", "重试", "记录", "详细", "错误", "信息"]
         big = "".join(random.choice(zh) + random.choice("，。；、") for _ in range(2800))
         self.assertLessEqual(len(big.encode("utf-8")), 32_768, "fixture must pass the BYTE guard to be meaningful")
-        self.assertGreater(L._token_budget(big), L._TOKEN_BUDGET, "fixture must exceed the TOKEN budget")
+        self.assertGreater(L._token_budget(big), L._token_budget_limit(), "fixture must exceed the TOKEN budget")
 
         sent = []
 

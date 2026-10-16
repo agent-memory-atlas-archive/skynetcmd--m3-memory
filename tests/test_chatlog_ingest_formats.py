@@ -185,7 +185,7 @@ def test_infer_provider(model, expected):
 
 # ─── End-to-end: --transcript-path ingest via _ingest() ───────────────────────
 
-from conftest import create_memory_items_schema, isolate_chatlog_env
+from conftest import create_full_chatlog_schema, isolate_chatlog_env
 
 
 @pytest.fixture
@@ -198,7 +198,7 @@ def ingest_env(tmp_path, monkeypatch):
 
     monkeypatch.setattr(chatlog_ingest, "_cursor_path", lambda: str(cursor_file))
 
-    create_memory_items_schema(paths["db_path"])
+    create_full_chatlog_schema(paths["db_path"])
     yield {"db": paths["db_path"], "cursor": cursor_file}
 
 

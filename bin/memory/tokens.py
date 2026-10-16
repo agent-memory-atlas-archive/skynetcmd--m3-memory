@@ -115,9 +115,31 @@ def __getattr__(name: str) -> int:
 
 
 logger = logging.getLogger("memory.tokens")
-# Exception types already reported from the Rust tokenizer: a failing core
-# fails on every call, and one WARNING per type says so without flooding.
-_RUST_FAILURES_NOTED: set[str] = set()
+# (counter, exception type) pairs already reported: a failing counter fails on
+# every call, and one WARNING per type says so without flooding.
+_COUNTER_FAILURES_NOTED: set[tuple[str, str]] = set()
+
+
+def _note_counter_failure(counter: str, exc: Exception, n_texts: int, inspect: str) -> None:
+    """Report an exact token counter's failure: WARNING once per (counter,
+    exception type), DEBUG after. The caller falls through to the next tier."""
+    kind = type(exc).__name__
+    if (counter, kind) in _COUNTER_FAILURES_NOTED:
+        logger.debug("%s failed again (%s: %s)", counter, kind, exc)
+        return
+    _COUNTER_FAILURES_NOTED.add((counter, kind))
+    logger.warning(
+        "%s failed (%s: %s) on a batch of %d; token counts fall back to the next tier "
+        "(at worst the conservative estimator: more, smaller windows). Further %s failures "
+        "log at DEBUG. inspect: %s",
+        counter,
+        kind,
+        exc,
+        n_texts,
+        kind,
+        inspect,
+    )
+
 
 # Bytes-per-token divisor for the estimator's byte term. Deliberately 3 (not 4):
 # 4 is the English ratio and under-estimates every denser content type.
@@ -168,21 +190,8 @@ def _rust_count_tokens(texts: Sequence[str]) -> list[int] | None:
         return None
     try:
         counts = rs.count_tokens(list(texts))
-    except Exception as exc:  # noqa: BLE001 — falls back to the estimator; reported once per type
-        kind = type(exc).__name__
-        if kind not in _RUST_FAILURES_NOTED:
-            _RUST_FAILURES_NOTED.add(kind)
-            logger.warning(
-                "Rust tokenizer count_tokens failed (%s: %s) on a batch of %d; token counts fall "
-                "back to the conservative estimator (more, smaller windows). Further %s failures "
-                "log at DEBUG. Check the core with `m3 doctor`.",
-                kind,
-                exc,
-                len(texts),
-                kind,
-            )
-        else:
-            logger.debug("Rust tokenizer count_tokens failed again (%s: %s)", kind, exc)
+    except Exception as exc:  # noqa: BLE001 — falls back to the next tier; reported once per type
+        _note_counter_failure("Rust tokenizer count_tokens", exc, len(texts), "the core with `m3 doctor`")
         return None
     if not isinstance(counts, (list, tuple)) or len(counts) != len(texts):
         return None  # shape mismatch: do not trust a partial answer
@@ -218,7 +227,13 @@ def count_tokens(
     if exact_fn is not None:
         try:
             counts = exact_fn(texts)
-        except Exception:  # noqa: BLE001 — remote counter down: estimate instead
+        except Exception as exc:  # noqa: BLE001 — remote counter down: estimate instead; reported once per type
+            _note_counter_failure(
+                f"exact token counter {getattr(exact_fn, '__qualname__', repr(exact_fn))}",
+                exc,
+                len(texts),
+                "the exact_fn passed to count_tokens",
+            )
             counts = None
         if counts is not None and len(counts) == len(texts):
             return [int(c) for c in counts]

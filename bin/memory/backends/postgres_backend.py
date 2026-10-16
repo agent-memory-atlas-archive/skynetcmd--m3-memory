@@ -740,6 +740,10 @@ class PostgresDialect(Dialect):
     def least(self, *exprs: str) -> str:
         return f"LEAST({', '.join(exprs)})"
 
+    @override
+    def null_safe_equals(self, column: str, placeholder: str) -> str:
+        return f"{column} IS NOT DISTINCT FROM {placeholder}"
+
     _UNDEFINED_SQLSTATES = frozenset({"42703", "42P01", "42704", "42883"})
 
     @override

@@ -46,6 +46,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -500,7 +501,7 @@ def _with_owner(f: Finding, lines: list[str]) -> Finding:
 
 
 def _production_files() -> list[Path]:
-    out = [REPO / name for name in ROOT_FILES if (REPO / name).is_file()]
+    out = [REPO / name for name in ROOT_FILES if os.path.isfile(REPO / name)]
     staged = {(REPO / "m3_memory" / name).resolve() for name in ROOT_FILES}
     for root in SCAN_ROOTS:
         for p in sorted((REPO / root).rglob("*.py")):

@@ -142,10 +142,17 @@ type LogFn = Callable[[str], None]
 # memory.tokens degrades to the same conservative arithmetic rather than failing
 # to import.
 try:  # pragma: no cover - import shim for standalone execution
-    from memory.tokens import TOKEN_BUDGET as _TOKEN_BUDGET
     from memory.tokens import token_budget as _token_budget
+
+    from memory import tokens as _tokens
+
+    def _token_budget_limit() -> int:
+        # Read per call: an import-time bind ignored a changed embed.token_budget.
+        return _tokens.TOKEN_BUDGET
 except Exception:  # pragma: no cover
-    _TOKEN_BUDGET = 7000
+
+    def _token_budget_limit() -> int:
+        return 7000
 
     def _token_budget(text: str) -> int:
         if not text:
@@ -261,7 +268,7 @@ async def run_embed_loop(
                 # batch. Code/JSON/base64 fail it in the other direction
                 # (1.6-3.2 bytes/token). The byte cap is kept as a coarse outer
                 # bound; the token budget is the real guard.
-                if _token_budget(embed_text) > _TOKEN_BUDGET or len(embed_text.encode("utf-8")) > max_row_bytes:
+                if _token_budget(embed_text) > _token_budget_limit() or len(embed_text.encode("utf-8")) > max_row_bytes:
                     if oversize_mode != "subdivide":
                         counters.skipped_oversize += 1
                         continue
@@ -320,17 +327,20 @@ async def run_embed_loop(
                     )
             return False
 
-        n_written = 0
+        n_written = n_no_vector = n_bad_dim = n_write_failed = 0
         for it, (vec, model_str) in zip(items, results, strict=True):
             if vec is None:
+                n_no_vector += 1
                 continue
             if expected_dim is not None and len(vec) != expected_dim:
                 counters.skipped_bad_dim += 1
+                n_bad_dim += 1
                 continue
             try:
                 if write_embedding(it["mid"], vec, model_str, it["chash"]):
                     n_written += 1
             except Exception as e:  # noqa: BLE001
+                n_write_failed += 1
                 counters.record_error(e)
                 if log is not None:
                     log(f"WRITE_FAIL: mid={it['mid'][:8]} {type(e).__name__}: {e}")
@@ -350,11 +360,18 @@ async def run_embed_loop(
         elif items:
             counters.consecutive_fails += 1
             if log is not None:
+                # Say which of the three it was: a store that refuses writes
+                # was reported as "no usable vector", sending the reader to a
+                # healthy embedder.
                 log(
-                    f"BATCH_EMPTY: {len(items)} row(s) returned no usable vector "
-                    f"(no exception raised). possible: embedder returning None, "
-                    f"or every row failed the dim/identity gate. "
-                    f"inspect: M3_EMBED_FALLBACK_URL; try: m3 embedder status"
+                    f"BATCH_EMPTY: none of {len(items)} row(s) was stored: "
+                    f"{n_no_vector} got no vector, {n_bad_dim} had the wrong dimension, "
+                    f"{n_write_failed} failed to write. inspect: "
+                    + (
+                        "the WRITE_FAIL lines above (the store's schema or lock)"
+                        if n_write_failed
+                        else "M3_EMBED_FALLBACK_URL; try: m3 embedder status"
+                    )
                 )
         return n_written > 0
 

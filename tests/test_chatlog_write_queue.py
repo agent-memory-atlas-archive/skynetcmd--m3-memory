@@ -4,14 +4,14 @@ import json
 
 import pytest
 
-from conftest import create_memory_items_schema, isolate_chatlog_env
+from conftest import create_full_chatlog_schema, isolate_chatlog_env
 
 
 @pytest.fixture
 def chatlog_env(tmp_path, monkeypatch):
     """Set up isolated chatlog environment with temp paths."""
     paths = isolate_chatlog_env(monkeypatch, tmp_path)
-    create_memory_items_schema(paths["db_path"])
+    create_full_chatlog_schema(paths["db_path"])
     yield paths
 
 

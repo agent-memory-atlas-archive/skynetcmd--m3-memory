@@ -36,20 +36,20 @@ from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from m3_sdk import M3Context, resolve_db_path
 
+from . import chunking as _chunking
 from . import config
+from . import tokens as _tokens
 
 # These are RE-EXPORTED through the memory_core shim (`from memory.embed import
 # _chunk_for_sliding_window`, the sliding-window constants, etc. — see
 # chunking.py's module docstring). They have no direct caller inside embed.py, so
 # ruff's unused-import autofix will strip them and break the shim — keep noqa.
+# The chunk-size settings are served by __getattr__ below, not bound here.
 from .chunking import (  # noqa: F401
     _DENSE_ERR_RE,
     DENSE_MIN_SUB_CHARS,
     DENSE_TARGET_TOKENS,
     DENSE_TOKEN_OVERLAP,
-    MAX_CHARS_PER_CHUNK,
-    MIN_OVERLAP_CHARS,
-    STRIDE_CHARS,
     _chunk_for_sliding_window,
     _mean_pool,
     _order_embeddings,
@@ -62,7 +62,27 @@ from .db import _db
 # stay imported here even though embed.py has no direct caller — ruff's
 # unused-import autofix will try to drop it; keep the noqa.
 from .textprep import _augment_embed_text_with_anchors, _content_hash  # noqa: F401
-from .tokens import TOKEN_CEILING, count_tokens
+from .tokens import count_tokens
+
+# Settings this module exposes by name, read when accessed: an import-time bind
+# froze the first value, so a running daemon or a test override never saw a
+# change. memory_core's shim does not cache names listed in SETTING_NAMES.
+_SETTING_ACCESSORS = {
+    "MAX_CHARS_PER_CHUNK": lambda: _chunking.MAX_CHARS_PER_CHUNK,
+    "MIN_OVERLAP_CHARS": lambda: _chunking.MIN_OVERLAP_CHARS,
+    "STRIDE_CHARS": lambda: _chunking.STRIDE_CHARS,
+    "EMBED_BULK_CHUNK": lambda: _m3cfg.setting("embed.bulk_chunk"),
+    "ENTITY_NAME_EMBED_CACHE_MAX": lambda: _m3cfg.setting("embed.entity_name_cache_max"),
+}
+SETTING_NAMES: frozenset[str] = frozenset(_SETTING_ACCESSORS)
+
+
+def __getattr__(name: str) -> int:
+    try:
+        return cast("int", _SETTING_ACCESSORS[name]())
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
 
 logger = logging.getLogger("memory.embed")
 
@@ -949,7 +969,8 @@ def _parse_context_overflow(status_code: int, body: str) -> ContextLengthExceede
 
 def _oversize_report(texts: list[str], counts: list[int]) -> list[tuple[int, int]]:
     """(index, token_count) for every text over TOKEN_CEILING. Empty when clean."""
-    return [(i, n) for i, n in enumerate(counts) if n > TOKEN_CEILING]
+    ceiling = _tokens.TOKEN_CEILING
+    return [(i, n) for i, n in enumerate(counts) if n > ceiling]
 
 
 def _log_contract_violation(texts: list[str], over: list[tuple[int, int]]) -> None:
@@ -982,7 +1003,7 @@ def _log_contract_violation(texts: list[str], over: list[tuple[int, int]]) -> No
         len(over),
         len(texts),
         worst_n,
-        TOKEN_CEILING,
+        _tokens.TOKEN_CEILING,
         worst_i,
         len(worst),
         _content_hash(worst)[:12],
@@ -1090,7 +1111,7 @@ async def _recover_oversized_single(post_batch, text: str) -> list[float] | None
     # exists to prevent.
     if not text:
         return None
-    if len(text) <= MAX_CHARS_PER_CHUNK and count_tokens([text])[0] <= TOKEN_CEILING:
+    if len(text) <= _chunking.MAX_CHARS_PER_CHUNK and count_tokens([text])[0] <= _tokens.TOKEN_CEILING:
         return None
     subs = _chunk_for_sliding_window(text, await _exact_windows(text))
     sub_texts = [s for s, _ in subs]
@@ -1390,7 +1411,7 @@ def set_embed_override(url: str | None, model: str | None = None) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 _EMBED_SEM = asyncio.Semaphore(4)
 
-EMBED_BULK_CHUNK = _m3cfg.setting("embed.bulk_chunk")
+# Static: it sizes the semaphore below, which is built once.
 EMBED_BULK_CONCURRENCY = _m3cfg.setting("embed.bulk_concurrency")
 _EMBED_BULK_SEM = asyncio.Semaphore(EMBED_BULK_CONCURRENCY)
 
@@ -2323,7 +2344,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         )
         return [*left, *right]
 
-    chunks = [list(c) for c in batched(miss_texts, EMBED_BULK_CHUNK)]
+    chunks = [list(c) for c in batched(miss_texts, _m3cfg.setting("embed.bulk_chunk"))]
     chunk_results = await gather_or_cancel(*(_post_chunk(c) for c in chunks))
 
     flat: list[list[float] | None] = []
@@ -2351,7 +2372,6 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
 # Entity-name embedding cache (used by entity resolution)
 # ──────────────────────────────────────────────────────────────────────────────
 _ENTITY_NAME_EMBED_CACHE: dict[str, list[float]] = {}
-ENTITY_NAME_EMBED_CACHE_MAX = _m3cfg.setting("embed.entity_name_cache_max")
 
 
 async def _embed_canonical_cached(canonical_name: str) -> list[float] | None:
@@ -2362,7 +2382,7 @@ async def _embed_canonical_cached(canonical_name: str) -> list[float] | None:
     vec, _ = await _embed(canonical_name)
     if vec is None:
         return None
-    if len(_ENTITY_NAME_EMBED_CACHE) >= ENTITY_NAME_EMBED_CACHE_MAX:
+    if len(_ENTITY_NAME_EMBED_CACHE) >= _m3cfg.setting("embed.entity_name_cache_max"):
         _ENTITY_NAME_EMBED_CACHE.clear()
     _ENTITY_NAME_EMBED_CACHE[canonical_name] = vec
     return vec
@@ -2386,10 +2406,11 @@ async def prime_entity_name_cache(names: list[str]) -> int:
         return 0
     results = await _embed_many(todo)
     newly = 0
+    cache_max = _m3cfg.setting("embed.entity_name_cache_max")
     for name, (vec, _model) in zip(todo, results, strict=True):
         if vec is None:
             continue
-        if len(_ENTITY_NAME_EMBED_CACHE) >= ENTITY_NAME_EMBED_CACHE_MAX:
+        if len(_ENTITY_NAME_EMBED_CACHE) >= cache_max:
             _ENTITY_NAME_EMBED_CACHE.clear()
         _ENTITY_NAME_EMBED_CACHE[name] = vec
         newly += 1

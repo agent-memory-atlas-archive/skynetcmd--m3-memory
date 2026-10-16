@@ -119,6 +119,14 @@ _HTTP_CLIENT_LOCK = threading.Lock()
 _GET_SETTING_WARNED = False  # get_setting's deprecation notice, once per process
 
 
+def _ensure_chatlog_schema(path: str) -> None:
+    try:
+        from memory.db import ensure_chatlog_schema
+    except ImportError:  # bootstrap: no memory package, nothing to migrate with
+        return
+    ensure_chatlog_schema(path)
+
+
 class M3Context:
     def __init__(self, db_path: str | None = None):
         self.m3_config_root = get_m3_config_root()
@@ -651,22 +659,16 @@ class M3Context:
             return
 
         target = chatlog_config.chatlog_db_path()
-        # A separate chatlog FILE gets its schema here, once per path, through
-        # the store-schema owner (memory.db) — not in each integration. Decided
-        # by the topology owner, NOT by comparing with self.db_path: a flush runs
-        # under active_database(<chatlog path>), where this context's main path
-        # IS the chatlog, and that test skipped the schema.
-        if chatlog_config.chatlog_is_separate(target):
-            try:
-                from memory.db import ensure_chatlog_schema
-            except ImportError:  # bootstrap: no memory package, nothing to migrate with
-                pass
-            else:
-                ensure_chatlog_schema(target)
         if canonical_path(target) == canonical_path(self.db_path):
             with self.get_sqlite_conn() as conn:
                 yield conn
             return
+
+        # A separate chatlog FILE gets its schema here, once per path, through
+        # the store-schema owner (memory.db) — not in each integration. (The
+        # flush addresses the chatlog as this context's own path, so it never
+        # reaches this line; it ensures the schema itself, chatlog_core.)
+        _ensure_chatlog_schema(target)
         with chatlog_config.chatlog_sqlite_conn() as conn:
             yield conn
 

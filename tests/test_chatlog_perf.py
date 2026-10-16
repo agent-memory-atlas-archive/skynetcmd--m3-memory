@@ -14,7 +14,7 @@ import time
 
 import pytest
 
-from conftest import create_memory_items_schema, isolate_chatlog_env
+from conftest import create_full_chatlog_schema, isolate_chatlog_env
 
 
 async def _best_of(coro_factory, runs: int = 3) -> "tuple[float, object]":
@@ -46,7 +46,7 @@ def _best_of_sync(fn, runs: int = 3) -> "tuple[float, object]":
 def perf_test_env(tmp_path, monkeypatch):
     """Isolated chatlog env for perf tests. See conftest.isolate_chatlog_env."""
     paths = isolate_chatlog_env(monkeypatch, tmp_path)
-    create_memory_items_schema(paths["db_path"])
+    create_full_chatlog_schema(paths["db_path"])
     yield paths
 
 

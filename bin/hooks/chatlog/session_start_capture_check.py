@@ -187,7 +187,7 @@ def _idle_minutes(last_write_at: str) -> float | None:
     """The shared lull predicate (chatlog_status owns it). If the payload cannot
     supply it, None: the plain 15-minute alarm applies (fail toward loud)."""
     try:
-        from chatlog_status import capture_idle_minutes
+        from chatlog_config import capture_idle_minutes
 
         return capture_idle_minutes(last_write_at)
     except Exception:  # noqa: BLE001 -- a SessionStart check must still answer

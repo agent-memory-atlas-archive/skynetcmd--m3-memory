@@ -182,8 +182,10 @@ def test_ensure_sync_tables_passes_target_chatlog_for_chatlog_path(tmp_path, mon
     assert "--target" in captured["cmd"], f"expected --target flag in subprocess args, got {captured['cmd']}"
     target_idx = captured["cmd"].index("--target")
     assert captured["cmd"][target_idx + 1] == "chatlog"
-    # And the child is told the chatlog path as --database, not through env
-    db_idx = captured["cmd"].index("--database")
+    # And the child is told the chatlog path as --chatlog-db, not through env
+    # (as --database an empty chatlog file would be taken for the main store).
+    assert "--database" not in captured["cmd"], captured["cmd"]
+    db_idx = captured["cmd"].index("--chatlog-db")
     assert os.path.abspath(captured["cmd"][db_idx + 1]) == os.path.abspath(str(chatlog_path))
     assert captured["env"].get("M3_DATABASE") == os.environ.get("M3_DATABASE"), (
         "m3 must not add M3_DATABASE to the child"

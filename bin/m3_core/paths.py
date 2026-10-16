@@ -946,20 +946,6 @@ def active_database(path: str | None):
         _active_db.reset(token)
 
 
-def main_db_path() -> str:
-    """The process's MAIN SQLite store, ignoring any ``active_database`` or named
-    store scope in force. For topology questions ("is the chatlog a separate
-    file?") asked from code that runs inside such a scope: a chatlog flush runs
-    under ``active_database(<chatlog path>)``, where ``resolve_db_path(None)`` is
-    the chatlog itself."""
-    token = _active_db.set(None)
-    try:
-        with without_active_store():
-            return resolve_db_path(None)
-    finally:
-        _active_db.reset(token)
-
-
 @contextmanager
 def scoped_db_env(path: "str | os.PathLike[str] | None"):
     """Pin ``path`` as the main database for a block and restore the previous pin

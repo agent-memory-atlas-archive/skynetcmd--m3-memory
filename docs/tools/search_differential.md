@@ -1,8 +1,8 @@
 ---
 tool: bin/search_differential.py
-sha1: d56d0d52396b
-mtime_utc: 2026-10-14T05:25:28.210657+00:00
-generated_utc: 2026-10-14T05:25:29.345650+00:00
+sha1: 60084cca6297
+mtime_utc: 2026-10-16T19:26:43.213792+00:00
+generated_utc: 2026-10-16T19:33:16.872053+00:00
 private: false
 ---
 
@@ -29,7 +29,7 @@ WHAT IT CANNOT CATCH, stated plainly because it was counter-tested and failed:
   identical. The absolute fill-to-k check below covers one important case of
   this, but only that one.
 * A backend-layer truncation, now that search fills to k. Restoring the
-  2026-09-10 CTE bug (``_FTS_OVERFETCH=1``) makes
+  2026-09-10 CTE bug (limit applied before the live/tenancy filter) makes
   ``keyword_search_with_row_data(limit=20)`` return 0 rows -- and this tool
   still reports a clean run, because the semantic top-up supplies whatever the
   truncated candidate query failed to. The defect is real and invisible HERE by

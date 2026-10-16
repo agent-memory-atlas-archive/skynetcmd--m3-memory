@@ -2441,17 +2441,16 @@ def _consolidate_fetch_sql(_d, g_type, g_agent, g_user, *, max_importance, stale
     """The ONE predicate for which rows of a group consolidate -- the preview
     counts with it and the write fetches with it, so they cannot disagree.
 
-    A NULL agent_id/user_id group must match its own rows: `col = NULL` is never
-    true, so each is compared NULL-safely, binding the value twice (ANSI, both
-    backends; no Dialect.null_safe_equals primitive exists yet)."""
+    A NULL agent_id/user_id group must match its own rows (`col = NULL` is never
+    true), so both are compared NULL-safely."""
     p = _d.param()
     sql = (
         f"SELECT id, title, content FROM memory_items "
-        f"WHERE type = {p} AND (agent_id = {p} OR (agent_id IS NULL AND {p} IS NULL)) "
-        f"AND (user_id = {p} OR (user_id IS NULL AND {p} IS NULL)) "
+        f"WHERE type = {p} AND {_d.null_safe_equals('agent_id', p)} "
+        f"AND {_d.null_safe_equals('user_id', p)} "
         f"AND is_deleted = 0 AND COALESCE(pinned, 0) = 0 AND COALESCE(importance, 0) <= {p}"
     )
-    params = [g_type, g_agent, g_agent, g_user, g_user, max_importance]
+    params = [g_type, g_agent, g_user, max_importance]
     if stale_cutoff:
         sql += f" AND created_at < {p}"
         params.append(stale_cutoff)

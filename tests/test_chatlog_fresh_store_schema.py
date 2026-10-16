@@ -76,24 +76,24 @@ def test_schema_is_ensured_once_per_store_with_captured_output(fresh_chatlog, mo
         assert c.execute("SELECT name FROM sqlite_master WHERE name = 'memory_items'").fetchone()
 
 
-def test_flush_scope_still_gets_the_schema(fresh_chatlog):
-    """The flush runs under active_database(<chatlog path>), so a context there
-    has db_path == the chatlog store. Comparing the chatlog with self.db_path read
-    "same file" and skipped the schema: Hermes' first synced turn spilled with
-    "no such table: memory_items". Topology is chatlog_config.chatlog_is_separate."""
+def test_topology_is_scope_relative(fresh_chatlog):
+    """Inside active_database(X) the chatlog IS X (a database= argument addresses
+    chatlog tools too), so that scope is unified; outside it the default split
+    chatlog is separate. The flush re-enters active_database(<chatlog>), which is
+    why the enqueue records the answer instead (next test)."""
     import chatlog_config
-    from m3_core.context import M3Context
     from m3_core.paths import active_database
 
     chat = str(fresh_chatlog["db_path"])
+    assert chatlog_config.chatlog_is_separate(chat)
     with active_database(chat):
-        assert chatlog_config.chatlog_is_separate(chat)
-        with M3Context(chat).get_chatlog_conn() as conn:
-            conn.execute("SELECT count(*) FROM memory_items").fetchone()
+        assert not chatlog_config.chatlog_is_separate()
 
 
 @pytest.mark.asyncio
 async def test_fresh_store_first_write_lands(fresh_chatlog):
+    """A write before any read: the flush, not a search, meets the fresh store.
+    Hermes' first synced turn spilled "no such table: memory_items" here."""
     import chatlog_core
 
     res = await chatlog_core.chatlog_write_bulk_impl(

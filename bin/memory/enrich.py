@@ -378,55 +378,48 @@ async def _run_fact_enricher(memory_id: str, content: str, fact_enricher, sem: a
     Returns what was observed: ``{"ok": bool, "facts_returned": N,
     "facts_written": N, "error": str | None}``. A run whose facts all failed to
     write is a failure (queued for retry like an enricher exception); a run that
-    wrote facts clears the memory's queue row.
+    wrote facts clears the memory's queue row; a run that yielded no facts marks
+    the row 'done' so the drain does not re-enrich it every pass.
     """
     if sem is None:
         sem = _FACT_ENRICH_SEM
     outcome: dict = {"ok": False, "facts_returned": 0, "facts_written": 0, "error": None}
     try:
         facts = await fact_enricher(content)
+        written = 0
         if facts:
             outcome["facts_returned"] = len(facts)
             written, attempted = await _write_fact_rows(memory_id, facts)
             outcome["facts_written"] = written
             if attempted and not written:
                 raise RuntimeError(f"0 of {attempted} fact rows written for memory {memory_id}")
-            if written:
-                _clear_fact_queue_row(memory_id)
+        if written:
+            _clear_fact_queue_row(memory_id)
+        else:
+            _record_fact_queue_status(memory_id, "done")
         outcome["ok"] = True
     except Exception as e:
         outcome["error"] = f"{type(e).__name__}: {e}"
-        # Record error and bump attempts in queue
-        try:
-            with _db() as db:
-                # Dedup target is UNIQUE(memory_id) (idx_feq_memory_id). Verb is
-                # plain "INSERT INTO" on both backends (SQLite accepts ON
-                # CONFLICT DO UPDATE from a bare INSERT). attempts is a
-                # correlated-subquery increment computed pre-insert.
-                from memory.backends import dialect
-
-                _d = dialect()
-                _p = _d.param()
-                _suffix = _d.on_conflict_update(
-                    conflict_target="(memory_id)",
-                    set_columns=["attempts", "last_error", "last_attempt_at"],
-                )
-                # last_attempt_at via _d.now(): the SQLite strftime literal both
-                # is wrong on PG *and* its %Y/%m tokens collide with psycopg's %s
-                # parameter parsing (raises before the SQL reaches the server).
-                db.execute(
-                    f"""
-                    INSERT INTO fact_enrichment_queue(memory_id, attempts, last_error, last_attempt_at)
-                    VALUES ({_p}, COALESCE((SELECT attempts FROM fact_enrichment_queue WHERE memory_id={_p}),0)+1, {_p}, {_d.now()})
-                    {_suffix}
-                """.rstrip(),
-                    (memory_id, memory_id, str(e)[:500]),
-                )
-        except Exception as db_err:
-            log_swallowed(logger, db_err, f"Failed to record enrichment error for {memory_id}: {db_err}")
+        _record_fact_queue_status(memory_id, "failed", str(e))
     finally:
         sem.release()
     return outcome
+
+
+def _record_fact_queue_status(memory_id: str, status: str, error: str | None = None) -> None:
+    """Best-effort queue bookkeeping: 'done' (processed, no facts) or 'failed'
+    (retried until FACT_ENRICH_MAX_ATTEMPTS)."""
+    from .entity import record_queue_status
+
+    try:
+        with _db() as db:
+            record_queue_status(db, "fact_enrichment_queue", memory_id, status, error)
+    except Exception as db_err:
+        log_swallowed(
+            logger,
+            db_err,
+            f"Fact enrichment for {memory_id} ended {status!r} but the queue row was not recorded: {db_err}",
+        )
 
 
 def _clear_fact_queue_row(memory_id: str) -> None:
@@ -543,7 +536,8 @@ def _select_pending_fact_enrichment(
     """Returns [(memory_id, content), ...] eligible for enrichment.
 
     Eligibility: type != fact_enriched, variant IS NULL (or in allowed_variants),
-    no existing fact_enriched child via references edge, attempts < max_attempts.
+    no existing fact_enriched child via references edge, attempts < max_attempts,
+    queue row not 'done' (processed, no facts).
 
     When allowed_variants is provided, loosen the variant filter from strict NULL
     to (variant IS NULL OR variant IN (...)).
@@ -580,6 +574,7 @@ def _select_pending_fact_enrichment(
         FROM fact_enrichment_queue q
         JOIN memory_items mi ON mi.id = q.memory_id
         WHERE q.attempts < {p}
+          AND (q.status IS NULL OR q.status <> 'done')
     )
     SELECT id, content FROM queued
     UNION

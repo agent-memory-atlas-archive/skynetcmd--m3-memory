@@ -19,7 +19,7 @@ import time
 
 import pytest
 
-from conftest import create_memory_items_schema, isolate_chatlog_env
+from conftest import create_full_chatlog_schema, isolate_chatlog_env
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURE = os.path.join(HERE, "fixtures", "claude_code_sample.jsonl")
@@ -33,7 +33,7 @@ def env(tmp_path, monkeypatch):
     import chatlog_ingest
 
     monkeypatch.setattr(chatlog_ingest, "_cursor_path", lambda: str(cursor))
-    create_memory_items_schema(paths["db_path"])
+    create_full_chatlog_schema(paths["db_path"])
     return {"db": paths["db_path"], "cursor": cursor, "spill": tmp_path / "chatlog_spill"}
 
 

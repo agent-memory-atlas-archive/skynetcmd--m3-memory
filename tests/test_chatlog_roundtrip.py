@@ -5,14 +5,14 @@ import sqlite3
 
 import pytest
 
-from conftest import create_memory_items_schema, isolate_chatlog_env
+from conftest import create_full_chatlog_schema, isolate_chatlog_env
 
 
 @pytest.fixture
 def chatlog_with_schema(tmp_path, monkeypatch):
     """Set up chatlog DB with full schema (memory_items + embeddings + FTS)."""
     paths = isolate_chatlog_env(monkeypatch, tmp_path)
-    create_memory_items_schema(paths["db_path"])
+    create_full_chatlog_schema(paths["db_path"])
     _create_supporting_tables(str(paths["db_path"]))
     yield paths
 

@@ -480,8 +480,11 @@ def _executemany_insert(batch: list[dict], *, ignore_conflicts: bool = False) ->
         sql = f"INSERT INTO {_cols}"
 
     groups: dict[str, list[tuple]] = {}
+    separate: set[str] = set()
     for item in batch:
         db_path = item.get("_db_path") or chatlog_config.chatlog_db_path()
+        if item.get("_separate"):
+            separate.add(db_path)
         groups.setdefault(db_path, []).append(
             (
                 item["_id"],
@@ -526,6 +529,14 @@ def _executemany_insert(batch: list[dict], *, ignore_conflicts: bool = False) ->
         # sat on disk indefinitely. There is one pooled store, so there is
         # nothing to activate: route straight to it.
         if _is_sqlite and db_path:
+            # The scope below makes the chatlog this context's own path, so the
+            # connection cannot tell a separate chatlog file from the main store:
+            # the enqueue-time flag decides. A fresh chatlog store's first write
+            # spilled "no such table: memory_items" without this.
+            if db_path in separate:
+                from memory.db import ensure_chatlog_schema
+
+                ensure_chatlog_schema(db_path)
             with active_database(db_path):
                 ctx = M3Context.for_db(None)
                 with ctx.get_chatlog_conn() as conn:
@@ -712,6 +723,8 @@ async def chatlog_write_impl(
         "_metadata_json": meta_json,
         "_created_at": now,
         "_db_path": chatlog_config.chatlog_db_path(),
+        # Topology in the caller's scope (see _executemany_insert).
+        "_separate": chatlog_config.chatlog_is_separate(),
     }
 
     q = _ensure_queue()
@@ -733,6 +746,7 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
     q = _ensure_queue()
     # Snapshot the target DB once per bulk call (see single-write impl note).
     target_db = chatlog_config.chatlog_db_path()
+    target_separate = chatlog_config.chatlog_is_separate(target_db)
 
     for idx, item in enumerate(items):
         try:
@@ -785,6 +799,7 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
             "_metadata_json": meta_json,
             "_created_at": now,
             "_db_path": target_db,
+            "_separate": target_separate,
         }
         ids.append(row_id)
 
@@ -842,10 +857,7 @@ async def chatlog_search_impl(
     # Ensure flushes complete before searching (best-effort)
     await _flush_once()
 
-    from m3_sdk import resolve_db_path
-
     chatlog_path = os.path.abspath(chatlog_config.chatlog_db_path())
-    main_path = os.path.abspath(resolve_db_path(None))
 
     # Both the unified (chatlog DB == main DB) and separate cases go through
     # _chatlog_search_separate. In the unified case get_chatlog_conn() resolves
@@ -856,7 +868,7 @@ async def chatlog_search_impl(
     # start: it forwarded agent_id/since/until, none of which
     # memory_search_scored_impl ever accepted (it takes agent_filter/as_of),
     # so it raised TypeError the first time the unified path actually ran.
-    unified = chatlog_path == main_path
+    unified = not chatlog_config.chatlog_is_separate(chatlog_path)
     return await _chatlog_search_separate(
         query=query,
         k=k,
@@ -1028,7 +1040,7 @@ async def chatlog_promote_impl(
 
     chatlog_path = os.path.abspath(chatlog_config.chatlog_db_path())
     main_path = os.path.abspath(resolve_db_path(None))
-    unified = chatlog_path == main_path
+    unified = not chatlog_config.chatlog_is_separate(chatlog_path)
 
     from memory.backends import active_backend, chatlog_table
 

@@ -2134,38 +2134,9 @@ def gdpr_erase(**target) -> dict:
     return done
 
 
-# Minimal memory_items schema sufficient for chatlog writes. Embeddings and
-# FTS5 tables are created lazily by specific fixtures that need them.
-#
-# Kept as a small chatlog-side helper. Main-DB tests should use
-# `create_full_main_schema` (post-v031 canonical schema, built from the
-# session-scoped template DB).
-_MEMORY_ITEMS_SCHEMA = """
-    CREATE TABLE IF NOT EXISTS memory_items (
-        id TEXT PRIMARY KEY,
-        type TEXT,
-        title TEXT,
-        content TEXT,
-        metadata_json TEXT,
-        agent_id TEXT,
-        model_id TEXT,
-        change_agent TEXT,
-        importance REAL,
-        source TEXT,
-        origin_device TEXT,
-        user_id TEXT,
-        scope TEXT,
-        expires_at TEXT,
-        created_at TEXT,
-        valid_from TEXT,
-        valid_to TEXT,
-        conversation_id TEXT,
-        refresh_on TEXT,
-        refresh_reason TEXT,
-        content_hash TEXT,
-        variant TEXT
-    );
-"""
+# Stores come from the real migrations: create_full_main_schema /
+# create_full_chatlog_schema (session-cached templates, below). A hand-built
+# store is one the lazy migrator cannot upgrade, and that failure now raises.
 
 
 def isolate_chatlog_env(monkeypatch, tmp_path):
@@ -2222,17 +2193,6 @@ def isolate_chatlog_env(monkeypatch, tmp_path):
     }
 
 
-def create_memory_items_schema(db_path) -> None:
-    """Create the minimal memory_items table. Safe to call on an existing DB.
-
-    For full main-DB schema use `create_full_main_schema` instead.
-    """
-    conn = sqlite3.connect(str(db_path))
-    conn.executescript(_MEMORY_ITEMS_SCHEMA)
-    conn.commit()
-    conn.close()
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Full main-DB schema fixture — pinned to current migrations
 # ──────────────────────────────────────────────────────────────────────────────
@@ -2247,17 +2207,19 @@ def create_memory_items_schema(db_path) -> None:
 # Per-test copies are bytewise file-copies — fast (~ms) instead of paying the
 # subprocess + 31-migration cost per test.
 
-_TEMPLATE_DB_PATH: Path | None = None
+_TEMPLATE_DBS: dict[str, Path] = {}
 
 
-def _build_template_db() -> Path:
-    """Run all main migrations against a fresh DB and return its path.
+def _build_template_db(target: str = "main") -> Path:
+    """Run all ``target`` (main or chatlog) migrations against a fresh DB and
+    return its path.
 
     Cached at module level — built once per pytest session. The template
     is created in tempdir (so the session's tearDown cleans it up).
     """
     tmp_root = Path(tempfile.mkdtemp(prefix="m3_test_template_"))
-    template_db = tmp_root / "template.db"
+    template_db = tmp_root / f"template_{target}.db"
+    store_flag = "--database" if target == "main" else "--chatlog-db"
 
     repo_root = Path(__file__).resolve().parent.parent
     migrate_script = repo_root / "bin" / "migrate_memory.py"
@@ -2272,7 +2234,7 @@ def _build_template_db() -> Path:
     env["M3_MEMORY_ROOT"] = str(tmp_root)
 
     result = subprocess.run(
-        [sys.executable, str(migrate_script), "--database", str(template_db), "up", "--yes", "--target", "main"],
+        [sys.executable, str(migrate_script), store_flag, str(template_db), "up", "--yes", "--target", target],
         env=env,
         capture_output=True,
         text=True,
@@ -2285,11 +2247,11 @@ def _build_template_db() -> Path:
     return template_db
 
 
-def _get_template_db() -> Path:
-    global _TEMPLATE_DB_PATH
-    if _TEMPLATE_DB_PATH is None or not _TEMPLATE_DB_PATH.is_file():
-        _TEMPLATE_DB_PATH = _build_template_db()
-    return _TEMPLATE_DB_PATH
+def _get_template_db(target: str = "main") -> Path:
+    cached = _TEMPLATE_DBS.get(target)
+    if cached is None or not cached.is_file():
+        cached = _TEMPLATE_DBS[target] = _build_template_db(target)
+    return cached
 
 
 def orthogonal_vectors(names, dim: int = 64) -> dict[str, list[float]]:
@@ -2313,8 +2275,19 @@ def create_full_main_schema(db_path) -> None:
     Use this in place of inlined `CREATE TABLE memory_items (...)` blocks
     in tests that exercise main-DB code paths.
     """
-    template = _get_template_db()
-    shutil.copyfile(str(template), str(db_path))
+    _copy_template("main", db_path)
+
+
+def create_full_chatlog_schema(db_path) -> None:
+    """A fresh chatlog store at ``db_path``, built by the real chatlog migrations
+    (a session-cached template, like create_full_main_schema). A hand-built
+    chatlog table without schema_versions is a store the migrator cannot
+    upgrade, and the flush now migrates a separate chatlog store before writing."""
+    _copy_template("chatlog", db_path)
+
+
+def _copy_template(target: str, db_path) -> None:
+    shutil.copyfile(str(_get_template_db(target)), str(db_path))
     # Put the copy in WAL mode (production default) so the m3_sdk pool's 5
     # connections and any raw test connection coexist without an exclusive-lock
     # fight. Without this, under CI's slower I/O the pool's WAL-mode switch

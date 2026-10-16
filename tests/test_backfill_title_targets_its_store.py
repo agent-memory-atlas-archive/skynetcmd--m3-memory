@@ -7,6 +7,7 @@ the chatlog store.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -41,6 +42,9 @@ def _title(path):
 
 
 def test_chatlog_pass_writes_the_chatlog_store_only(tmp_path, monkeypatch):
+    # A deliberately partial schema the migrator cannot upgrade (a failed lazy
+    # migration now raises): skip it, as M3_SKIP_MIGRATIONS did.
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     main, chat = tmp_path / "agent_memory.db", tmp_path / "agent_chatlog.db"
     _store(main)
     _store(chat)

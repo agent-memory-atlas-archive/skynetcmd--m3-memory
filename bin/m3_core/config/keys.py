@@ -291,6 +291,8 @@ NOT_SETTINGS: dict[str, str] = {
     "M3_DIFF_REF_REV": "search_differential.py's own parameter",
     "M3_DIFF_STORE": "search_differential.py's own parameter",
     "M3_TRACE_FILE": "setup-wizard debug breadcrumbs",
+    # install_os.py runs before m3 (and its config) is installed.
+    "M3_INSTALL_OXIDATION": "install_os.py's unattended answer to the native-core prompt",
     # It decides WHICH m3_config.toml is read, so it cannot be a key in that file.
     "M3_CONFIG_ROOT": "the config locator: it picks which m3_config.toml is read",
     # The chatlog hooks (Python and shell) read it to

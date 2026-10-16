@@ -350,7 +350,7 @@ def __getattr__(name: str) -> Any:
         else:
             mod = importlib.import_module(mod_name)
             val = getattr(mod, name)
-            if mod_name == "memory.config" and name in mod.SETTING_NAMES:
+            if name in getattr(mod, "SETTING_NAMES", ()):
                 # Read at call time from the config snapshot: binding
                 # it here would freeze the first value seen for every later reader.
                 return val

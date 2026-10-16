@@ -163,18 +163,29 @@ class Dialect:
         assigns = ", ".join(f"{c} = excluded.{c}" for c in set_columns)
         return f"ON CONFLICT {conflict_target} DO UPDATE SET {assigns}"
 
-    def on_conflict_add(self, conflict_target: str, table: str, add_columns: list[str]) -> str:
+    def on_conflict_add(
+        self,
+        conflict_target: str,
+        table: str,
+        add_columns: list[str],
+        *,
+        set_columns: list[str] | tuple[str, ...] = (),
+    ) -> str:
         """Trailing UPSERT clause: on conflict, ADD the would-be-inserted values to
-        the existing row's (a counter row: ``n = t.n + excluded.n``).
+        the existing row's (a counter row: ``n = t.n + excluded.n``), and
+        overwrite ``set_columns`` from the would-be-inserted row.
 
         Both backends spell it ``ON CONFLICT (...) DO UPDATE SET c = t.c +
         excluded.c`` (SQLite 3.24+, PostgreSQL 9.5+); the table name qualifies the
-        existing row. A backend with another spelling overrides this.
+        existing row. The add is one statement, so concurrent writers cannot lose
+        an increment the way a read-then-write does. A NULL existing value counts
+        as 0. A backend with another spelling overrides this.
         """
         if not add_columns:
             raise ValueError("on_conflict_add needs at least one column")
-        assigns = ", ".join(f"{c} = {table}.{c} + excluded.{c}" for c in add_columns)
-        return f"ON CONFLICT {conflict_target} DO UPDATE SET {assigns}"
+        assigns = [f"{c} = COALESCE({table}.{c}, 0) + excluded.{c}" for c in add_columns]
+        assigns += [f"{c} = excluded.{c}" for c in set_columns]
+        return f"ON CONFLICT {conflict_target} DO UPDATE SET {', '.join(assigns)}"
 
     # -- time ----------------------------------------------------------------
     def now(self) -> str:
@@ -1033,6 +1044,15 @@ class Dialect:
         is a trusted identifier; ``placeholder`` is the caller's bind marker.
         """
         return f"LOWER({column}) = LOWER({placeholder})"
+
+    def null_safe_equals(self, column: str, placeholder: str) -> str:
+        """An equality WHERE fragment where NULL matches NULL: ``column`` == the
+        bound value, true when both are NULL (``col = NULL`` is never true).
+
+        SQLite: ``col IS <p>``; PostgreSQL: ``col IS NOT DISTINCT FROM <p>``. One
+        bind, so the caller passes the value once.
+        """
+        raise NotImplementedError("subclass must implement null_safe_equals()")
 
     def glob_match(self, column: str, placeholder: str, pattern: str) -> tuple[str, str]:
         """A case-sensitive shell-glob filename match. Returns ``(sql_fragment,

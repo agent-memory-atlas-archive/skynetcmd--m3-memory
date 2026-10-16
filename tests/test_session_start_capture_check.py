@@ -96,9 +96,9 @@ def test_a_recent_write_reads_as_working_and_an_old_one_as_not(monkeypatch, tmp_
     _state(monkeypatch, tmp_path, _iso(90))
     said = mod._state_verdict()
     assert "idle" in said and "90 min ago" in said and "NOT writing" not in said, said
-    import chatlog_status
+    import chatlog_config
 
-    beyond = chatlog_status._LULL_GRACE_MIN + 30
+    beyond = chatlog_config._LULL_GRACE_MIN + 30
     _state(monkeypatch, tmp_path, _iso(beyond))
     said = mod._state_verdict()
     assert "NOT writing" in said and f"{beyond} min ago" in said, said
@@ -106,12 +106,12 @@ def test_a_recent_write_reads_as_working_and_an_old_one_as_not(monkeypatch, tmp_
 
 def test_hook_and_status_share_one_lull_predicate(monkeypatch):
     """The hook must not carry its own grace constant: patching the owner moves both."""
-    import chatlog_status
+    import chatlog_config
 
     mod = _load_hook()
-    monkeypatch.setattr(chatlog_status, "_LULL_GRACE_MIN", 60)
+    monkeypatch.setattr(chatlog_config, "_LULL_GRACE_MIN", 60)
     assert "NOT writing" in mod._verdict_for_age(90, _iso(90))
-    monkeypatch.setattr(chatlog_status, "_LULL_GRACE_MIN", 120)
+    monkeypatch.setattr(chatlog_config, "_LULL_GRACE_MIN", 120)
     assert "idle" in mod._verdict_for_age(90, _iso(90))
 
 

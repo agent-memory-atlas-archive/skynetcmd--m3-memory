@@ -46,6 +46,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Literal
 
 from sqlite_pragmas import apply_pragmas, refresh_schema
@@ -579,14 +580,14 @@ def chatlog_db_path() -> str:
 
 def chatlog_is_separate(path: str | None = None) -> bool:
     """THE owner of "is the chatlog (``path``, default the effective chatlog
-    store) a different SQLite file from the process's main store?". Asks against
-    ``m3_core.paths.main_db_path``, which ignores any ``active_database`` scope:
-    a chatlog flush runs under ``active_database(<chatlog path>)``, so comparing
-    against the scope-relative main path answered "same file" and the chatlog
-    store never got its schema ("no such table: memory_items")."""
-    from m3_core.paths import canonical_path, main_db_path
+    store) a different SQLite file from the main store, in the caller's scope?".
+    Scope-relative on purpose: inside ``active_database(X)`` both resolve to X (a
+    ``database=`` argument addresses chatlog tools too), so that call is unified.
+    Ask it where the caller's scope is in force, e.g. at enqueue, not in the
+    flush, which re-enters ``active_database(<chatlog path>)``."""
+    from m3_core.paths import canonical_path, resolve_db_path
 
-    return canonical_path(path or chatlog_db_path()) != canonical_path(main_db_path())
+    return canonical_path(path or chatlog_db_path()) != canonical_path(resolve_db_path(None))
 
 
 def chat_store_paths() -> list[str]:
@@ -734,3 +735,42 @@ def _selftest() -> None:
 
 if __name__ == "__main__":
     _selftest()
+
+
+# ── Capture lull ──────────────────────────────────────────────────────────────
+# A 0-in-15min window is only a genuine "capture down" signal if the LAST write
+# was also long ago. On a just-started session (or an ordinary between-turns
+# lull), the Stop/PreCompact hook has simply not fired yet, so the 15-min count
+# is legitimately 0 while the store is perfectly healthy — the last write is just
+# minutes-to-hours old. Screaming "capture may be down" in that case is a false
+# alarm that trips the CLAUDE.md session-start check every single fresh session
+# (observed 2026-07-12: alarm fired while this very session's turns were landing).
+# Grace: if the last write is within this many minutes, downgrade the scream to a
+# benign note. Beyond it (or last-write unknown), the real alarm still fires.
+_LULL_GRACE_MIN = 360  # 6h — comfortably longer than any between-turns gap
+
+
+def capture_idle_minutes(last_write_at: str | None) -> float | None:
+    """THE lull predicate: minutes since the last landed write when that is
+    within _LULL_GRACE_MIN (capture idle, not down); None when the last write is
+    older, missing or unparseable (a real alarm). Single owner, shared by
+    chatlog_status and the SessionStart hook so the two cannot disagree."""
+    mins = _minutes_since(last_write_at)
+    if mins is not None and mins <= _LULL_GRACE_MIN:
+        return mins
+    return None
+
+
+def _minutes_since(iso_ts: str | None) -> float | None:
+    """Minutes between `iso_ts` (an ISO-8601 UTC stamp) and now, or None if the
+    stamp is missing/unparseable. Tolerant of a trailing 'Z' and of fractional
+    seconds, matching how last_write_at is stored."""
+    if not iso_ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_ts)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return (datetime.now(UTC) - dt).total_seconds() / 60.0
+    except (ValueError, TypeError):
+        return None

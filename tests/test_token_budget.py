@@ -109,6 +109,25 @@ class TestCountTokensCascade(unittest.TestCase):
 
         self.assertEqual(T.count_tokens(["abc"], exact_fn=boom), [T.estimate_tokens("abc")])
 
+    def test_exact_fn_failure_is_reported_once_per_type(self):
+        """The fallback must not be silent: a WARNING names the counter and the
+        cause the first time, DEBUG after, so a dead counter is visible without
+        flooding the log."""
+
+        def boom(_ts):
+            raise RuntimeError("tokenize endpoint down")
+
+        T._COUNTER_FAILURES_NOTED.clear()
+        with self.assertLogs("memory.tokens", level="DEBUG") as logs:
+            T.count_tokens(["abc"], exact_fn=boom)
+            T.count_tokens(["abc"], exact_fn=boom)
+        warnings = [r for r in logs.records if r.levelname == "WARNING"]
+        self.assertEqual(len(warnings), 1, logs.output)
+        msg = warnings[0].getMessage()
+        self.assertIn("boom", msg)
+        self.assertIn("RuntimeError: tokenize endpoint down", msg)
+        self.assertEqual(sum(r.levelname == "DEBUG" for r in logs.records), 1, logs.output)
+
     def test_exact_fn_wrong_length_is_rejected(self):
         """A partial answer is not trusted: a length mismatch means we cannot
         align counts to inputs, so fall back rather than mis-attribute."""

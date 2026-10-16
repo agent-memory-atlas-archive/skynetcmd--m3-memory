@@ -17,7 +17,7 @@ WHAT IT CANNOT CATCH, stated plainly because it was counter-tested and failed:
   identical. The absolute fill-to-k check below covers one important case of
   this, but only that one.
 * A backend-layer truncation, now that search fills to k. Restoring the
-  2026-09-10 CTE bug (``_FTS_OVERFETCH=1``) makes
+  2026-09-10 CTE bug (limit applied before the live/tenancy filter) makes
   ``keyword_search_with_row_data(limit=20)`` return 0 rows -- and this tool
   still reports a clean run, because the semantic top-up supplies whatever the
   truncated candidate query failed to. The defect is real and invisible HERE by
@@ -244,7 +244,7 @@ def _seed_store(tmp: Path) -> tuple[str, str]:
 
     # Soft-delete a third of the rows. A store with NOTHING filtered cannot
     # exercise a filter-vs-LIMIT bug -- and that is not hypothetical: with the
-    # original defect restored (_FTS_OVERFETCH=1) and no deletions, this check
+    # original defect restored (limit before filter) and no deletions, this check
     # reported IDENTICAL and missed the regression it exists to catch. Deleted
     # rows must never reach results, so both builds should still agree; what
     # changes is that a build which lets them consume LIMIT slots now returns
@@ -378,7 +378,7 @@ def main() -> int:
         # asks "does this tree answer like the reference?", so a truncation bug
         # present in BOTH builds is invisible to it. That is not hypothetical --
         # this tool was counter-tested by restoring the 2026-09-10 CTE bug
-        # (_FTS_OVERFETCH=1) and reported IDENTICAL, because the reference was
+        # (limit before filter) and reported IDENTICAL, because the reference was
         # short by exactly the same rows.
         #
         # The absolute expectation: a store holding at least k live rows must

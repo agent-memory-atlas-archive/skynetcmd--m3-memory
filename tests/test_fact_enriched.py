@@ -104,6 +104,7 @@ def _create_fact_enriched_schema(db_path):
             attempts INTEGER DEFAULT 0,
             last_error TEXT,
             last_attempt_at TEXT,
+            status TEXT,
             FOREIGN KEY(memory_id) REFERENCES memory_items(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_feq_attempts ON fact_enrichment_queue(attempts, enqueued_at);

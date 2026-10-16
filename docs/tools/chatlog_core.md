@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_core.py
-sha1: 9b37dac6fea1
-mtime_utc: 2026-10-16T17:47:20.372833+00:00
-generated_utc: 2026-10-16T19:03:59.039328+00:00
+sha1: 38644805615b
+mtime_utc: 2026-10-16T19:42:18.675789+00:00
+generated_utc: 2026-10-16T19:58:21.309301+00:00
 private: false
 ---
 
@@ -55,7 +55,6 @@ _(none detected)_
 - `m3_sdk (M3Context)`
 - `m3_sdk (M3Context, active_database)`
 - `m3_sdk (M3Context, resolve_db_path)`
-- `m3_sdk (resolve_db_path)`
 - `memory_core (_sanitize_fts)`
 
 ---
@@ -75,6 +74,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `memory.backends (active_backend, chatlog_table)`
 - `memory.backends (chatlog_table, dialect)`
 - `memory.backends (dialect)`
+- `memory.db (ensure_chatlog_schema)`
 
 ---
 

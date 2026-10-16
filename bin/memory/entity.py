@@ -670,39 +670,42 @@ def entity_extraction_terminal_ids_sql(max_attempts: int, *, has_status: bool = 
     )
 
 
-def record_entity_queue_status(db, memory_id: str, status: str, error: str | None = None) -> None:
-    """Upsert ``memory_id``'s entity_extraction_queue row: attempts+1, ``status``,
-    ``last_error`` (None clears it), ``last_attempt_at`` = now.
+_STATUS_QUEUES = frozenset({"entity_extraction_queue", "fact_enrichment_queue"})
 
-    Statuses: 'done' (processed, empty or not), 'failed' (retry until the budget
-    is spent), 'ctx_error' (terminal). The single writer of the marker that
-    :func:`entity_extraction_terminal_ids_sql` reads. The attempts increment is a
-    correlated subquery (no Dialect primitive combines an add with overwrites), so
-    two concurrent writers on PostgreSQL can lose one increment. Raises on failure;
-    callers decide whether bookkeeping may be best-effort.
+
+def record_queue_status(db, table: str, memory_id: str, status: str, error: str | None = None) -> None:
+    """Upsert ``memory_id``'s row in an extraction queue (``table``, keyed by
+    UNIQUE memory_id): attempts+1, ``status``, ``last_error`` (None clears it),
+    ``last_attempt_at`` = now. The one writer for both queues' status markers.
+
+    The increment is the upsert's own add, so concurrent writers on PostgreSQL
+    cannot lose one. Raises on failure; callers decide whether bookkeeping may be
+    best-effort.
     """
+    if table not in _STATUS_QUEUES:
+        raise ValueError(f"record_queue_status: {table!r} is not a status queue ({sorted(_STATUS_QUEUES)})")
     from memory.backends import dialect
 
     _d = dialect()
     _p = _d.param()
-    _suffix = _d.on_conflict_update(
-        conflict_target="(memory_id)",
-        set_columns=["attempts", "last_error", "last_attempt_at", "status"],
+    _suffix = _d.on_conflict_add(
+        "(memory_id)", table, ["attempts"], set_columns=["last_error", "last_attempt_at", "status"]
     )
     db.execute(
-        f"""
-        INSERT INTO entity_extraction_queue (memory_id, attempts, last_error, last_attempt_at, status)
-        VALUES (
-            {_p},
-            COALESCE((SELECT attempts FROM entity_extraction_queue WHERE memory_id = {_p}), 0) + 1,
-            {_p},
-            {_d.now()},
-            {_p}
-        )
-        {_suffix}
-        """.rstrip(),
-        (memory_id, memory_id, (error[:500] if error else None), status),
+        f"INSERT INTO {table} (memory_id, attempts, last_error, last_attempt_at, status) "
+        f"VALUES ({_p}, 1, {_p}, {_d.now()}, {_p}) {_suffix}",
+        (memory_id, (error[:500] if error else None), status),
     )
+
+
+def record_entity_queue_status(db, memory_id: str, status: str, error: str | None = None) -> None:
+    """Record an entity extraction outcome in entity_extraction_queue.
+
+    Statuses: 'done' (processed, empty or not), 'failed' (retry until the budget
+    is spent), 'ctx_error' (terminal). The single writer of the marker that
+    :func:`entity_extraction_terminal_ids_sql` reads. See :func:`record_queue_status`.
+    """
+    record_queue_status(db, "entity_extraction_queue", memory_id, status, error)
 
 
 def _enqueue_entity_extraction(memory_id: str, db) -> None:

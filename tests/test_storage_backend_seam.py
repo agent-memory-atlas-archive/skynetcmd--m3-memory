@@ -158,10 +158,10 @@ def test_sqlite_connection_delegates_to_db(monkeypatch, tmp_path):
     Proves Phase 0 changes no connection behavior: a row written through the
     backend's connection is visible through a fresh `_db()` — same DB, same pool.
     """
-    from conftest import create_memory_items_schema  # test helper
+    from conftest import create_full_main_schema  # test helper
 
     db_path = tmp_path / "agent_memory.db"
-    create_memory_items_schema(db_path)
+    create_full_main_schema(db_path)
     pin_database(str(db_path))
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
 

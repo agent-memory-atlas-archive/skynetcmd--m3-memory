@@ -205,10 +205,6 @@ def test_core_tables_exist_on_both(pg):
 _ALLOWED_BACKEND_ONLY = {
     "memory_items": {"only_pg": {"search_vector", "stage1_kg_done"}},
     "memory_relationships": {"only_pg": {"weight"}},
-    # pg_041 added `status` to both extraction queues; SQLite's 038 added it to
-    # entity_extraction_queue only. No reader of fact_enrichment_queue.status on
-    # either backend (grep, 2026-10-10), so the extra PG column is inert.
-    "fact_enrichment_queue": {"only_pg": {"status"}},
     # pg_066: pgvector's copy of the BYTEA embedding, present only where the server
     # has pgvector. SQLite scores the blob directly and has no counterpart.
     "memory_embeddings": {"only_pg": {"embedding_vec"}},

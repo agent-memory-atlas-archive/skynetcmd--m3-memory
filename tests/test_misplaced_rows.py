@@ -3,6 +3,7 @@ removed only when the home store holds the same row, its links and an embedding.
 
 from __future__ import annotations
 
+import importlib
 import sqlite3
 import uuid
 
@@ -35,6 +36,9 @@ def split(tmp_path, monkeypatch, as_sqlite):
     import pg_sync
     from doctor import misplaced_rows as mr
 
+    # A deliberately partial schema the migrator cannot upgrade (a failed lazy
+    # migration now raises): skip it, as M3_SKIP_MIGRATIONS did.
+    monkeypatch.setattr(importlib.import_module("memory.db"), "_ensure_sync_tables", lambda *a, **k: None)
     mem, chat = str(tmp_path / "memory.db"), str(tmp_path / "chat.db")
     m, c = _store(mem), _store(chat)
     from memory.backends.dialect import chatlog_table_for

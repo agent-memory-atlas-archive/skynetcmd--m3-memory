@@ -232,24 +232,20 @@ class TestSqlIsValid:
 
 
 # ---------------------------------------------------------------------------
-# Ranked-then-filtered: the CTE must over-fetch
+# Filtered-then-limited: deleted and out-of-scope rows never take a limit slot
 # ---------------------------------------------------------------------------
 def test_keyword_search_returns_the_full_limit_despite_deleted_rows():
     """A soft-deleted row must not consume a limit slot.
 
-    The bm25 pre-filter ranks inside a CTE over the FTS table, which cannot see
-    `is_deleted` or the tenancy predicates -- those columns live on
-    memory_items. A CTE that applied the caller's limit directly therefore let
-    filtered-out rows eat slots, and the caller silently got fewer rows than it
-    asked for. Measured against a live store: a 20-row request returned 8, and
-    the missing tail contained an exact-substring match the search
-    short-circuit depends on, which changed which results a query returned.
+    bm25 ranks on the FTS table, which cannot see `is_deleted` or the tenancy
+    predicates -- those columns live on memory_items. Ranking and limiting
+    before filtering let filtered-out rows eat slots, and the caller silently
+    got fewer rows than it asked for. Measured against a live store: a 20-row
+    request returned 8, and the missing tail contained an exact-substring match
+    the search short-circuit depends on, which changed which results a query
+    returned.
     """
     import sqlite3 as _sq
-
-    from memory.backends.sqlite_backend import _FTS_OVERFETCH
-
-    assert _FTS_OVERFETCH >= 2, "over-fetch must exceed 1x or the bug returns"
 
     conn = _sq.connect(":memory:")
     conn.row_factory = _sq.Row
@@ -284,3 +280,47 @@ def test_keyword_search_returns_the_full_limit_despite_deleted_rows():
         "letting soft-deleted rows consume limit slots"
     )
     assert all(dict(r)["id"].startswith("id-") for r in rows)
+
+
+@pytest.mark.parametrize("method", ["keyword_search", "keyword_search_with_row_data"])
+def test_keyword_search_finds_an_in_scope_match_behind_many_out_of_scope_ones(method):
+    """Another tenant's better-ranked matches must not crowd out the caller's own.
+
+    An over-fetch multiple only moves the cliff: with more out-of-scope matches
+    ranked ahead than limit x multiple, the caller's one match was cut before
+    the tenancy filter ran and the search returned nothing.
+    """
+    import sqlite3 as _sq
+
+    from memory.backends.sqlite_backend import SQLITE, SqliteBackend
+
+    conn = _sq.connect(":memory:")
+    conn.row_factory = _sq.Row
+    conn.executescript(
+        """
+        CREATE TABLE memory_items (
+            id TEXT PRIMARY KEY, content TEXT, title TEXT, type TEXT,
+            importance REAL DEFAULT 0.5, is_deleted INTEGER DEFAULT 0, user_id TEXT
+        );
+        CREATE VIRTUAL TABLE memory_items_fts USING fts5(
+            content, title, content='memory_items', content_rowid='rowid'
+        );
+        """
+    )
+    # 200 short rows of another user rank ahead of ours (bm25 favours short docs).
+    for i in range(200):
+        conn.execute(
+            "INSERT INTO memory_items (id, content, title, type, user_id) VALUES (?, 'widget', 'w', 'note', 'other')",
+            (f"other-{i}",),
+        )
+    conn.execute(
+        "INSERT INTO memory_items (id, content, title, type, user_id) VALUES ('mine', ?, 't', 'note', 'me')",
+        ("widget " + "padding " * 50,),
+    )
+    conn.execute("INSERT INTO memory_items_fts(rowid, content, title) SELECT rowid, content, title FROM memory_items")
+    tenancy_sql, tenancy_params = SQLITE.scope_predicates(user_id="me")
+    rows = getattr(SqliteBackend(), method)(
+        conn, "widget", limit=5, tenancy_sql=tenancy_sql, tenancy_params=tuple(tenancy_params)
+    )
+    ids = [r.memory_id if hasattr(r, "memory_id") else dict(r)["id"] for r in rows]
+    assert ids == ["mine"], f"the in-scope match was cut before the tenancy filter ran: {ids}"

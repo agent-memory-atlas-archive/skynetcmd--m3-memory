@@ -36,13 +36,6 @@ from .base import (
 from .dialect import Dialect, ParamStyle
 from .registry import register_backend
 
-# The bm25 CTE ranks BEFORE is_deleted/tenancy can apply (those columns live
-# on memory_items, not on the FTS table), so it over-fetches this multiple of
-# the caller's limit and the outer query trims back. Without it a soft-deleted
-# or out-of-scope row consumes a limit slot and the caller silently receives
-# fewer rows than requested.
-_FTS_OVERFETCH = 4
-
 
 # ── SQLite SQL dialect (co-located with the backend it belongs to) ───────────
 # Lives HERE, not in dialect.py, so that adding/altering a backend is one file
@@ -150,6 +143,10 @@ class SqliteDialect(Dialect):
     @override
     def least(self, *exprs: str) -> str:
         return f"MIN({', '.join(exprs)})"
+
+    @override
+    def null_safe_equals(self, column: str, placeholder: str) -> str:
+        return f"{column} IS {placeholder}"
 
     @override
     def is_undefined_object_error(self, exc: BaseException) -> bool:
@@ -841,13 +838,13 @@ class SqliteBackend:
         as_of: str = "",
         table: str = "memory_items",
     ) -> list[KeywordHit]:
-        """FTS5 keyword search — a faithful extraction of the existing query.
+        """FTS5 keyword search.
 
         Compiles the query with the same ``_compile_fts_query`` used everywhere,
-        runs the identical ``memory_items_fts MATCH ? ... bm25()`` SELECT, and
-        returns ``KeywordHit(id, bm25)`` ordered by bm25 ascending (lower =
-        better) — byte-for-byte the behavior of the inline block in search.py.
-        An empty/no-token compile yields ``[]``.
+        runs ``memory_items_fts MATCH ? ... bm25()`` with the live and tenancy
+        filters applied before the limit, and returns ``KeywordHit(id, bm25)``
+        ordered by bm25 ascending (lower = better). An empty/no-token compile
+        yields ``[]``.
 
         ``table`` is accepted for seam parity but IGNORED on SQLite: the chatlog
         store is a SEPARATE FILE whose tables reuse the core names
@@ -864,28 +861,18 @@ class SqliteBackend:
             return []
         rows = conn.execute(  # type: ignore[attr-defined]
             f"""
-            WITH ranked AS (
-                SELECT rowid AS _rid, bm25(memory_items_fts) AS _b
-                FROM memory_items_fts
-                WHERE memory_items_fts MATCH ?
-                ORDER BY _b ASC
-                LIMIT ?
-            )
-            SELECT mi.id AS id, ranked._b AS _bm25
-            FROM ranked
-            JOIN memory_items mi ON mi.rowid = ranked._rid
-            WHERE {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
+            SELECT mi.id AS id, bm25(memory_items_fts) AS _bm25
+            FROM memory_items_fts
+            JOIN memory_items mi ON mi.rowid = memory_items_fts.rowid
+            WHERE memory_items_fts MATCH ?
+              AND {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
             ORDER BY _bm25 ASC
             LIMIT ?
             """,
-            # The CTE ranks BEFORE is_deleted/tenancy can be applied (bm25
-            # lives on the FTS table, those columns do not), so it must
-            # OVER-FETCH: otherwise a deleted or out-of-scope row consumes a
-            # limit slot and the caller silently gets fewer rows than it asked
-            # for. That regression dropped an exact-substring match off the end
-            # of a 20-row request and changed which results a search returned.
-            # Bind order follows the SQL: MATCH, CTE limit, tenancy, final limit.
-            (fts_query, limit * _FTS_OVERFETCH, *tenancy_params, limit),
+            # Live/tenancy filter BEFORE the limit: ranking the global match
+            # set first let deleted and out-of-scope rows fill the limit, so
+            # the caller silently got fewer rows (or none) of its own.
+            (fts_query, *tenancy_params, limit),
         ).fetchall()
         # rows may be sqlite3.Row or tuple; index by position to be safe.
         return [KeywordHit(memory_id=r[0], score=float(r[1])) for r in rows]
@@ -929,29 +916,19 @@ class SqliteBackend:
         extra_sql = "".join(f", mi.{c}" for c in safe_extra)
         rows = conn.execute(  # type: ignore[attr-defined]
             f"""
-            WITH ranked AS (
-                SELECT rowid AS _rid, bm25(memory_items_fts) AS _b
-                FROM memory_items_fts
-                WHERE memory_items_fts MATCH ?
-                ORDER BY _b ASC
-                LIMIT ?
-            )
             SELECT mi.id, mi.content, mi.title, mi.type, mi.importance{extra_sql},
-                   ranked._b AS _bm25
-            FROM ranked
-            JOIN memory_items mi ON mi.rowid = ranked._rid
-            WHERE {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
+                   bm25(memory_items_fts) AS _bm25
+            FROM memory_items_fts
+            JOIN memory_items mi ON mi.rowid = memory_items_fts.rowid
+            WHERE memory_items_fts MATCH ?
+              AND {self.dialect().live_predicate("mi", as_of)}{tenancy_sql}
             ORDER BY _bm25 ASC
             LIMIT ?
             """,
-            # The CTE ranks BEFORE is_deleted/tenancy can be applied (bm25
-            # lives on the FTS table, those columns do not), so it must
-            # OVER-FETCH: otherwise a deleted or out-of-scope row consumes a
-            # limit slot and the caller silently gets fewer rows than it asked
-            # for. That regression dropped an exact-substring match off the end
-            # of a 20-row request and changed which results a search returned.
-            # Bind order follows the SQL: MATCH, CTE limit, tenancy, final limit.
-            (fts_query, limit * _FTS_OVERFETCH, *tenancy_params, limit),
+            # Live/tenancy filter BEFORE the limit: ranking the global match
+            # set first let deleted and out-of-scope rows fill the limit, so
+            # the caller silently got fewer rows (or none) of its own.
+            (fts_query, *tenancy_params, limit),
         ).fetchall()
         out = []
         for r in rows:
