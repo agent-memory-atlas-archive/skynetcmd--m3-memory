@@ -31,6 +31,9 @@ def test_fast_embedder_available_false_without_tier1_or_tier2(monkeypatch):
     monkeypatch.setattr(embed_mod, "_get_embedded_embedder", lambda: None)
 
     class _OpenBreaker:
+        def state(self):
+            return "open"
+
         def allow_request(self):
             return False
 
@@ -49,6 +52,9 @@ def test_fast_embedder_available_true_with_healthy_tier2(monkeypatch):
     monkeypatch.setattr(embed_mod, "_get_embedded_embedder", lambda: None)
 
     class _ClosedBreaker:
+        def state(self):
+            return "closed"
+
         def allow_request(self):
             return True
 
