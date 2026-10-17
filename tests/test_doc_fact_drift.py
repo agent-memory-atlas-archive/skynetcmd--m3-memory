@@ -79,10 +79,25 @@ def test_relationship_type_claims_match_code() -> None:
 # (env var, docs that quote its default). The value is read from config at run
 # time -- never hardcoded here, or this test would be one more place to drift.
 _GATED_DEFAULTS = {
-    "CONTRADICTION_THRESHOLD": ("docs/ARCHITECTURE.md", "docs/AGENT_INSTRUCTIONS.md"),
+    "CONTRADICTION_THRESHOLD": ("docs/ARCHITECTURE.md", "docs/AGENT_INSTRUCTIONS.md", "docs/TECHNICAL_DETAILS.md"),
     "FACT_ENRICH_MAX_ATTEMPTS": ("docs/ARCHITECTURE.md",),
     "SEARCH_ROW_CAP": ("docs/TECHNICAL_DETAILS.md",),
+    # TECHNICAL_DETAILS' table said 0.05/0.05/8/8 while the code had 0.15/0.15/10/5.
+    "TITLE_MATCH_BOOST": ("docs/TECHNICAL_DETAILS.md",),
+    "IMPORTANCE_WEIGHT": ("docs/TECHNICAL_DETAILS.md",),
+    "SUPERSEDES_PENALTY": ("docs/TECHNICAL_DETAILS.md",),
+    "INGEST_GIST_MIN_TURNS": ("docs/TECHNICAL_DETAILS.md",),
+    "INGEST_GIST_STRIDE": ("docs/TECHNICAL_DETAILS.md",),
 }
+
+
+def _config_key(name: str) -> str | None:
+    """The m3_config.toml key a legacy name answers to: docs now name settings
+    by key (`search.supersedes_penalty`), so a claim may sit beside either."""
+    from m3_core.config import REGISTRY
+
+    key = REGISTRY.by_env(f"M3_{name}") or REGISTRY.by_env(name)
+    return key.name if key else None
 
 
 @pytest.mark.parametrize("name,docs", sorted(_GATED_DEFAULTS.items()))
@@ -111,12 +126,17 @@ def test_documented_default_matches_config(name: str, docs: tuple[str, ...]) -> 
         # Look BOTH ways: prose puts the value before the var name as often as
         # after it ("cosine >= 0.92, `M3_CONTRADICTION_THRESHOLD`"), and a
         # forward-only window produced a false failure on exactly that phrasing.
-        windows = [
-            text[max(0, m.start() - 200) : m.end() + 200] for m in re.finditer(rf"\b(?:M3_)?{re.escape(name)}\b", text)
-        ]
+        key = _config_key(name)
+        spelled = rf"\b(?:M3_)?{re.escape(name)}\b" + (rf"|`{re.escape(key)}`" if key else "")
+        windows = [text[max(0, m.start() - 200) : m.end() + 200] for m in re.finditer(spelled, text)]
         # Table rows name the var in one cell and the default in the next, so
         # also allow a row that starts with the var name.
-        windows += [line for line in text.splitlines() if line.lstrip().startswith("|") and name in line]
+        rows = [
+            line
+            for line in text.splitlines()
+            if line.lstrip().startswith("|") and (name in line or (key and f"`{key}`" in line))
+        ]
+        windows += rows
         assert windows, f"{rel} no longer mentions {name}"
         # Match the value as a NUMBER, not a substring. A bare `"3" in window`
         # is satisfied by the 3 inside "M3_FACT_ENRICH_MAX_ATTEMPTS" itself, so
@@ -127,6 +147,13 @@ def test_documented_default_matches_config(name: str, docs: tuple[str, ...]) -> 
             f"{rel} quotes a stale default for {name}: the real value is "
             f"{rendered}, which appears nowhere near the variable's own name"
         )
+        # A table row states the default in its own cell, so each row must carry
+        # it: a correct mention elsewhere in the window hid a stale 0.05 row.
+        # A row is the setting's own when its FIRST cell names it; other rows only
+        # mention it in their description ("every `ingest.gist_stride` after").
+        own = [r for r in rows if re.search(spelled, (r.strip().strip("|").split("|") or [""])[0])]
+        stale = [r.strip() for r in own if not num.search(r)]
+        assert not stale, f"{rel}: a table row for {name} lacks its default {rendered}:\n  " + "\n  ".join(stale)
 
 
 def test_contradiction_title_gate_is_not_documented_as_strict() -> None:

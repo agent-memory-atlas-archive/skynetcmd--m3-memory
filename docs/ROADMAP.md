@@ -6,22 +6,26 @@
 
 ## 🔜 Next release — in testing
 
-Built and under test; not yet released. Details in the
-[CHANGELOG `[Unreleased]` section](../CHANGELOG.md#unreleased).
-
-- [ ] **One configuration file** — `m3_config.toml` in the config root holds every setting, so background services read the same values as your shell; `m3 config show` reports each setting and where it came from. Legacy environment names keep working for now and log a notice.
-- [ ] **Named stores** — `[stores.<name>]` defines a store, selected per call (`store`) or per process (`--store`).
-- [ ] **A user-only secrets file** — `m3_secrets.toml`, for machines without an OS keyring; the installer stores the primary PostgreSQL DSN in the keyring or this file, not in plaintext environment variables. m3 no longer reads its secrets from the environment: `m3 secret set NAME` stores one, and `m3 config import-env` (also run by `m3 upgrade`) moves existing ones.
-- [ ] **More of m3 runs on PostgreSQL** — including the LangGraph checkpointer (`M3Saver`), GLiNER entity extraction, and the enrichment tools.
-- [ ] **`search_profile` tool** — per-stage timing of one real search.
-- [ ] **pgvector** — on a PostgreSQL server with pgvector, exact vector search runs in the database.
-- [ ] **`m3 config get` / `set` / `unset` / `import-env`, `m3 --config FILE` and `--set`** — read and change one setting, move legacy settings into the file, point any command at another config file, or override a setting for one run.
-- [ ] **`m3 batch`** — several commands in one process, one per line of stdin.
-- [ ] **Read-access audit log** — every `memory_get` and search hit is recorded (agent, data subject, time), kept 90 days (`audit.read_log_retention_days`), included in `gdpr_export` and erased by `gdpr_forget`; chat-log reads are not audited yet.
-- [ ] **m3's state moves from `~/.m3-memory` to `~/.m3`.**
-- [ ] **Python 3.12 codebase** — the code is brought up to the supported floor and held there by lint and type checks.
+Nothing is in testing yet. Work lands in the
+[CHANGELOG `[Unreleased]` section](../CHANGELOG.md#unreleased) first.
 
 ## ✅ Shipped — 2026-Q4 so far
+
+### One config file for m3 and its Rust core (v2026.10.17.0)
+
+- [x] **One configuration file** — `m3_config.toml` in the config root holds every setting, so background services read the same values as your shell; `m3 config show` reports each setting and where it came from. Legacy environment names keep working for now and log a notice.
+- [x] **Named stores** — `[stores.<name>]` defines a store, selected per call (`store`) or per process (`--store`).
+- [x] **A user-only secrets file** — `m3_secrets.toml`, for machines without an OS keyring; the installer stores the primary PostgreSQL DSN in the keyring or this file, not in plaintext environment variables. m3 no longer reads its secrets from the environment: `m3 secret set NAME` stores one, and `m3 config import-env` (also run by `m3 upgrade`) moves existing ones.
+- [x] **More of m3 runs on PostgreSQL** — including the LangGraph checkpointer (`M3Saver`), GLiNER entity extraction, and the enrichment tools.
+- [x] **`search_profile` tool** — per-stage timing of one real search.
+- [x] **pgvector** — on a PostgreSQL server with pgvector, exact vector search runs in the database.
+- [x] **`m3 config get` / `set` / `unset` / `import-env`, `m3 --config FILE` and `--set`** — read and change one setting, move legacy settings into the file, point any command at another config file, or override a setting for one run.
+- [x] **`m3 batch`** — several commands in one process, one per line of stdin.
+- [x] **Read-access audit log** — every `memory_get` and search hit is recorded (agent, data subject, time), kept 90 days (`audit.read_log_retention_days`), included in `gdpr_export` and erased by `gdpr_forget`; chat-log reads are not audited yet.
+- [x] **m3's state moves from `~/.m3-memory` to `~/.m3`.**
+- [x] **Python 3.12 codebase** — the code is brought up to the supported floor and held there by lint and type checks.
+
+### Earlier in Q4
 
 - [x] **Web dashboard / observability portal — stable** (moved from hardening, 2026-10-13) (`bin/dashboard_server.py`) — local FastAPI + HTMX UI: multi-DB overview, graph explorer, KB browser, conflict & audit log, background maintenance launcher. Run `m3 dashboard` (listens on `127.0.0.1:8088`; change with `m3 config set dashboard.host` / `dashboard.port`).
 - [x] **Autonomous cognitive loop — stable** (moved from hardening, 2026-10-13) (`bin/m3_cognitive_loop.py`) — background daemon running eleven independently skippable passes — including entity extraction, observation extraction with reflection (contradiction resolution), classification, embedding backfill, belief consolidation, procedural distillation, sync, and maintenance (see [ARCHITECTURE.md](ARCHITECTURE.md#the-passes)).
@@ -32,6 +36,10 @@ Built and under test; not yet released. Details in the
 - [x] **Release engineering** — PyPI and TestPyPI publishing use trusted publishing (no stored tokens) for both m3-memory and m3-core-rs; every release is published to the MCP Registry; one command keeps every version string and manifest in sync, and tests fail when they drift.
 
 ## ✅ Shipped — 2026-Q3 highlights
+
+### Retrieval explainability (v2026.7.2.1)
+
+- [x] **Search explain mode** — `memory_search(explain=true)` attaches a per-result breakdown (vector, keyword, title overlap, importance)
 
 ### Pluggable storage backend + framework breadth + procedural memory (v2026.7.17.0)
 - [x] **PostgreSQL as a first-class primary backend** (`[db] backend = "postgres"`) via a pluggable SQL storage seam (`bin/memory/backends/`) — SQLite and PostgreSQL ship, with identical semantics across backends.
@@ -200,7 +208,7 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 > The **web dashboard** has shipped and is stable (see [Shipped — 2026-Q4](#-shipped--2026-q4-so-far)); the items below extend it.
 
-- [x] **Search explain mode** — `memory_search(explain=true)` attaches a per-result breakdown (vector, keyword, title overlap, importance)
+- [ ] **Search-explainability UI** — the per-result explain breakdown, shown in the dashboard
 - [ ] **Real-time contradiction log** — surfaced in dashboard and via `memory_verify` tool
 - [ ] **Health and Prometheus metrics endpoint** — `/health`, latency, write/read counts, cache hit rates
 - [ ] **Grafana dashboard template** — pre-built panels for memory health

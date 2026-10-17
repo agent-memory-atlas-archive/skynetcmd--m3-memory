@@ -835,7 +835,7 @@ _read_log_unmigrated: set[str] = set()  # stores reported once as missing the ta
 
 
 def record_reads(memory_ids, op: str, user_id: str | None = None) -> None:
-    """Queue one audit row per memory read (op: get | search_hit | export).
+    """Queue one audit row per memory read (op: get | search_hit).
 
     Never raises into the read path and never blocks it: a failure to record is
     logged by the flusher. Off only when audit.read_log is set false."""

@@ -11,7 +11,7 @@
 
 ## 📡 LLM Server Requirements
 
-m3 Memory is **server-agnostic**. It communicates with local LLMs via the OpenAI-compatible API. Any server that exposes these two endpoints will work:
+m3 Memory is **server-agnostic**. It communicates with local LLMs via the OpenAI-compatible API. Any server that exposes these endpoints will work:
 
 | Endpoint | Used For |
 |----------|----------|
@@ -32,7 +32,7 @@ Default endpoint: `http://localhost:1234/v1`. Override with `m3 config set llm.e
 ### SQLite Configuration
 
 - WAL mode enabled for concurrent read/write
-- Connection pool (configurable, default size 5) via `m3_sdk.py`
+- Connection pool (`db.pool_size`, default 5) via `M3Context` in `bin/m3_core/context.py` (re-exported by `m3_sdk.py`)
 - Semaphore-bounded embedding concurrency (max 4 concurrent) to prevent local LLM server overload
 - Thread-safe HTTP client with double-check locking
 
@@ -61,10 +61,11 @@ Default endpoint: `http://localhost:1234/v1`. Override with `m3 config set llm.e
 
 | Table | Key Columns | Purpose |
 |-------|-------------|---------|
-| `memory_items` | `id` (UUID PK), `type`, `title`, `content`, `metadata_json`, `agent_id`, `model_id`, `change_agent`, `importance`, `source`, `origin_device`, `user_id`, `scope`, `is_deleted`, `expires_at`, `valid_from`, `valid_to`, `content_hash`, `created_at`, `updated_at`, `last_accessed_at`, `access_count`, `conversation_id`, `refresh_on`, `refresh_reason` | Primary memory storage |
-| `memory_embeddings` | `id` (UUID PK), `memory_id` (FK), `embedding` (BLOB), `embed_model`, `dim`, `content_hash`, `created_at` | Vector embeddings stored as packed float32 arrays |
+| `memory_items` | `id` (UUID PK), `type`, `title`, `content`, `metadata_json`, `agent_id`, `model_id`, `change_agent`, `importance`, `importance_raw`, `confidence`, `source`, `origin_device`, `user_id`, `scope`, `variant`, `pinned`, `is_deleted`, `expires_at`, `valid_from`, `valid_to`, `content_hash`, `created_at`, `updated_at`, `last_accessed_at`, `access_count`, `read_at`, `conversation_id`, `refresh_on`, `refresh_reason`, `source_group_id`, plus the counters `corroboration_count`, `contradiction_count`, `helpful_count`, `unhelpful_count`, `belief_alpha`, `belief_beta` | Primary memory storage |
+| `memory_embeddings` | `id` (UUID PK), `memory_id` (FK), `embedding` (BLOB), `embed_model`, `dim`, `vector_kind`, `content_hash`, `created_at` (PostgreSQL with pgvector adds a `vector` copy, migration `pg_066`) | Vector embeddings stored as packed float32 arrays |
 | `memory_relationships` | `id` (UUID PK), `from_id`, `to_id`, `relationship_type`, `created_at` | Directed knowledge graph edges |
 | `memory_history` | `id` (UUID PK), `memory_id`, `event`, `prev_value`, `new_value`, `field`, `actor_id`, `created_at` | Immutable audit trail |
+| `memory_access_log` | `id`, `memory_id`, `agent_id`, `user_id`, `op` (`get` / `search_hit`), `ts` | Read-access audit log (migration 053); kept `audit.read_log_retention_days` (default 90); exported by `gdpr_export`, erased by `gdpr_forget` |
 
 #### Support Tables
 
@@ -97,8 +98,15 @@ The hot paths drive the index set. Rebuild history is tracked through migrations
 | `idx_mi_valid_from` | `(valid_from)` | Bitemporal as-of queries |
 | `idx_mi_conversation_id` | `(conversation_id, created_at) WHERE is_deleted = 0` | Conversation-scoped search, composite partial (v015) |
 | `idx_mi_refresh_on` | `(refresh_on) WHERE refresh_on IS NOT NULL` | Refresh backlog scan, partial (v014) |
+| `idx_mi_active_type_created` | `(is_deleted, type, created_at DESC) WHERE is_deleted = 0` | Live rows by type, newest first, partial (v016) |
+| `idx_mi_scope_type` | `(scope, type) WHERE is_deleted = 0` | Scope + type filter, partial (v016) |
+| `idx_mi_user_agent` | `(user_id, agent_id)` | Tenant + agent filter (v016) |
+| `idx_mi_content_hash` | `(content_hash) WHERE content_hash != ''` | Duplicate / integrity lookups, partial (v016) |
+| `idx_mi_type_user_obs` | `(type, user_id, valid_from) WHERE type = 'observation'` | Observation reads, partial (v025) |
+| `idx_mi_id_prefix8` | `(SUBSTR(id, 1, 8))` | Short-id lookups (v027) |
+| `idx_mi_source_group` | `(source_group_id) WHERE source_group_id IS NOT NULL` | Enrichment groups, partial (v028) |
 
-Both new indexes are **partial indexes**: they only cover rows that actually need them (`conversation_id` non-null live rows; `refresh_on` non-null rows). This keeps the indexes small and the lookups O(flagged-rows) rather than O(table).
+The `conversation_id` and `refresh_on` indexes are **partial indexes**: they only cover rows that actually need them (`conversation_id` non-null live rows; `refresh_on` non-null rows). This keeps the indexes small and the lookups O(flagged-rows) rather than O(table).
 
 Query-plan verification used `EXPLAIN QUERY PLAN` against a synthetic 1000-row fixture to confirm the planner picks the intended index for each new hot path rather than falling back to a lower-selectivity index like `idx_mi_deleted`.
 
@@ -125,7 +133,7 @@ Migrations v013+ ship both `.up.sql` and `.down.sql` files.
 
 **Version tracking.** The `schema_versions` table records `(version, filename, applied_at)` for every applied migration. Current version = `MAX(version)`. The runner applies each SQL script inside a transaction, then inserts the version row in the same transaction — a failure rolls back both. A legacy idempotency fallback is preserved: if an `up` fails with a `duplicate column name` / `already exists` error, the migration is marked applied anyway (so existing DBs that predate the migration runner catch up cleanly).
 
-**File-level backups.** Before every `up` or `down`, the runner copies `memory/agent_memory.db` (plus any `-wal` / `-shm` sidecars) to a timestamped file like `agent_memory.v014.pre-up.20260412T145131Z.db`. The destination directory is chosen once via an interactive prompt on first run (default: `$M3_ENGINE_ROOT/backups`, i.e. `~/.m3/engine/backups`) and persisted to `memory/.migrate_config.json`. In-DB transactions provide instant rollback on a failure mid-migration; the filesystem backup is the escape hatch for "I applied the wrong migration and want to undo it after the fact."
+**File-level backups.** Before every `up` or `down`, the runner copies the target store's database (by default `agent_memory.db` in the engine root, plus any `-wal` / `-shm` sidecars) to a timestamped file like `agent_memory.v014.pre-up.20260412T145131Z.db`. The destination directory is chosen once via an interactive prompt on first run (default: `<engine root>/backups`, i.e. `~/.m3/engine/backups`) and persisted to `.migrate_config.json` in the config root. In-DB transactions provide instant rollback on a failure mid-migration; the filesystem backup is the escape hatch for "I applied the wrong migration and want to undo it after the fact."
 
 **User confirmation.** Interactive runs print the list of pending migrations (noting which have down files), ask for the backup directory, then require a final `y/N` before writing. The `-y` / `--yes` flag skips both prompts for CI and scripted use. `up` with no arguments also requires confirmation — the old zero-argument invocation still works, just interactively.
 
@@ -165,7 +173,7 @@ can explain its score (`explain=True`).
 **Stage 2 — Vector Similarity**
 - Cosine similarity via `numpy` batch operations (pure-Python `embedding_utils.cosine` fallback)
 - Query vector generated by `_embed()` with 3-attempt retry, 30s semaphore timeout
-- Result matrix capped at `SEARCH_ROW_CAP` (default **5000**) rows to bound memory
+- Result matrix capped at `search.row_cap` (default **5000**) rows to bound memory
   usage. Note this trims the candidate set *after* it is fetched. Every stored
   vector that passes the filters is scored; the best 2,000 (5,000 when every
   vector kind is searched) go on to ranking, so the cap is a backstop rather
@@ -178,14 +186,25 @@ can explain its score (`explain=True`).
 - Pre-selects top `k × 3` candidates, then iteratively picks items that balance relevance (70%) against diversity (30%)
 - Prevents near-duplicate results in top-k
 
-**Score Formula:** `final = 0.7 × cosine_score + 0.3 × (1 / (1 + |bm25_score|))`
+**Score Formula** (`memory/search_ranking.py:_hybrid_score_batch`):
 
-**Explainability:** `explain=True` mode (via `memory_suggest` tool) returns per-result breakdowns: vector score, BM25 score, MMR penalty, and raw combined score.
+```text
+raw   = w × cosine + (1 − w) × 1 / (1 + |bm25|)        w = 0.7; 0.3 for date + proper-noun and temporal / multi-session queries
+final = raw × length_penalty
+      + search.title_match_boost × title_overlap        (default 0.15)
+      + search.importance_weight × importance           (default 0.15, decayed)
+      + intent boosts (user-fact, procedural) + temporal boost
+      + opt-in confidence and recency terms
+```
+
+`length_penalty` is `max(0.3, len / search.short_turn_threshold)` below the threshold (default 20 characters), else 1. After ranking, a hit that a newer memory supersedes is multiplied by `search.supersedes_penalty` (default 0.5).
+
+**Explainability:** `explain=True` on `memory_search` or `memory_suggest` attaches a per-result `_explanation`: vector score, normalised BM25, raw hybrid score, length penalty, title and importance boosts, vector weight, intent and role boost, trust, and a readable `reason`; on the MMR path it also carries the MMR penalty.
 
 ### Embedding System
 
-- **Model:** BGE-M3 by default (`text-embedding-bge-m3`), served by the shared local embed server on `127.0.0.1:8082` from the bundled GGUF — no external embedding service required, and one model in RAM for every m3 process. In-process embedding is opt-in (`embed.inproc = true` (`m3 config set embed.inproc true`)). Configurable via `EMBED_MODEL`. **Never mix vectors from different models or quants in one database:** Qwen3-Embedding in particular occupies a different vector space and is bench-only. See [Embed Input Recipe](EMBED_INPUT_RECIPE.md) for the model/tag matrix.
-- **Dimension:** All models across all devices must produce the same dimension (default 1024, configurable via `EMBED_DIM`). Mismatched dimensions break cosine similarity.
+- **Model:** BGE-M3 by default (`text-embedding-bge-m3`), served by the shared local embed server on `127.0.0.1:8082` from the bundled GGUF — no external embedding service required, and one model in RAM for every m3 process. In-process embedding is opt-in (`m3 config set embed.inproc true`). Configurable via `embed.model`. **Never mix vectors from different models or quants in one database:** Qwen3-Embedding in particular occupies a different vector space and is bench-only. See [Embed Input Recipe](EMBED_INPUT_RECIPE.md) for the model/tag matrix.
+- **Dimension:** All models across all devices must produce the same dimension (default 1024, configurable via `embed.dim`). Mismatched dimensions break cosine similarity.
 - **Auto-detection:** `embedding_utils.py` + `llm_failover.get_best_embed()` probe the local LLM server's `/v1/models` endpoint for loaded models, preferring names containing `embed`, `nomic`, or `jina`
 - **Dimension validation:** First embedding call validates actual vs expected dimensions; logs warning on mismatch
 - **Concurrency:** Bounded by `asyncio.Semaphore(4)` with 30s timeout to prevent deadlocks
@@ -197,20 +216,20 @@ can explain its score (`explain=True`).
 
 ### Contradiction Detection
 
-Runs inline on every `memory_write` — synchronously, not deferred to the background loop — for all types except those in `CONTRADICTION_TYPE_EXCLUSIONS` (default: `conversation`):
+Runs inline on every `memory_write` that embeds its content — synchronously, not deferred to the background loop — for all types except those in `memory.contradiction.type_exclusions` (default: `conversation`). A write whose embedding is deferred is checked when the `embed` pass backfills its vector. A write with neither `agent_id` nor `user_id` is only related, never used to supersede:
 
-1. Query existing same-type items by cosine similarity against the new content's embedding, scoped to the same `agent_id`.
-2. If a candidate scores above `CONTRADICTION_THRESHOLD` (default **0.92**) and its content differs, it is superseded:
+1. Query existing same-type items by cosine similarity against the new content's embedding, scoped to the same `agent_id` and the caller's `user_id`.
+2. If a candidate scores above `memory.contradiction.threshold` (default **0.92**) and its content differs, it is superseded:
    - The old memory's validity interval is **closed** — `is_deleted = 1` *and* `valid_to` set — rather than erased. The original text stays retrievable byte-for-byte and remains queryable via bitemporal `as_of` lookups.
    - A `supersedes` relationship is created from new → old.
    - History event recorded with `supersede` type.
-   - At retrieval, the closed fact is demoted by `SUPERSEDES_PENALTY` (default `0.5`) rather than hidden.
+   - At retrieval, the closed fact is demoted by `search.supersedes_penalty` (default `0.5`) rather than hidden.
 
-Whether a title match is also required depends on `CONTRADICTION_TITLE_GATE` — `loose` (the default) needs only cosine + same type + differing content; `strict` additionally requires a title substring match.
+Whether a title match is also required depends on `memory.contradiction.title_gate` — `loose` (the default) needs only cosine + same type + differing content; `strict` additionally requires a title substring match; `off` disables the title check.
 
 > **The 0.92 bar is deliberately conservative, and it is higher than most people expect.** It fires on near-restatements of the same claim, where auto-closing is safe. Two facts that are *topically related but genuinely different* will both be kept. For example, "The auth service uses RS256 JWTs" versus "The auth service now uses EdDSA, replacing RS256" score ~0.74 cosine — well under the bar — so both are retained and neither is closed. That is intentional: silently closing a fact on a weak signal destroys correct history, which is the failure mode this threshold exists to prevent.
 >
-> To close a fact explicitly when you know it is stale, use [`memory_supersede`](MCP_TOOLS.md) — it takes the old and new IDs directly and does not consult the cosine threshold. Lower `CONTRADICTION_THRESHOLD` only if you have measured your own corpus and accept the false-positive risk.
+> To close a fact explicitly when you know it is stale, use [`memory_supersede`](MCP_TOOLS.md) — it takes the old and new IDs directly and does not consult the cosine threshold. Lower `memory.contradiction.threshold` only if you have measured your own corpus and accept the false-positive risk.
 
 ### Auto-Linking
 
@@ -250,7 +269,7 @@ When `type="auto"` is passed to `memory_write`:
 Priority order (the environment is never read for a secret):
 1. **Secrets file** — user-only `m3_secrets.toml` in the config root; each `[secrets]` entry is a value or a pointer `NAME = { keyring = "service/key" }`
 2. **OS keyring** — the entry the file points at, or service `system`, key `NAME` (macOS Keychain, Windows Credential Manager, Linux SecretService)
-3. **Encrypted vault** — `synchronized_secrets` table, AES-256 via Fernet/PBKDF2-HMAC-SHA256, 600K iterations; never consulted for the bootstrap secrets (`M3_PRIMARY_PG_URL`, `AGENT_OS_MASTER_KEY`, `M3_AGENT_OS_SALT_HEX`)
+3. **Encrypted vault** — `synchronized_secrets` table, AES-256-GCM with a key from PBKDF2-HMAC-SHA256, 600K iterations (older Fernet rows are still readable and are rewritten in the current format); never consulted for the bootstrap secrets (`M3_PRIMARY_PG_URL`, `AGENT_OS_MASTER_KEY`, `M3_AGENT_OS_SALT_HEX`)
 
 Store a secret with `m3 secret set NAME` (`--keyring` for the OS keyring); `m3 config import-env` migrates ones set in the environment, rc files, `.env` or MCP `env` blocks. The master key (`AGENT_OS_MASTER_KEY`) is never stored in code or the vault. Legacy 100K-iteration secrets auto-migrate to 600K on first decryption.
 
@@ -266,7 +285,7 @@ Store a secret with `m3 secret set NAME` (`--keyring` for the OS keyring); `m3 c
 | Pattern | Catches |
 |---------|---------|
 | `<script\b` | XSS injection |
-| `(DROP\|DELETE\|ALTER)\s+TABLE` | SQL injection attempts |
+| `javascript:` | Script URLs (stored-XSS risk in any UI that renders this) |
 | `__import__\|exec\s*(\|eval\s*(` | Python code injection |
 | `(ignore\|disregard)\s+(all\s+)?(previous\|prior)\s+instructions` | Prompt injection |
 
@@ -357,33 +376,36 @@ Watermark updates are NOT atomic with data writes. A crash between data write an
 
 ## ⚙️ Configuration
 
-### Environment Variables
+### Settings that shape retrieval and ingest
 
-| Variable | Default | Controls |
-|----------|---------|----------|
-| `DEDUP_LIMIT` | 1000 | Max items scanned during deduplication |
-| `DEDUP_THRESHOLD` | 0.92 | Cosine threshold for duplicate detection |
-| `CONTRADICTION_THRESHOLD` | 0.92 | Cosine floor for contradiction detection. Deliberately high — only near-restatements supersede; related-but-different facts are both kept |
-| `SEARCH_ROW_CAP` | 5000 | Max rows for cosine computation per search |
-| `EMBED_MODEL` | text-embedding-bge-m3 | Embedding model name. Served by default from the bundled GGUF via the shared local embed server; only needs to be loaded in a separate LLM server when routing out via `M3_EMBED_URL` |
-| `EMBED_DIM` | 1024 | Expected embedding dimensions |
-| `DB_POOL_SIZE` | 5 | SQLite connection pool size |
-| `DB_POOL_TIMEOUT` | 30 | Pool acquisition timeout (seconds) |
-| `ORIGIN_DEVICE` | `platform.node()` | Device identifier for sync provenance |
-| `M3_CDW_PG_URL` | (secret: file/keyring/vault; not env) | Warehouse PostgreSQL connection string (`PG_URL` in older vaults) |
-| `LLM_ENDPOINTS_CSV` | `http://localhost:1234/v1` | Comma-separated OpenAI-compatible LLM server endpoints |
-| `MMR_LAMBDA` | 0.7 | MMR relevance vs. diversity balance |
-| `M3_SPEAKER_IN_TITLE` | `1` | When a memory's `metadata.role` is a proper name, prepend `[Role]` to the title at write time so FTS5 can match speaker-scoped queries. Set to `0` to disable. |
-| `M3_SHORT_TURN_THRESHOLD` | 20 | Character-length threshold below which the ranker applies a length penalty (floor 0.3×) to suppress filler turns like "ok cool". |
-| `M3_TITLE_MATCH_BOOST` | 0.05 | Per-query-token-overlap boost applied when the title echoes query tokens. Set to 0 to disable. |
-| `M3_IMPORTANCE_WEIGHT` | 0.05 | Weight of the caller-supplied `importance` field in final ranking. Set to 0 to ignore importance during ranking. |
-| `M3_INGEST_WINDOW_CHUNKS` | 1 | Emit a rolling `type="summary"` row every `M3_INGEST_WINDOW_SIZE` turns of a conversation. On by default; set `0` to disable. |
-| `M3_INGEST_WINDOW_SIZE` | 3 | Turns combined into each window chunk when window chunks are enabled. |
-| `M3_INGEST_GIST_ROWS` | 0 | Emit a heuristic per-conversation gist row once the turn count passes `M3_INGEST_GIST_MIN_TURNS`, and every `M3_INGEST_GIST_STRIDE` after. Deterministic; no LLM. |
-| `M3_INGEST_GIST_MIN_TURNS` | 8 | Threshold before the first gist is written. |
-| `M3_INGEST_GIST_STRIDE` | 8 | Stride between subsequent gist updates. |
-| `M3_INGEST_EVENT_ROWS` | 0 | Regex-extract event sentences from each message and emit `type="event_extraction"` rows linked back via `references`. Deterministic; no LLM. |
-| `M3_QUERY_TYPE_ROUTING` | 1 | When a query matches "when/what date/which day" + a proper noun, shift `vector_weight` to 0.3 (BM25-heavy) so named-entity signal isn't diluted. |
+Every setting lives in `m3_config.toml`; the generated [Config reference](CONFIG_REFERENCE.md) is the complete, authoritative list (key, type, default, legacy environment names). The ones this page refers to:
+
+| Key | Legacy env name | Default | Controls |
+|-----|-----------------|---------|----------|
+| `memory.dedup.limit` | `M3_DEDUP_LIMIT` | 1000 | Max items scanned during deduplication |
+| `memory.dedup.threshold` | `M3_DEDUP_THRESHOLD` | 0.92 | Cosine threshold for duplicate detection |
+| `memory.contradiction.threshold` | `M3_CONTRADICTION_THRESHOLD` | 0.92 | Cosine floor for contradiction detection. Deliberately high — only near-restatements supersede; related-but-different facts are both kept |
+| `search.row_cap` | `M3_SEARCH_ROW_CAP` | 5000 | Max rows for cosine computation per search |
+| `embed.model` | `M3_EMBED_MODEL` | text-embedding-bge-m3 | Embedding model name. Served by default from the bundled GGUF via the shared local embed server; only needs to be loaded in a separate LLM server when routing out via `embed.url` |
+| `embed.dim` | `M3_EMBED_DIM` | 1024 | Expected embedding dimensions |
+| `db.pool_size` | `M3_DB_POOL_SIZE` | 5 | SQLite connection pool size |
+| `db.pool_timeout_s` | `M3_DB_POOL_TIMEOUT` | 30 | Pool acquisition timeout (seconds) |
+| `identity.origin_device` | `M3_ORIGIN_DEVICE` | host name | Device identifier for sync provenance |
+| `M3_CDW_PG_URL` (secret) | — | — | Warehouse PostgreSQL connection string; `m3 secret set M3_CDW_PG_URL` (`PG_URL` in older vaults) |
+| `llm.endpoints` | `M3_LLM_ENDPOINTS_CSV` | empty: `llm.url`, then LM Studio `http://localhost:1234/v1` | OpenAI-compatible LLM server endpoints, tried in order |
+| `search.speaker_in_title` | `M3_SPEAKER_IN_TITLE` | true | When a memory's `metadata.role` is a proper name, prepend `[Role]` to the title at write time so FTS5 can match speaker-scoped queries |
+| `search.short_turn_threshold` | `M3_SHORT_TURN_THRESHOLD` | 20 | Character-length threshold below which the ranker applies a length penalty (floor 0.3×) to suppress filler turns like "ok cool" |
+| `search.title_match_boost` | `M3_TITLE_MATCH_BOOST` | 0.15 | Per-query-token-overlap boost applied when the title echoes query tokens. 0 disables |
+| `search.importance_weight` | `M3_IMPORTANCE_WEIGHT` | 0.15 | Weight of the memory's (decayed) `importance` in final ranking. 0 ignores importance |
+| `ingest.window_chunks` | `M3_INGEST_WINDOW_CHUNKS` | true | Emit a rolling `type="summary"` row every `ingest.window_size` turns of a conversation |
+| `ingest.window_size` | `M3_INGEST_WINDOW_SIZE` | 3 | Turns combined into each window chunk |
+| `ingest.gist_rows` | `M3_INGEST_GIST_ROWS` | true | Emit a heuristic per-conversation gist row once the turn count reaches `ingest.gist_min_turns`, and every `ingest.gist_stride` after. Deterministic; no LLM |
+| `ingest.gist_min_turns` | `M3_INGEST_GIST_MIN_TURNS` | 10 | Turns before the first gist is written |
+| `ingest.gist_stride` | `M3_INGEST_GIST_STRIDE` | 5 | Turns between subsequent gist updates |
+| `ingest.event_rows` | `M3_INGEST_EVENT_ROWS` | true | Regex-extract event sentences from each message and emit `type="event_extraction"` rows linked back via `references`. Deterministic; no LLM |
+| `search.query_type_routing` | `M3_QUERY_TYPE_ROUTING` | true | When a query matches "when/what date/which day" + a proper noun, shift the vector weight to 0.3 (BM25-heavy) so named-entity signal isn't diluted |
+
+The MMR balance (λ = 0.7) is fixed in code, not a setting.
 
 Always-on: when `metadata.temporal_anchors` is supplied, resolved ISO dates are prefixed to the embed text as `[YYYY-MM-DD] …` so absolute-date queries hit rows even when the source text says "yesterday". No flag; no-op when anchors are absent.
 
