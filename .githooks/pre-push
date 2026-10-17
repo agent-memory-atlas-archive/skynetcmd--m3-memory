@@ -427,6 +427,27 @@ if [ "$_scan_rc" -ne 0 ]; then
   exit 1
 fi
 
+# --- lint gate: ruff check + ruff format --check on the pushed .py files -----
+# CI's first job is `ruff format --check .`; a formatting slip reached a public
+# main and turned it red (2026-10-17) because nothing local ran the formatter
+# check. Seconds to run, so it always runs when Python changed.
+PY_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E '\.py$' | while read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done || true)"
+LINT_STATE="skipped (no .py in push)"
+if [ -n "$PY_CHANGED" ]; then
+  if ! command -v ruff >/dev/null 2>&1; then
+    echo "[pre-push] lint gate — WARNING: ruff not on PATH; deferring to CI (pip install ruff)." >&2
+    LINT_STATE="DEFERRED to CI (ruff not on PATH)"
+  else
+    # shellcheck disable=SC2086
+    if ! printf '%s\n' "$PY_CHANGED" | xargs ruff format --check -q || ! printf '%s\n' "$PY_CHANGED" | xargs ruff check -q; then
+      echo "[pre-push] BLOCKED: ruff found problems in the files above." >&2
+      echo "  fix: ruff format <files> && ruff check --fix <files>, then commit." >&2
+      exit 1
+    fi
+    LINT_STATE="clean"
+  fi
+fi
+
 # Design-philosophy reminder — only when this push actually changes code
 # (bin/ or m3_memory/ .py), not on docs/config-only pushes. The author is
 # responsible for following the guidelines; this is a prompt, not a tool or a
@@ -447,4 +468,4 @@ if [ -n "$CODE_CHANGED" ]; then
 REMINDER
 fi
 
-echo "[pre-push] OK — drift gate: $DRIFT_STATE; shim gate: $SHIM_STATE; leakage scan: $LEAK_STATE."
+echo "[pre-push] OK — drift gate: $DRIFT_STATE; shim gate: $SHIM_STATE; lint: $LINT_STATE; leakage scan: $LEAK_STATE."
