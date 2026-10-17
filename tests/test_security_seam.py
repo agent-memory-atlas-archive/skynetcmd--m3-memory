@@ -113,28 +113,28 @@ def test_the_provider_re_exports_the_rules_not_a_copy():
 
 
 @pytest.mark.parametrize(
-    ("toml", "tier"),
-    [
-        ("", "off"),
-        ("[crypto]\nfips_mode = true\n", "mode"),
-        ("[crypto]\nfips_strict = true\n", "strict"),
-        ("[crypto]\nfips_mode = true\nfips_strict = false\n", "mode"),
-    ],
+    ("mode", "strict", "tier"),
+    [(False, False, "off"), (True, False, "mode"), (False, True, "strict"), (True, True, "strict")],
 )
-def test_python_and_rust_compute_the_same_tier(tmp_path, monkeypatch, toml, tier):
-    """The same m3_config.toml gives the same tier in both languages."""
+def test_python_and_rust_compute_the_same_tier(tmp_path, mode, strict, tier):
+    """The same m3_config.toml gives the same tier in both languages. Both keys
+    are written, so the file decides and a FIPS env name in the developer's
+    shell (a legacy alias below the file) cannot."""
     core = pytest.importorskip("m3_core_rs", reason=skip_reason("dep", "m3_core_rs not installed"))
     if not hasattr(core, "fips_tier_from_config"):
         pytest.skip(skip_reason("dep", "this m3_core_rs predates fips_tier_from_config (3.10.16)"))
     cfg = tmp_path / "m3_config.toml"
-    cfg.write_text("schema_version = 1\n" + toml, encoding="utf-8")
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    for name in ("M3_FIPS_MODE", "M3_FIPS_STRICT"):
-        monkeypatch.delenv(name, raising=False)
+    cfg.write_text(
+        f"schema_version = 1\n[crypto]\nfips_mode = {str(mode).lower()}\nfips_strict = {str(strict).lower()}\n",
+        encoding="utf-8",
+    )
+    roots = importlib.import_module("m3_memory._roots")
     st = importlib.import_module("m3_core.config.settings")
+    roots.pin_config_file(cfg)  # Python's `m3 --config`; Rust gets the path itself
     st._reset_for_tests()
     try:
         assert _policy().fips_tier() == tier
         assert core.fips_tier_from_config(str(cfg)) == tier
     finally:
+        roots.pin_config_file(None)
         st._reset_for_tests()
