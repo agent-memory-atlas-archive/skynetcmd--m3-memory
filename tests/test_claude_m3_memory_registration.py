@@ -164,6 +164,9 @@ def test_wire_claude_registers_m3_memory_and_migrates_old(monkeypatch):
     monkeypatch.setattr(sw.shutil, "which", lambda name: "/usr/bin/claude")
     # Skip the real hook subprocess.
     monkeypatch.setattr(sw, "_wire_claude_hooks", lambda mode: True)
+    # and the plugin-disable merge, which writes the REAL ~/.claude/settings.json
+    # (a no-op only where the entry already exists; it fired on a fresh CI runner).
+    monkeypatch.setattr(sw, "_disable_claude_plugin_server", lambda: True)
     # Deterministic roots.
     import m3_memory.installer as inst
 
@@ -198,6 +201,9 @@ def test_wire_claude_prints_loud_plugin_default_notice(monkeypatch, capsys):
 
     monkeypatch.setattr(sw.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(sw, "_wire_claude_hooks", lambda mode: True)
+    # and the plugin-disable merge, which writes the REAL ~/.claude/settings.json
+    # (a no-op only where the entry already exists; it fired on a fresh CI runner).
+    monkeypatch.setattr(sw, "_disable_claude_plugin_server", lambda: True)
     import m3_memory.installer as inst
 
     monkeypatch.setattr(inst, "_canonical_memory_env", lambda: {})
@@ -229,6 +235,9 @@ def test_add_terminates_options_before_the_positionals(monkeypatch):
 
     monkeypatch.setattr(sw.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(sw, "_wire_claude_hooks", lambda mode: True)
+    # and the plugin-disable merge, which writes the REAL ~/.claude/settings.json
+    # (a no-op only where the entry already exists; it fired on a fresh CI runner).
+    monkeypatch.setattr(sw, "_disable_claude_plugin_server", lambda: True)
     import m3_memory.installer as inst
 
     monkeypatch.setattr(

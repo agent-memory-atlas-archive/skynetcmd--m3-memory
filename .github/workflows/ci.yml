@@ -345,7 +345,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip uv
         echo "mcp>=1.30.0,<2" > overrides.txt
-        uv pip install --system -r requirements.txt ".[pydantic-ai,crewai]" --override overrides.txt
+        # The package with the extras and the test group, resolved together, as
+        # a user installs it: not on top of the pinned lane set. crewai pins its
+        # own dependencies narrowly (tomli <2.1, regex 2026.1.x), so the lane
+        # set's pins made the job unresolvable.
+        uv pip install --system ".[pydantic-ai,crewai]" --group test --override overrides.txt
         python -c "import importlib.metadata as m; print('mcp', m.version('mcp'), '| crewai', m.version('crewai'), '| pydantic-ai-slim', m.version('pydantic-ai-slim'))"
     - name: Run the integration tests (must not skip)
       run: |
@@ -428,7 +432,11 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e ".[dev]" psycopg2-binary
+        # The resolved lane set (it holds the test group: psycopg2-binary, and
+        # setuptools, which test_wheel_ships_migrations imports through setup.py;
+        # the [dev] extra installed here before had neither).
+        pip install -r requirements.txt
+        pip install -e . --no-deps
     - name: Confirm the cluster is actually reachable
       # Fail LOUD here rather than let pytest skip its way to a green lane. A
       # requires_pg run that skips everything is indistinguishable from a pass,
@@ -583,15 +591,21 @@ jobs:
         python -m pip install --upgrade pip
         pip install .
 
-    # Roots live under the runner temp dir, never the default ~/.m3, so the
+    # Roots live in a fresh folder of their own, never the default ~/.m3, so the
     # wizard cannot touch anything outside this job and each run starts clean.
+    # Under the runner user's profile, not runner.temp: on Windows a new file in
+    # runner.temp is readable by Users, and m3 refuses to write its config file
+    # where another account can read it (2026-10-17).
+    - name: Pick a private root for the throwaway install
+      shell: bash
+      run: echo "M3_E2E_ROOT=${USERPROFILE:-$HOME}/m3-e2e-${{ github.run_id }}" >> "$GITHUB_ENV"
+
     - name: Run the setup wizard unattended (throwaway roots)
       shell: bash
       env:
         # No agent is installed on a runner, so wire none and disable capture:
         # the point is the install path itself, not hook wiring into a client
         # that is not there.
-        M3_E2E_ROOT: ${{ runner.temp }}/m3-e2e
         # Breadcrumbs to a FILE: the Windows failure kills setup with no output
         # on either stream, so anything relying on the dying process flushing
         # its own stdio is precisely what cannot be trusted here.
@@ -640,8 +654,6 @@ jobs:
       # exists to diagnose.
       if: always() && runner.os == 'Windows'
       shell: bash
-      env:
-        M3_E2E_ROOT: ${{ runner.temp }}/m3-e2e
       run: |
         export M3_CONFIG_ROOT="$M3_E2E_ROOT/config"
         export M3_ENGINE_ROOT="$M3_E2E_ROOT/engine"
@@ -680,8 +692,6 @@ jobs:
     # installer to grade its own work.
     - name: Verify the install is actually functional
       shell: bash
-      env:
-        M3_E2E_ROOT: ${{ runner.temp }}/m3-e2e
       run: |
         export M3_CONFIG_ROOT="$M3_E2E_ROOT/config"
         export M3_ENGINE_ROOT="$M3_E2E_ROOT/engine"
@@ -720,8 +730,6 @@ jobs:
     # cannot see: a wipe-and-recreate would pass every other assertion here.
     - name: Re-run setup over the existing install (upgrade path)
       shell: bash
-      env:
-        M3_E2E_ROOT: ${{ runner.temp }}/m3-e2e
       run: |
         # Record the pre-upgrade state so a silent data loss is visible even if
         # the canary search were to pass for the wrong reason.
@@ -749,8 +757,6 @@ jobs:
 
     - name: Verify the upgrade preserved data and left a working install
       shell: bash
-      env:
-        M3_E2E_ROOT: ${{ runner.temp }}/m3-e2e
       run: |
         export M3_CONFIG_ROOT="$M3_E2E_ROOT/config"
         export M3_ENGINE_ROOT="$M3_E2E_ROOT/engine"
@@ -771,8 +777,6 @@ jobs:
     - name: Show the engine root on failure
       if: failure()
       shell: bash
-      env:
-        M3_E2E_ROOT: ${{ runner.temp }}/m3-e2e
       run: |
         ls -la "$M3_E2E_ROOT/engine" || true
         ls -la "$M3_E2E_ROOT/config" || true

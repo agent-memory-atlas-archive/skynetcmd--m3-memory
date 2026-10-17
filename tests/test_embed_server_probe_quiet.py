@@ -70,6 +70,16 @@ def test_skips_cleanly_when_binary_absent(monkeypatch):
     """
     monkeypatch.setattr(embed_server_probe.shutil, "which", lambda _name: None)
     monkeypatch.setattr(embed_server_probe, "_resolve_binary", lambda: None)
+    # The machine's own port and shared-mode setting must not decide the result:
+    # on a box in shared mode with nothing on :8082 this returned 1 (2026-10-17).
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        embed_server_probe,
+        "_port_answers",
+        lambda *a, **k: SimpleNamespace(serving=False, answering=False, detail="refused"),
+    )
+    monkeypatch.setattr(embed_server_probe, "_server_needed", lambda: False)
     # Should not call subprocess.run at all; returns 0 (not a Python-side failure).
     called = {"run": False}
 

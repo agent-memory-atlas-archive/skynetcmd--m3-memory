@@ -147,6 +147,11 @@ def test_claude_mcp_add_already_exists_is_success(monkeypatch, capsys, rc, blob,
         "run",
         lambda *a, **k: SimpleNamespace(returncode=rc, stdout=blob, stderr=""),
     )
+    # The settings writers touch the REAL ~/.claude/settings.json; this test is
+    # about the `claude mcp add` exit code only.
+    # The hooks half reports False so the result is the registration's alone.
+    monkeypatch.setattr(sw, "_wire_claude_hooks", lambda mode: False)
+    monkeypatch.setattr(sw, "_disable_claude_plugin_server", lambda: True)
     assert sw._wire_claude("both") is expect
     if rc != 0 and expect:
         assert "already registered" in capsys.readouterr().out.lower()

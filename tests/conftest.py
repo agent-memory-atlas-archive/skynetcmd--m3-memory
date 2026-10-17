@@ -846,7 +846,14 @@ def _restore_service_files(snap: dict, changed: list[str]) -> list[str]:
 # are not compared -- the live Claude Code process writes ~/.claude.json itself
 # during a run -- and they are parsed only when their mtime moves.
 _CLAUDE_FILES = {
-    _REAL_HOME / ".claude" / "settings.json": lambda d: {k: d.get(k) for k in ("hooks", "statusLine")},
+    # disabledMcpServers too: setup_wizard._disable_claude_plugin_server merges
+    # m3's plugin ids there, and three tests reached it unstubbed (found by a
+    # fresh CI runner, 2026-10-17; a dev box already had the entry, so the write
+    # changed nothing there and this guard, comparing only hooks/statusLine,
+    # would not have seen it where it did).
+    _REAL_HOME / ".claude" / "settings.json": lambda d: {
+        k: d.get(k) for k in ("hooks", "statusLine", "disabledMcpServers")
+    },
     _REAL_HOME / ".claude.json": lambda d: (d.get("mcpServers") or {}).get("m3_memory"),
 }
 _claude_seen: dict[Path, tuple[int, object]] = {}
