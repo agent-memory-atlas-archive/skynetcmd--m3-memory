@@ -24,33 +24,10 @@ from m3_core.secret_store import loggable_url
 
 
 def _fmt_dual_time(value: object) -> str:
-    """'LOCAL (ZULU)' timestamp — mirrors sections._fmt_dual_time (house convention)."""
-    import datetime as _dt
+    """'LOCAL (ZULU)' timestamp: m3_core.runtime.local_and_utc owns the format."""
+    from m3_core.runtime import local_and_utc
 
-    if value is None or value == "":
-        return "—"
-    dt = None
-    try:
-        if isinstance(value, _dt.datetime):
-            dt = value
-        elif isinstance(value, (int, float)):
-            dt = _dt.datetime.fromtimestamp(float(value))
-        else:
-            dt = _dt.datetime.fromisoformat(str(value).strip())
-    except (ValueError, OSError, OverflowError):
-        return str(value)
-    if dt is None:
-        return str(value)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=_dt.UTC)
-    local = dt.astimezone()
-    raw_tz = local.strftime("%Z")
-    if raw_tz and " " in raw_tz:
-        tzname = "".join(w[0] for w in raw_tz.split() if w).upper()
-    else:
-        tzname = raw_tz or local.strftime("%z")
-    utc = dt.astimezone(_dt.UTC)
-    return f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} ({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})"
+    return local_and_utc(value)
 
 
 def _verdict(

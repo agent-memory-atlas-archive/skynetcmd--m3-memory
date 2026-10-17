@@ -63,8 +63,11 @@ def iso_local_timestamp() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
 
 
-def utc_iso(timespec: Literal["seconds", "milliseconds", "microseconds"] = "seconds") -> str:
-    """The current UTC time as ISO-8601 with a trailing 'Z', FIXED WIDTH.
+def utc_iso(
+    timespec: Literal["seconds", "milliseconds", "microseconds"] = "seconds", *, at: datetime | None = None
+) -> str:
+    """The current UTC time (or ``at``, any aware datetime) as ISO-8601 with a
+    trailing 'Z', FIXED WIDTH.
 
     THE single owner of this format; do not hand-roll ``strftime`` copies.
     ``seconds`` (the default) is '2026-07-20T18:31:05Z', byte-identical to the
@@ -77,7 +80,40 @@ def utc_iso(timespec: Literal["seconds", "milliseconds", "microseconds"] = "seco
     Never ``strftime("...%M:%fZ")``: in Python ``%f`` is microseconds, not
     SQLite's seconds-with-millis, and the seconds vanish (plan item R7).
     """
-    return datetime.now(UTC).isoformat(timespec=timespec).removesuffix("+00:00") + "Z"
+    when = datetime.now(UTC) if at is None else at.astimezone(UTC)
+    return when.isoformat(timespec=timespec).removesuffix("+00:00") + "Z"
+
+
+def local_and_utc(value: object) -> str:
+    """A time for a person: local wall clock with its zone, then UTC in parens,
+    e.g. ``2026-07-19 14:32:01 EDT (2026-07-19T18:32:01Z)``. THE owner of that
+    display (doctor and the dashboard carried copies).
+
+    ``value``: a datetime, an epoch number, or an ISO-8601 string; a naive value
+    is UTC (SQLite stores wall-clock UTC). "—" for None or ""; an unparseable
+    value comes back stringified, never raised, since a report line must not
+    crash on an odd timestamp. Now: ``local_and_utc(datetime.now(UTC))``."""
+    if value is None or value == "":
+        return "—"
+    dt: datetime
+    try:
+        if isinstance(value, datetime):
+            dt = value
+        elif isinstance(value, (int, float)):
+            dt = datetime.fromtimestamp(float(value), UTC)
+        else:
+            dt = datetime.fromisoformat(str(value).strip())  # reads a trailing "Z" (3.11+)
+    except (ValueError, OSError, OverflowError):
+        return str(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    local = dt.astimezone()
+    # A compact zone: Windows' %Z is the long name ("Eastern Daylight Time"),
+    # shortened to its initials; the numeric offset when %Z is empty.
+    raw_tz = local.strftime("%Z")
+    tzname = "".join(w[0] for w in raw_tz.split() if w).upper() if raw_tz and " " in raw_tz else raw_tz
+    tzname = tzname or local.strftime("%z")
+    return f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} ({dt.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')})"
 
 
 def iso_utc_timestamp() -> str:

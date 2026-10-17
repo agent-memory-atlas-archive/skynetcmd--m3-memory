@@ -486,45 +486,12 @@ def _roots_section() -> None:
 
 
 def _fmt_dual_time(value: object) -> str:
-    """Render a timestamp as 'LOCAL (ZULU)', per house convention.
+    """'LOCAL (ZULU)' timestamp, e.g. ``2026-07-19 14:32:01 EDT (2026-07-19T18:32:01Z)``:
+    m3_core.runtime.local_and_utc owns the format."""
+    _bin.ensure_on_path()
+    from m3_core.runtime import local_and_utc
 
-    ``value`` may be an ISO-8601 string (SQLite TEXT timestamp), an epoch number,
-    or a datetime. Returns e.g. ``2026-07-19 14:32:01 EDT (2026-07-19T18:32:01Z)``.
-    Best-effort: an unparseable value is returned stringified, never raised — a
-    doctor line must not crash on a weird timestamp.
-    """
-    import datetime as _dt
-
-    if value is None or value == "":
-        return "—"
-    dt: _dt.datetime | None = None
-    try:
-        if isinstance(value, _dt.datetime):
-            dt = value
-        elif isinstance(value, (int, float)):
-            dt = _dt.datetime.fromtimestamp(float(value))
-        else:
-            s = str(value).strip().replace("Z", "+00:00")
-            dt = _dt.datetime.fromisoformat(s)
-    except (ValueError, OSError, OverflowError):
-        return str(value)
-    if dt is None:
-        return str(value)
-    # Interpret a naive timestamp as UTC (SQLite stores wall-clock UTC), then
-    # show it in local time with the UTC value in parens.
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=_dt.UTC)
-    local = dt.astimezone()
-    # Prefer a compact tz abbreviation. On Windows %Z yields a verbose name
-    # ("Eastern Daylight Time"); abbreviate to its initials (→ "EDT"). Fall back
-    # to the numeric offset if %Z is empty.
-    raw_tz = local.strftime("%Z")
-    if raw_tz and " " in raw_tz:
-        tzname = "".join(w[0] for w in raw_tz.split() if w).upper()
-    else:
-        tzname = raw_tz or local.strftime("%z")
-    utc = dt.astimezone(_dt.UTC)
-    return f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} ({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})"
+    return str(local_and_utc(value))
 
 
 def _rows_fn(conn):

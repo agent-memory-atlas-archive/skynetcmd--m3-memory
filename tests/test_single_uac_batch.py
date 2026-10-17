@@ -35,7 +35,8 @@ def _fake_elevated(monkeypatch, codes: dict, outputs: dict):
 
     def fake_run(argv, **_kw):
         launcher = argv[-1]
-        script = launcher.split("'-File',")[1].split(" -Verb")[0].strip().strip("'")
+        # ... -File "<script>" "<purpose>" : the quoted argument after -File.
+        script = launcher.split('-File "')[1].split('"')[0]
         tmp = os.path.dirname(script)
         with open(os.path.join(tmp, "results.json"), "w", encoding="utf-8") as fh:
             json.dump(codes, fh)

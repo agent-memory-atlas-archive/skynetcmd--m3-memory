@@ -17,13 +17,25 @@ import json
 import os
 import subprocess  # nosec B404 - fixed argv lists, no shell
 import tempfile
+from datetime import datetime
 
-from m3_memory._platform import is_windows
+from m3_memory._platform import is_elevated, is_windows
 
 
 def _ps_quote(s: str) -> str:
     """A PowerShell single-quoted literal (a ' inside is doubled)."""
     return "'" + str(s).replace("'", "''") + "'"
+
+
+# The words every prompt is framed with (ElevationBatch.run owns the framing).
+ELEVATION_NOTICE = "You will be asked to authorize actions requiring elevated privileges:"
+APPROVED = "approved"
+DISAPPROVED = "disapproved"
+TIMED_OUT = "timed out"
+NOT_NEEDED = "not needed (this process is already elevated)"
+NOT_CONFIRMED = "not confirmed"  # the launcher failed; whether anything ran is unknown
+_ERROR_CANCELLED = 1223  # Win32: the user declined the UAC prompt
+_LAUNCH_FAILED = 9009  # the launcher failed for a reason other than a declined prompt
 
 
 class ElevationBatch:
@@ -76,55 +88,135 @@ class ElevationBatch:
         prompt was declined, expired, or the elevated process wrote no results
         (then nothing can be assumed to have run).
 
+        Every prompt is framed the same way, by this primitive and not its
+        callers: the standard notice, the steps and the time it was requested
+        before the dialog, then "permission approved | disapproved | timed out"
+        with the time it ended, printed and appended to <logs root>/elevation.log
+        (local time and UTC both). ``self.outcome`` keeps that word. A process
+        already elevated gets no dialog; its outcome says so.
+
         `timeout` bounds the wait for the dialog. It stays well inside the
         caller's own budget (`m3 upgrade` gives setup 900 s), so a missed
         prompt costs this step, not the whole setup; past it, the script
         refuses to run (see render_script).
         """
+        self.outcome: str | None = None
         if not self.actions:
             return {}
         if not is_windows():
             return None
         import time
+        from datetime import UTC, datetime
 
         expires = int(time.time()) + timeout
+        already = is_elevated()
         tmp = _workdir()
+        started = datetime.now(UTC)
         try:
-            return self._run_in(tmp, timeout, expires)
+            self.announce(started, already=already)
+            out, self.outcome, detail = self._run_in(tmp, timeout, expires)
         finally:
             _remove_workdir(tmp)
+        if already and self.outcome == APPROVED:
+            self.outcome = NOT_NEEDED
+        self._report(self.outcome, detail, started, datetime.now(UTC))
+        return out
 
-    def _run_in(self, tmp: str, timeout: int, expires: int) -> dict[str, dict] | None:
+    def purpose(self) -> str:
+        """What the prompt is for, one line: "m3: <label>; <label>".
+
+        UAC shows no text a program supplies. Its dialog names the program
+        (Windows PowerShell here) and, under "Show more details", the command
+        line; this line rides on that command line as an argument the script
+        ignores, so the details say what approving does."""
+        text = "m3: " + "; ".join(label for label, _argv in self.actions)
+        # It is quoted on the command line: a double quote would end the argument.
+        return text.replace('"', "'")
+
+    def announce(self, started: datetime, *, already: bool = False) -> None:
+        """The standard notice before every prompt, with the steps it covers and
+        when it was requested: the dialog itself names only Windows PowerShell."""
+        steps = "\n".join(f"  - {label}" for label, _argv in self.actions)
+        where = (
+            "  (this process is already elevated: no prompt appears)"
+            if already
+            else '  (the prompt names Windows PowerShell; "Show more details" lists these steps)'
+        )
+        print(f"{ELEVATION_NOTICE}\n{steps}\n{where}\n  requested {_when(started)}", flush=True)
+
+    def _report(self, outcome: str, detail: str, started: datetime, ended: datetime) -> None:
+        """`permission <outcome>` (and which condition, when the word covers more
+        than one) with the time it ended, on the console and in
+        <logs root>/elevation.log. A log line leads with the UTC end time, so the
+        file sorts; requested and ended follow in local time and UTC."""
+        took = f"{(ended - started).total_seconds():.0f}s"
+        said = f"permission {outcome}" + (f" ({detail})" if detail else "")
+        print(f"{said}  ended {_when(ended)}, after {took}", flush=True)
+        from m3_memory._roots import logs_root
+
+        log = os.path.join(logs_root(), "elevation.log")
+        try:
+            os.makedirs(logs_root(), exist_ok=True)
+            with open(log, "a", encoding="utf-8", newline="\n") as fh:
+                fh.write(
+                    f"{_utc_iso(ended)} {said} | requested {_when(started)} | ended {_when(ended)} "
+                    f"| after {took} | {self.purpose()}\n"
+                )
+        except OSError as e:
+            print(f"  (could not record it in {log}: {type(e).__name__}: {e})", flush=True)
+
+    def _run_in(self, tmp: str, timeout: int, expires: int) -> tuple[dict[str, dict] | None, str, str]:
+        """(results or None, outcome word, which condition when the word covers
+        several, else "")."""
         script = os.path.join(tmp, "actions.ps1")
         results = os.path.join(tmp, "results.json")
         with open(script, "w", encoding="utf-8-sig", newline="") as fh:
             fh.write(self.render_script(results, tmp, expires_epoch=expires))
+        # Process.Start with the runas verb, not Start-Process: a declined prompt
+        # throws Win32Exception 1223 (ERROR_CANCELLED) from it, which becomes the
+        # exit code. Start-Process reported a decline only as a localized message
+        # (measured 2026-10-17: a "No" read as a launcher failure). Arguments is one
+        # string, so the script path and the purpose carry their own double quotes.
+        args = f"-NoProfile -ExecutionPolicy Bypass -File {chr(34)}{script}{chr(34)} {chr(34)}{self.purpose()}{chr(34)}"
         launcher = (
-            "$p = Start-Process -FilePath 'powershell' -ArgumentList "
-            f"'-NoProfile','-ExecutionPolicy','Bypass','-File',{_ps_quote(script)} "
-            "-Verb RunAs -PassThru -Wait -WindowStyle Hidden; exit $p.ExitCode"
+            "$i = New-Object System.Diagnostics.ProcessStartInfo; $i.FileName = 'powershell'; "
+            f"$i.Arguments = {_ps_quote(args)}; $i.Verb = 'runas'; $i.UseShellExecute = $true; "
+            "$i.WindowStyle = 'Hidden'; "
+            "try { $p = [System.Diagnostics.Process]::Start($i); $p.WaitForExit(); exit $p.ExitCode } "
+            "catch { $e = $_.Exception; while ($e) { if ($e -is [System.ComponentModel.Win32Exception]) "
+            f"{{ exit $e.NativeErrorCode }}; $e = $e.InnerException }}; "
+            f"Write-Output $_.Exception.ToString(); exit {_LAUNCH_FAILED} }}"
         )
         try:
-            subprocess.run(
+            proc = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", launcher],
                 timeout=timeout,
                 check=False,
                 capture_output=True,
             )
-        except (OSError, subprocess.SubprocessError):
-            return None
+        except subprocess.TimeoutExpired:
+            return None, TIMED_OUT, f"no answer within {timeout}s; a later approval runs nothing"
+        except (OSError, subprocess.SubprocessError) as e:
+            return None, NOT_CONFIRMED, f"no prompt was shown: the launcher could not run ({type(e).__name__}: {e})"
         try:
             with open(results, encoding="utf-8-sig") as fh:
                 data = json.load(fh)
-            if not isinstance(data, dict) or data.get("expired"):
-                return None
-            out: dict[str, dict] = {}
-            for i, (label, _argv) in enumerate(self.actions):
-                rc = data.get(label)
-                out[label] = {"rc": -1 if rc is None else int(rc), "output": _tail(os.path.join(tmp, f"{i}.log"))}
-            return out
         except (OSError, ValueError):
-            return None  # declined, or the elevated process never got that far
+            if proc.returncode == _ERROR_CANCELLED:
+                return None, DISAPPROVED, ""
+            raw = getattr(proc, "stdout", None) or b""  # this module never raises
+            said = (raw if isinstance(raw, str) else raw.decode(errors="replace")).strip().splitlines()
+            cause = f": {said[0][:200]}" if said else ""
+            return None, NOT_CONFIRMED, f"no results; launcher exit {proc.returncode}{cause}"
+        if not isinstance(data, dict):
+            return None, NOT_CONFIRMED, f"unreadable results; launcher exit {proc.returncode}"
+        if data.get("expired"):
+            return None, TIMED_OUT, f"approved after the {timeout}s deadline; nothing ran"
+        out: dict[str, dict] = {}
+        for i, (label, _argv) in enumerate(self.actions):
+            rc = data.get(label)
+            out[label] = {"rc": -1 if rc is None else int(rc), "output": _tail(os.path.join(tmp, f"{i}.log"))}
+        return out, APPROVED, ""
 
 
 def _remove_workdir(path: str) -> None:
@@ -160,6 +252,26 @@ def _workdir() -> str:
     path = os.path.join(tempfile.gettempdir(), f"m3-elevate-{uuid.uuid4().hex[:12]}")
     os.mkdir(path)
     return path
+
+
+def _utc_iso(dt: datetime) -> str:
+    """``dt`` as m3's fixed-width UTC stamp (m3_core.runtime.utc_iso owns it)."""
+    from m3_memory import _bin
+
+    _bin.ensure_on_path()
+    from m3_core.runtime import utc_iso
+
+    return str(utc_iso(at=dt))
+
+
+def _when(dt: datetime) -> str:
+    """Local time with its zone, then UTC (m3_core.runtime.local_and_utc owns it)."""
+    from m3_memory import _bin
+
+    _bin.ensure_on_path()
+    from m3_core.runtime import local_and_utc
+
+    return str(local_and_utc(dt))
 
 
 def _tail(path: str, lines: int = 8) -> str:
