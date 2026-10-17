@@ -82,7 +82,7 @@ def run(brief: bool = False) -> int:
         print(f"   - {name}{marker}")
 
     if catalog_names:
-        print(f"   catalog holds {len(catalog_names)} tools; the rest are reachable via m3_call or tools_load_domain.")
+        print(f"   catalog holds {len(catalog_names)} tools; the rest are reachable via m3_call.")
     if source == "shipped default":
         print(
             "   No .tools_config.json — tracking this version's default. "

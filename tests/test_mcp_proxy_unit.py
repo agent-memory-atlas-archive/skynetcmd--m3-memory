@@ -85,7 +85,7 @@ def test_execute_unknown_tool(proxy):
 def test_execute_destructive_tool_default_denied(proxy):
     result = asyncio.run(proxy._execute_tool("memory_delete", {"id": "x"}, "tester"))
     assert "destructive and disabled by default" in result
-    assert "M3_MCP_PROXY_ALLOW_DESTRUCTIVE" in result, "the hint must name the current variable"
+    assert "mcp.allow_destructive" in result, "the hint must name the config key, not a deprecated variable"
 
 
 def test_execute_catalog_tool_agent_list(proxy):

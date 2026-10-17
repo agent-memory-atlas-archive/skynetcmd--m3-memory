@@ -1,6 +1,7 @@
 """The published tool-schema token figures match the measurement.
 
-README.md's gating table and memory_bridge's docstring quote the context cost of
+README.md's gating table quotes the context cost of (memory_bridge's docstring
+now points at the script instead of copying the figures)
 the tool schemas. They drifted: the universal `store` argument added +6,962
 eager tokens (+21%) unmeasured, and the README figures were stale even before
 that. bin/measure_tool_tokens.measure() is the one owner of the numbers; this
@@ -62,13 +63,3 @@ def test_readme_gating_table_matches_the_measurement(measured, row):
         f"README {row} row says ~{tokens:,} tokens; measured {actual:,}. "
         "Re-run `python bin/measure_tool_tokens.py` and update README.md"
     )
-
-
-def test_memory_bridge_docstring_matches_the_measurement(measured):
-    text = (_ROOT / "bin" / "memory_bridge.py").read_text(encoding="utf-8")
-    lazy = re.search(r"([\d,]+) tokens on the MCP wire", text)
-    eager = re.search(r"(\d+) tools, ([\d,]+) tokens", text)
-    assert lazy and eager, "memory_bridge docstring no longer quotes the figures"
-    assert abs(_num(lazy.group(1)) - measured["lazy_tokens"]) <= measured["lazy_tokens"] * _TOLERANCE
-    assert int(eager.group(1)) == measured["eager_tools"]
-    assert abs(_num(eager.group(2)) - measured["eager_tokens"]) <= measured["eager_tokens"] * _TOLERANCE

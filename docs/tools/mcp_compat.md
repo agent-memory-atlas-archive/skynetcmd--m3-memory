@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_compat.py
-sha1: 9c64d64ef291
-mtime_utc: 2026-10-10T21:05:16.942038+00:00
-generated_utc: 2026-10-10T21:05:29.759049+00:00
+sha1: 6661049d40a9
+mtime_utc: 2026-10-17T20:34:03.675560+00:00
+generated_utc: 2026-10-17T20:34:16.741723+00:00
 private: false
 ---
 
@@ -95,6 +95,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `mcp.server.fastmcp (FastMCP)`
 - `mcp.server.mcpserver (MCPServer)`
 - `mcp.server.transport_security (TransportSecuritySettings)`
+- `mcp.types (ToolAnnotations)`
 
 ---
 

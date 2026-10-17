@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_bridge.py
-sha1: ff5401a0d793
-mtime_utc: 2026-10-16T17:48:06.217877+00:00
-generated_utc: 2026-10-16T19:03:59.545923+00:00
+sha1: cf58e5785754
+mtime_utc: 2026-10-17T18:40:55.325332+00:00
+generated_utc: 2026-10-17T18:47:23.081700+00:00
 private: false
 ---
 
@@ -47,6 +47,7 @@ _(no argparse arguments detected)_
 - `memory_core`
 - `tool_domains`
 - `tool_loader`
+- `tools_config`
 - `version_drift (check_and_record)`
 
 ---
@@ -60,6 +61,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `atexit`
+- `catalog.annotations (tool_annotations)`
 - `m3_core.caller (as_caller)`
 - `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`

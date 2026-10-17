@@ -1038,7 +1038,7 @@ def memory_delete_bulk_impl(ids, hard=False):
         }
 
     Note: this is a destructive tool (default_allowed=False in the MCP
-    catalog). The MCP proxy only exposes it when M3_MCP_PROXY_ALLOW_DESTRUCTIVE
+    catalog). The MCP proxy only exposes it when mcp.allow_destructive
     is set, matching `memory_delete`'s gating.
     """
     from memory.deletion import hard_delete_requested

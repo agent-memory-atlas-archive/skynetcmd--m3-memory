@@ -74,6 +74,7 @@ __all__ = [
     "MCPServer",
     "get_transport_security",
     "http_app",
+    "register_tool",
     "run_http",
     "set_transport_security",
 ]
@@ -107,6 +108,36 @@ def get_transport_security(server: Any) -> Any:
     if MCP_MAJOR == 1:
         return getattr(server.settings, "transport_security", None)
     return getattr(server, _TRANSPORT_SECURITY_ATTR, None)
+
+
+def register_tool(
+    server: Any,
+    fn: Any,
+    *,
+    name: str,
+    description: str,
+    input_schema: dict,
+    annotations: dict[str, bool],
+) -> None:
+    """Register ``fn`` as tool ``name``, advertising ``input_schema`` as written.
+
+    FastMCP derives the advertised schema from ``fn``'s signature, which keeps
+    types and defaults and drops everything else: parameter descriptions, enums,
+    bounds. m3's catalog describes ~90% of its parameters, and clients saw 0%
+    (measured over stdio, 2026-10-17). Arguments are still validated against
+    the signature-derived model, which comes from the same catalog entry.
+
+    ``annotations`` are ToolAnnotations keyword arguments (camelCase, which both
+    majors accept). The registered Tool's ``parameters`` is a plain mutable field
+    on mcp 1.30 and 2.2 alike (verified 2026-10-17), so no major gate is needed.
+    """
+    from mcp.types import ToolAnnotations
+
+    server.tool(name=name, description=description, annotations=ToolAnnotations.model_validate(annotations))(fn)
+    tool = server._tool_manager.get_tool(name)
+    if tool is None:
+        raise RuntimeError(f"tool {name!r} was registered but the server does not list it")
+    tool.parameters = input_schema
 
 
 def http_app(server: Any, **kwargs: Any) -> Any:

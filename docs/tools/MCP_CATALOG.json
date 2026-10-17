@@ -25,6 +25,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "admin",
       "name": "enrich_pending",
@@ -43,6 +44,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "extract_entities",
@@ -71,6 +73,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "admin",
       "name": "extract_pending",
@@ -89,6 +92,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": false,
       "domain": "admin",
       "name": "gdpr_export",
@@ -122,6 +126,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "admin",
       "name": "gdpr_forget",
@@ -155,6 +160,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "m3_call",
@@ -183,10 +189,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "m3_help_capabilities",
-      "summary": "Discover m3-memory tool capabilities, parameters, and availability."
+      "summary": "Find m3 tools by what they do: keyword search over tool names and descriptions, optionally within o\u2026"
     },
     {
       "args": [
@@ -201,6 +208,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "m3_index",
@@ -219,10 +227,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "notifications_ack",
-      "summary": "Mark one notification as read."
+      "summary": "Mark one notification as read (acknowledged) so it stops appearing in unread polls."
     },
     {
       "args": [
@@ -237,6 +246,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "notifications_ack_all",
@@ -255,6 +265,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "notifications_mark_received",
@@ -288,6 +299,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "notifications_peek",
@@ -321,10 +333,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "notifications_poll",
-      "summary": "List notifications addressed to agent_id, newest first."
+      "summary": "Check your own inbox: notifications addressed to agent_id, newest first."
     },
     {
       "args": [
@@ -359,6 +372,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "notify",
@@ -372,6 +386,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "tools_list_domains",
@@ -390,10 +405,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "admin",
       "name": "tools_load_domain",
-      "summary": "Register a tool domain's full surface for the current MCP session."
+      "summary": "Register every tool in one domain as native tools for the rest of this MCP session (beyond the star\u2026"
     },
     {
       "args": [
@@ -408,10 +424,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "agent",
       "name": "agent_get",
-      "summary": "Get full record for one registered agent."
+      "summary": "Get one registered agent's full record: role, status, capabilities, metadata and trust score."
     },
     {
       "args": [
@@ -426,6 +443,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "agent",
       "name": "agent_heartbeat",
@@ -454,6 +472,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "agent",
       "name": "agent_list",
@@ -472,10 +491,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "agent",
       "name": "agent_offline",
-      "summary": "Mark an agent as offline."
+      "summary": "Mark an agent as offline (status=offline) so other agents stop routing work to it."
     },
     {
       "args": [
@@ -505,6 +525,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "agent",
       "name": "agent_register",
@@ -528,6 +549,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "agent",
       "name": "agent_set_trust",
@@ -556,6 +578,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_cost_report",
@@ -584,6 +607,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_list_conversations",
@@ -627,6 +651,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_promote",
@@ -660,6 +685,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_rescrub",
@@ -723,6 +749,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_search",
@@ -756,6 +783,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_search_slim",
@@ -839,6 +867,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_write",
@@ -862,6 +891,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "chatlog",
       "name": "chatlog_write_bulk",
@@ -885,6 +915,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "chatlog",
       "name": "curate_chatlog_apply",
@@ -928,10 +959,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "conversations",
       "name": "conversation_append",
-      "summary": "Appends a message to a conversation."
+      "summary": "Append one message (role + content) to a conversation started with conversation_start; embedded for\u2026"
     },
     {
       "args": [
@@ -956,6 +988,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "conversations",
       "name": "conversation_search",
@@ -989,10 +1022,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "conversations",
       "name": "conversation_start",
-      "summary": "Starts a new conversation thread."
+      "summary": "Start a new conversation thread and return its id."
     },
     {
       "args": [
@@ -1012,6 +1046,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "conversations",
       "name": "conversation_summarize",
@@ -1025,6 +1060,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "diagnostics",
       "name": "chatlog_status",
@@ -1038,6 +1074,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "diagnostics",
       "name": "embedder_status",
@@ -1056,10 +1093,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "diagnostics",
       "name": "files_health",
-      "summary": "DB integrity + FTS5 sync check."
+      "summary": "files.db integrity check: returns ok, sqlite_integrity, fts5_in_sync (with fts5_drift counts), orph\u2026"
     },
     {
       "args": [
@@ -1069,6 +1107,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "diagnostics",
       "name": "memory_doctor",
@@ -1087,6 +1126,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "diagnostics",
       "name": "memory_doctor_fix",
@@ -1125,6 +1165,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "diagnostics",
       "name": "search_profile",
@@ -1148,6 +1189,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "entity",
       "name": "entity_get",
@@ -1186,6 +1228,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "entity",
       "name": "entity_mentions",
@@ -1219,6 +1262,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "entity",
       "name": "entity_search",
@@ -1257,6 +1301,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_corpus_create",
@@ -1280,6 +1325,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "files",
       "name": "files_corpus_delete",
@@ -1298,10 +1344,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_corpus_get",
-      "summary": "Fetch a single corpus's settings + counts."
+      "summary": "Fetch one corpus: settings, current file_node_count and leaf_count, created_at, is_default."
     },
     {
       "args": [
@@ -1311,10 +1358,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_corpus_list",
-      "summary": "Enumerate corpora with row counts."
+      "summary": "List every corpus (registered, or seen on ingested files) with corpus_id, settings, current file_no\u2026"
     },
     {
       "args": [
@@ -1354,6 +1402,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_corpus_set",
@@ -1392,6 +1441,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_dedup",
@@ -1420,6 +1470,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_dedup_list",
@@ -1448,6 +1499,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_dedup_review",
@@ -1476,6 +1528,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_entity_coalesce",
@@ -1514,6 +1567,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_entity_coalesce_apply",
@@ -1542,6 +1596,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_entity_coalesce_list",
@@ -1565,6 +1620,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_entity_coalesce_review",
@@ -1583,6 +1639,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_entity_coalesce_unapply",
@@ -1601,6 +1658,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_extract_pending",
@@ -1619,6 +1677,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_get",
@@ -1667,6 +1726,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_index",
@@ -1730,6 +1790,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_ingest",
@@ -1758,6 +1819,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_link_rename",
@@ -1791,6 +1853,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_promotable",
@@ -1829,6 +1892,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_promote",
@@ -1857,6 +1921,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_promotion_list",
@@ -1900,6 +1965,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_search",
@@ -1933,6 +1999,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_staleness_review",
@@ -1951,6 +2018,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_stats",
@@ -1984,6 +2052,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "files",
       "name": "files_watch_once",
@@ -2002,6 +2071,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "memory",
       "name": "curate_memory_apply",
@@ -2040,6 +2110,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": true,
       "domain": "memory",
       "name": "memory_consolidate",
@@ -2058,6 +2129,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_cost_report",
@@ -2086,6 +2158,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_count_entities",
@@ -2119,6 +2192,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_count_mentions",
@@ -2147,6 +2221,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": true,
       "domain": "memory",
       "name": "memory_dedup",
@@ -2170,6 +2245,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "memory",
       "name": "memory_delete",
@@ -2193,6 +2269,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "memory",
       "name": "memory_delete_bulk",
@@ -2221,6 +2298,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": false,
       "domain": "memory",
       "name": "memory_export",
@@ -2244,10 +2322,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_feedback",
-      "summary": "Provide feedback on a memory item to improve quality."
+      "summary": "Record a verdict on one memory: useful raises its importance, misleading lowers it and logs a contr\u2026"
     },
     {
       "args": [
@@ -2257,6 +2336,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_feedback_stats",
@@ -2275,6 +2355,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_get",
@@ -2298,6 +2379,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_grade",
@@ -2326,6 +2408,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_graph",
@@ -2374,6 +2457,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_handoff",
@@ -2402,6 +2486,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_history",
@@ -2420,6 +2505,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "memory",
       "name": "memory_import",
@@ -2453,6 +2539,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_inbox",
@@ -2476,6 +2563,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_inbox_ack",
@@ -2499,6 +2587,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_lifecycle_summary",
@@ -2527,6 +2616,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_link",
@@ -2550,6 +2640,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_link_bulk",
@@ -2578,10 +2669,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "memory",
       "name": "memory_maintenance",
-      "summary": "Runs maintenance tasks on the memory store."
+      "summary": "Run store maintenance: importance decay, soft-deleting expired items (recoverable; pinned items are\u2026"
     },
     {
       "args": [
@@ -2596,6 +2688,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_pin",
@@ -2629,6 +2722,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_refresh_queue",
@@ -2662,6 +2756,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "memory",
       "name": "memory_restore",
@@ -2760,6 +2855,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_search",
@@ -2848,6 +2944,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": false,
       "domain": "memory",
       "name": "memory_search_multi_db",
@@ -3081,6 +3178,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": false,
       "domain": "memory",
       "name": "memory_search_routed",
@@ -3159,6 +3257,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_search_scored",
@@ -3192,6 +3291,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_search_slim",
@@ -3225,6 +3325,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": false,
       "destructive": true,
       "domain": "memory",
       "name": "memory_set_retention",
@@ -3258,6 +3359,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_suggest",
@@ -3356,6 +3458,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_supersede",
@@ -3389,6 +3492,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_supersede_slim",
@@ -3407,6 +3511,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_unpin",
@@ -3465,10 +3570,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_update",
-      "summary": "Updates a MemoryItem by ID."
+      "summary": "Edit a memory in place by full id: content, title, metadata, importance, refresh reminder or conver\u2026"
     },
     {
       "args": [
@@ -3483,6 +3589,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_update_bulk",
@@ -3501,6 +3608,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_verify",
@@ -3614,6 +3722,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_write",
@@ -3727,6 +3836,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_write_from_file",
@@ -3760,6 +3870,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "memory",
       "name": "memory_write_slim",
@@ -3783,6 +3894,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_assign",
@@ -3826,10 +3938,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_create",
-      "summary": "Create a new task in 'pending' state."
+      "summary": "Create a task in 'pending' state, optionally assigned to an owner agent or nested under a parent ta\u2026"
     },
     {
       "args": [
@@ -3854,6 +3967,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_delete",
@@ -3872,10 +3986,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_get",
-      "summary": "Get full record for one task."
+      "summary": "Get one task's full stored record (state, owner, parent, result memory, timestamps)."
     },
     {
       "args": [
@@ -3910,10 +4025,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_list",
-      "summary": "List tasks with optional filters."
+      "summary": "List tasks, most recently updated first, filtered by owner, state or parent (no filters = all, up t\u2026"
     },
     {
       "args": [
@@ -3933,6 +4049,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_set_result",
@@ -3961,10 +4078,11 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_tree",
-      "summary": "Render a recursive subtree of tasks rooted at root_task_id."
+      "summary": "Show a task and its subtasks as a tree, recursing up to max_depth levels below root_task_id."
     },
     {
       "args": [
@@ -3999,6 +4117,7 @@
           "type": "number"
         }
       ],
+      "default_allowed": true,
       "destructive": false,
       "domain": "tasks",
       "name": "task_update",

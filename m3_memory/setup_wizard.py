@@ -3232,20 +3232,18 @@ def _ensure_payload_importable() -> None:
 def _openclaw_startup_tools() -> list[str]:
     """The tool names m3 exposes at session start, for OpenClaw's toolFilter.
 
-    Mirrors memory_bridge._register_initial_tools() exactly: the meta-tools plus
-    tool_domains.ESSENTIAL_TOOL_NAMES. DERIVED, never a literal — a hand-copied
-    list here would drift from the bridge silently, which is the same defect the
-    bridge's own `_META_TOOLS` seam had.
+    Exactly what the bridge registers: memory_bridge.STARTUP_TOOLS, resolved by
+    tools_config. DERIVED, never a literal — a hand-copied list here would drift
+    from the bridge silently.
 
-    Why filter at all: the full catalog is 118 tools / 30,701 tokens on the MCP
-    wire, vs 10 tools / 3,962 tokens for this set (measured with
-    `python bin/measure_tool_tokens.py`; 87.1% saved). Nothing is lost — `m3_call`
-    is in the set and dispatches ANY catalog tool by name, and `tools_load_domain`
-    pulls a whole domain live. Omitting the meta-tools would make the filter a
-    dead end, which is why they are included rather than just the 8 essentials.
+    Why filter at all: the full catalog costs several times the startup set on the
+    MCP wire (`python bin/measure_tool_tokens.py`). Nothing is lost — `m3_call` is
+    in every startup set (tools_config refuses one without it) and dispatches ANY
+    catalog tool by name.
 
-    Returns [] if the payload is not importable; the caller then registers with no
-    toolFilter (all 118 tools — heavier, still correct) and says so.
+    Returns [] if the payload is not importable, or when every tool registers at
+    startup (tools.lazy = false); the caller then registers with no toolFilter
+    (all tools — heavier, still correct) and says so.
     """
     _ensure_payload_importable()
     import logging  # noqa: PLC0415
@@ -3257,18 +3255,14 @@ def _openclaw_startup_tools() -> list[str]:
     handlers, level = list(root.handlers), root.level
     logging.disable(logging.INFO)
     try:
-        import mcp_tool_catalog  # noqa: PLC0415
         import memory_bridge  # noqa: PLC0415
-        import tool_domains  # noqa: PLC0415
     finally:
         logging.disable(logging.NOTSET)
         for h in [h for h in root.handlers if h not in handlers]:
             root.removeHandler(h)
         root.setLevel(level)
 
-    meta = set(getattr(memory_bridge, "_META_TOOLS", None) or ())
-    names = {s.name for s in mcp_tool_catalog.TOOLS if s.name in meta or tool_domains.is_essential(s.name)}
-    return sorted(names)
+    return sorted(memory_bridge.STARTUP_TOOLS or ())
 
 
 def _openclaw_version(exe: str) -> tuple[bool, str]:
@@ -3474,8 +3468,7 @@ def _wire_openclaw() -> bool:
     if ok:
         _ok(f"  OpenClaw memory server: mcp__{_OPENCLAW_SERVER_NAME}__ (native MCP, roots-pinned).")
         if startup:
-            print(f"     {len(startup)} startup tools; `m3_call` reaches any other tool by")
-            print("     name and `tools_load_domain` loads a whole domain on demand.")
+            print(f"     {len(startup)} startup tools; `m3_call` reaches any other tool by name.")
         print(f"     Verify: openclaw mcp show {_OPENCLAW_SERVER_NAME}")
     return ok
 

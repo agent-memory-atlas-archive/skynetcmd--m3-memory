@@ -18,7 +18,11 @@ memory_core = LazyModuleProxy("memory_core")
 TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="conversation_start",
-        description="Starts a new conversation thread.",
+        description=(
+            "Start a new conversation thread and return its id. Pass that id to "
+            "conversation_append, and as conversation_id on memory_write to group "
+            "memories with the thread."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -37,7 +41,11 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="conversation_append",
-        description="Appends a message to a conversation.",
+        description=(
+            "Append one message (role + content) to a conversation started with "
+            "conversation_start; embedded for semantic search unless embed=false. "
+            "For agent chat-log capture use chatlog_write instead."
+        ),
         parameters={
             "type": "object",
             "properties": {

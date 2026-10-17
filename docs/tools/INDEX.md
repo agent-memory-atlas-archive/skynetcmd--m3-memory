@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-16T23:45:41.868047+00:00._
+_Generated 2026-10-17T20:55:05.457433+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -134,6 +134,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/test_memory_bridge.py](test_memory_bridge.md) | End-to-end test suite for memory_bridge.py. |  |
 | [bin/test_unified_router.py](test_unified_router.md) | (no docstring) |  |
 | [bin/thermal_utils.py](thermal_utils.md) | (no docstring) |  |
+| [bin/tool_quality_check.py](tool_quality_check.md) | tool_quality_check.py — check what m3's MCP tools tell an agent about themselves. |  |
 | [bin/unified_ai.py](unified_ai.md) | Unified chat client across Gemini, Claude, and LM Studio. |  |
 | [bin/watch_pr_checks.py](watch_pr_checks.md) | Watch CI checks on one or more PRs until every check is terminal, then print a |  |
 | [bin/weekly_auditor.py](weekly_auditor.md) | Weekly Audit Report -- M3 Memory |  |

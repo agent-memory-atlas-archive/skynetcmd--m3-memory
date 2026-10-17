@@ -6,8 +6,8 @@ Usage:
 
 Reports the tokenized size of:
   - Full repertoire (every tool the proxy can dispatch)
-  - Lazy-mode startup set (essentials + meta-tools — what an agent pays at
-    session start under M3_TOOLS_LAZY, the default)
+  - Lazy-mode startup set (tools_config.DEFAULT_STARTUP_TOOLS — what an agent
+    pays at session start with the shipped default)
   - Per-domain cost (what `tools_load_domain(domain=…)` adds on demand)
 
 Uses tiktoken if available (matches OpenAI/Claude tokenization closely);
@@ -54,12 +54,13 @@ def schema_tokens(tools: list) -> int:
 def mcp_schema_tokens(names: list[str]) -> int:
     """MCP-shape cost: what an MCP client actually pays at session init.
 
-    The wire shape is {name, description, inputSchema} — NO OpenAI
+    The wire shape is {name, description, inputSchema, annotations} — NO OpenAI
     {"type":"function","function":{...}} envelope. That envelope is ~5 tokens per
     tool, so counting it here attributed the proxy's framing to every MCP client
     (45 tokens high on the 9-tool startup set, ~575 on the full 115).
     """
     import mcp_tool_catalog
+    from catalog.annotations import tool_annotations
 
     by_name = {t.name: t for t in mcp_tool_catalog.MCP_TOOLS}
     total = 0
@@ -73,6 +74,7 @@ def mcp_schema_tokens(names: list[str]) -> int:
                     "name": spec.name,
                     "description": spec.description or "",
                     "inputSchema": spec.parameters or {},
+                    "annotations": tool_annotations(spec),
                 },
                 separators=(",", ":"),
             )
@@ -91,17 +93,10 @@ def measure() -> dict:
     import mcp_tool_catalog as cat
     import tool_domains as td
 
-    meta = ["tools_list_domains", "tools_load_domain"]
-    try:
-        import memory_bridge  # noqa: PLC0415
-
-        meta = sorted(getattr(memory_bridge, "_META_TOOLS", None) or meta)
-    except Exception:  # noqa: BLE001 — measurement must not need a live bridge
-        pass
     # MCP_TOOLS, the list memory_bridge registers: TOOLS also holds CLI-only
     # specs (chatlog_set_redaction), which counted one tool too many.
     all_names = [t.name for t in cat.MCP_TOOLS]
-    startup = sorted((set(td.ESSENTIAL_TOOL_NAMES) | set(meta)) & set(all_names) | set(meta))
+    startup = sorted(td.ESSENTIAL_TOOL_NAMES & set(all_names))
     typical = set(startup)
     for domain in TYPICAL_DOMAINS:
         typical |= set(td.domain_tool_names(all_names, domain))
@@ -131,20 +126,9 @@ def main() -> int:
 
     by_name = {_name(t): t for t in full if _name(t)}
 
-    # Lazy-mode startup set: only ESSENTIAL_TOOL_NAMES are exposed at session
-    # start (M3_TOOLS_LAZY=1, the default). Intersect with the real schemas so
-    # an essential without a catalog schema doesn't inflate the count.
-    # Meta-tools come from the BRIDGE, not a literal here: memory_bridge's
-    # _register_initial_tools() is the thing that decides what goes live, and a
-    # second hand-maintained list would drift from it silently.
-    meta = ["tools_list_domains", "tools_load_domain"]
-    try:
-        import memory_bridge  # noqa: PLC0415
-
-        meta = sorted(getattr(memory_bridge, "_META_TOOLS", None) or meta)
-    except Exception:  # noqa: BLE001 — measurement must not need a live bridge
-        pass
-    startup_names = sorted(set(td.ESSENTIAL_TOOL_NAMES) | set(meta))
+    # The shipped startup set, from its owner (tools_config via tool_domains).
+    # Intersect with the real schemas so a name without one cannot inflate it.
+    startup_names = sorted(td.ESSENTIAL_TOOL_NAMES)
     essentials = [by_name[n] for n in startup_names if n in by_name]
 
     all_names = [_name(t) for t in full if _name(t)]

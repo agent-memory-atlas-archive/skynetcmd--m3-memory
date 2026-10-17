@@ -16,7 +16,11 @@ memory_core = LazyModuleProxy("memory_core")
 TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="task_create",
-        description="Create a new task in 'pending' state. Returns task id.",
+        description=(
+            "Create a task in 'pending' state, optionally assigned to an owner agent "
+            "or nested under a parent task. Returns the new task id; move it along "
+            "with task_update."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -122,7 +126,11 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="task_get",
-        description="Get full record for one task.",
+        description=(
+            "Get one task's full stored record (state, owner, parent, result memory, "
+            "timestamps). Read-only; use task_list to search and task_tree for "
+            "subtasks."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -138,12 +146,20 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="task_list",
-        description="List tasks with optional filters. Newest updated first.",
+        description=(
+            "List tasks, most recently updated first, filtered by owner, state or "
+            "parent (no filters = all, up to limit). Read-only; task_get returns one "
+            "task in full and task_tree a subtree."
+        ),
         parameters={
             "type": "object",
             "properties": {
                 "owner_agent": {"type": "string", "description": "Filter by owner agent.", "default": ""},
-                "state": {"type": "string", "description": "Filter by task state.", "default": ""},
+                "state": {
+                    "type": "string",
+                    "description": "Filter by state: pending, in_progress, blocked, completed, failed or cancelled (empty = any).",
+                    "default": "",
+                },
                 "parent_task_id": {"type": "string", "description": "Filter by parent task id.", "default": ""},
                 "limit": {"type": "integer", "description": "Max tasks to return.", "default": 50},
                 "as_records": {
@@ -162,7 +178,11 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="task_tree",
-        description="Render a recursive subtree of tasks rooted at root_task_id.",
+        description=(
+            "Show a task and its subtasks as a tree, recursing up to max_depth "
+            "levels below root_task_id. Read-only; use it to see the state of a "
+            "whole delegated piece of work."
+        ),
         parameters={
             "type": "object",
             "properties": {

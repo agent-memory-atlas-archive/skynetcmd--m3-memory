@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_tool_manifest.py
-sha1: 88648be1b47c
-mtime_utc: 2026-10-15T01:37:47.817285+00:00
-generated_utc: 2026-10-15T01:38:01.730646+00:00
+sha1: 06245ba7f407
+mtime_utc: 2026-10-17T20:30:26.835640+00:00
+generated_utc: 2026-10-17T20:30:28.116317+00:00
 private: false
 ---
 
@@ -19,6 +19,9 @@ tool the bridge can register) and emits one compact record per tool:
   - domain      — lazy-loading domain bucket (via tool_domains.domain_of_tool)
   - summary     — first sentence of the description, truncated to <=100 chars
   - destructive — True when the tool mutates/deletes (ToolSpec.is_destructive)
+  - default_allowed — False when the dispatch gate needs an explicit opt-in
+                  (ToolSpec.default_allowed); not the same as destructive:
+                  read-only memory_export is gated
   - args        — [{name, type, required}] from parameters.properties, with the
                   universal routing args (`database`, `store`) dropped (they are
                   injected everywhere and carry no per-tool signal)
@@ -44,7 +47,7 @@ database, or runtime data is read or written.
 
 ## Entry points
 
-- `def main()` (line 128)
+- `def main()` (line 132)
 - `if __name__ == "__main__"` guard
 
 ---

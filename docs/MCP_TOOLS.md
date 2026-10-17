@@ -15,7 +15,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `memory_count_mentions` | Memory Operations | Per-entity mention frequency within a single conversation, sorted DESC by count. Use for 'what are the most-mentioned X' or 'rank entities by frequency.' Returns {total, rows: [{entity_id, canonical_name, entity_type, mention_count}, ...]}. |
 | `memory_delete` | Memory Operations | Soft-deletes a MemoryItem: the row stays in the store but leaves search. memory_restore does NOT undo it (it only reverses autonomous removals). Hard delete is GDPR-only (gdpr_forget). id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). |
 | `memory_delete_bulk` | Memory Operations | Soft-deletes a list of MemoryItems in one transaction per chunk (rows stay in the store; memory_restore does not undo it). Use for curation passes; same semantics as memory_delete. Hard delete is GDPR-only (gdpr_forget). Returns a structured {succeeded, not_found, mode} dict. |
-| `memory_feedback` | Memory Operations | Provide feedback on a memory item to improve quality. |
+| `memory_feedback` | Memory Operations | Record a verdict on one memory: useful raises its importance, misleading lowers it and logs a contradiction, not_useful records a retrieval miss without changing it. To grade every memory you used after answering, memory_grade takes many at once. |
 | `memory_feedback_stats` | Memory Operations | How often graded feedback is landing versus being rejected as stale. The feedback window is deliberately tight, so this makes 'is it too tight for my agents?' a measurement rather than a guess — a high rejection rate means the window needs widening in .governor_config.json, not that the feedback was wrong. |
 | `memory_get` | Memory Operations | Retrieves a full MemoryItem; accepts full UUID or 8-char prefix; ambiguous prefixes return an error. |
 | `memory_grade` | Memory Operations | Grade retrieved memories AFTER using them — the signal that separates USED from merely RETRIEVED. Call this ONCE after answering, with a verdict per memory you were shown: grades=[{memory_id, verdict}] where verdict is 'helpful' or 'unhelpful'. Do NOT grade at retrieval time: rating a memory you have not used yet is relevance-on-sight, which is roughly what the ranker already computed. Counts are stored separately (never a net) so a contested memory stays distinguishable from an ignored one. Only accepted while the memory was retrieved within the feedback window (default 5 minutes); a late grade is reported as applied=false with a reason rather than silently dropped. |
@@ -32,7 +32,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `memory_supersede` | Memory Operations | Explicitly supersede an existing memory with a new one. Use this to record an intentional update — 'this fact replaces that specific memory' — when you know the old memory's id. Unlike memory_write's automatic contradiction detection (a cosine + title heuristic that may link the wrong prior memory or none at all), this targets the given old_id deterministically. Non-destructive: the old memory is retained, its validity interval is closed (is_deleted=1, valid_to set), and a 'supersedes' edge is recorded new -> old. The old memory stays retrievable by id and via memory_history, and as_of-filtered search still sees it valid before the supersession point — it is only dropped from default search. Fields you omit (type, title, importance, scope) are inherited from the old memory, so pass only what changed. To remove it instead, memory_delete soft-deletes (hard delete is GDPR-only: gdpr_forget). old_id MUST be the full UUID — a prefix is rejected (full UUID required for mutation safety; memory_get accepts a prefix, this does not). Pass content to create a NEW successor memory, or replacement_id (a full UUID) to retire old_id into an EXISTING active memory without creating anything: use that to clean up duplicates, since writing a fresh successor per duplicate multiplies them. Exactly one of the two. |
 | `memory_supersede_slim` | Memory Operations | Replace an existing memory with a corrected one, preserving the audit link. Common parameters only. For scope, user_id, validity windows, variant or embedding control, call memory_supersede via m3_call, or load the memory domain with tools_load_domain. |
 | `memory_unpin` | Memory Operations | Unpin a memory, restoring normal decay/expiry/retention handling. |
-| `memory_update` | Memory Operations | Updates a MemoryItem by ID. |
+| `memory_update` | Memory Operations | Edit a memory in place by full id: content, title, metadata, importance, refresh reminder or conversation. Empty fields are left unchanged. To replace a belief and keep the old one as history, use memory_supersede instead. |
 | `memory_update_bulk` | Memory Operations | Apply many metadata-only updates in one transaction per chunk. Designed for curation passes that retroactively set retention, importance, or supersession metadata. Per-id reembed is NOT supported here (use memory_update for reembed, or re_embed_all for the bulk reembed case). Returns structured {succeeded, not_found, no_change, total}. |
 | `memory_verify` | Memory Operations | Verify content integrity by comparing stored hash with computed hash. Returns OK if content hasn't been tampered with. |
 | `memory_write` | Memory Operations | Creates a MemoryItem and optionally embeds it for semantic search. Contradiction detection is automatic when the write is embedded — if new content closely matches an existing memory of the same type from the same agent (cosine > 0.92 by default; titles need not match) but says something different, the old one is superseded. Use type='auto' to let the LLM decide the best category. |
@@ -46,29 +46,29 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `memory_graph` | Knowledge Graph | Returns the local graph neighborhood of a memory item (connected memories up to N hops, max 3). |
 | `memory_history` | Knowledge Graph | Returns the change history (audit trail) for a memory item. Tracks create, update, delete, and supersede events. |
 | `memory_link` | Knowledge Graph | Creates a directional link between two memory items. Valid types: consolidates, contradicts, extends, follows, handoff, message, precedes, references, related, supersedes, supports. |
-| `conversation_append` | Conversations | Appends a message to a conversation. |
+| `conversation_append` | Conversations | Append one message (role + content) to a conversation started with conversation_start; embedded for semantic search unless embed=false. For agent chat-log capture use chatlog_write instead. |
 | `conversation_search` | Conversations | Search messages across conversations using hybrid semantic/keyword search. |
-| `conversation_start` | Conversations | Starts a new conversation thread. |
+| `conversation_start` | Conversations | Start a new conversation thread and return its id. Pass that id to conversation_append, and as conversation_id on memory_write to group memories with the thread. |
 | `conversation_summarize` | Conversations | Summarize a conversation into key points using the local LLM. |
 | `task_assign` | Task Management | Assign a task to an owner. Sets state=in_progress and notifies the new owner. |
-| `task_create` | Task Management | Create a new task in 'pending' state. Returns task id. |
+| `task_create` | Task Management | Create a task in 'pending' state, optionally assigned to an owner agent or nested under a parent task. Returns the new task id; move it along with task_update. |
 | `task_delete` | Task Management | Soft-delete a task: sets a tombstone that propagates via pg_sync to the warehouse and peers. Hard delete is GDPR-only (gdpr_forget). |
-| `task_get` | Task Management | Get full record for one task. |
-| `task_list` | Task Management | List tasks with optional filters. Newest updated first. |
+| `task_get` | Task Management | Get one task's full stored record (state, owner, parent, result memory, timestamps). Read-only; use task_list to search and task_tree for subtasks. |
+| `task_list` | Task Management | List tasks, most recently updated first, filtered by owner, state or parent (no filters = all, up to limit). Read-only; task_get returns one task in full and task_tree a subtree. |
 | `task_set_result` | Task Management | Set the result memory pointer for a task. Does NOT change state. |
-| `task_tree` | Task Management | Render a recursive subtree of tasks rooted at root_task_id. |
+| `task_tree` | Task Management | Show a task and its subtasks as a tree, recursing up to max_depth levels below root_task_id. Read-only; use it to see the state of a whole delegated piece of work. |
 | `task_update` | Task Management | Partial update for a task. Validates state transitions. On terminal state, sets completed_at. |
-| `agent_get` | Agent Registry & Notifications | Get full record for one registered agent. |
+| `agent_get` | Agent Registry & Notifications | Get one registered agent's full record: role, status, capabilities, metadata and trust score. Read-only; use agent_list to browse all agents. |
 | `agent_heartbeat` | Agent Registry & Notifications | Update last_seen and set status=active. Errors if not registered. |
 | `agent_list` | Agent Registry & Notifications | List registered agents, optionally filtered by status and/or role. Each carries a derived membership: member (touched within 24h), idle (client process still alive on its node) or left — judge liveness by membership, not status. |
-| `agent_offline` | Agent Registry & Notifications | Mark an agent as offline. |
+| `agent_offline` | Agent Registry & Notifications | Mark an agent as offline (status=offline) so other agents stop routing work to it. agent_heartbeat or agent_register marks it active again. |
 | `agent_register` | Agent Registry & Notifications | Register an agent (UPSERT). Sets status=active, last_seen=now. |
 | `agent_set_trust` | Agent Registry & Notifications | Set an agent's trust score (0.5-1.0, clamped). Trust weights that agent's assertions in memory confidence aggregation; 1.0 is neutral. Upserts the agent if absent. |
-| `notifications_ack` | Agent Registry & Notifications | Mark one notification as read. |
+| `notifications_ack` | Agent Registry & Notifications | Mark one notification as read (acknowledged) so it stops appearing in unread polls. Use notifications_ack_all to clear an agent's whole inbox. |
 | `notifications_ack_all` | Agent Registry & Notifications | Bulk-ack all unread notifications for an agent. Returns count acked. |
 | `notifications_mark_received` | Agent Registry & Notifications | Stamp transport receipt on an agent's undelivered notifications. Sets received_at and never touches read_at, so the unread flag survives -- this is delivery confirmation, NOT consumption. Use it to satisfy a receipt SLA without marking messages read that no agent has read. Returns the count stamped. |
 | `notifications_peek` | Agent Registry & Notifications | Read notifications like notifications_poll, but write nothing: no heartbeat, no receipt, no lease sweep. |
-| `notifications_poll` | Agent Registry & Notifications | List notifications addressed to agent_id, newest first. |
+| `notifications_poll` | Agent Registry & Notifications | Check your own inbox: notifications addressed to agent_id, newest first. Also marks that agent alive (heartbeat) and records delivery, so to look at another agent's inbox without side effects use notifications_peek. |
 | `notify` | Agent Registry & Notifications | Send a notification to an agent. Lightweight wake signal — agents poll notifications_poll. |
 | `memory_handoff` | Multi-Agent Coordination | Hand off a task from one agent to another. Writes a new handoff-type memory owned by to_agent and links it to the given context memories with 'handoff' edges. Returns a confirmation string with the new memory id. |
 | `memory_inbox` | Multi-Agent Coordination | List handoff messages addressed to agent_id, newest first. Pass unread_only=False to include already-acked items. |
@@ -86,8 +86,8 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `curate_chatlog_apply` | Chat Log System | Deterministically apply a chatlog.db curator plan in ONE call. No LLM in the loop. Plan sections: decay (True/dict to run chatlog_decay; deranks, never deletes), dedup (list of {keep_id, drop_ids}; drops are soft-deleted), promote (list of {ids, target_type}; copies, source kept), prune (list of {conversation_id, reason}; soft-deletes the conversation's turns). Any section may be omitted. Returns structured per-section results + summary. |
 | `files_corpus_create` | Files Memory | Register a new corpus with optional default overrides. `default=True` marks this corpus as the installation's default (clears the flag on any prior default in the same transaction). |
 | `files_corpus_delete` | Files Memory | Delete a corpus's settings row. Cascade=True also deletes every file_node in the corpus -- DESTRUCTIVE. Without cascade, refuses when the corpus has file_nodes. |
-| `files_corpus_get` | Files Memory | Fetch a single corpus's settings + counts. |
-| `files_corpus_list` | Files Memory | Enumerate corpora with row counts. |
+| `files_corpus_get` | Files Memory | Fetch one corpus: settings, current file_node_count and leaf_count, created_at, is_default. Null if it has neither settings nor files. |
+| `files_corpus_list` | Files Memory | List every corpus (registered, or seen on ingested files) with corpus_id, settings, current file_node_count and leaf_count, created_at and is_default. |
 | `files_corpus_set` | Files Memory | Update settings for an existing corpus. None args are no-ops. Creates the corpus_settings row if absent. |
 | `files_dedup` | Files Memory | Scan leaf embeddings for near-duplicates above cosine threshold. Detection only -- pairs land in semantic_dedup_candidates for human review. |
 | `files_dedup_list` | Files Memory | List near-duplicate candidate pairs with text snippets and paths. |
@@ -98,7 +98,7 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `files_entity_coalesce_review` | Files Memory | Record entity-coalescing review decisions in BULK: a list of {uuid, action} where action is 'merge' | 'related' | 'reject' | 'defer'. Records intent only; materialize with files_entity_coalesce_apply. |
 | `files_entity_coalesce_unapply` | Files Memory | Reverse one coalescence cluster (drop edges, clear flags, strip aliases, tombstone the candidate so auto-merge won't resurrect it). Members are never deleted; re-apply via files_entity_coalesce_apply with candidate_uuids. |
 | `files_extract_pending` | Files Memory | Drain leaves with extraction_status='pending' through the LLM fact extractor. Used after a queue-mode ingest. Safe to call repeatedly. |
-| `files_get` | Files Memory | Fetch one record by UUID. Tries file_nodes then leaves. |
+| `files_get` | Files Memory | Fetch one record by UUID. Tries file_nodes then leaves; returns the row plus _kind ('file_node'|'leaf') and original_path, or null if no match. |
 | `files_index` | Files Memory | Return file-level summaries for triage (wiki-index primitive). Cheap-first retrieval -- no leaf content. Use BEFORE files_search to decide which files are worth deep-reading. |
 | `files_ingest` | Files Memory | Walk a directory and ingest supported files into files.db. Idempotent: same content_sha256 -> no-op; changed content -> new file_node version supersedes prior. Use extract_mode to opt into fact extraction; use original_path (or a <path>.m3meta.json sidecar) to point search results at a source-of-truth file when the ingested file is a conversion. |
 | `files_link_rename` | Files Memory | Re-point an existing file_node at a new path (rename / move). NOT a supersession -- content stays identical. Use this only when staleness review surfaces a rename candidate. |
@@ -109,19 +109,19 @@ This document provides a comprehensive inventory of all 119 MCP tools available 
 | `files_staleness_review` | Files Memory | Compare filesystem against files.db. Surfaces stale, touched-only, missing, new, failed-extraction, drifted-promotion files, and rename candidates. Report-only. |
 | `files_stats` | Files Memory | Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype. |
 | `files_watch_once` | Files Memory | Single-pass staleness check + notification dispatch. Suitable for cron / scheduled runners. Notifications are emitted via the memory.db notifications inbox; cooldown suppresses duplicates within the window. |
-| `files_health` | Diagnostics | DB integrity + FTS5 sync check. Set rebuild=True to fix drift. |
+| `files_health` | Diagnostics | files.db integrity check: returns ok, sqlite_integrity, fts5_in_sync (with fts5_drift counts), orphan_leaves and orphan_runs. Read-only unless rebuild=True, which rebuilds the FTS5 index only when it is out of sync and re-checks (fts_rebuilt=True). SQLite-only; reports skipped on PostgreSQL. |
 | `memory_doctor` | Diagnostics | Self-service diagnostic for the m3-memory embedding cascade. Probes tier-1 (in-proc GGUF), tier-2 (m3-embed-server :8082), DB integrity, and end-to-end embed roundtrip — all concurrently with bounded 2s per-probe timeouts. Returns a structured dict with status ('healthy' | 'degraded' | 'broken'), per-tier details, issues, and actionable recommendations. Use this when memory_search hangs, embeddings look wrong, or you're standing up a new deployment. |
 | `memory_doctor_fix` | Diagnostics | Run the m3-memory self-repair mode (m3 doctor --fix). Attempts to auto-fix the most common deployment issues in order: (1) apply pending SQLite migrations, (2) rebuild the FTS5 full-text index, (3) embed-backfill items that are missing vector embeddings (capped at 500/run), (4) rebuild the m3_system_cohesion table if absent. Set dry_run=True to see what *would* be done without making any changes. Returns a structured dict with per-action outcomes and a summary status ('ok' | 'partial' | 'nothing_to_do' | 'failed'). |
 | `extract_entities` | Lifecycle & Maintenance | Accepts raw text, extracts entities and relationship predicates based on the configured pluggable entity-extraction backend, and returns them as structured JSON without modifying the database. Use this to preview what entities and relationships would be extracted from raw content. |
-| `m3_call` | Lifecycle & Maintenance | Invoke ANY m3 catalog tool by name without loading its domain — the low-token path to the full tool surface. Single call: pass `tool` (e.g. 'files_stats') and `args` (an object). Batch: pass `batch`, a list of {tool, args} (each isolated — one failure won't abort the rest; capped at 100). Set `dry_run` to validate args + check the destructive gate WITHOUT executing. Returns JSON. Call `m3_index` first if you don't know a tool's args. Destructive tools require M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1. |
-| `m3_help_capabilities` | Lifecycle & Maintenance | Discover m3-memory tool capabilities, parameters, and availability. Allows filtering by a logical domain (memory, chatlog, files, entity, agent, tasks, conversations, admin, diagnostics) or searching by keywords. |
-| `m3_index` | Lifecycle & Maintenance | List m3 catalog tools (optionally one domain) as structured rows: name, domain, one-line summary, destructive flag, and arg specs (name/type/required). Use this to discover the exact args for any tool before calling it via m3_call — cheaper than a failed call. Read-only catalog metadata; never returns tool output. Domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin. |
+| `m3_call` | Lifecycle & Maintenance | Invoke ANY m3 catalog tool by name without loading its domain — the low-token path to the full tool surface, and the way to reach every tool not loaded at startup. Single call: pass `tool` (e.g. 'files_stats') and `args` (an object). Batch: pass `batch`, a list of {tool, args} (each isolated — one failure won't abort the rest; capped at 100). Set `dry_run` to validate args + check the destructive gate WITHOUT executing. Returns JSON. Call `m3_index` first if you don't know a tool's args. Destructive tools are refused unless mcp.allow_destructive is enabled (`m3 config set mcp.allow_destructive true`). |
+| `m3_help_capabilities` | Lifecycle & Maintenance | Find m3 tools by what they do: keyword search over tool names and descriptions, optionally within one domain (memory, chatlog, files, entity, agent, tasks, conversations, admin, diagnostics). Use it when you know the task but not the tool; once you know the tool, `m3_index` gives its exact args. Read-only. |
+| `m3_index` | Lifecycle & Maintenance | List m3 catalog tools (optionally one domain) as structured rows: name, domain, one-line summary, destructive flag, and arg specs (name/type/required). Use this to discover the exact args for any tool before calling it via m3_call — cheaper than a failed call. Prefer it over `m3_help_capabilities` when you already know the tool name. Read-only catalog metadata; never returns tool output. Domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin. |
 | `memory_consolidate` | Lifecycle & Maintenance | Roll up one agent's oldest memories of a type into a summary using the local LLM; the sources are closed (superseded by the summary, linked via consolidates). Previews by default (dry_run=true); dry_run=false writes. agent_filter is required. Pinned and protected types are never consolidated. |
 | `memory_dedup` | Lifecycle & Maintenance | Find (and optionally supersede) near-duplicate memory items by cosine similarity over embeddings, within one user/agent/embedding model; pinned items are never candidates. Returns {count, groups: [{a, b, title_a, title_b, score}, ...], threshold, scanned, scan_limit, partitions, applied, applied_count, not_applied}. Use dry_run=True (default) for a preview; dry_run=False supersedes the second item of each pair by the first. |
-| `memory_maintenance` | Lifecycle & Maintenance | Runs maintenance tasks on the memory store. |
+| `memory_maintenance` | Lifecycle & Maintenance | Run store maintenance: importance decay, soft-deleting expired items (recoverable; pinned items are kept), and pruning orphaned embeddings, each behind its own flag. Returns a line per step with the rows it changed. |
 | `memory_set_retention` | Lifecycle & Maintenance | Set or update per-agent memory retention policy. Controls max memory count, TTL expiry, and auto-archival. |
-| `tools_list_domains` | Lifecycle & Maintenance | List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin) and their tool counts. Call `tools_load_domain` to expose a domain's full tool surface. |
-| `tools_load_domain` | Lifecycle & Maintenance | Register a tool domain's full surface for the current MCP session. Use when you need tools beyond the essentials (chatlog_search, chatlog_status, files_search, m3_call, memory_get, memory_search, memory_supersede, memory_write). Valid domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin. |
+| `tools_list_domains` | Lifecycle & Maintenance | List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin) and their tool counts. Use it only before `tools_load_domain`; to find one tool's args use `m3_index`, and to run one tool use `m3_call`. Read-only. |
+| `tools_load_domain` | Lifecycle & Maintenance | Register every tool in one domain as native tools for the rest of this MCP session (beyond the startup set: chatlog_search, m3_call, memory_get, memory_search, memory_supersede, memory_write). Worth it when you will call several tools from that domain; for one or two calls use `m3_call`, which needs no load. Returns the newly registered names and their schemas. Valid domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin. |
 | `gdpr_export` | Data Governance | Export all memories for a data subject (GDPR data portability). Returns JSON with all memory items for the given user_id. |
 | `gdpr_forget` | Data Governance | Right to be forgotten (GDPR Art. 17): the ONLY hard delete in m3 (every other delete is a soft delete). Two steps. 1) Call with user_id (a data subject) OR memory_ids (specific memories): nothing is erased; returns a plan (counts per table) and a token valid 15 minutes. 2) Call again with the same target, confirm=<token>, and compliance holding legal_basis and verified_by: erases the memories with their embeddings, relationships, history, read-access log, archived copies and (for a data subject) LangGraph checkpoints. Refused if the token expired or the memories changed since the plan. |
 | `memory_export` | Data Governance | Export memories as portable JSON. Filter by agent, type, or date. |
@@ -218,7 +218,7 @@ Soft-deletes a list of MemoryItems in one transaction per chunk (rows stay in th
 
 ### `memory_feedback`
 
-Provide feedback on a memory item to improve quality.
+Record a verdict on one memory: useful raises its importance, misleading lowers it and logs a contradiction, not_useful records a retrieval miss without changing it. To grade every memory you used after answering, memory_grade takes many at once.
 
 **Source:** mcp_tool_catalog.py
 
@@ -386,16 +386,16 @@ Search across multiple SQLite databases (e.g. agent_memory.db AND agent_chatlog.
 | `query` | `string` | Yes | Search query. | `-` |
 | `databases` | `string` | Yes | Comma-separated list of DB paths to fan out to (e.g. 'memory/agent_memory.db,memory/agent_chatlog.db'). Empty = no-op. | `-` |
 | `k` | `integer` | No | Top-K to return globally after merge. Each per-DB search also retrieves K, then results are pooled and re-sorted. | `8` |
-| `type_filter` | `string` | No |  | `` |
-| `agent_filter` | `string` | No |  | `` |
+| `type_filter` | `string` | No | Restrict to a memory type. | `` |
+| `agent_filter` | `string` | No | Restrict to an agent id. | `` |
 | `search_mode` | `string` | No | Retrieval mode. | `hybrid` |
-| `user_id` | `string` | No |  | `` |
-| `scope` | `string` | No |  | `` |
+| `user_id` | `string` | No | Filter by data subject. | `` |
+| `scope` | `string` | No | Filter by isolation scope. | `` |
 | `requesting_agent` | `string` | No | Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement. | `` |
-| `as_of` | `string` | No |  | `` |
-| `conversation_id` | `string` | No |  | `` |
-| `recency_bias` | `number` | No |  | `0.0` |
-| `adaptive_k` | `boolean` | No |  | `False` |
+| `as_of` | `string` | No | ISO-8601 time-travel cutoff. | `` |
+| `conversation_id` | `string` | No | Restrict to a conversation / team session. | `` |
+| `recency_bias` | `number` | No | Boost newer items (0.0=off, 0.1-0.2=moderate, higher=aggressive). Useful for 'current' or 'latest' queries. | `0.0` |
+| `adaptive_k` | `boolean` | No | Auto-trim results at the score drop-off point. WARNING: regresses on temporal-reasoning, knowledge-update, and multi-session queries; safe only for sharp-curve queries where most retrievals would be noise. Prefer `auto_route=True` on memory_search_routed for safer multi-signal routing. | `False` |
 | `variant` | `string` | No | Variant filter applied uniformly to each DB. Pass a comma-separated list to use multi-variant IN filtering (passed through to memory_search_scored_impl). | `` |
 | `fan_out_limit` | `integer` | No | Cap on concurrent per-DB searches. 0 = unbounded (typical, since fan-out N is small). | `0` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
@@ -419,16 +419,16 @@ Temporal-aware routed retrieval. Routes temporal queries to verbatim search at k
 | `graph_depth` | `integer` | No | If > 0, traverse memory_relationships up to N hops from each top-K hit and re-fuse. Clamped to 3. | `0` |
 | `expand_sessions` | `boolean` | No | If true, pull all turns sharing each top-K hit's conversation_id (capped at session_cap) and re-fuse. | `False` |
 | `session_cap` | `integer` | No | Per-session turn cap when expand_sessions=true. | `12` |
-| `user_id` | `string` | No |  | `` |
-| `scope` | `string` | No |  | `` |
+| `user_id` | `string` | No | Filter by data subject. | `` |
+| `scope` | `string` | No | Filter by isolation scope. | `` |
 | `requesting_agent` | `string` | No | Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement. | `` |
-| `type_filter` | `string` | No |  | `` |
-| `agent_filter` | `string` | No |  | `` |
+| `type_filter` | `string` | No | Restrict to a memory type. | `` |
+| `agent_filter` | `string` | No | Restrict to an agent id. | `` |
 | `search_mode` | `string` | No | Retrieval mode. | `hybrid` |
-| `variant` | `string` | No |  | `` |
-| `as_of` | `string` | No |  | `` |
-| `conversation_id` | `string` | No |  | `` |
-| `explain` | `boolean` | No |  | `False` |
+| `variant` | `string` | No | Ingest-pipeline filter. '' = real user data only (default, equivalent to IS NULL). Pass a specific variant name (e.g. 'heuristic_c1c4') to scope to that bench ingest. | `` |
+| `as_of` | `string` | No | ISO-8601 time-travel cutoff. | `` |
+| `conversation_id` | `string` | No | Restrict to a conversation / team session. | `` |
+| `explain` | `boolean` | No | Attach a per-result `_explanation` block (vector/bm25/title_overlap/importance/recency/temporal score breakdown) plus a human-readable `reason` string explaining why each row matched. Same breakdown memory_suggest shows, on the primary search path. | `False` |
 | `entity_graph` | `boolean` | No | Direct lever for entity-graph expansion. Default False = OFF (production default; matches memory_search behavior). True = parse query for named entities, traverse entity_relationships up to entity_graph_depth hops, fold matched memory_ids into the result set tagged expanded_via='entity_graph'. The AUTO layer can also flip this on for the entity_anchored branch (see auto_entity_graph_enabled), but caller-explicit entity_graph=True works without auto_route. Use for benchmarking + production opt-in once empirically validated. | `False` |
 | `rerank` | `boolean` | No | Cross-encoder reranking. Default False = OFF (production behavior unchanged). True = re-score top (rerank_pool_k or 3*k) hits with sentence-transformers CrossEncoder, blend with hybrid score per rerank_blend, re-sort. Adds ~12MB-560MB model download (cached at ~/.cache/torch) + ~50ms/pair on GPU, ~200ms/pair on CPU. Used in benchmarking; opt-in for production retrieval. | `False` |
 | `rerank_model` | `string` | No | Cross-encoder model id. Default empty = DEFAULT_RERANK_MODEL (cross-encoder/ms-marco-MiniLM-L-6-v2 — small, fast, English-tuned). Higher-accuracy alternative: BAAI/bge-reranker-v2-m3 (multilingual, larger, slower). Override via M3_RERANK_MODEL env var. | `` |
@@ -589,7 +589,7 @@ Unpin a memory, restoring normal decay/expiry/retention handling.
 
 ### `memory_update`
 
-Updates a MemoryItem by ID.
+Edit a memory in place by full id: content, title, metadata, importance, refresh reminder or conversation. Empty fields are left unchanged. To replace a belief and keep the old one as history, use memory_supersede instead.
 
 **Source:** mcp_tool_catalog.py
 
@@ -874,7 +874,7 @@ Creates a directional link between two memory items. Valid types: consolidates, 
 
 ### `conversation_append`
 
-Appends a message to a conversation.
+Append one message (role + content) to a conversation started with conversation_start; embedded for semantic search unless embed=false. For agent chat-log capture use chatlog_write instead.
 
 **Source:** mcp_tool_catalog.py
 
@@ -911,7 +911,7 @@ Search messages across conversations using hybrid semantic/keyword search.
 
 ### `conversation_start`
 
-Starts a new conversation thread.
+Start a new conversation thread and return its id. Pass that id to conversation_append, and as conversation_id on memory_write to group memories with the thread.
 
 **Source:** mcp_tool_catalog.py
 
@@ -965,7 +965,7 @@ Assign a task to an owner. Sets state=in_progress and notifies the new owner.
 
 ### `task_create`
 
-Create a new task in 'pending' state. Returns task id.
+Create a task in 'pending' state, optionally assigned to an owner agent or nested under a parent task. Returns the new task id; move it along with task_update.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1002,7 +1002,7 @@ Soft-delete a task: sets a tombstone that propagates via pg_sync to the warehous
 
 ### `task_get`
 
-Get full record for one task.
+Get one task's full stored record (state, owner, parent, result memory, timestamps). Read-only; use task_list to search and task_tree for subtasks.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1017,7 +1017,7 @@ Get full record for one task.
 
 ### `task_list`
 
-List tasks with optional filters. Newest updated first.
+List tasks, most recently updated first, filtered by owner, state or parent (no filters = all, up to limit). Read-only; task_get returns one task in full and task_tree a subtree.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1026,7 +1026,7 @@ List tasks with optional filters. Newest updated first.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `owner_agent` | `string` | No | Filter by owner agent. | `` |
-| `state` | `string` | No | Filter by task state. | `` |
+| `state` | `string` | No | Filter by state: pending, in_progress, blocked, completed, failed or cancelled (empty = any). | `` |
 | `parent_task_id` | `string` | No | Filter by parent task id. | `` |
 | `limit` | `integer` | No | Max tasks to return. | `50` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
@@ -1052,7 +1052,7 @@ Set the result memory pointer for a task. Does NOT change state.
 
 ### `task_tree`
 
-Render a recursive subtree of tasks rooted at root_task_id.
+Show a task and its subtasks as a tree, recursing up to max_depth levels below root_task_id. Read-only; use it to see the state of a whole delegated piece of work.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1092,7 +1092,7 @@ Partial update for a task. Validates state transitions. On terminal state, sets 
 
 ### `agent_get`
 
-Get full record for one registered agent.
+Get one registered agent's full record: role, status, capabilities, metadata and trust score. Read-only; use agent_list to browse all agents.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1139,7 +1139,7 @@ List registered agents, optionally filtered by status and/or role. Each carries 
 
 ### `agent_offline`
 
-Mark an agent as offline.
+Mark an agent as offline (status=offline) so other agents stop routing work to it. agent_heartbeat or agent_register marks it active again.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1188,7 +1188,7 @@ Set an agent's trust score (0.5-1.0, clamped). Trust weights that agent's assert
 
 ### `notifications_ack`
 
-Mark one notification as read.
+Mark one notification as read (acknowledged) so it stops appearing in unread polls. Use notifications_ack_all to clear an agent's whole inbox.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1251,7 +1251,7 @@ Read notifications like notifications_poll, but write nothing: no heartbeat, no 
 
 ### `notifications_poll`
 
-List notifications addressed to agent_id, newest first.
+Check your own inbox: notifications addressed to agent_id, newest first. Also marks that agent alive (heartbeat) and records delivery, so to look at another agent's inbox without side effects use notifications_peek.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1569,11 +1569,11 @@ Register a new corpus with optional default overrides. `default=True` marks this
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `corpus_id` | `string` | Yes |  | `-` |
-| `description` | `string` | No |  | `null` |
-| `extract_mode` | `string` | No |  | `null` |
-| `scope` | `string` | No |  | `null` |
-| `default` | `boolean` | No |  | `False` |
+| `corpus_id` | `string` | Yes | New corpus ID; must be non-empty and not already exist. | `-` |
+| `description` | `string` | No | Human-readable label for the corpus. | `null` |
+| `extract_mode` | `string` | No | Extraction mode stored in settings; files_ingest does not read it yet. | `null` |
+| `scope` | `string` | No | Promotion scope stored in settings; files_promote does not read it yet. | `null` |
+| `default` | `boolean` | No | Flag as the default corpus, clearing any prior flag (stored; ingest does not read it yet). | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1588,15 +1588,15 @@ Delete a corpus's settings row. Cascade=True also deletes every file_node in the
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `corpus_id` | `string` | Yes |  | `-` |
-| `cascade` | `boolean` | No |  | `False` |
+| `corpus_id` | `string` | Yes | Corpus ID to delete. | `-` |
+| `cascade` | `boolean` | No | Also delete all its files, leaves, facts and links; false refuses if files exist. | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_corpus_get`
 
-Fetch a single corpus's settings + counts.
+Fetch one corpus: settings, current file_node_count and leaf_count, created_at, is_default. Null if it has neither settings nor files.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1604,14 +1604,14 @@ Fetch a single corpus's settings + counts.
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `corpus_id` | `string` | Yes |  | `-` |
+| `corpus_id` | `string` | Yes | Corpus ID to fetch. | `-` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_corpus_list`
 
-Enumerate corpora with row counts.
+List every corpus (registered, or seen on ingested files) with corpus_id, settings, current file_node_count and leaf_count, created_at and is_default.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1633,12 +1633,12 @@ Update settings for an existing corpus. None args are no-ops. Creates the corpus
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `corpus_id` | `string` | Yes |  | `-` |
-| `description` | `string` | No |  | `null` |
-| `extract_mode` | `string` | No |  | `null` |
-| `scope` | `string` | No |  | `null` |
-| `default` | `boolean` | No |  | `null` |
-| `retention_days` | `integer` | No |  | `null` |
+| `corpus_id` | `string` | Yes | Corpus ID to update. | `-` |
+| `description` | `string` | No | New human-readable label. | `null` |
+| `extract_mode` | `string` | No | Extraction mode stored in settings; files_ingest does not read it yet. | `null` |
+| `scope` | `string` | No | Promotion scope stored in settings; files_promote does not read it yet. | `null` |
+| `default` | `boolean` | No | True flags as default (clearing others); false clears this corpus's flag. | `null` |
+| `retention_days` | `integer` | No | Advisory retention in days; stored only, nothing is pruned. | `null` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1653,11 +1653,11 @@ Scan leaf embeddings for near-duplicates above cosine threshold. Detection only 
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `threshold` | `number` | No |  | `0.92` |
-| `max_pairs` | `integer` | No |  | `500` |
-| `leaf_limit` | `integer` | No |  | `10000` |
-| `corpus` | `string` | No |  | `null` |
-| `include_already_detected` | `boolean` | No |  | `False` |
+| `threshold` | `number` | No | Cosine floor (0.0-1.0) for flagging a pair. | `0.92` |
+| `max_pairs` | `integer` | No | Stop after recording this many new pairs. | `500` |
+| `leaf_limit` | `integer` | No | Max leaves scanned, newest first. | `10000` |
+| `corpus` | `string` | No | Single-corpus scope filter. | `null` |
+| `include_already_detected` | `boolean` | No | Re-surface pairs that already have an unreviewed candidate row. | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1672,9 +1672,9 @@ List near-duplicate candidate pairs with text snippets and paths.
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `reviewed` | `boolean` | No |  | `False` |
-| `limit` | `integer` | No |  | `100` |
-| `min_cosine` | `number` | No |  | `null` |
+| `reviewed` | `boolean` | No | False: unreviewed only; true: reviewed only; null: both. | `False` |
+| `limit` | `integer` | No | Max pairs returned. | `100` |
+| `min_cosine` | `number` | No | Only pairs with cosine >= this. | `null` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1689,9 +1689,9 @@ Record a review decision on a near-duplicate candidate: 'kept' | 'merged' | 'ign
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `candidate_uuid` | `string` | Yes |  | `-` |
-| `action` | `string` | Yes |  | `-` |
-| `note` | `string` | No |  | `` |
+| `candidate_uuid` | `string` | Yes | Candidate pair UUID from files_dedup_list. | `-` |
+| `action` | `string` | Yes | Decision; 'merged' records intent only, no leaves are merged. | `-` |
+| `note` | `string` | No | Free-text rationale saved with the review. | `` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1706,9 +1706,9 @@ Detect provisional-entity coalescing candidates (quarantine noise + flag near-du
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `max_pairs` | `integer` | No |  | `1000` |
-| `dry_run` | `boolean` | No |  | `False` |
-| `corpus` | `string` | No |  | `null` |
+| `max_pairs` | `integer` | No | Stop after recording this many candidate pairs. | `1000` |
+| `dry_run` | `boolean` | No | Estimate counts without writing or embedding. | `False` |
+| `corpus` | `string` | No | Accepted but currently ignored; detection scans all entities. | `null` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1723,11 +1723,11 @@ Apply the reversible same_as/cluster overlay. Union of explicit candidate_uuids 
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `candidate_uuids` | `array` | No |  | `null` |
-| `include_auto_merge` | `boolean` | No |  | `False` |
-| `resolution_run` | `string` | No |  | `null` |
-| `dry_run` | `boolean` | No |  | `False` |
-| `confirm` | `boolean` | No |  | `False` |
+| `candidate_uuids` | `array` | No | Candidate UUIDs to apply; each must be reviewed 'merge' or 'unapplied'. | `null` |
+| `include_auto_merge` | `boolean` | No | Also apply unreviewed 'merge'-band candidates of one detection run. | `False` |
+| `resolution_run` | `string` | No | Detection run_id for include_auto_merge (default: latest run). | `null` |
+| `dry_run` | `boolean` | No | Preview counts without writing; no confirm needed. | `False` |
+| `confirm` | `boolean` | No | Must be true for a real (non-dry-run) apply. | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1742,9 +1742,9 @@ List entity-coalescing candidate pairs (name + score + band).
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `reviewed` | `boolean` | No |  | `False` |
-| `limit` | `integer` | No |  | `100` |
-| `min_cosine` | `number` | No |  | `null` |
+| `reviewed` | `boolean` | No | False: unreviewed only; true: reviewed only; null: both. | `False` |
+| `limit` | `integer` | No | Max pairs, highest cosine first. | `100` |
+| `min_cosine` | `number` | No | Only pairs with cosine >= this. | `null` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1759,8 +1759,8 @@ Record entity-coalescing review decisions in BULK: a list of {uuid, action} wher
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `reviews` | `array` | Yes |  | `-` |
-| `note` | `string` | No |  | `` |
+| `reviews` | `array` | Yes | List of {uuid, action}; action is merge\|related\|reject\|defer. | `-` |
+| `note` | `string` | No | Free-text rationale saved on every reviewed candidate. | `` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1775,7 +1775,7 @@ Reverse one coalescence cluster (drop edges, clear flags, strip aliases, tombsto
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `cluster_id` | `string` | Yes |  | `-` |
+| `cluster_id` | `string` | Yes | Cluster to reverse, as listed in clusters_touched by the apply. | `-` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1790,14 +1790,14 @@ Drain leaves with extraction_status='pending' through the LLM fact extractor. Us
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `limit` | `integer` | No |  | `100` |
+| `limit` | `integer` | No | Max pending leaves to process this pass. | `100` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_get`
 
-Fetch one record by UUID. Tries file_nodes then leaves.
+Fetch one record by UUID. Tries file_nodes then leaves; returns the row plus _kind ('file_node'|'leaf') and original_path, or null if no match.
 
 **Source:** mcp_tool_catalog.py
 
@@ -1820,13 +1820,13 @@ Return file-level summaries for triage (wiki-index primitive). Cheap-first retri
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `corpus` | `string` | No |  | `null` |
-| `corpora` | `array` | No |  | `null` |
-| `filetype` | `string` | No |  | `null` |
-| `directory` | `string` | No |  | `null` |
-| `filename_glob` | `string` | No |  | `null` |
-| `include_history` | `boolean` | No |  | `False` |
-| `limit` | `integer` | No |  | `500` |
+| `corpus` | `string` | No | Single-corpus scope filter (omit for all). | `null` |
+| `corpora` | `array` | No | Fan-out across these corpora; overrides corpus. | `null` |
+| `filetype` | `string` | No | Filter to one filetype ('markdown', 'pdf', ...). | `null` |
+| `directory` | `string` | No | Only files whose absolute path starts with this directory. | `null` |
+| `filename_glob` | `string` | No | Glob over the filename, e.g. '*.md' or 'README*'. | `null` |
+| `include_history` | `boolean` | No | Include superseded file_nodes. | `False` |
+| `limit` | `integer` | No | Max entries, newest date_modified first. | `500` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1845,7 +1845,7 @@ Walk a directory and ingest supported files into files.db. Idempotent: same cont
 | `include` | `array` | No | Glob patterns; only matching files are ingested. | `null` |
 | `exclude` | `array` | No | Glob patterns; matching files are skipped. | `null` |
 | `max_depth` | `integer` | No | Max recursion depth (0 = root only). | `null` |
-| `corpus` | `string` | No | Corpus tag (default: resolved from M3_FILES_CORPUS or 'default'). | `null` |
+| `corpus` | `string` | No | Corpus tag (default: the configured files.default_corpus). | `null` |
 | `dry_run` | `boolean` | No | Walk + count without writing. | `False` |
 | `force_size` | `boolean` | No | Bypass the per-file size cap. | `False` |
 | `record_noops` | `boolean` | No | Write 'unchanged_skipped' rows for audit. | `False` |
@@ -1865,9 +1865,9 @@ Re-point an existing file_node at a new path (rename / move). NOT a supersession
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `missing_file_node_uuid` | `string` | Yes |  | `-` |
-| `new_path` | `string` | Yes |  | `-` |
-| `expect_sha256` | `string` | No |  | `null` |
+| `missing_file_node_uuid` | `string` | Yes | UUID of the file_node whose file moved (from a rename candidate). | `-` |
+| `new_path` | `string` | Yes | New on-disk location of the same content. | `-` |
+| `expect_sha256` | `string` | No | If set, the file at new_path must have this sha256 or the call fails. | `null` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1882,10 +1882,10 @@ List top promotion candidates by usage-weighted heuristic score. Suggestion-only
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `limit` | `integer` | No |  | `20` |
-| `min_score` | `number` | No |  | `0.3` |
-| `corpus` | `string` | No |  | `null` |
-| `include_already_promoted` | `boolean` | No |  | `False` |
+| `limit` | `integer` | No | Max candidates returned. | `20` |
+| `min_score` | `number` | No | Score floor; scores run roughly 0-2 (hits x confidence x recency). | `0.3` |
+| `corpus` | `string` | No | Single-corpus scope filter. | `null` |
+| `include_already_promoted` | `boolean` | No | Also list facts that already have a promotion. | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1900,11 +1900,11 @@ Promote (ascend) a fact / leaf / file_summary from files.db to memory.db. Source
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `source_uuid` | `string` | Yes |  | `-` |
-| `reason` | `string` | No |  | `` |
+| `source_uuid` | `string` | Yes | UUID of the fact, leaf or file_node to promote. | `-` |
+| `reason` | `string` | No | Free-text rationale, stored on the promotion record. | `` |
 | `mapped_type` | `string` | No | Override memory.db type (fact\|knowledge\|reference\|...). | `null` |
-| `scope` | `string` | No |  | `null` |
-| `importance` | `number` | No |  | `0.6` |
+| `scope` | `string` | No | Isolation scope of the new memory (default: configured promotion scope). | `null` |
+| `importance` | `number` | No | 0.0-1.0 relevance of the new memory. | `0.6` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1919,9 +1919,9 @@ List existing promotions. source_superseded=True surfaces promotions whose sourc
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `source_file_node` | `string` | No |  | `null` |
-| `source_superseded` | `boolean` | No |  | `null` |
-| `limit` | `integer` | No |  | `100` |
+| `source_file_node` | `string` | No | Only promotions whose source belongs to this file_node UUID. | `null` |
+| `source_superseded` | `boolean` | No | True: source file superseded only; false: current only; omit for both. | `null` |
+| `limit` | `integer` | No | Max rows, newest promotion first. | `100` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1956,10 +1956,10 @@ Compare filesystem against files.db. Surfaces stale, touched-only, missing, new,
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `directory` | `string` | No |  | `null` |
-| `corpus` | `string` | No |  | `null` |
-| `rehash` | `boolean` | No |  | `True` |
-| `limit` | `integer` | No |  | `200` |
+| `directory` | `string` | No | Restrict the review to files under this directory (default: all known files). | `null` |
+| `corpus` | `string` | No | Single-corpus scope filter. | `null` |
+| `rehash` | `boolean` | No | Re-hash changed files (accurate); false uses mtime only (cheaper, flags touches). | `True` |
+| `limit` | `integer` | No | Max entries returned per category list. | `200` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1974,7 +1974,7 @@ Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype.
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `corpus` | `string` | No |  | `null` |
+| `corpus` | `string` | No | Limit counters to one corpus (omit for all). | `null` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -1989,10 +1989,10 @@ Single-pass staleness check + notification dispatch. Suitable for cron / schedul
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `directory` | `string` | No |  | `null` |
-| `corpus` | `string` | No |  | `null` |
-| `agent_id` | `string` | No |  | `files_memory.watch` |
-| `cooldown_seconds` | `number` | No |  | `3600.0` |
+| `directory` | `string` | No | Restrict the review to files under this directory (default: all known files). | `null` |
+| `corpus` | `string` | No | Single-corpus scope filter. | `null` |
+| `agent_id` | `string` | No | Agent whose notifications inbox receives the events. | `files_memory.watch` |
+| `cooldown_seconds` | `number` | No | Skip re-notifying the same file and event kind within this window. | `3600.0` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -2003,7 +2003,7 @@ Single-pass staleness check + notification dispatch. Suitable for cron / schedul
 
 ### `files_health`
 
-DB integrity + FTS5 sync check. Set rebuild=True to fix drift.
+files.db integrity check: returns ok, sqlite_integrity, fts5_in_sync (with fts5_drift counts), orphan_leaves and orphan_runs. Read-only unless rebuild=True, which rebuilds the FTS5 index only when it is out of sync and re-checks (fts_rebuilt=True). SQLite-only; reports skipped on PostgreSQL.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2011,7 +2011,7 @@ DB integrity + FTS5 sync check. Set rebuild=True to fix drift.
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `rebuild` | `boolean` | No |  | `False` |
+| `rebuild` | `boolean` | No | Rebuild the FTS5 index if out of sync; false only reports. | `False` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
 | `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
 | `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
@@ -2066,7 +2066,7 @@ Accepts raw text, extracts entities and relationship predicates based on the con
 
 ### `m3_call`
 
-Invoke ANY m3 catalog tool by name without loading its domain — the low-token path to the full tool surface. Single call: pass `tool` (e.g. 'files_stats') and `args` (an object). Batch: pass `batch`, a list of {tool, args} (each isolated — one failure won't abort the rest; capped at 100). Set `dry_run` to validate args + check the destructive gate WITHOUT executing. Returns JSON. Call `m3_index` first if you don't know a tool's args. Destructive tools require M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1.
+Invoke ANY m3 catalog tool by name without loading its domain — the low-token path to the full tool surface, and the way to reach every tool not loaded at startup. Single call: pass `tool` (e.g. 'files_stats') and `args` (an object). Batch: pass `batch`, a list of {tool, args} (each isolated — one failure won't abort the rest; capped at 100). Set `dry_run` to validate args + check the destructive gate WITHOUT executing. Returns JSON. Call `m3_index` first if you don't know a tool's args. Destructive tools are refused unless mcp.allow_destructive is enabled (`m3 config set mcp.allow_destructive true`).
 
 **Source:** mcp_tool_catalog.py
 
@@ -2084,7 +2084,7 @@ Invoke ANY m3 catalog tool by name without loading its domain — the low-token 
 
 ### `m3_help_capabilities`
 
-Discover m3-memory tool capabilities, parameters, and availability. Allows filtering by a logical domain (memory, chatlog, files, entity, agent, tasks, conversations, admin, diagnostics) or searching by keywords.
+Find m3 tools by what they do: keyword search over tool names and descriptions, optionally within one domain (memory, chatlog, files, entity, agent, tasks, conversations, admin, diagnostics). Use it when you know the task but not the tool; once you know the tool, `m3_index` gives its exact args. Read-only.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2101,7 +2101,7 @@ Discover m3-memory tool capabilities, parameters, and availability. Allows filte
 
 ### `m3_index`
 
-List m3 catalog tools (optionally one domain) as structured rows: name, domain, one-line summary, destructive flag, and arg specs (name/type/required). Use this to discover the exact args for any tool before calling it via m3_call — cheaper than a failed call. Read-only catalog metadata; never returns tool output. Domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin.
+List m3 catalog tools (optionally one domain) as structured rows: name, domain, one-line summary, destructive flag, and arg specs (name/type/required). Use this to discover the exact args for any tool before calling it via m3_call — cheaper than a failed call. Prefer it over `m3_help_capabilities` when you already know the tool name. Read-only catalog metadata; never returns tool output. Domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2152,7 +2152,7 @@ Find (and optionally supersede) near-duplicate memory items by cosine similarity
 
 ### `memory_maintenance`
 
-Runs maintenance tasks on the memory store.
+Run store maintenance: importance decay, soft-deleting expired items (recoverable; pinned items are kept), and pruning orphaned embeddings, each behind its own flag. Returns a line per step with the rows it changed.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2187,7 +2187,7 @@ Set or update per-agent memory retention policy. Controls max memory count, TTL 
 
 ### `tools_list_domains`
 
-List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin) and their tool counts. Call `tools_load_domain` to expose a domain's full tool surface.
+List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin) and their tool counts. Use it only before `tools_load_domain`; to find one tool's args use `m3_index`, and to run one tool use `m3_call`. Read-only.
 
 **Source:** mcp_tool_catalog.py
 
@@ -2201,7 +2201,7 @@ List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversation
 
 ### `tools_load_domain`
 
-Register a tool domain's full surface for the current MCP session. Use when you need tools beyond the essentials (chatlog_search, chatlog_status, files_search, m3_call, memory_get, memory_search, memory_supersede, memory_write). Valid domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin.
+Register every tool in one domain as native tools for the rest of this MCP session (beyond the startup set: chatlog_search, m3_call, memory_get, memory_search, memory_supersede, memory_write). Worth it when you will call several tools from that domain; for one or two calls use `m3_call`, which needs no load. Returns the newly registered names and their schemas. Valid domains: memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin.
 
 **Source:** mcp_tool_catalog.py
 

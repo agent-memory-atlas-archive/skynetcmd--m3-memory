@@ -18,7 +18,7 @@ from typing import Any, cast
 
 from m3_core.caller import as_caller
 from m3_core.config import settings as _m3cfg
-from m3_sdk import active_database, destructive_tools_allowed
+from m3_sdk import DESTRUCTIVE_ENABLE_HINT, active_database, destructive_tools_allowed
 
 from .spec import ToolSpec, memory_core
 
@@ -358,7 +358,7 @@ async def _dispatch_one(tool: str, args: dict, *, dry_run: bool) -> Any:
             "ok": False,
             "error": "destructive_gated",
             "tool": tool,
-            "hint": "This tool mutates/deletes. Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to enable.",
+            "hint": f"This tool mutates/deletes. {DESTRUCTIVE_ENABLE_HINT}",
         }
     try:
         result = await execute_tool_structured(spec, args or {}, agent_id="", dry_run=dry_run)

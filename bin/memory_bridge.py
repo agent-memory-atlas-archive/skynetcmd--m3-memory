@@ -62,8 +62,8 @@ memory_search, never raw SQL against agent_memory.db: hand-querying it for \
 type='chat_log' returns zero rows on a split deployment even when capture is \
 healthy.
 
-Only some tools load at startup; use tools_list_domains / tools_load_domain to \
-reach the rest. For the full operational guide, load the m3-guide skill."""
+Only some tools load at startup; m3_call runs any other tool by name \
+(m3_call("m3_index") lists them all). For the full operational guide, load the m3-guide skill."""
 
 mcp = FastMCP("Memory Bridge", instructions=_SERVER_INSTRUCTIONS)
 
@@ -73,6 +73,7 @@ import mcp_tool_catalog
 import memory_core
 import tool_domains
 import tool_loader
+from catalog.annotations import tool_annotations
 from m3_core.caller import as_caller
 from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
@@ -268,14 +269,13 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
 
 
 # ── Catalog-driven MCP tool registration ──────────────────────────────────────
-# Lazy mode (default): only the essentials + the two meta-tools register at
-# startup. Other tools register on demand when the agent calls
-# `tools_load_domain(domain=…)`. Set M3_TOOLS_LAZY=0 to disable and expose
-# every tool at startup (legacy behavior).
-_LAZY_MODE = bool(_m3cfg.setting("tools.lazy"))
+# Only the startup set (STARTUP_TOOLS, below) registers at startup; m3_call
+# reaches every other tool by name, and tools_load_domain (itself reachable
+# through m3_call) registers a whole domain. tools.lazy = false registers every
+# tool (legacy behavior).
 
 # Tracks which tools are currently registered with FastMCP. Starts with the
-# essentials + the two meta-tools, grows as domains are loaded.
+# startup set, grows as domains are loaded.
 _REGISTERED: set[str] = set()
 
 
@@ -289,48 +289,58 @@ def _register_one(spec):
     # for_mcp=True: sync impls get an async to_thread wrapper so their blocking
     # SQLite work runs off the event loop (see _build_typed_function).
     fn = _build_typed_function(spec, for_mcp=True)
-    mcp.tool(name=spec.name, description=spec.description)(fn)
+    mcp_compat.register_tool(
+        mcp,
+        fn,
+        name=spec.name,
+        description=spec.description,
+        input_schema=spec.parameters,
+        annotations=tool_annotations(spec),
+    )
     _REGISTERED.add(spec.name)
     return True
 
 
-# The meta-tools that stay live in lazy mode regardless of domain: they are how
-# an agent discovers and loads the rest of the catalog, so gating them would make
-# lazy mode a dead end.
-#
-# MODULE-LEVEL ON PURPOSE. bin/measure_tool_tokens.py and every external client
-# that wants to mirror m3's startup surface (e.g. an OpenClaw `toolFilter`) read
-# this by `getattr(memory_bridge, "_META_TOOLS")`. It used to be a local inside
-# _register_initial_tools(), which meant that getattr silently returned None and
-# each consumer fell back to its own hardcoded literal -- the exact "second
-# hand-maintained list would drift from it silently" failure the measurement
-# script's own comment warns about. The lists happened to agree, so nothing was
-# broken; the seam was simply undefended. tests/test_meta_tools_single_owner.py
-# pins it.
-_META_TOOLS = {"tools_list_domains", "tools_load_domain"}
+def _resolve_startup_tools() -> frozenset[str] | None:
+    """The startup set from its one owner, tools_config: tools.startup, then
+    .tools_config.json, then the shipped default. None means every tool
+    (tools.lazy = false).
+
+    A set that cannot be honoured (an unknown or renamed tool, a missing escape
+    hatch) falls back to the shipped default with an ERROR, rather than refusing
+    to start: a server that will not start drops every memory tool for the
+    session, and its log is the one place nobody reads. `m3 doctor` (the
+    startup-tools check) reports the same error with the fix.
+    """
+    import tools_config
+
+    catalog_names = {s.name for s in mcp_tool_catalog.MCP_TOOLS}
+    try:
+        names, _source = tools_config.resolve_startup_tools()
+        if names is None:
+            return None
+        tools_config.validate_against_catalog(names, catalog_names)
+        return frozenset(names)
+    except tools_config.ToolsConfigError as e:
+        logger.error(f"startup tool set not usable, loading the shipped default instead: {e}")
+        return frozenset(tools_config.DEFAULT_STARTUP_TOOLS) & catalog_names
+
+
+# MODULE-LEVEL ON PURPOSE: setup's OpenClaw toolFilter and any client mirroring
+# m3's startup surface read memory_bridge.STARTUP_TOOLS. None = every tool.
+STARTUP_TOOLS = _resolve_startup_tools()
 
 
 def _register_initial_tools():
-    """Initial registration set, called once at startup.
+    """Register the startup set (STARTUP_TOOLS) once at startup.
 
-    Lazy mode (the default): meta-tools + essentials only — 10 tools, 2 meta +
-    8 per tool_domains.ESSENTIAL_TOOL_NAMES, 3,885 tokens on the MCP wire
-    (~2% of a 200K context). Chosen by measurement, not judgement: they absorb
-    95.4% of observed direct calls. files_search is the one exception, kept on
-    principle to preserve search for all three primary stores. See the
-    rationale block above ESSENTIAL_TOOL_NAMES.
-    Eager mode: every ToolSpec — 119 tools, 29,485 tokens (14.7% of 200K),
-    the pre-2026-05 behavior, restored with M3_TOOLS_LAZY=0.
-
-    Re-derive both figures with `python bin/measure_tool_tokens.py`; the
-    counts here are a snapshot and the script is the source of truth;
-    tests/test_tool_token_budget.py fails when they drift from it.
+    Shipped default: tools_config.DEFAULT_STARTUP_TOOLS, the measured six; any
+    other catalog tool is reachable through m3_call. tools.lazy = false
+    registers every tool. Token costs: `python bin/measure_tool_tokens.py`
+    (tests/test_tool_token_budget.py pins the published figures to it).
     """
     for spec in mcp_tool_catalog.MCP_TOOLS:
-        if not _LAZY_MODE:
-            _register_one(spec)
-            continue
-        if spec.name in _META_TOOLS or tool_domains.is_essential(spec.name):
+        if STARTUP_TOOLS is None or spec.name in STARTUP_TOOLS:
             _register_one(spec)
 
 
@@ -432,11 +442,11 @@ if __name__ == "__main__":
             )
     except Exception as _e:
         log_swallowed(logger, _e, f"canonical-path guard skipped: {type(_e).__name__}: {_e}")
-    if _LAZY_MODE:
+    if STARTUP_TOOLS is not None:
         logger.info(
-            f"Lazy mode: registered {len(_REGISTERED)} essentials+meta tools at startup "
-            f"(out of {len(mcp_tool_catalog.MCP_TOOLS)} total). "
-            f"Use `tools_load_domain` to expose more. Set M3_TOOLS_LAZY=0 to disable."
+            f"Lazy mode: registered {len(_REGISTERED)} startup tools "
+            f"(out of {len(mcp_tool_catalog.MCP_TOOLS)} total); m3_call reaches the rest. "
+            f"`m3 config set tools.lazy false` registers every tool."
         )
     else:
         logger.info(f"Eager mode: registered all {len(_REGISTERED)} MCP tools at startup.")

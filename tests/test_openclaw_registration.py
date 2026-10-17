@@ -112,21 +112,16 @@ def test_tool_filter_is_derived_from_the_bridge_startup_set(wired):
     Fails if either side drifts — which is the point. A hardcoded list here
     would silently diverge from _register_initial_tools().
     """
-    import mcp_tool_catalog
     import memory_bridge
-    import tool_domains
 
-    meta = set(memory_bridge._META_TOOLS)
-    expected = sorted({s.name for s in mcp_tool_catalog.TOOLS if s.name in meta or tool_domains.is_essential(s.name)})
+    expected = sorted(memory_bridge.STARTUP_TOOLS)
 
     calls = wired()
     assert sw._wire_openclaw() is True
     include = _payload(calls)["toolFilter"]["include"]
     assert include == expected
-    # m3_call is what makes a narrow filter lossless; tools_load_domain is what
-    # keeps lazy mode from being a dead end. Both must be present.
+    # m3_call is what makes a narrow filter lossless.
     assert "m3_call" in include
-    assert "tools_load_domain" in include
 
 
 # ── the version gate: it must trip, and it must stay quiet ───────────────────
@@ -297,8 +292,10 @@ def test_wire_openclaw_builds_a_real_spec_with_no_env_mock(monkeypatch):
     # test's config root is a temp dir, so M3_CONFIG_ROOT is there; no other root.
     assert "M3_CONFIG_ROOT" in spec["env"], f"real spec lost M3_CONFIG_ROOT: {spec['env']}"
     assert "M3_ENGINE_ROOT" not in spec["env"], spec["env"]
-    # 10 tools, derived — not the 115-tool fallback that a failed import causes.
-    assert len(spec["toolFilter"]["include"]) == 10
+    # The startup set, derived — not the full-catalog fallback a failed import causes.
+    import tool_domains
+
+    assert set(spec["toolFilter"]["include"]) == set(tool_domains.ESSENTIAL_TOOL_NAMES)
 
 
 def test_spec_is_complete_because_mcp_set_overwrites(wired):

@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_sdk.py
-sha1: f1ddd1a6e859
-mtime_utc: 2026-10-11T19:20:23.259963+00:00
-generated_utc: 2026-10-11T19:29:29.169060+00:00
+sha1: a2f6e6c2af4b
+mtime_utc: 2026-10-17T18:54:51.857507+00:00
+generated_utc: 2026-10-17T18:56:36.260181+00:00
 private: false
 ---
 

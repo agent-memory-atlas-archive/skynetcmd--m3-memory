@@ -111,11 +111,11 @@ def test_config_omitting_the_escape_hatch_is_refused(_clean_env):
 
 
 def test_refusal_names_every_missing_hatch_tool(_clean_env):
-    _write(_clean_env, {"startup_tools": ["memory_search", "m3_call"]})
+    _write(_clean_env, {"startup_tools": ["memory_search"]})
     with pytest.raises(tc.ToolsConfigError) as e:
         tc.resolve_startup_tools()
-    assert "tools_list_domains" in str(e.value)
-    assert "tools_load_domain" in str(e.value)
+    for name in tc.ESCAPE_HATCH:
+        assert name in str(e.value)
 
 
 def test_refuses_rather_than_silently_forcing_them_in(_clean_env):

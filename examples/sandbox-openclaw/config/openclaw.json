@@ -24,15 +24,11 @@
         "toolFilter": {
           "include": [
             "chatlog_search",
-            "chatlog_status",
-            "files_search",
             "m3_call",
             "memory_get",
             "memory_search",
             "memory_supersede",
-            "memory_write",
-            "tools_list_domains",
-            "tools_load_domain"
+            "memory_write"
           ]
         }
       }

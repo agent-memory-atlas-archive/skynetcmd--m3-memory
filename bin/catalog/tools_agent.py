@@ -83,7 +83,10 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="agent_get",
-        description="Get full record for one registered agent.",
+        description=(
+            "Get one registered agent's full record: role, status, capabilities, "
+            "metadata and trust score. Read-only; use agent_list to browse all agents."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -120,7 +123,10 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="agent_offline",
-        description="Mark an agent as offline.",
+        description=(
+            "Mark an agent as offline (status=offline) so other agents stop routing "
+            "work to it. agent_heartbeat or agent_register marks it active again."
+        ),
         parameters={
             "type": "object",
             "properties": {

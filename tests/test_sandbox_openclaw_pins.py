@@ -116,14 +116,11 @@ def test_sandbox_tool_filter_matches_the_bridge_startup_set():
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
     try:
-        import mcp_tool_catalog
-        import memory_bridge
         import tool_domains
     except Exception as e:  # pragma: no cover — payload must be importable
         pytest.skip(skip_reason("dep", f"payload not importable: {e}"))
 
-    meta = set(memory_bridge._META_TOOLS)
-    expected = sorted({s.name for s in mcp_tool_catalog.TOOLS if s.name in meta or tool_domains.is_essential(s.name)})
+    expected = sorted(tool_domains.ESSENTIAL_TOOL_NAMES)
     assert sorted(_server()["toolFilter"]["include"]) == expected
 
 

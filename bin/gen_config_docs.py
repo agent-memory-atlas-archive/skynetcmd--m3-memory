@@ -92,7 +92,7 @@ def render_markdown() -> str:
         "",
     ]
     for table, keys in sorted(REGISTRY.tables().items()):
-        lines += [f"## [{table}]", "", "| Key | Type | Default | Environment names | Notes |", "|---|---|---|---|---|"]
+        lines += [f"## [{table}]", "", "| Key | Type | Default | Deprecated environment names | Notes |", "|---|---|---|---|---|"]
         for key in sorted(keys, key=lambda k: k.leaf):
             notes = []
             if not key.reloadable:

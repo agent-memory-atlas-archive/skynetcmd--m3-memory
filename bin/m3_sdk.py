@@ -198,14 +198,19 @@ def destructive_tools_allowed() -> bool:
     """Whether catalog tools marked default_allowed=False may run through a proxy.
 
     The one reading of the opt-in, shared by the MCP proxy and the m3_call
-    dispatcher: M3_MCP_PROXY_ALLOW_DESTRUCTIVE, or its legacy name
-    MCP_PROXY_ALLOW_DESTRUCTIVE, set to 1/true/yes.
+    dispatcher: mcp.allow_destructive in m3_config.toml (deprecated env names
+    M3_MCP_PROXY_ALLOW_DESTRUCTIVE / MCP_PROXY_ALLOW_DESTRUCTIVE still read).
+    DESTRUCTIVE_ENABLE_HINT is the one wording of how to turn it on.
     """
     # Registry key mcp.allow_destructive: both names, today's 1/true/yes reading
     # (its legacy parser), default off. Imported here: m3_sdk loads before config.
     from m3_core.config import settings as _m3cfg
 
     return bool(_m3cfg.setting("mcp.allow_destructive"))
+
+
+# How to enable destructive tools, as every refusal says it.
+DESTRUCTIVE_ENABLE_HINT = "To enable destructive tools: `m3 config set mcp.allow_destructive true`."
 
 
 # name -> submodules whose namespace must observe a rebind of that name. The

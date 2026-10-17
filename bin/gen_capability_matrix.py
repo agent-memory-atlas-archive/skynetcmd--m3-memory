@@ -115,16 +115,18 @@ def main() -> int:
         lines.append("| Tool | Description | Consent |")
         lines.append("|---|---|---|")
         for t in sorted(by_domain[d], key=lambda x: x["name"]):
-            # NOT a mutation flag. `destructive` in the manifest is
-            # `not spec.default_allowed` -- the dispatch gate at
-            # catalog/dispatch.py:225 -- i.e. "needs an explicit opt-in before
-            # it will run". Rendering it as "Mutates?" was wrong in BOTH
+            # NOT a mutation flag: the manifest's `default_allowed` is the
+            # dispatch gate (catalog/dispatch.py), i.e. "needs an explicit
+            # opt-in before it will run". This read `destructive`, which once
+            # meant the same and now means "mutates/deletes", so gated
+            # read-only tools (memory_export, gdpr_export) showed as
+            # default-allowed (2026-10-17). Rendering it as "Mutates?" was wrong in BOTH
             # directions: memory_write/memory_update/task_delete showed
             # "read-only", while read-only memory_export/gdpr_export/
             # memory_search_routed showed a mutation warning. The catalog has
             # no per-tool mutation field, so the column now says what the data
             # actually means rather than inferring one.
-            flag = "⚠️ opt-in required" if t.get("destructive") else "default-allowed"
+            flag = "default-allowed" if t["default_allowed"] else "⚠️ opt-in required"
             lines.append(f"| `{_escape(t['name'])}` | {_escape(t.get('summary'))} | {flag} |")
         lines.append("")
 

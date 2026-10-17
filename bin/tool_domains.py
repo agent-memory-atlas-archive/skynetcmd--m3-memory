@@ -39,6 +39,8 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 
+import tools_config as _tools_config
+
 # ── Domain partition ─────────────────────────────────────────────────────────
 
 # Order matters: first prefix match wins. Longer/more-specific prefixes go
@@ -77,80 +79,16 @@ _DOMAIN_PREFIXES: list[tuple[str, str]] = [
 ]
 
 
-# Tools always exposed at MCP startup. MEASURED, not assumed: chosen as the
-# tools that actually absorb the observed direct-call traffic, per
-# `bin/measure_tool_usage.py` over 88 transcripts (527 direct MCP calls).
+# The shipped startup set. OWNED by tools_config.DEFAULT_STARTUP_TOOLS, where
+# the measurement behind it lives; this is a derived view for callers that ask
+# "is this one of the shipped essentials?". A second literal list here drifted
+# from the one the doctor reported (2026-10-17). The bridge registers the
+# RESOLVED set (tools_config.resolve_startup_tools), which a user can change.
 #
-# These + m3_call + the 2 meta-tools cover 95.4% of all observed direct calls
-# for 3,962 tokens. The previous 19-tool set cost 5,170 tokens and covered
-# 90.5% -- so this is cheaper AND higher-coverage, not a tradeoff. The old set
-# spent 1,672 tokens on six tools with ZERO direct calls (chatlog_write,
-# files_search, files_index, files_health, task_list, and m3_call's own
-# wrapper) while the top 6 absorbed 495 of 527 calls.
-#
-# ⚠ WHY THE "read-only inspectors" ARE GONE. The previous rationale kept
-# files_stats / files_index / files_corpus_list / files_get / files_health /
-# task_list / agent_list always-on because "the load_domain fallback is
-# unreliable on clients that don't honor tools.listChanged: such clients are
-# handed the new schemas in-band but can't actually invoke the freshly-
-# registered tool". That claim was TESTED on 2026-09-17 and is false:
-# `_register_one()` calls `mcp.tool(...)`, which registers SERVER-side, and
-# execution is gated by that registration -- not by client list state. A gated
-# tool was invoked successfully immediately after `tools_load_domain` WITHOUT
-# any `list_tools` refresh, which is exactly what a non-listChanged client
-# does. Measured usage agreed: those seven inspectors drew 3 direct calls
-# between them.
-#
-# ⚠ MUTATION IS NOT THE CRITERION, frequency is. An earlier version of this
-# comment said "anything that MUTATES a store stays behind tools_load_domain --
-# only safe, idempotent reads belong here." That rule never described the set
-# it guarded: memory_write mutates and is the single most-used tool at 259
-# calls. memory_supersede (44 calls, 4th most-used) was briefly gated on that
-# reading and is restored here. The real line is COST vs OBSERVED USE -- a
-# frequently-used write earns its schema; a rare one does not.
-#
-# Gating a tool is not the same as making it unreachable, and the two callers
-# have different answers:
-#   * MCP clients   -- `m3_call` invokes any catalog tool BY NAME without
-#                      loading its domain. That is what m3_call is FOR: a
-#                      transport concern, a low-token door to the full surface.
-#   * code / scripts -- the CLI (`m3 memory memory_supersede ...`). Programmatic
-#                      callers should never route through m3_call; there is no
-#                      token budget to economise on and no gating to work around.
-#     (The CLI is in fact the DOMINANT surface: 966 calls vs 527 direct MCP.)
-#
-# ⚠ RE-MEASURE BEFORE TRIMMING FURTHER. `measure_tool_usage.py` warns that zero
-# calls is a SHAPE signal as much as a need signal -- a tool whose return shape
-# forces a Bash fallback gets avoided. Do not demote on a zero count until
-# as_records has landed for that tool. These counts also come from ONE machine's
-# transcripts and skew toward its workload (heavy memory writes, heavy
-# notification polling); a different fleet would shift the top 6.
-ESSENTIAL_TOOL_NAMES: frozenset[str] = frozenset(
-    {
-        # The measured top 6 by direct calls (495 of 527 observed).
-        "memory_write",  # 259 calls
-        "memory_search",  # 101 calls
-        "chatlog_search",  #  57 calls
-        "memory_supersede",  #  44 calls
-        "chatlog_status",  #  20 calls
-        "memory_get",  #  14 calls
-        # files_search is here on PRINCIPLE, not on measured use (0 direct calls).
-        # m3 has THREE primary stores — memory, chatlog, files — and the README
-        # promises search for each in the always-on set; test_lazy_tool_loading.py
-        # ::test_essentials_include_search_for_each_primary_store pins that promise.
-        # Dropping it saved 283 tokens (0.14% of a 200K window) and broke a
-        # documented guarantee, which is the wrong trade. Its zero count is also
-        # suspect rather than conclusive: measure_tool_usage.py warns that zero
-        # calls can mean the RETURN SHAPE forces a Bash fallback, and the files
-        # store is genuinely populated here (20 documents, 2 ingest runs).
-        "files_search",
-        # Dispatcher: reaches the other 109 tools by name with no domain load.
-        # Its own direct-call count reads 0 only because measure_tool_usage.py
-        # attributes the delegated tool, not the wrapper -- 95 calls flowed
-        # through it across 79 wrappers.
-        "m3_call",
-    }
-)
+# Gating a tool is not making it unreachable: MCP clients reach any catalog tool
+# by name through m3_call, and scripts use the CLI (`m3 memory ...`), which is
+# the dominant surface (1,114 CLI calls vs 163 direct MCP calls since 2026-09-17).
+ESSENTIAL_TOOL_NAMES: frozenset[str] = frozenset(_tools_config.DEFAULT_STARTUP_TOOLS)
 
 
 # Human-readable one-liner per domain, used by `tools_list_domains` so the

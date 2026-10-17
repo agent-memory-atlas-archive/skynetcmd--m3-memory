@@ -7,6 +7,9 @@ tool the bridge can register) and emits one compact record per tool:
   - domain      — lazy-loading domain bucket (via tool_domains.domain_of_tool)
   - summary     — first sentence of the description, truncated to <=100 chars
   - destructive — True when the tool mutates/deletes (ToolSpec.is_destructive)
+  - default_allowed — False when the dispatch gate needs an explicit opt-in
+                  (ToolSpec.default_allowed); not the same as destructive:
+                  read-only memory_export is gated
   - args        — [{name, type, required}] from parameters.properties, with the
                   universal routing args (`database`, `store`) dropped (they are
                   injected everywhere and carry no per-tool signal)
@@ -106,6 +109,7 @@ def build_manifest() -> dict:
                 "domain": tool_domains.domain_of_tool(spec.name),
                 "summary": _first_sentence(spec.description),
                 "destructive": spec.is_destructive,
+                "default_allowed": spec.default_allowed,
                 "args": _tool_args(spec.parameters, mcp_tool_catalog.ROUTING_ARGS),
             }
         )

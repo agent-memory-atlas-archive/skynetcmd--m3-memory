@@ -19,6 +19,45 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Changed
+
+- **MCP tools describe themselves to agents.** `tools/list` now carries every
+  parameter's description and each tool's annotations (`readOnlyHint`,
+  `destructiveHint`); clients previously received bare types. The parameters
+  of the files tools and of `memory_search_routed` / `memory_search_multi_db`
+  gained descriptions, and the meta-tools say when to use each.
+  `bin/tool_quality_check.py` checks the catalog and the listed schemas.
+  **Affected:** all MCP clients · **Action:** none · **Data status:** none.
+- **Smaller default startup tool set.** Six tools register at startup
+  (`memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
+  `chatlog_search`, `m3_call`; about 3,200 tokens, was 10 and about 4,000).
+  `m3_call` reaches every other tool by name; `tools_load_domain` is reached
+  through it. The server now honours `tools.startup` and `.tools_config.json`,
+  which only `m3 doctor` read before.
+  **Affected:** MCP clients in lazy mode (the default) · **Action:** none; to
+  keep the old set, `m3 config set tools.startup "<names>"` (must include
+  `m3_call`) · **Data status:** none.
+- **One environment variable.** m3 reads only `M3_CONFIG_ROOT`, and only when
+  it is not the default; setup and `m3 doctor --fix` stop writing other root
+  pins into agent configs and hooks. `m3 doctor` ends with a section listing
+  each `M3_*` variable still set, whether it is in use or ignored, and the
+  `m3 config set` that replaces it.
+  **Affected:** installs with `M3_*` variables in shell profiles or agent
+  configs · **Action:** move each listed variable into the config file as
+  doctor shows, then remove it · **Data status:** none.
+- **m3 install/upgrade UX & correctness**
+  - Under FIPS mode, a refused PostgreSQL connection names the fix
+    (`sslmode=verify-full` with `sslrootcert`), in the error and in
+    `m3 doctor`, without printing the connection string.
+  - `m3 doctor` and `m3 chatlog status` label their figures: live chat rows
+    vs stored (including soft-deleted), the newest row (which may have arrived
+    by sync) vs the last capture on this machine.
+  - `m3 chatlog status` reports `hooks[*].wired` as measured: from the hook
+    check for Claude Code, `null` for agents it cannot see.
+  - Over SSH, setup on a Mac prints how to turn on Touch ID for sudo
+    (`m3 touchid enable`, at the Mac) instead of saying nothing.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
 ### Fixed
 
 - **`m3 doctor` checks other agents' capture when Claude Code is absent.**
@@ -27,6 +66,13 @@ the policy is forward-going only.
   told when m3 could not capture one of them.
   **Affected:** installs without Claude Code · **Action:** none ·
   **Data status:** none.
+- **Three false alarms in `m3 doctor`.** A folder in the spill quarantine was
+  counted as a quarantined file; a hook interpreter in another venv on the
+  same m3 release was reported as foreign; and a direct `m3_memory` server
+  disabled for one project was reported as live (it is now listed with the
+  fix).
+  **Affected:** macOS and other installs with a plugin and a CLI install ·
+  **Action:** none · **Data status:** none.
 
 ## [2026.10.17.2] — 2026-10-17 — doctor and upgrade correctness, announced admin prompts
 

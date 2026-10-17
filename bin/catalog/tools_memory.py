@@ -27,6 +27,48 @@ memory_core = LazyModuleProxy("memory_core")
 memory_maintenance = LazyModuleProxy("memory_maintenance")
 
 
+# memory_search's filter parameters, shared by every search tool that takes
+# them. memory_search_routed and memory_search_multi_db once carried their own
+# copies with the descriptions dropped, so clients saw them undocumented
+# (2026-10-17). One owner; each tool takes a fresh copy.
+_SEARCH_PARAMS: dict[str, dict] = {
+    "type_filter": {"type": "string", "description": "Restrict to a memory type.", "default": ""},
+    "agent_filter": {"type": "string", "description": "Restrict to an agent id.", "default": ""},
+    "user_id": {"type": "string", "description": "Filter by data subject.", "default": ""},
+    "scope": {"type": "string", "description": "Filter by isolation scope.", "default": ""},
+    "as_of": {"type": "string", "description": "ISO-8601 time-travel cutoff.", "default": ""},
+    "conversation_id": {
+        "type": "string",
+        "description": "Restrict to a conversation / team session.",
+        "default": "",
+    },
+    "recency_bias": {
+        "type": "number",
+        "description": "Boost newer items (0.0=off, 0.1-0.2=moderate, higher=aggressive). Useful for 'current' or 'latest' queries.",
+        "default": 0.0,
+    },
+    "adaptive_k": {
+        "type": "boolean",
+        "description": "Auto-trim results at the score drop-off point. WARNING: regresses on temporal-reasoning, knowledge-update, and multi-session queries; safe only for sharp-curve queries where most retrievals would be noise. Prefer `auto_route=True` on memory_search_routed for safer multi-signal routing.",
+        "default": False,
+    },
+    "variant": {
+        "type": "string",
+        "description": "Ingest-pipeline filter. '' = real user data only (default, equivalent to IS NULL). Pass a specific variant name (e.g. 'heuristic_c1c4') to scope to that bench ingest.",
+        "default": "",
+    },
+    "explain": {
+        "type": "boolean",
+        "description": "Attach a per-result `_explanation` block (vector/bm25/title_overlap/importance/recency/temporal score breakdown) plus a human-readable `reason` string explaining why each row matched. Same breakdown memory_suggest shows, on the primary search path.",
+        "default": False,
+    },
+}
+
+
+def _search_param(name: str) -> dict:
+    return dict(_SEARCH_PARAMS[name])
+
+
 TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_write",
@@ -294,8 +336,8 @@ TOOLS: list[ToolSpec] = [
             "properties": {
                 "query": {"type": "string", "description": "Search query."},
                 "k": {"type": "integer", "description": "Max results (1-100).", "default": 8},
-                "type_filter": {"type": "string", "description": "Restrict to a memory type.", "default": ""},
-                "agent_filter": {"type": "string", "description": "Restrict to an agent id.", "default": ""},
+                "type_filter": _search_param("type_filter"),
+                "agent_filter": _search_param("agent_filter"),
                 "search_mode": {
                     "type": "string",
                     "enum": list(PUBLIC_SEARCH_MODES),
@@ -307,44 +349,24 @@ TOOLS: list[ToolSpec] = [
                     "description": "Include ephemeral scratchpad items.",
                     "default": False,
                 },
-                "user_id": {"type": "string", "description": "Filter by data subject.", "default": ""},
-                "scope": {"type": "string", "description": "Filter by isolation scope.", "default": ""},
+                "user_id": _search_param("user_id"),
+                "scope": _search_param("scope"),
                 "requesting_agent": {
                     "type": "string",
                     "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: private (scope='agent') rows from OTHER agents are excluded; the caller still sees its own private rows plus all shared scopes (org/user/session). Empty = no enforcement (sees all, back-compat).",
                     "default": "",
                 },
-                "as_of": {"type": "string", "description": "ISO-8601 time-travel cutoff.", "default": ""},
-                "conversation_id": {
-                    "type": "string",
-                    "description": "Restrict to a conversation / team session.",
-                    "default": "",
-                },
-                "recency_bias": {
-                    "type": "number",
-                    "description": "Boost newer items (0.0=off, 0.1-0.2=moderate, higher=aggressive). Useful for 'current' or 'latest' queries.",
-                    "default": 0.0,
-                },
-                "adaptive_k": {
-                    "type": "boolean",
-                    "description": "Auto-trim results at the score drop-off point. WARNING: regresses on temporal-reasoning, knowledge-update, and multi-session queries; safe only for sharp-curve queries where most retrievals would be noise. Prefer `auto_route=True` on memory_search_routed for safer multi-signal routing.",
-                    "default": False,
-                },
-                "variant": {
-                    "type": "string",
-                    "description": "Ingest-pipeline filter. '' = real user data only (default, equivalent to IS NULL). Pass a specific variant name (e.g. 'heuristic_c1c4') to scope to that bench ingest.",
-                    "default": "",
-                },
+                "as_of": _search_param("as_of"),
+                "conversation_id": _search_param("conversation_id"),
+                "recency_bias": _search_param("recency_bias"),
+                "adaptive_k": _search_param("adaptive_k"),
+                "variant": _search_param("variant"),
                 "include_bench_data": {
                     "type": "boolean",
                     "description": "Opt in to LOCOMO / LongMemEval bench rows. Default False hides any row with a variant tag.",
                     "default": False,
                 },
-                "explain": {
-                    "type": "boolean",
-                    "description": "Attach a per-result `_explanation` block (vector/bm25/title_overlap/importance/recency/temporal score breakdown) plus a human-readable `reason` string explaining why each row matched. Same breakdown memory_suggest shows, on the primary search path.",
-                    "default": False,
-                },
+                "explain": _search_param("explain"),
                 "as_records": {
                     "type": "boolean",
                     "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
@@ -487,25 +509,25 @@ TOOLS: list[ToolSpec] = [
                     "default": 12,
                     "description": "Per-session turn cap when expand_sessions=true.",
                 },
-                "user_id": {"type": "string", "default": ""},
-                "scope": {"type": "string", "default": ""},
+                "user_id": _search_param("user_id"),
+                "scope": _search_param("scope"),
                 "requesting_agent": {
                     "type": "string",
                     "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.",
                     "default": "",
                 },
-                "type_filter": {"type": "string", "default": ""},
-                "agent_filter": {"type": "string", "default": ""},
+                "type_filter": _search_param("type_filter"),
+                "agent_filter": _search_param("agent_filter"),
                 "search_mode": {
                     "type": "string",
                     "enum": list(PUBLIC_SEARCH_MODES),
                     "description": "Retrieval mode.",
                     "default": "hybrid",
                 },
-                "variant": {"type": "string", "default": ""},
-                "as_of": {"type": "string", "default": ""},
-                "conversation_id": {"type": "string", "default": ""},
-                "explain": {"type": "boolean", "default": False},
+                "variant": _search_param("variant"),
+                "as_of": _search_param("as_of"),
+                "conversation_id": _search_param("conversation_id"),
+                "explain": _search_param("explain"),
                 "entity_graph": {
                     "type": "boolean",
                     "description": "Direct lever for entity-graph expansion. Default False = OFF (production default; matches memory_search behavior). True = parse query for named entities, traverse entity_relationships up to entity_graph_depth hops, fold matched memory_ids into the result set tagged expanded_via='entity_graph'. The AUTO layer can also flip this on for the entity_anchored branch (see auto_entity_graph_enabled), but caller-explicit entity_graph=True works without auto_route. Use for benchmarking + production opt-in once empirically validated.",
@@ -668,25 +690,25 @@ TOOLS: list[ToolSpec] = [
                     "default": 8,
                     "description": "Top-K to return globally after merge. Each per-DB search also retrieves K, then results are pooled and re-sorted.",
                 },
-                "type_filter": {"type": "string", "default": ""},
-                "agent_filter": {"type": "string", "default": ""},
+                "type_filter": _search_param("type_filter"),
+                "agent_filter": _search_param("agent_filter"),
                 "search_mode": {
                     "type": "string",
                     "enum": list(PUBLIC_SEARCH_MODES),
                     "description": "Retrieval mode.",
                     "default": "hybrid",
                 },
-                "user_id": {"type": "string", "default": ""},
-                "scope": {"type": "string", "default": ""},
+                "user_id": _search_param("user_id"),
+                "scope": _search_param("scope"),
                 "requesting_agent": {
                     "type": "string",
                     "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.",
                     "default": "",
                 },
-                "as_of": {"type": "string", "default": ""},
-                "conversation_id": {"type": "string", "default": ""},
-                "recency_bias": {"type": "number", "default": 0.0},
-                "adaptive_k": {"type": "boolean", "default": False},
+                "as_of": _search_param("as_of"),
+                "conversation_id": _search_param("conversation_id"),
+                "recency_bias": _search_param("recency_bias"),
+                "adaptive_k": _search_param("adaptive_k"),
                 "variant": {
                     "type": "string",
                     "default": "",
@@ -728,7 +750,12 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="memory_update",
-        description="Updates a MemoryItem by ID.",
+        description=(
+            "Edit a memory in place by full id: content, title, metadata, "
+            "importance, refresh reminder or conversation. Empty fields are left "
+            "unchanged. To replace a belief and keep the old one as history, use "
+            "memory_supersede instead."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -905,12 +932,16 @@ TOOLS: list[ToolSpec] = [
         impl=memory_core.memory_delete_bulk_impl,
         is_async=False,
         validators=(),
-        default_allowed=False,  # destructive — gated by M3_MCP_PROXY_ALLOW_DESTRUCTIVE
+        default_allowed=False,  # destructive — gated by mcp.allow_destructive
         inject_agent_id=False,
     ),
     ToolSpec(
         name="memory_maintenance",
-        description="Runs maintenance tasks on the memory store.",
+        description=(
+            "Run store maintenance: importance decay, soft-deleting expired items "
+            "(recoverable; pinned items are kept), and pruning orphaned embeddings, "
+            "each behind its own flag. Returns a line per step with the rows it changed."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -1037,7 +1068,12 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="memory_feedback",
-        description="Provide feedback on a memory item to improve quality.",
+        description=(
+            "Record a verdict on one memory: useful raises its importance, misleading "
+            "lowers it and logs a contradiction, not_useful records a retrieval miss "
+            "without changing it. To grade every memory you used after answering, "
+            "memory_grade takes many at once."
+        ),
         parameters={
             "type": "object",
             "properties": {

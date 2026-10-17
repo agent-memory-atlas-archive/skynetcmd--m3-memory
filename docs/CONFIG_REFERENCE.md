@@ -10,14 +10,14 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [audit]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `read_log` | boolean | `true` | `M3_AUDIT_READ_LOG` | restart to apply; Record who read which memory, and when (memory_access_log). |
 | `read_log_retention_days` | integer | `90` | `M3_AUDIT_READ_LOG_RETENTION_DAYS` | restart to apply; Days the read-access log keeps a row before maintenance prunes it. |
 
 ## [autonomy]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `chatlog_prune_auto` | boolean | `false` | `M3_CHATLOG_PRUNE_AUTO` | restart to apply; Let the loop prune the chatlog without review. |
 | `consolidation_auto` | boolean | `false` | `M3_CONSOLIDATION_AUTO` | restart to apply; Let the loop apply belief consolidation without review. |
@@ -25,7 +25,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [chatlog]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `auto_enrich` | boolean | `false` | `M3_AUTO_ENRICH` | restart to apply; Queue an observation after an ingest of chatlog.auto_enrich_min_turns or more turns. |
 | `auto_enrich_min_turns` | integer | `10` | `M3_AUTO_ENRICH_MIN_TURNS` | restart to apply; Turns an ingest needs before chatlog.auto_enrich queues an observation. |
@@ -34,27 +34,27 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [chatlog.db]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `pool_size` | integer | `4` | `M3_CHATLOG_DB_POOL_SIZE`, `CHATLOG_DB_POOL_SIZE` | restart to apply; SQLite connections in the chatlog pool. |
 | `pool_timeout_s` | integer | `10` | `M3_CHATLOG_DB_POOL_TIMEOUT`, `CHATLOG_DB_POOL_TIMEOUT` | restart to apply; Seconds: the chatlog's SQLite busy timeout AND its pool checkout wait (one value, two uses today). |
 
 ## [chatlog.embed]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `deadline_s` | number | `60.0` | `M3_CHATLOG_EMBED_DEADLINE_S`, `CHATLOG_EMBED_DEADLINE_S` | restart to apply; Seconds one sweeper run may take; 0 or less is unbounded. |
 | `max_per_run` | integer | `10000` | `M3_CHATLOG_EMBED_MAX_PER_RUN`, `CHATLOG_EMBED_MAX_PER_RUN` | restart to apply; Rows one sweeper run embeds. |
 
 ## [chatlog.spill]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `max_drain_attempts` | integer | `5` | `M3_SPILL_MAX_ATTEMPTS` | restart to apply; Attempts to drain a spilled chatlog batch (today .spill_config.json wins). |
 
 ## [cloud]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `allow_fallback` | boolean | `false` | `M3_ALLOW_CLOUD_FALLBACK` | restart to apply; Allow embedding through the cloud enclave when local tiers fail (privacy gate). |
 | `auth_token_keyring` | string | (none) | `M3_CLOUD_AUTH_TOKEN_KEYRING` | restart to apply; Keyring entry holding the enclave token, as service:user or user (service m3_memory). A REFERENCE, not the secret; the secret is M3_CLOUD_AUTH_TOKEN. |
@@ -62,13 +62,13 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [context]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `cache_size` | integer | `16` | `M3_CONTEXT_CACHE_SIZE` | restart to apply; M3Context instances kept per process. |
 
 ## [crypto]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `backend` | string | `DEFAULT` | `M3_CRYPTO_BACKEND` | restart to apply; one of `DEFAULT`, `WOLFSSL`; Crypto backend: DEFAULT or WOLFSSL (forced by crypto.fips_mode / fips_strict). (Today an unknown value acts as DEFAULT; it is now an error.) |
 | `fips_mode` | boolean | `false` | `M3_FIPS_MODE` | restart to apply; FIPS 140-3 mode: wolfSSL/wolfCrypt is required and any failure is fatal. |
@@ -79,7 +79,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [dashboard]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `host` | string | `127.0.0.1` | `M3_DASHBOARD_HOST` | restart to apply; Address the dashboard binds. |
 | `llm_block_ttl_s` | number | `45.0` | `M3_DASHBOARD_LLM_BLOCK_TTL_S` | restart to apply; Seconds an endpoint that failed the smoke test is skipped. |
@@ -89,7 +89,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [db]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `backend` | string | `sqlite` | `M3_DB_BACKEND`, `DB_BACKEND` | restart to apply; one of `sqlite`, `postgres`; Primary storage backend. Set it with `m3 config set db.backend postgres`; M3_DB_BACKEND is read only as a legacy name (below this file) through N+3. |
 | `pool_size` | integer | `5` | `M3_DB_POOL_SIZE`, `DB_POOL_SIZE` | restart to apply; SQLite connections in M3Context's pool. |
@@ -98,7 +98,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [db.postgres]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `dispatch_schema` | string | `m3_dispatch` | `M3_DISPATCH_PG_SCHEMA` | restart to apply; Schema holding the dispatch queue on PostgreSQL. |
 | `forbidden_hosts` | list of strings | `[]` | `M3_PG_FORBIDDEN_HOSTS` | restart to apply; Hosts a PRIMARY store must never connect to (e.g. the warehouse); selecting one is refused. |
@@ -110,13 +110,13 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [dispatch]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `mode` | string | `separate` | `M3_DISPATCH_MODE` | restart to apply; one of `separate`, `integrated`; Dispatch queue store: separate (its own) or integrated (the main store). (Today an unknown value acts as separate; it is now an error.) |
 
 ## [embed]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `autodetect` | boolean | `true` | `M3_EMBED_GGUF_AUTODETECT` | restart to apply; Search the disk for a bge-m3 GGUF when embed.gguf is unset. |
 | `autodetect_budget_s` | number | `2.0` | `M3_EMBED_GGUF_WALK_BUDGET` | restart to apply; Seconds the GGUF discovery walk may take. |
@@ -153,7 +153,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [embed.breaker]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `cloud_reset_s` | number | `60.0` | `M3_EMBED_BREAKER_CLOUD_RESET_SECS` | restart to apply; Seconds the cloud tier's breaker stays open. |
 | `cloud_threshold` | integer | `3` | `M3_EMBED_BREAKER_CLOUD_THRESHOLD` | restart to apply; Consecutive failures that open the cloud tier's breaker. |
@@ -166,7 +166,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [embed.gpu]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `host` | string | `127.0.0.1` | `M3_EMBED_SERVER_GPU_HOST`, `EMBED_SERVER_GPU_HOST` | restart to apply; Address the GPU embed proxy binds. |
 | `llama_port` | integer | `9904` | `M3_LLAMA_PORT`, `LLAMA_PORT` | restart to apply; llama-server's port. |
@@ -175,7 +175,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [embed.http]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `keepalive_expiry_s` | number | `5.0` | `M3_EMBED_HTTP_KEEPALIVE_EXPIRY` | restart to apply; Seconds an idle kept-alive connection lives. |
 | `max_connections` | integer | `32` | `M3_EMBED_HTTP_MAX_CONNS` | restart to apply; HTTP connection pool size. |
@@ -183,7 +183,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [embed.server]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `bin` | path | (none) | `M3_EMBED_SERVER_BIN` | restart to apply; The m3-embed-server binary; unset uses the wheel's, then PATH. |
 | `coalesce_ms` | integer | `3` | (none) | restart to apply; m3-embed-server: milliseconds the dispatcher waits to coalesce requests into one batch. |
@@ -204,7 +204,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [enrich]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `budget_usd` | number | (none) | `M3_ENRICH_BUDGET_USD` | restart to apply; Spending cap for one run, in US dollars; unset is uncapped. |
 | `conv_list` | path | (none) | `M3_ENRICH_CONV_LIST` | restart to apply; File listing the conversations to enrich. |
@@ -218,7 +218,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [entity]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `conv_list` | path | (none) | `M3_ENTITIES_CONV_LIST` | restart to apply; File listing the conversations to extract entities from. |
 | `extract_concurrency` | integer | `2` | `M3_ENTITY_EXTRACT_CONCURRENCY` | restart to apply; Concurrent entity extractions. |
@@ -230,7 +230,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [entity.coalesce]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `automerge_cosine` | number | `0.95` | `M3_ENTITY_COALESCE_AUTOMERGE` | restart to apply; Similarity at which two entities merge automatically. |
 | `flag_cosine` | number | `0.8` | `M3_ENTITY_COALESCE_FLAG` | restart to apply; Similarity at which a pair is flagged for review. |
@@ -240,7 +240,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [extraction]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `function` | string | `extract` | `M3_EXTRACTION_FUNCTION` | restart to apply; Function the custom script exposes. |
 | `model` | string | (none) | `M3_EXTRACTION_MODEL` | restart to apply; Extraction model; unset picks the best LLM. |
@@ -252,7 +252,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [files]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `default_corpus` | string | `default` | `M3_FILES_DEFAULT_CORPUS` | restart to apply; Corpus a file is ingested into when none is named. |
 | `default_extract_mode` | string | `none` | `M3_FILES_DEFAULT_EXTRACT_MODE` | restart to apply; one of `none`, `inline`, `queue`; Fact extraction on ingest: none, inline, or queued for the loop. |
@@ -271,7 +271,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [gliner]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `batch_size` | integer | `32` | `M3_GLINER_BATCH_SIZE` | restart to apply; Texts per GLiNER batch. |
 | `device` | string | `cuda` | `M3_GLINER_DEVICE` | restart to apply; Device: cuda (falls back to mps, then cpu), cpu, or a torch device. |
@@ -280,7 +280,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [governor]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `config_ttl_s` | number | `5.0` | `M3_GOVERNOR_CFG_TTL` | restart to apply; Seconds between checks of .governor_config.json for changes. |
 | `feedback_window_minutes` | integer | `5` | `M3_FEEDBACK_WINDOW_MINUTES` | restart to apply; Minutes of feedback the maintenance pass considers. |
@@ -292,14 +292,14 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [gpu]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `probe_disabled` | boolean | `false` | `M3_GPU_PROBE_DISABLE` | restart to apply; Do not probe GPU load. |
 | `probe_ttl_s` | number | `60.0` | `M3_GPU_PROBE_TTL` | restart to apply; Seconds a GPU probe result is cached. |
 
 ## [identity]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `default_user_id` | string | (none) | `M3_DEFAULT_USER_ID` | restart to apply; user_id the LangChain / mem0 surfaces use when a caller passes none (single-user prototyping). Unset: they raise; isolation is never weakened. |
 | `node_id` | string | (none) | `M3_NODE_ID` | restart to apply; Sync node identity. Default: the host name (upper-cased on Windows). |
@@ -307,7 +307,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [ingest]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `auto_entities` | boolean | `false` | `M3_INGEST_AUTO_ENTITIES` | restart to apply; Extract entities with the LLM on ingest. |
 | `auto_title` | boolean | `false` | `M3_INGEST_AUTO_TITLE` | restart to apply; Title memories with the LLM on ingest. |
@@ -320,7 +320,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [install]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `auto_install` | boolean | `true` | `M3_AUTO_INSTALL` | restart to apply; Let `m3` install a missing payload on first run. |
 | `no_model_download` | boolean | `false` | `M3_NO_MODEL_DOWNLOAD` | restart to apply; Never download embedding model weights. |
@@ -328,7 +328,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [integrations.hermes]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `agent_id` | string | `hermes` | `M3_AGENT_ID` | restart to apply; Agent id the Hermes plugin writes as. |
 | `home` | path | (none) | `M3_HERMES_HOME` | restart to apply; Hermes Agent's home; unset uses HERMES_HOME, then probed locations. |
@@ -336,7 +336,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [llm]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `connect_timeout_s` | number | `0.3` | `M3_LLM_CONNECT_TIMEOUT` | restart to apply; Seconds to connect to an endpoint before trying the next. |
 | `endpoints` | list of strings | `[]` | `M3_LLM_ENDPOINTS_CSV`, `LLM_ENDPOINTS_CSV` | restart to apply; LLM endpoints tried in order (base URLs). Empty: llm.url, then LM Studio. |
@@ -352,14 +352,14 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [log]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `max_bytes` | integer | `67108864` | `M3_LOG_MAX_BYTES` | restart to apply; Task log size that triggers rotation; 0 disables rotation. |
 | `task_log_file` | path | (none) | `M3_TASK_LOG_FILE` | restart to apply; A scheduled task's log file. Default: &lt;logs root>/&lt;task>.log. |
 
 ## [loop]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `classify_deadline_s` | number | `10.0` | `M3_CLASSIFY_DEADLINE_S` | restart to apply; Seconds a classify pass may take. |
 | `distill_model` | string | `slm` | `M3_DISTILL_MODEL` | restart to apply; Procedure distillation model: slm, llm, or a profile name. |
@@ -368,14 +368,14 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [mcp]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `allow_destructive` | boolean | `false` | `M3_MCP_PROXY_ALLOW_DESTRUCTIVE`, `MCP_PROXY_ALLOW_DESTRUCTIVE` | restart to apply; Let proxies run catalog tools marked not default-allowed. Off: they are blocked. |
 | `proxy_host` | string | `127.0.0.1` | `M3_MCP_PROXY_HOST`, `MCP_PROXY_HOST` | restart to apply; Address the MCP proxy binds. |
 
 ## [memory]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `auto_related_link` | boolean | `true` | `M3_AUTO_RELATED_LINK` | restart to apply; Link a new memory to related ones on write. |
 | `auto_related_link_scope_by_variant` | boolean | `true` | `M3_AUTO_RELATED_LINK_SCOPE_BY_VARIANT` | restart to apply; Only link memories within the same variant. |
@@ -389,7 +389,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [memory.contradiction]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `threshold` | number | `0.92` | `M3_CONTRADICTION_THRESHOLD`, `CONTRADICTION_THRESHOLD` | restart to apply; Similarity above which a write is checked for contradiction. |
 | `title_gate` | string | `loose` | `M3_CONTRADICTION_TITLE_GATE`, `CONTRADICTION_TITLE_GATE` | restart to apply; one of `strict`, `loose`, `off`; Title agreement a contradiction needs: strict, loose or off. (Today any other value acts as off; it is now an error.) |
@@ -397,21 +397,21 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [memory.corroboration]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `enabled` | boolean | `false` | `M3_CORROBORATION` | restart to apply; Record corroborating writes instead of storing duplicates. |
 | `threshold` | number | `0.95` | `M3_CORROBORATION_THRESHOLD`, `CORROBORATION_THRESHOLD` | restart to apply; Similarity above which a write corroborates an existing memory. |
 
 ## [memory.dedup]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `limit` | integer | `1000` | `M3_DEDUP_LIMIT`, `DEDUP_LIMIT` | restart to apply; Memories one dedup pass compares. |
 | `threshold` | number | `0.92` | `M3_DEDUP_THRESHOLD`, `DEDUP_THRESHOLD` | restart to apply; Similarity above which two memories are duplicates. |
 
 ## [observer]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `no_embed` | boolean | `false` | `M3_OBSERVER_NO_EMBED` | restart to apply; Do not embed the observations the observer writes. |
 | `precise_provenance` | boolean | `false` | `M3_OBSERVER_PRECISE_PROVENANCE` | restart to apply; Record turn-level provenance for observations. |
@@ -419,7 +419,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [paths]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `assets` | path | (none) | `M3_PATH_ASSETS` | restart to apply; The payload's _assets/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one. |
 | `bin` | path | (none) | `M3_PATH_BIN` | restart to apply; The bin/ directory of a non-packaged (developer) install; unset uses the packaged one. |
@@ -433,20 +433,20 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [promote]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `llm_model` | string | `google/gemma-4-26b-a4b` | `M3_LM_MODEL`, `LM_MODEL` | restart to apply; Model promote_pipeline requests. |
 | `llm_url` | string | `http://localhost:1234/v1/chat/completions` | `M3_LM_URL`, `LM_URL` | restart to apply; Chat-completions URL (full path) promote_pipeline calls. |
 
 ## [reflector]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `profile` | string | `reflector_local` | `M3_REFLECTOR_PROFILE`, `REFLECTOR_PROFILE` | restart to apply; SLM profile the reflector uses. |
 
 ## [search]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `bypass_surface_cap` | integer | `300` | `M3_BYPASS_SURFACE_CAP` | restart to apply; Entity-bypass results surfaced (1-5000; today a larger value is clamped). |
 | `confidence_ranking` | boolean | `false` | `M3_CONFIDENCE_RANKING` | restart to apply; Blend memory confidence into the score. |
@@ -476,19 +476,19 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [secrets]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `file` | path | (none) | (none) | restart to apply; The user-only secrets file: every m3 secret, as its value or a pointer to its OS keyring entry. Default: &lt;config root>/m3_secrets.toml. |
 
 ## [services]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `macbook_status_host` | string | `127.0.0.1` | `M3_MACBOOK_STATUS_HOST`, `MACBOOK_STATUS_HOST` | restart to apply; Address the macbook status server binds. |
 
 ## [slm]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `classifier` | boolean | `false` | `M3_SLM_CLASSIFIER` | restart to apply; Use the SLM to classify search intent. |
 | `profile` | string | `default` | `M3_SLM_PROFILE` | restart to apply; Default SLM profile for intent classification. |
@@ -496,7 +496,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [sync]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `target_ip` | string | (none) | `M3_SYNC_TARGET_IP`, `SYNC_TARGET_IP` | restart to apply; Warehouse address (legacy form). |
 | `timeout_s` | integer | `600` | `M3_PG_SYNC_TIMEOUT` | restart to apply; Seconds one warehouse sync may take. |
@@ -504,7 +504,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [tools]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `lazy` | boolean | `true` | `M3_TOOLS_LAZY` | restart to apply; Load MCP tool domains on demand. |
 | `startup` | list of strings | (none) | `M3_TOOLS_STARTUP` | restart to apply; MCP tools registered at session start (must include the escape hatch). Unset: .tools_config.json startup_tools, else the shipped set. |
@@ -512,7 +512,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [wiki.compile]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `model` | string | (none) | `M3_WIKI_COMPILE_MODEL` | restart to apply; Prose-compile model. Default: wiki.synth.model. |
 | `timeout_s` | number | `60.0` | `M3_WIKI_COMPILE_TIMEOUT` | restart to apply; Seconds a compile call may take. |
@@ -520,7 +520,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [wiki.drift]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `model` | string | (none) | `M3_WIKI_DRIFT_MODEL` | restart to apply; Judge model. Default: wiki.synth.model. |
 | `timeout_s` | number | `30.0` | `M3_WIKI_DRIFT_TIMEOUT` | restart to apply; Seconds a judge call may take. |
@@ -528,7 +528,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 ## [wiki.synth]
 
-| Key | Type | Default | Environment names | Notes |
+| Key | Type | Default | Deprecated environment names | Notes |
 |---|---|---|---|---|
 | `model` | string | (none) | `M3_WIKI_SYNTH_MODEL` | restart to apply; Synthesis model; unset uses the server's. |
 | `timeout_s` | number | `30.0` | `M3_WIKI_SYNTH_TIMEOUT` | restart to apply; Seconds a synthesis call may take. |

@@ -28,7 +28,7 @@ setup — and both were deleted. The proxy now serves only m3's own catalog.
 
 Default allowlist excludes destructive catalog tools (memory_delete,
 gdpr_*, *_export, *_import, memory_maintenance, memory_set_retention, agent_offline).
-Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to expose them.
+`m3 config set mcp.allow_destructive true` exposes them.
 
 Agent identity is taken from the X-Agent-Id request header (default
 "mcp-proxy-client"). Catalog tools marked inject_agent_id receive this value
@@ -101,7 +101,7 @@ from collections.abc import AsyncIterator
 from typing import Any, override
 
 from m3_core.aio import gather_or_cancel
-from m3_sdk import destructive_tools_allowed
+from m3_sdk import DESTRUCTIVE_ENABLE_HINT, destructive_tools_allowed
 
 # Force Python UTF-8 mode before any output. This proxy is launched directly
 # (`python bin/mcp_proxy.py` — the OpenClaw path), bypassing the m3 CLI, so it
@@ -315,7 +315,7 @@ _CATALOG_RETRY_S = 30.0
 #
 # ONE source: mcp_tool_catalog.TOOLS, the single source of truth. Built
 # dynamically each request so it respects default_allowed (destructive tools
-# opt-in via M3_MCP_PROXY_ALLOW_DESTRUCTIVE) and inject_agent_id (the orchestrator
+# opt-in via mcp.allow_destructive) and inject_agent_id (the orchestrator
 # stamps agent_id; the LLM cannot spoof it).
 
 # PROTOCOL_TOOLS and DEBUG_TOOLS are GONE, deliberately.
@@ -463,10 +463,7 @@ async def _execute_tool(name: str, args: dict, agent_id: str = "mcp-proxy-client
             if _catalog_mod is not None:
                 full = _catalog_mod.get_tool(name)
                 if full is not None and not ALLOW_DESTRUCTIVE and not full.default_allowed:
-                    return (
-                        f"Tool '{name}' is destructive and disabled by default. "
-                        f"Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to enable."
-                    )
+                    return f"Tool '{name}' is destructive and disabled by default. {DESTRUCTIVE_ENABLE_HINT}"
             return f"Unknown MCP tool: {name}"
 
         return await _catalog_mod.execute_tool(spec, args, agent_id)

@@ -84,14 +84,11 @@ def test_essentials_are_real_catalog_tools():
     assert not missing, f"Essentials set references tool(s) not in the catalog: {sorted(missing)}"
 
 
-def test_essentials_include_search_for_each_primary_store():
-    """The 80/20 promise: every primary store has a search tool in essentials.
-
-    If we ever drop one (say, dropping `chatlog_search`), the README claim
-    about "essentials cover what most sessions need" no longer holds. This
-    test pins the promise.
-    """
-    primary_search_tools = {"memory_search", "files_search", "chatlog_search"}
+def test_essentials_include_search_for_each_searched_store():
+    """The startup set searches the two stores agents actually search, memory
+    and chat (files_search drew no direct calls and is one m3_call away; user
+    decision 2026-10-17), and always carries m3_call, the route to the rest."""
+    primary_search_tools = {"memory_search", "chatlog_search", "m3_call"}
     assert primary_search_tools <= tool_domains.ESSENTIAL_TOOL_NAMES, (
         f"Essentials missing primary-store search tools: "
         f"{sorted(primary_search_tools - tool_domains.ESSENTIAL_TOOL_NAMES)}"
@@ -254,12 +251,12 @@ def _reload_bridge_with_env(env_overrides: dict) -> object:
                 sys.modules[mod] = val
 
 
-def test_bridge_lazy_mode_registers_only_essentials_and_meta():
-    """With M3_TOOLS_LAZY=1 (or unset — lazy is the default), only the
-    essentials + the two meta-tools should be registered."""
+def test_bridge_lazy_mode_registers_only_the_startup_set():
+    """With M3_TOOLS_LAZY=1 (or unset — lazy is the default) and no startup
+    config, exactly the shipped default registers."""
     mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "1"})
-    assert mb._LAZY_MODE is True
-    expected = tool_domains.ESSENTIAL_TOOL_NAMES | {"tools_list_domains", "tools_load_domain"}
+    expected = set(tool_domains.ESSENTIAL_TOOL_NAMES)
+    assert mb.STARTUP_TOOLS == expected
     assert mb._REGISTERED == expected, (
         f"lazy mode registered the wrong set: "
         f"missing={sorted(expected - mb._REGISTERED)}, "
@@ -271,7 +268,7 @@ def test_bridge_eager_mode_registers_all_tools():
     """With M3_TOOLS_LAZY=0, every MCP tool is registered up-front (the legacy
     behavior); CLI-only commands never are."""
     mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "0"})
-    assert mb._LAZY_MODE is False
+    assert mb.STARTUP_TOOLS is None
     all_names = {t.name for t in mcp_tool_catalog.MCP_TOOLS}
     assert mb._REGISTERED == all_names, f"eager mode missed: {sorted(all_names - mb._REGISTERED)}"
 
@@ -301,3 +298,21 @@ def test_bridge_lazy_mode_domain_callback_registers_domain():
     second = mb._register_domain_callback(target)
     assert second["tools_now_available"] == []
     assert mb._REGISTERED == baseline | expected_new
+
+
+def test_bridge_registers_a_configured_startup_set(tmp_path):
+    """tools.startup reached only `m3 doctor`'s report; the bridge registered its
+    own list (2026-10-17). It now registers what tools_config resolves."""
+    mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "1", "M3_TOOLS_STARTUP": "memory_get,m3_call"})
+    assert mb._REGISTERED == {"memory_get", "m3_call"}
+
+
+def test_bridge_falls_back_loudly_on_an_unusable_startup_set(caplog):
+    """An unknown name must not stop the server (that drops every memory tool):
+    the shipped default loads and the error is logged."""
+    import logging
+
+    with caplog.at_level(logging.ERROR):
+        mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "1", "M3_TOOLS_STARTUP": "memory_gett,m3_call"})
+    assert mb._REGISTERED == set(tool_domains.ESSENTIAL_TOOL_NAMES)
+    assert "memory_gett" in caplog.text

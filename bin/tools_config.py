@@ -1,14 +1,17 @@
 """
 tools_config.py — resolver for the MCP startup tool set.
 
-Which tools are registered at startup is user-owned. The full catalog costs
-~33,686 tokens of schema if everything loads eagerly; the shipped default is
-~2,216. This module decides which names make up that set.
+Which tools are registered at startup is user-owned, and this module is the one
+owner of that set: memory_bridge registers what resolve_startup_tools() returns,
+and `m3 doctor` reports the same answer. (Until 2026-10-17 the bridge read only
+tools.lazy and registered its own list, so this resolver, a .tools_config.json and
+tools.startup reached doctor's report and nothing else.) Token costs: run
+`python bin/measure_tool_tokens.py`.
 
 Resolution order (highest first):
     1. tools.startup — [tools] startup in m3_config.toml (legacy env M3_TOOLS_STARTUP)
     2. .tools_config.json  ->  startup_tools: [...]
-    3. Derived default — the shipped set (slim variants + escape hatch)
+    3. Derived default — the shipped set (DEFAULT_STARTUP_TOOLS)
     4. tools.lazy = false (legacy M3_TOOLS_LAZY=0) — register EVERYTHING, the pre-slim legacy behavior
 
 Level 4 is checked first in practice because it is a global off-switch: if a
@@ -56,27 +59,27 @@ logger = logging.getLogger("tools_config")
 
 CONFIG_FILENAME = ".tools_config.json"
 
-# The escape hatch. Without these three, a narrowed startup set leaves an agent
-# with no route to anything outside it: m3_call invokes any catalog tool by name,
-# and the two meta-tools discover and register whole domains on demand. A config
-# that omits them does not produce a smaller surface, it produces a DEAD one,
-# and every call falls back to Bash (section 12a).
-ESCAPE_HATCH: tuple[str, ...] = (
-    "m3_call",
-    "tools_list_domains",
-    "tools_load_domain",
-)
+# The escape hatch. Without it a narrowed startup set leaves an agent with no
+# route to anything outside it: m3_call invokes any catalog tool by name,
+# including m3_index (the catalog) and tools_load_domain. A config that omits it
+# does not produce a smaller surface, it produces a DEAD one, and every call falls
+# back to Bash (section 12a). The two domain meta-tools were part of it until
+# 2026-10-17; they drew no direct calls and m3_call reaches them.
+ESCAPE_HATCH: tuple[str, ...] = ("m3_call",)
 
-# The shipped startup set: narrowed variants of the highest-traffic tools, plus
-# the tools that reach everything else. chatlog_status is here in FULL because
-# it has no slim variant — its only parameters are the universally-injected
-# ones, so a slim variant measured larger than the original.
+# The shipped startup set, MEASURED (`bin/measure_tool_usage.py`, 137 Claude
+# transcripts since 2026-09-17): 163 direct calls, of which memory_write 71,
+# memory_search 39, memory_supersede 35, memory_get 10 (95%), chatlog_status 5,
+# chatlog_search 3; files_search, m3_call and the domain meta-tools 0.
+# chatlog_search stays so both stores agents actually search are searchable
+# without a round trip (user decision 2026-10-17). Everything else is one
+# m3_call away. Re-measure before trimming further: one machine's transcripts.
 DEFAULT_STARTUP_TOOLS: tuple[str, ...] = (
-    "memory_search_slim",
-    "memory_write_slim",
-    "chatlog_search_slim",
-    "memory_supersede_slim",
-    "chatlog_status",
+    "memory_write",
+    "memory_search",
+    "memory_supersede",
+    "memory_get",
+    "chatlog_search",
     *ESCAPE_HATCH,
 )
 
@@ -183,8 +186,8 @@ def _with_escape_hatch(names: list[str]) -> list[str]:
             "Startup set omits the escape hatch: " + ", ".join(missing) + ".\n"
             "  Without these there is no route to any tool outside the startup "
             "set, and every call falls back to a shell.\n"
-            "  Add them to startup_tools (they cost ~757 tokens and are what "
-            "makes a small startup set usable)."
+            "  Add them to the startup set (m3_call is what makes a small startup "
+            "set usable: it reaches every other tool by name)."
         )
     # Order-preserving dedup: a hand-edited list often repeats a name, and a
     # duplicate registration is a confusing error far from its cause.
@@ -232,8 +235,7 @@ def write_starter_config(path: str | None = None, names: list[str] | None = None
         "_comment": (
             "Pins the MCP startup tool set. NOTE: while this file exists it "
             "OVERRIDES the defaults shipped by future m3 upgrades — delete it "
-            "to go back to tracking them. The escape hatch (m3_call, "
-            "tools_list_domains, tools_load_domain) is required."
+            "to go back to tracking them. The escape hatch (m3_call) is required."
         ),
         "startup_tools": list(names or DEFAULT_STARTUP_TOOLS),
     }

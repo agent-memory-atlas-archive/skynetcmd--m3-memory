@@ -58,7 +58,7 @@ walks you through your first saved memory.
 - **Speed:** a write takes ~31 ms with its embedding, or ~2 ms with the embedding deferred and is keyword-searchable at once; hybrid search takes ~45 ms (p50) on the benchmark store and 0.45 s at 50,000 memories. ([Performance](docs/PERFORMANCE.md))
 - **Privacy and compliance:** works fully offline and installs air-gapped. FIPS 140-3-ready crypto, GDPR export and erasure, and an audit log of who read which memory. ([Sovereign deployment](docs/SOVEREIGN_DEPLOYMENT.md) · [Compliance](docs/COMPLIANCE.md))
 - **Multi-agent:** per-agent, per-user and per-org scopes, handoffs and shared tasks; concurrent readers and writers are safe. ([Multi-agent](docs/MULTI_AGENT.md))
-- **Tools:** 100+ tools, of which 10 load at startup, about 2% of a 200K context window; the rest load on demand. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
+- **Tools:** 100+ tools, of which 6 load at startup, under 2% of a 200K context window; the rest are one `m3_call` away. ([Domain gating](#domain-gating) · [MCP tools](docs/MCP_TOOLS.md))
 - **Configuration:** one file, `m3_config.toml`. `m3 config show` prints every setting and where it came from. ([Config reference](docs/CONFIG_REFERENCE.md))
 - **Tested:** 5,700+ tests on Windows, macOS and Linux × Python 3.12–3.15, plus a PostgreSQL (with pgvector) lane on Linux, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
 - **Status:** stable: the core, the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
@@ -363,13 +363,13 @@ To expose m3 to any Model Context Protocol host, add it to your configuration fi
 
 Most MCP servers make you pay for every tool in every prompt; m3 registers a small set at startup and loads the rest on demand. Tools are grouped into **9 domains** (`memory`, `chatlog`, `files`, `entity`, `agent`, `tasks`, `conversations`, `diagnostics`, `admin`) and loaded lazily.
 
-Only 10 schemas register at startup (~3,885 tokens). That set is chosen by measurement rather than judgement: across real-world multi-agent development sessions it absorbed **95% of all observed tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it calls `tools_load_domain(domain="...")` to fetch a domain on demand — or invokes any single tool by name through `m3_call`, with no domain load at all.
+Only 6 schemas register at startup (~3,249 tokens): `memory_write`, `memory_search`, `memory_supersede`, `memory_get`, `chatlog_search` and `m3_call`. That set is chosen by measurement rather than judgement: across real-world development sessions the four memory tools alone absorbed **95% of all direct tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it invokes any tool by name through `m3_call` (`m3_call("m3_index")` lists them all), with no domain load at all; `m3_call("tools_load_domain", {"domain": "..."})` registers a whole domain. The set is yours to change: `m3 config set tools.startup "memory_write,memory_search,m3_call"`.
 
 | Gating Mode | Registered Tools | Tokens in Schema | % of 200K Window |
 | :--- | :---: | :---: | :---: |
-| **Lazy (Default)** | **10** | **~3,885** | **1.9%** |
-| Typical Active Session (+`memory` +`admin`) | 61 | ~18,613 | 9.3% |
-| Eager Mode (`tools.lazy = false`) | 119 | ~29,485 | 14.7% |
+| **Lazy (Default)** | **6** | **~3,249** | **1.6%** |
+| Typical Active Session (+`memory` +`admin`) | 59 | ~19,581 | 9.8% |
+| Eager Mode (`tools.lazy = false`) | 119 | ~33,144 | 16.6% |
 
 > 🛠️ *Note: If your client does not support dynamic tool registration, run `m3 config set tools.lazy false` (or set `lazy = false` under `[tools]` in `m3_config.toml`) to register every tool at startup.*
 

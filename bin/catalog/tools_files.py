@@ -52,7 +52,7 @@ TOOLS: list[ToolSpec] = [
                 },
                 "corpus": {
                     "type": "string",
-                    "description": "Corpus tag (default: resolved from M3_FILES_CORPUS or 'default').",
+                    "description": "Corpus tag (default: the configured files.default_corpus).",
                     "default": None,
                 },
                 "dry_run": {"type": "boolean", "description": "Walk + count without writing.", "default": False},
@@ -134,13 +134,42 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "corpus": {"type": "string", "default": None},
-                "corpora": {"type": "array", "items": {"type": "string"}, "default": None},
-                "filetype": {"type": "string", "default": None},
-                "directory": {"type": "string", "default": None},
-                "filename_glob": {"type": "string", "default": None},
-                "include_history": {"type": "boolean", "default": False},
-                "limit": {"type": "integer", "default": 500},
+                "corpus": {
+                    "type": "string",
+                    "description": "Single-corpus scope filter (omit for all).",
+                    "default": None,
+                },
+                "corpora": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Fan-out across these corpora; overrides corpus.",
+                    "default": None,
+                },
+                "filetype": {
+                    "type": "string",
+                    "description": "Filter to one filetype ('markdown', 'pdf', ...).",
+                    "default": None,
+                },
+                "directory": {
+                    "type": "string",
+                    "description": "Only files whose absolute path starts with this directory.",
+                    "default": None,
+                },
+                "filename_glob": {
+                    "type": "string",
+                    "description": "Glob over the filename, e.g. '*.md' or 'README*'.",
+                    "default": None,
+                },
+                "include_history": {
+                    "type": "boolean",
+                    "description": "Include superseded file_nodes.",
+                    "default": False,
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max entries, newest date_modified first.",
+                    "default": 500,
+                },
             },
             "required": [],
         },
@@ -152,7 +181,10 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="files_get",
-        description="Fetch one record by UUID. Tries file_nodes then leaves.",
+        description=(
+            "Fetch one record by UUID. Tries file_nodes then leaves; returns the row plus "
+            "_kind ('file_node'|'leaf') and original_path, or null if no match."
+        ),
         parameters={
             "type": "object",
             "properties": {"uuid": {"type": "string", "description": "UUID of the file_node or leaf."}},
@@ -169,7 +201,13 @@ TOOLS: list[ToolSpec] = [
         description="Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype.",
         parameters={
             "type": "object",
-            "properties": {"corpus": {"type": "string", "default": None}},
+            "properties": {
+                "corpus": {
+                    "type": "string",
+                    "description": "Limit counters to one corpus (omit for all).",
+                    "default": None,
+                }
+            },
             "required": [],
         },
         impl=_files_tools.files_stats_impl,
@@ -180,10 +218,21 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="files_health",
-        description="DB integrity + FTS5 sync check. Set rebuild=True to fix drift.",
+        description=(
+            "files.db integrity check: returns ok, sqlite_integrity, fts5_in_sync (with "
+            "fts5_drift counts), orphan_leaves and orphan_runs. Read-only unless "
+            "rebuild=True, which rebuilds the FTS5 index only when it is out of sync and "
+            "re-checks (fts_rebuilt=True). SQLite-only; reports skipped on PostgreSQL."
+        ),
         parameters={
             "type": "object",
-            "properties": {"rebuild": {"type": "boolean", "default": False}},
+            "properties": {
+                "rebuild": {
+                    "type": "boolean",
+                    "description": "Rebuild the FTS5 index if out of sync; false only reports.",
+                    "default": False,
+                }
+            },
             "required": [],
         },
         impl=_files_tools.files_health_impl,
@@ -201,7 +250,9 @@ TOOLS: list[ToolSpec] = [
         ),
         parameters={
             "type": "object",
-            "properties": {"limit": {"type": "integer", "default": 100}},
+            "properties": {
+                "limit": {"type": "integer", "description": "Max pending leaves to process this pass.", "default": 100}
+            },
             "required": [],
         },
         impl=_files_tools.files_extract_pending_impl,
@@ -220,15 +271,23 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "source_uuid": {"type": "string"},
-                "reason": {"type": "string", "default": ""},
+                "source_uuid": {"type": "string", "description": "UUID of the fact, leaf or file_node to promote."},
+                "reason": {
+                    "type": "string",
+                    "description": "Free-text rationale, stored on the promotion record.",
+                    "default": "",
+                },
                 "mapped_type": {
                     "type": "string",
                     "description": "Override memory.db type (fact|knowledge|reference|...).",
                     "default": None,
                 },
-                "scope": {"type": "string", "default": None},
-                "importance": {"type": "number", "default": 0.6},
+                "scope": {
+                    "type": "string",
+                    "description": "Isolation scope of the new memory (default: configured promotion scope).",
+                    "default": None,
+                },
+                "importance": {"type": "number", "description": "0.0-1.0 relevance of the new memory.", "default": 0.6},
             },
             "required": ["source_uuid"],
         },
@@ -248,9 +307,17 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "source_file_node": {"type": "string", "default": None},
-                "source_superseded": {"type": "boolean", "default": None},
-                "limit": {"type": "integer", "default": 100},
+                "source_file_node": {
+                    "type": "string",
+                    "description": "Only promotions whose source belongs to this file_node UUID.",
+                    "default": None,
+                },
+                "source_superseded": {
+                    "type": "boolean",
+                    "description": "True: source file superseded only; false: current only; omit for both.",
+                    "default": None,
+                },
+                "limit": {"type": "integer", "description": "Max rows, newest promotion first.", "default": 100},
             },
             "required": [],
         },
@@ -269,10 +336,18 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "limit": {"type": "integer", "default": 20},
-                "min_score": {"type": "number", "default": 0.30},
-                "corpus": {"type": "string", "default": None},
-                "include_already_promoted": {"type": "boolean", "default": False},
+                "limit": {"type": "integer", "description": "Max candidates returned.", "default": 20},
+                "min_score": {
+                    "type": "number",
+                    "description": "Score floor; scores run roughly 0-2 (hits x confidence x recency).",
+                    "default": 0.30,
+                },
+                "corpus": {"type": "string", "description": "Single-corpus scope filter.", "default": None},
+                "include_already_promoted": {
+                    "type": "boolean",
+                    "description": "Also list facts that already have a promotion.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -292,11 +367,27 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "threshold": {"type": "number", "default": 0.92},
-                "max_pairs": {"type": "integer", "default": 500},
-                "leaf_limit": {"type": "integer", "default": 10000},
-                "corpus": {"type": "string", "default": None},
-                "include_already_detected": {"type": "boolean", "default": False},
+                "threshold": {
+                    "type": "number",
+                    "description": "Cosine floor (0.0-1.0) for flagging a pair.",
+                    "default": 0.92,
+                },
+                "max_pairs": {
+                    "type": "integer",
+                    "description": "Stop after recording this many new pairs.",
+                    "default": 500,
+                },
+                "leaf_limit": {
+                    "type": "integer",
+                    "description": "Max leaves scanned, newest first.",
+                    "default": 10000,
+                },
+                "corpus": {"type": "string", "description": "Single-corpus scope filter.", "default": None},
+                "include_already_detected": {
+                    "type": "boolean",
+                    "description": "Re-surface pairs that already have an unreviewed candidate row.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -312,9 +403,13 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "reviewed": {"type": "boolean", "default": False},
-                "limit": {"type": "integer", "default": 100},
-                "min_cosine": {"type": "number", "default": None},
+                "reviewed": {
+                    "type": "boolean",
+                    "description": "False: unreviewed only; true: reviewed only; null: both.",
+                    "default": False,
+                },
+                "limit": {"type": "integer", "description": "Max pairs returned.", "default": 100},
+                "min_cosine": {"type": "number", "description": "Only pairs with cosine >= this.", "default": None},
             },
             "required": [],
         },
@@ -330,9 +425,13 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "candidate_uuid": {"type": "string"},
-                "action": {"type": "string", "enum": ["kept", "merged", "ignored"]},
-                "note": {"type": "string", "default": ""},
+                "candidate_uuid": {"type": "string", "description": "Candidate pair UUID from files_dedup_list."},
+                "action": {
+                    "type": "string",
+                    "enum": ["kept", "merged", "ignored"],
+                    "description": "Decision; 'merged' records intent only, no leaves are merged.",
+                },
+                "note": {"type": "string", "description": "Free-text rationale saved with the review.", "default": ""},
             },
             "required": ["candidate_uuid", "action"],
         },
@@ -353,9 +452,21 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "max_pairs": {"type": "integer", "default": 1000},
-                "dry_run": {"type": "boolean", "default": False},
-                "corpus": {"type": "string", "default": None},
+                "max_pairs": {
+                    "type": "integer",
+                    "description": "Stop after recording this many candidate pairs.",
+                    "default": 1000,
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Estimate counts without writing or embedding.",
+                    "default": False,
+                },
+                "corpus": {
+                    "type": "string",
+                    "description": "Accepted but currently ignored; detection scans all entities.",
+                    "default": None,
+                },
             },
             "required": [],
         },
@@ -371,9 +482,13 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "reviewed": {"type": "boolean", "default": False},
-                "limit": {"type": "integer", "default": 100},
-                "min_cosine": {"type": "number", "default": None},
+                "reviewed": {
+                    "type": "boolean",
+                    "description": "False: unreviewed only; true: reviewed only; null: both.",
+                    "default": False,
+                },
+                "limit": {"type": "integer", "description": "Max pairs, highest cosine first.", "default": 100},
+                "min_cosine": {"type": "number", "description": "Only pairs with cosine >= this.", "default": None},
             },
             "required": [],
         },
@@ -394,8 +509,15 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "reviews": {"type": "array"},
-                "note": {"type": "string", "default": ""},
+                "reviews": {
+                    "type": "array",
+                    "description": "List of {uuid, action}; action is merge|related|reject|defer.",
+                },
+                "note": {
+                    "type": "string",
+                    "description": "Free-text rationale saved on every reviewed candidate.",
+                    "default": "",
+                },
             },
             "required": ["reviews"],
         },
@@ -418,11 +540,31 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "candidate_uuids": {"type": "array", "default": None},
-                "include_auto_merge": {"type": "boolean", "default": False},
-                "resolution_run": {"type": "string", "default": None},
-                "dry_run": {"type": "boolean", "default": False},
-                "confirm": {"type": "boolean", "default": False},
+                "candidate_uuids": {
+                    "type": "array",
+                    "description": "Candidate UUIDs to apply; each must be reviewed 'merge' or 'unapplied'.",
+                    "default": None,
+                },
+                "include_auto_merge": {
+                    "type": "boolean",
+                    "description": "Also apply unreviewed 'merge'-band candidates of one detection run.",
+                    "default": False,
+                },
+                "resolution_run": {
+                    "type": "string",
+                    "description": "Detection run_id for include_auto_merge (default: latest run).",
+                    "default": None,
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Preview counts without writing; no confirm needed.",
+                    "default": False,
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true for a real (non-dry-run) apply.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -446,7 +588,10 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "cluster_id": {"type": "string"},
+                "cluster_id": {
+                    "type": "string",
+                    "description": "Cluster to reverse, as listed in clusters_touched by the apply.",
+                },
             },
             "required": ["cluster_id"],
         },
@@ -468,10 +613,18 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "directory": {"type": "string", "default": None},
-                "corpus": {"type": "string", "default": None},
-                "rehash": {"type": "boolean", "default": True},
-                "limit": {"type": "integer", "default": 200},
+                "directory": {
+                    "type": "string",
+                    "description": "Restrict the review to files under this directory (default: all known files).",
+                    "default": None,
+                },
+                "corpus": {"type": "string", "description": "Single-corpus scope filter.", "default": None},
+                "rehash": {
+                    "type": "boolean",
+                    "description": "Re-hash changed files (accurate); false uses mtime only (cheaper, flags touches).",
+                    "default": True,
+                },
+                "limit": {"type": "integer", "description": "Max entries returned per category list.", "default": 200},
             },
             "required": [],
         },
@@ -491,9 +644,16 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "missing_file_node_uuid": {"type": "string"},
-                "new_path": {"type": "string"},
-                "expect_sha256": {"type": "string", "default": None},
+                "missing_file_node_uuid": {
+                    "type": "string",
+                    "description": "UUID of the file_node whose file moved (from a rename candidate).",
+                },
+                "new_path": {"type": "string", "description": "New on-disk location of the same content."},
+                "expect_sha256": {
+                    "type": "string",
+                    "description": "If set, the file at new_path must have this sha256 or the call fails.",
+                    "default": None,
+                },
             },
             "required": ["missing_file_node_uuid", "new_path"],
         },
@@ -514,11 +674,31 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "corpus_id": {"type": "string"},
-                "description": {"type": "string", "default": None},
-                "extract_mode": {"type": "string", "enum": ["none", "inline", "queue"], "default": None},
-                "scope": {"type": "string", "default": None},
-                "default": {"type": "boolean", "default": False},
+                "corpus_id": {
+                    "type": "string",
+                    "description": "New corpus ID; must be non-empty and not already exist.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Human-readable label for the corpus.",
+                    "default": None,
+                },
+                "extract_mode": {
+                    "type": "string",
+                    "enum": ["none", "inline", "queue"],
+                    "description": "Extraction mode stored in settings; files_ingest does not read it yet.",
+                    "default": None,
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "Promotion scope stored in settings; files_promote does not read it yet.",
+                    "default": None,
+                },
+                "default": {
+                    "type": "boolean",
+                    "description": "Flag as the default corpus, clearing any prior flag (stored; ingest does not read it yet).",
+                    "default": False,
+                },
             },
             "required": ["corpus_id"],
         },
@@ -530,7 +710,10 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="files_corpus_list",
-        description="Enumerate corpora with row counts.",
+        description=(
+            "List every corpus (registered, or seen on ingested files) with corpus_id, settings, "
+            "current file_node_count and leaf_count, created_at and is_default."
+        ),
         parameters={"type": "object", "properties": {}, "required": []},
         impl=_files_tools.files_corpus_list_impl,
         is_async=False,
@@ -540,10 +723,13 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="files_corpus_get",
-        description="Fetch a single corpus's settings + counts.",
+        description=(
+            "Fetch one corpus: settings, current file_node_count and leaf_count, created_at, "
+            "is_default. Null if it has neither settings nor files."
+        ),
         parameters={
             "type": "object",
-            "properties": {"corpus_id": {"type": "string"}},
+            "properties": {"corpus_id": {"type": "string", "description": "Corpus ID to fetch."}},
             "required": ["corpus_id"],
         },
         impl=_files_tools.files_corpus_get_impl,
@@ -560,12 +746,29 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "corpus_id": {"type": "string"},
-                "description": {"type": "string", "default": None},
-                "extract_mode": {"type": "string", "enum": ["none", "inline", "queue"], "default": None},
-                "scope": {"type": "string", "default": None},
-                "default": {"type": "boolean", "default": None},
-                "retention_days": {"type": "integer", "default": None},
+                "corpus_id": {"type": "string", "description": "Corpus ID to update."},
+                "description": {"type": "string", "description": "New human-readable label.", "default": None},
+                "extract_mode": {
+                    "type": "string",
+                    "enum": ["none", "inline", "queue"],
+                    "description": "Extraction mode stored in settings; files_ingest does not read it yet.",
+                    "default": None,
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "Promotion scope stored in settings; files_promote does not read it yet.",
+                    "default": None,
+                },
+                "default": {
+                    "type": "boolean",
+                    "description": "True flags as default (clearing others); false clears this corpus's flag.",
+                    "default": None,
+                },
+                "retention_days": {
+                    "type": "integer",
+                    "description": "Advisory retention in days; stored only, nothing is pruned.",
+                    "default": None,
+                },
             },
             "required": ["corpus_id"],
         },
@@ -585,8 +788,12 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "corpus_id": {"type": "string"},
-                "cascade": {"type": "boolean", "default": False},
+                "corpus_id": {"type": "string", "description": "Corpus ID to delete."},
+                "cascade": {
+                    "type": "boolean",
+                    "description": "Also delete all its files, leaves, facts and links; false refuses if files exist.",
+                    "default": False,
+                },
             },
             "required": ["corpus_id"],
         },
@@ -594,7 +801,7 @@ TOOLS: list[ToolSpec] = [
         is_async=False,
         validators=(),
         # DESTRUCTIVE (cascade deletes every file_node/leaf/fact/embedding in the
-        # corpus). Gate behind M3_MCP_PROXY_ALLOW_DESTRUCTIVE like memory_delete /
+        # corpus). Gate behind mcp.allow_destructive like memory_delete /
         # gdpr_forget rather than leaving it default-allowed (§6). Also corrects
         # the m3_index advertisement to destructive:True.
         default_allowed=False,
@@ -611,10 +818,22 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "directory": {"type": "string", "default": None},
-                "corpus": {"type": "string", "default": None},
-                "agent_id": {"type": "string", "default": "files_memory.watch"},
-                "cooldown_seconds": {"type": "number", "default": 3600.0},
+                "directory": {
+                    "type": "string",
+                    "description": "Restrict the review to files under this directory (default: all known files).",
+                    "default": None,
+                },
+                "corpus": {"type": "string", "description": "Single-corpus scope filter.", "default": None},
+                "agent_id": {
+                    "type": "string",
+                    "description": "Agent whose notifications inbox receives the events.",
+                    "default": "files_memory.watch",
+                },
+                "cooldown_seconds": {
+                    "type": "number",
+                    "description": "Skip re-notifying the same file and event kind within this window.",
+                    "default": 3600.0,
+                },
             },
             "required": [],
         },

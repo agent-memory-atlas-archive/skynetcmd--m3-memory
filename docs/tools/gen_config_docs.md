@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_config_docs.py
-sha1: a824375ac51b
-mtime_utc: 2026-10-17T15:45:08.422765+00:00
-generated_utc: 2026-10-17T15:45:09.301786+00:00
+sha1: 63395fe430fe
+mtime_utc: 2026-10-17T20:30:59.781821+00:00
+generated_utc: 2026-10-17T20:31:00.539129+00:00
 private: false
 ---
 

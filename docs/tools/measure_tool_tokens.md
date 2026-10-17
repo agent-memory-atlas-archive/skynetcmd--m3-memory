@@ -1,8 +1,8 @@
 ---
 tool: bin/measure_tool_tokens.py
-sha1: 76a1b432641b
-mtime_utc: 2026-10-15T00:34:38.492839+00:00
-generated_utc: 2026-10-15T00:34:42.330603+00:00
+sha1: a61d8bb4a0ac
+mtime_utc: 2026-10-17T18:41:17.982172+00:00
+generated_utc: 2026-10-17T18:47:23.057091+00:00
 private: false
 ---
 
@@ -17,8 +17,8 @@ Usage:
 
 Reports the tokenized size of:
   - Full repertoire (every tool the proxy can dispatch)
-  - Lazy-mode startup set (essentials + meta-tools — what an agent pays at
-    session start under M3_TOOLS_LAZY, the default)
+  - Lazy-mode startup set (tools_config.DEFAULT_STARTUP_TOOLS — what an agent
+    pays at session start with the shipped default)
   - Per-domain cost (what `tools_load_domain(domain=…)` adds on demand)
 
 Uses tiktoken if available (matches OpenAI/Claude tokenization closely);
@@ -31,7 +31,7 @@ in CLAUDE.md / GEMINI.md / README.md / docs/* stay honest.
 
 ## Entry points
 
-- `def main()` (line 119)
+- `def main()` (line 114)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -52,7 +52,6 @@ _(none detected)_
 
 - `mcp_proxy`
 - `mcp_tool_catalog`
-- `memory_bridge`
 - `tool_domains`
 
 ---
@@ -65,6 +64,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `catalog.annotations (tool_annotations)`
 - `tiktoken`
 
 ---

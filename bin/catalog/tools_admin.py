@@ -20,15 +20,17 @@ from tool_domains import ESSENTIAL_TOOL_NAMES as _ESSENTIAL_TOOL_NAMES  # one ow
 
 TOOLS: list[ToolSpec] = [
     # ── Meta-tools: lazy domain loading ──────────────────────────────────────
-    # These two ALWAYS register at MCP startup. Every other tool may be hidden
-    # behind a domain — the agent calls `tools_load_domain` to expose them.
-    # Set M3_TOOLS_LAZY=0 to opt out and expose all tools eagerly.
+    # Not in the shipped startup set (tools_config); reachable through m3_call,
+    # and a user can add them to tools.startup. Each description says when to
+    # use it rather than its neighbours: Glama scored m3's meta-tools 2/5 on
+    # disambiguation (2026-09-15).
     ToolSpec(
         name="tools_list_domains",
         description=(
             "List m3 tool domains (memory, chatlog, files, entity, agent, tasks, "
-            "conversations, diagnostics, admin) and their tool counts. Call "
-            "`tools_load_domain` to expose a domain's full tool surface."
+            "conversations, diagnostics, admin) and their tool counts. Use it only "
+            "before `tools_load_domain`; to find one tool's args use `m3_index`, and "
+            "to run one tool use `m3_call`. Read-only."
         ),
         parameters={"type": "object", "properties": {}, "required": []},
         impl=_tool_loader.list_domains,
@@ -40,10 +42,12 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="tools_load_domain",
         description=(
-            "Register a tool domain's full surface for the current MCP session. "
-            "Use when you need tools beyond the essentials (" + ", ".join(sorted(_ESSENTIAL_TOOL_NAMES)) + "). "
-            "Valid domains: memory, chatlog, files, entity, agent, tasks, "
-            "conversations, diagnostics, admin."
+            "Register every tool in one domain as native tools for the rest of this "
+            "MCP session (beyond the startup set: " + ", ".join(sorted(_ESSENTIAL_TOOL_NAMES)) + "). "
+            "Worth it when you will call several tools from that domain; for one or "
+            "two calls use `m3_call`, which needs no load. Returns the newly "
+            "registered names and their schemas. Valid domains: memory, chatlog, "
+            "files, entity, agent, tasks, conversations, diagnostics, admin."
         ),
         parameters={
             "type": "object",
@@ -64,9 +68,11 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="m3_help_capabilities",
         description=(
-            "Discover m3-memory tool capabilities, parameters, and availability. "
-            "Allows filtering by a logical domain (memory, chatlog, files, entity, "
-            "agent, tasks, conversations, admin, diagnostics) or searching by keywords."
+            "Find m3 tools by what they do: keyword search over tool names and "
+            "descriptions, optionally within one domain (memory, chatlog, files, "
+            "entity, agent, tasks, conversations, admin, diagnostics). Use it when "
+            "you know the task but not the tool; once you know the tool, `m3_index` "
+            "gives its exact args. Read-only."
         ),
         parameters={
             "type": "object",
@@ -100,7 +106,8 @@ TOOLS: list[ToolSpec] = [
             "name, domain, one-line summary, destructive flag, and arg specs "
             "(name/type/required). Use this to discover the exact args for any "
             "tool before calling it via m3_call — cheaper than a failed call. "
-            "Read-only catalog metadata; never returns tool output. Domains: "
+            "Prefer it over `m3_help_capabilities` when you already know the tool "
+            "name. Read-only catalog metadata; never returns tool output. Domains: "
             "memory, chatlog, files, entity, agent, tasks, conversations, "
             "diagnostics, admin."
         ),
@@ -125,13 +132,15 @@ TOOLS: list[ToolSpec] = [
         name="m3_call",
         description=(
             "Invoke ANY m3 catalog tool by name without loading its domain — the "
-            "low-token path to the full tool surface. Single call: pass `tool` "
+            "low-token path to the full tool surface, and the way to reach every "
+            "tool not loaded at startup. Single call: pass `tool` "
             "(e.g. 'files_stats') and `args` (an object). Batch: pass `batch`, a "
             "list of {tool, args} (each isolated — one failure won't abort the "
             "rest; capped at 100). Set `dry_run` to validate args + check the "
             "destructive gate WITHOUT executing. Returns JSON. Call `m3_index` "
-            "first if you don't know a tool's args. Destructive tools require "
-            "M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1."
+            "first if you don't know a tool's args. Destructive tools are refused "
+            "unless mcp.allow_destructive is enabled (`m3 config set "
+            "mcp.allow_destructive true`)."
         ),
         parameters={
             "type": "object",
@@ -287,7 +296,12 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="notifications_poll",
-        description="List notifications addressed to agent_id, newest first.",
+        description=(
+            "Check your own inbox: notifications addressed to agent_id, newest "
+            "first. Also marks that agent alive (heartbeat) and records delivery, "
+            "so to look at another agent's inbox without side effects use "
+            "notifications_peek."
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -333,7 +347,10 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="notifications_ack",
-        description="Mark one notification as read.",
+        description=(
+            "Mark one notification as read (acknowledged) so it stops appearing in "
+            "unread polls. Use notifications_ack_all to clear an agent's whole inbox."
+        ),
         parameters={
             "type": "object",
             "properties": {
