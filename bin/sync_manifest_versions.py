@@ -144,6 +144,28 @@ def _sync_roadmap_current(target: str, *, check: bool) -> str | None:
     return None
 
 
+_HERMES_PLUGIN = _ROOT / "m3_memory" / "integrations" / "hermes" / "folder_plugin" / "plugin.yaml"
+
+
+def _sync_hermes_plugin(target: str, *, check: bool) -> str | None:
+    """Keep the Hermes folder plugin's manifest on the released version. The
+    Hermes catalog pins a commit and shows this as its label; it read 2026.10.16
+    in the 2026.10.17.0 release because nothing here owned it."""
+    if not os.path.isfile(_HERMES_PLUGIN):
+        return f"{_HERMES_PLUGIN.relative_to(_ROOT)}: missing"
+    text = _HERMES_PLUGIN.read_text(encoding="utf-8")
+    m = re.compile(r'^version:\s*"([^"]*)"', re.MULTILINE).search(text)
+    rel = _HERMES_PLUGIN.relative_to(_ROOT)
+    if not m:
+        return f'{rel}: no top-level version: "..." line found'
+    if m.group(1) == target:
+        return None
+    if check:
+        return f"{rel}: version {m.group(1)} != {target}"
+    _HERMES_PLUGIN.write_text(text[: m.start(1)] + target + text[m.end(1) :], encoding="utf-8")
+    return None
+
+
 # Match a JSON ``"version": "X.Y.Z…"`` pair. Surgical TEXT edit — we rewrite ONLY
 # the version value and leave every other byte (em-dashes, array layout, spacing)
 # untouched. Re-serializing the whole file via json.dump would reflow arrays and
@@ -208,6 +230,7 @@ def main() -> int:
         ("pypi badge", _sync_pypi_badge),
         ("SECURITY.md supported versions", _sync_security_supported),
         ("ROADMAP.md current version", _sync_roadmap_current),
+        ("Hermes plugin.yaml version", _sync_hermes_plugin),
     ):
         # Ask in check-mode FIRST so we know whether a write is actually needed.
         # Reporting "wrote X" for a file that was already current is a small lie,

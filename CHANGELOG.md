@@ -19,6 +19,13 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Hermes plugin reports m3's version.** Its manifest said 2026.10.16 in
+  the 2026.10.17.0 release; it now follows each release.
+  **Affected:** Hermes users (the version shown by `hermes plugins`) ·
+  **Action:** none · **Data status:** none.
+
 ## [2026.10.17.0] — 2026-10-17 — one config file for m3 and its Rust core
 
 **Highlights.** One configuration file, `m3_config.toml`, now holds every setting, and every

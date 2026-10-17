@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_manifest_versions.py
-sha1: 87a329a046eb
-mtime_utc: 2026-10-10T23:43:02.125747+00:00
-generated_utc: 2026-10-10T23:43:52.002211+00:00
+sha1: f6f3b8532a12
+mtime_utc: 2026-10-17T05:24:05.235404+00:00
+generated_utc: 2026-10-17T05:24:06.349299+00:00
 private: false
 ---
 
@@ -39,7 +39,7 @@ Every ``"version"`` key is rewritten: the top-level one, and any nested
 
 ## Entry points
 
-- `def main()` (line 172)
+- `def main()` (line 194)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,6 +82,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `SECURITY.md`
 - `mcp-server.json`
 - `plugin.json`
+- `plugin.yaml`
 - `pyproject.toml`
 - `server.json`
 
