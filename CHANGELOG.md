@@ -19,6 +19,8 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+## [2026.10.17.2] — 2026-10-17 — doctor and upgrade correctness, announced admin prompts
+
 ### Changed
 
 - **m3 install/upgrade UX & correctness**
