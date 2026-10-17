@@ -56,5 +56,5 @@ def test_chatlog_section_reads_the_server_tables(each_backend, capsys):
             conn.commit()
     assert "store:                   chat_log_items" in out, f"observed: {out!r}"
     assert "db not yet created" not in out, "observed: the false 'no captures' alarm on PostgreSQL"
-    rows = int(out.split("captured rows:")[1].split()[0])
-    assert rows >= 1, f"observed: {rows} captured rows with one written"
+    rows = int(out.split("chat rows:")[1].split()[0])
+    assert rows >= 1, f"observed: {rows} live chat rows with one written"

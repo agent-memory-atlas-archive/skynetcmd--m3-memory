@@ -55,16 +55,18 @@ developer sibling bridge:  <repo>/bin/memory_bridge.py
 ```
 chatlog subsystem:
   db_path:                 <repo>/memory/agent_chatlog.db
-  captured rows:           <N>
-  last capture at:         <ISO-8601 timestamp>
+  chat rows:               <L> live, <T> stored incl. deleted
+  newest row:              <ISO-8601 timestamp>  (any machine, synced rows included)
+  last capture here:       <ISO-8601 timestamp>
   claude hooks:            Stop [on]  PreCompact [on]
   gemini mcp (memory):     [on]  SessionEnd [on]
 ```
 
 **What it means:**
 - **`db_path`** — where the chat log database lives.
-- **`captured rows`** — total rows written to the DB. Zero means no captures yet (hooks haven't fired).
-- **`last capture at`** — timestamp of the most recent row written. `(never)` or a stale timestamp = hooks may be broken.
+- **`chat rows`** — live rows, then every stored row including soft-deleted (decayed) ones. `m3 chatlog status` reports the stored total; the doctor's stores panel reports the live count. Zero stored means no captures yet (hooks haven't fired).
+- **`newest row`** — the most recent row in the store. With sync configured it can be a turn captured on another machine, so it can be newer than this machine's last capture.
+- **`last capture here`** — when this machine last wrote a captured turn (the same value `m3 chatlog status` shows as "Last write on this machine"). `(none recorded)`, or a time older than your last session here, means the hooks on this machine may be broken.
 - **`claude hooks`**:
   - `Stop [on]` — per-turn capture enabled (Claude Code's Stop hook fires at end of each turn).
   - `PreCompact [on]` — pre-compaction capture enabled (Claude Code's PreCompact hook fires before memory compaction).
@@ -91,7 +93,7 @@ chatlog subsystem:
 
 ## Common Diagnoses and How to Fix
 
-### All hooks [on], captured rows > 0, last capture recent
+### All hooks [on], chat rows > 0, last capture here recent
 
 Everything is healthy. Nothing to do.
 
@@ -130,7 +132,7 @@ For a standard install, leave it unset.
 
 ---
 
-### `captured rows: 0`
+### `chat rows: 0 live, 0 stored`
 
 The chatlog database exists but has never captured a turn. This means:
 1. The DB was created by init but hooks haven't fired yet, OR
@@ -228,7 +230,7 @@ The bridge can't be located. Check:
 ## When to Actually Worry
 
 **Take action if you see:**
-- `captured rows: 0` — run `m3 chatlog init` to wire hooks.
+- `chat rows: 0 live, 0 stored` — run `m3 chatlog init` to wire hooks.
 - Any hook showing `[off]` — run `m3 chatlog init --apply-claude` or `--apply-gemini`.
 - `last capture at` more than 24 hours old **and** your chatlog DB shows recent activity in an editor — hooks are broken, re-run init.
 - `[X] no bridge found` — check your installation, config.json, or M3_BRIDGE_PATH.

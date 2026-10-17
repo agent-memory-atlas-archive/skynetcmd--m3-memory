@@ -122,6 +122,42 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
     return None
 
 
+# Chat rows: every row of the chatlog's own types, live ones counted apart. The
+# total includes soft-deleted (decayed) rows, which is what `m3 chatlog status`
+# counts; the stores panel counts live rows. A MacBook doctor showed both as bare
+# "rows" (139,941 vs 72,152) and they read as a contradiction (2026-10-17). The
+# newest row may have arrived by sync from another machine, so it is not the
+# last capture on this one; that comes from the chatlog state file.
+_CHAT_STATS_SELECT = (
+    "SELECT COUNT(*), SUM(CASE WHEN COALESCE(is_deleted, 0) = 0 THEN 1 ELSE 0 END), MAX(created_at) "
+    "FROM {table} WHERE type IN ('chat_log', 'message')"
+)
+
+
+def _chat_stats_row(out: dict, row) -> None:
+    out.update(ok=True, rows=row[0] or 0, live=row[1] or 0, last_at=str(row[2] or ""))
+
+
+def _last_local_capture() -> str:
+    """When this machine last flushed a captured turn (chatlog state file's
+    ``last_write_at``), or "" when unknown. The same field `m3 chatlog status`
+    reports."""
+    try:
+        _bin.ensure_on_path()
+        from chatlog_config import STATE_FILE
+
+        with open(STATE_FILE, encoding="utf-8") as f:
+            return str(json.load(f).get("last_write_at") or "")
+    except Exception:  # noqa: BLE001 — informational; absent before the first capture
+        return ""
+
+
+def _print_chat_stats(stats: dict) -> None:
+    print(f"  chat rows:               {stats['live']} live, {stats['rows']} stored incl. deleted")
+    print(f"  newest row:              {stats['last_at'] or '(none)'}  (any machine, synced rows included)")
+    print(f"  last capture here:       {_last_local_capture() or '(none recorded)'}")
+
+
 def _chatlog_db_stats(db_path: Path) -> dict:
     """Open DB read-only, report row counts + last-capture timestamp.
 
@@ -129,7 +165,7 @@ def _chatlog_db_stats(db_path: Path) -> dict:
     dependency on the bin/ payload so doctor still works if the repo
     clone is incomplete.
     """
-    out = {"ok": False, "rows": 0, "last_at": "", "error": ""}
+    out = {"ok": False, "rows": 0, "live": 0, "last_at": "", "error": ""}
     if not os.path.isfile(db_path):
         out["error"] = "file not found"
         return out
@@ -139,15 +175,7 @@ def _chatlog_db_stats(db_path: Path) -> dict:
         _cm = seam_backend().open_readonly(str(db_path))
         conn = _cm.__enter__()
         try:
-            # Count rows the chatlog subsystem writes — types 'chat_log'
-            # and 'message'. Matches chatlog_status's totals so the two
-            # tools don't disagree.
-            row = conn.execute(
-                "SELECT COUNT(*), MAX(created_at) FROM memory_items WHERE type IN ('chat_log', 'message')"
-            ).fetchone()
-            out["rows"] = row[0] or 0
-            out["last_at"] = row[1] or ""
-            out["ok"] = True
+            _chat_stats_row(out, conn.execute(_CHAT_STATS_SELECT.format(table="memory_items")).fetchone())
         finally:
             _cm.__exit__(None, None, None)
     except sqlite3.OperationalError as e:
@@ -176,13 +204,10 @@ def _chatlog_server_stats() -> tuple[str, dict] | None:
     if store_is_a_file():
         return None
     table = chatlog_table("items")
-    out = {"ok": False, "rows": 0, "last_at": "", "error": ""}
+    out = {"ok": False, "rows": 0, "live": 0, "last_at": "", "error": ""}
     try:
         with seam_backend().open_readonly("") as conn:
-            row = conn.execute(
-                f"SELECT COUNT(*), MAX(created_at) FROM {table} WHERE type IN ('chat_log', 'message')"
-            ).fetchone()
-        out.update(ok=True, rows=row[0] or 0, last_at=str(row[1] or ""))
+            _chat_stats_row(out, conn.execute(_CHAT_STATS_SELECT.format(table=table)).fetchone())
     except Exception as e:  # noqa: BLE001 — doctor reports it; never raises
         out["error"] = f"{type(e).__name__}: {e}"
     return table, out
@@ -237,8 +262,7 @@ def _chatlog_section(cfg: dict) -> int:
         table, stats = pg_chat
         print(f"  store:                   {table} (in the primary database)")
         if stats["ok"]:
-            print(f"  captured rows:           {stats['rows']}")
-            print(f"  last capture at:         {stats['last_at'] or '(never)'}")
+            _print_chat_stats(stats)
         else:
             print(f"  status:                  unreadable ({stats['error']})")
     elif (db_path := _resolve_chatlog_db(cfg)) is None:
@@ -247,9 +271,7 @@ def _chatlog_section(cfg: dict) -> int:
         print(f"  db_path:                 {db_path}")
         stats = _chatlog_db_stats(db_path)
         if stats["ok"]:
-            last = stats["last_at"] or "(never)"
-            print(f"  captured rows:           {stats['rows']}")
-            print(f"  last capture at:         {last}")
+            _print_chat_stats(stats)
         elif stats["error"] == "file not found":
             print("  status:                  db not yet created (no captures written)")
         else:
@@ -506,8 +528,8 @@ def _table_stats(rows, dialect, table: str, *, items: bool) -> dict | None:
     if items:
         n = rows(f"SELECT COUNT(*) FROM {table} WHERE COALESCE(is_deleted,0)=0")[0][0]
         last = rows(f"SELECT MAX(COALESCE(updated_at, created_at)) FROM {table}")[0][0]
-        return {"rows": n, "last_updated": last}
-    return {"rows": rows(f"SELECT COUNT(*) FROM {table}")[0][0], "last_updated": None}
+        return {"rows": n, "last_updated": last, "count": "live rows"}
+    return {"rows": rows(f"SELECT COUNT(*) FROM {table}")[0][0], "last_updated": None, "count": "rows"}
 
 
 def _sqlite_store_stats(db_path: str) -> dict | None:
@@ -696,7 +718,7 @@ def _backend_section(cfg: dict) -> None:
             else:
                 last = _fmt_dual_time(stats["last_updated"]) if stats["last_updated"] else "—"
                 print(f"    {label:<6} {path}")
-                print(f"           rows: {stats['rows']}   last updated: {last}{shared}")
+                print(f"           {stats.get('count', 'rows')}: {stats['rows']}   last updated: {last}{shared}")
 
         _cdw_sync_section()
         return
@@ -759,7 +781,7 @@ def _backend_section(cfg: dict) -> None:
                 continue
             last = _fmt_dual_time(st["last_updated"]) if st["last_updated"] else "—"
             print(f"    {label:<6} {table}")
-            print(f"           rows: {st['rows']}   last updated: {last}")
+            print(f"           {st['count']}: {st['rows']}   last updated: {last}")
     except Exception as e:  # noqa: BLE001 — connection / auth / undefined-table
         from m3_core.secret_store import mask_dsn_passwords  # the one masker
 

@@ -1043,7 +1043,9 @@ def _format_table(data: dict[str, Any]) -> str:
     lines.append(f"Main DB:    {data['db_paths']['main']}")
     lines.append(f"Chatlog DB: {data['db_paths']['chatlog']}" + (" (unified with main)" if unified else ""))
     lines.append(
-        f"Rows (main/chatlog/unembedded): {data['row_counts']['main_chat_log_rows']}/{data['row_counts']['chatlog_rows']}/{data['row_counts']['chatlog_without_embed']}"
+        # Stored rows include soft-deleted ones; `m3 doctor` shows the live count
+        # beside this total so the two reports can be read against each other.
+        f"Rows (main chat_log / chatlog store, both incl. deleted / live unembedded): {data['row_counts']['main_chat_log_rows']}/{data['row_counts']['chatlog_rows']}/{data['row_counts']['chatlog_without_embed']}"
     )
     lines.append(
         f"Queue: {data['queue']['depth']}/{data['queue']['max']} "
@@ -1061,7 +1063,7 @@ def _format_table(data: dict[str, Any]) -> str:
             else ""
         )
     )
-    lines.append(f"Last write: {data['last_write_at']}")
+    lines.append(f"Last write on this machine: {data['last_write_at']}")
     if data["warnings"]:
         lines.append("Warnings:")
         for w in data["warnings"]:
