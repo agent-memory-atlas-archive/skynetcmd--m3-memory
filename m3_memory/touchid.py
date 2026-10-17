@@ -102,7 +102,12 @@ def offer(ask, say) -> None:
     Silent unless it can help: only at the Mac, only when Touch ID is available
     and not already on, and never again after a no. ``ask(question) -> bool``
     and ``say(text)`` are the caller's prompt and output."""
-    if not at_the_mac() or os.path.exists(_declined_marker()) or status() != "available":
+    if os.path.exists(_declined_marker()) or status() != "available":
+        return
+    if not at_the_mac():
+        # Over SSH the fingerprint cannot be read, so do not ask, but say so: a
+        # MacBook upgraded only over SSH never heard of the offer (2026-10-17).
+        say("  Touch ID for sudo is available on this Mac; to turn it on, run `m3 touchid enable` at the Mac.")
         return
     if not ask(
         f"  Let sudo accept Touch ID instead of your password? (adds one line to {SUDO_LOCAL}; "
