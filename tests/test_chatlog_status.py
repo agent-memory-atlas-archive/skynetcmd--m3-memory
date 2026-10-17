@@ -608,3 +608,15 @@ def _warnings_for_counts(row_counts):
         recent_writes=5,
         recent_window_min=15,
     )
+
+
+def test_wired_is_measured_not_the_config_echo():
+    """`wired` echoed the init-time config flag and read False on a MacBook whose
+    hooks were wired and capturing (2026-10-17). It is now the wiring probe's
+    finding for claude-code and unknown (None) for agents that probe cannot see."""
+    import chatlog_status as cs
+
+    assert cs._measured_wiring("claude-code", {"status": "ok", "hooks_seen": 3}) is True
+    assert cs._measured_wiring("claude-code", {"status": "issues", "hooks_seen": 0}) is False
+    assert cs._measured_wiring("claude-code", {"status": "unknown", "hooks_seen": 0}) is None
+    assert cs._measured_wiring("gemini-cli", {"status": "ok", "hooks_seen": 3}) is None

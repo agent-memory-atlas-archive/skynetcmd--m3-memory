@@ -604,19 +604,19 @@ def chatlog_status_impl() -> str:
         # hooks: OK" while the hooks[*] flags below read False). status ∈
         # {ok, unknown, issues}. This is the wiring signal to trust; the per-agent
         # hooks[*].wired flags below are only the init-time config echo.
-        "hook_wiring": _hook_wiring_verdict(),
-        # NOT a capture-health signal. Each entry's `wired`/`enabled` only
-        # records whether a per-turn shell hook was configured in settings.json
-        # at init time; the Stop-hook / MCP write path captures turns even when
-        # every entry here is False (that is the norm on this deployment). Read
-        # `capture.healthy` for whether turns are landing, and `hook_wiring.status`
-        # for whether the hooks are correctly wired — NOT these flags.
+        "hook_wiring": (wiring := _hook_wiring_verdict()),
+        # NOT a capture-health signal. `enabled` echoes the init-time config
+        # flag. `wired` is MEASURED: for claude-code it is whether the wiring
+        # probe found m3 hooks in settings.json; for agents that probe does not
+        # read it is None (unknown). It used to echo `enabled` too, and read
+        # False on a MacBook whose hooks were wired and capturing (2026-10-17).
+        # Read `capture.healthy` for whether turns are landing.
         # Kept a flat {agent_name: {...}} map (no sentinel keys) so consumers can
         # iterate it as pure agent data; the caveat lives here in code, not in
         # the return shape (§3/§12a: returns stay structured for machine callers).
         "hooks": {
             name: {
-                "wired": spec.enabled,
+                "wired": _measured_wiring(name, wiring),
                 "enabled": spec.enabled,
                 "last_write_ms_ago": state.get("hooks", {}).get(name, {}).get("last_write_ms_ago"),
             }
@@ -632,6 +632,14 @@ def chatlog_status_impl() -> str:
     }
 
     return json.dumps(result, indent=2)
+
+
+def _measured_wiring(agent: str, wiring: dict) -> bool | None:
+    """Whether ``agent``'s capture hooks were found on disk, or None when not
+    measured. The wiring probe reads Claude Code's settings.json only."""
+    if agent != "claude-code" or wiring.get("status") == "unknown":
+        return None
+    return bool(wiring.get("hooks_seen"))
 
 
 def _hook_wiring_verdict() -> dict:

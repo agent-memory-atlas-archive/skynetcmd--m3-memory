@@ -21,16 +21,15 @@ What this probe checks, all by reading the real artifact rather than a config
 flag that merely claims the thing is true:
 
   1. Every m3-owned hook command's interpreter and script EXIST on disk.
-  2. Each hook's interpreter belongs to the same install as the running payload
-     (a hook pinned to an old venv runs different code than `m3` does).
-  3. Hooks that need root pinning carry M3_ENGINE_ROOT / M3_CONFIG_ROOT. Claude
-     Code re-resolves server env only on restart but reloads hooks live, so an
-     unpinned hook can write turns to a DIFFERENT engine root than the server
-     reads — the split-brain hazard in CLAUDE.md.
-  4. Config that claims a hook is wired is corroborated against settings.json.
-     `chatlog_status` reports "wired": spec.enabled — the config flag echoed
-     back, NOT evidence the hook exists. Same class of bug as the permanently-on
-     "silent 24h+" warning: a field that asserts instead of measures.
+  2. Each hook's interpreter belongs to the same install as the running payload,
+     or to another venv on the same m3 release (a hook pinned to an old venv
+     runs different code than `m3` does).
+  3. Config that claims a hook is wired is corroborated against settings.json.
+     `chatlog_status` takes its claude-code "wired" from this probe rather than
+     echoing the config flag, which asserted instead of measured.
+
+Root pins are no longer required: m3 resolves its roots from the config file,
+and only a non-default M3_CONFIG_ROOT is written into a hook (one-env-var rule).
 
 DETECTION ONLY by default. Repair is behind `m3 doctor --fix --fix-hooks`,
 because settings.json is the USER'S file — it holds non-m3 hooks, and a bad
