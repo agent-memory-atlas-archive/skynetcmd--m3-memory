@@ -17,7 +17,7 @@ import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import chatlog_config
 from chatlog_config import _minutes_since, capture_idle_minutes
@@ -75,14 +75,9 @@ def _resolve_files_location() -> str:
 
 
 def _load_state_file() -> dict[str, Any]:
-    state_path = chatlog_config.STATE_FILE
-    if not os.path.exists(state_path):
-        return {}
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            return cast("dict[str, Any]", json.load(f))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    # chatlog_config.read_state is the one reader: a copy here read a corrupt
+    # state file as {} without a word, so status showed "no writes" silently.
+    return chatlog_config.read_state()
 
 
 def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
@@ -609,7 +604,7 @@ def chatlog_status_impl() -> str:
         # flag. `wired` is MEASURED: for claude-code it is whether the wiring
         # probe found m3 hooks in settings.json; for agents that probe does not
         # read it is None (unknown). It used to echo `enabled` too, and read
-        # False on a MacBook whose hooks were wired and capturing (2026-10-17).
+        # False on an install whose hooks were wired and capturing (2026-10-17).
         # Read `capture.healthy` for whether turns are landing.
         # Kept a flat {agent_name: {...}} map (no sentinel keys) so consumers can
         # iterate it as pure agent data; the caveat lives here in code, not in

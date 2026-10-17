@@ -611,7 +611,7 @@ def _warnings_for_counts(row_counts):
 
 
 def test_wired_is_measured_not_the_config_echo():
-    """`wired` echoed the init-time config flag and read False on a MacBook whose
+    """`wired` echoed the init-time config flag and read False on an install whose
     hooks were wired and capturing (2026-10-17). It is now the wiring probe's
     finding for claude-code and unknown (None) for agents that probe cannot see."""
     import chatlog_status as cs

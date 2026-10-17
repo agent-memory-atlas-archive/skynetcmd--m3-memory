@@ -384,7 +384,7 @@ def _home_with_project_list(tmp_path, project_disabled):
 
 
 def test_a_folders_own_disable_list_replaces_the_user_level_one(monkeypatch, tmp_path, capsys):
-    """Measured on a MacBook (2026-10-17): settings.json disabled the plugin's
+    """Measured (2026-10-17): settings.json disabled the plugin's
     server, the home folder's own list held only m3_memory, and `claude mcp list`
     there showed the plugin Connected and m3_memory disabled. The probe read the
     user-level list alone and reported the reverse."""

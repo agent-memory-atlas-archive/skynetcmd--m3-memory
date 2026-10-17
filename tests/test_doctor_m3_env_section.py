@@ -80,7 +80,7 @@ def test_nothing_set_prints_nothing(sweep, capsys):
 
 
 def test_a_keychain_lookup_line_is_not_called_a_plaintext_copy(monkeypatch, capsys):
-    """MacBook 2026-10-17: `export X=$(security find-generic-password ...)` holds no
+    """`export X=$(security find-generic-password ...)` holds no
     value on disk; it exports one into every shell. Saying "plaintext copy" was wrong."""
     from types import SimpleNamespace
 

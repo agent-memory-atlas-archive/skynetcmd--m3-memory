@@ -291,8 +291,8 @@ def _canonical_memory_env() -> dict:
     # writing (user decision 2026-10-17); the roots, the payload's bin/ and every
     # setting come from m3_config.toml. The block once carried M3_MEMORY_ROOT,
     # M3_ENGINE_ROOT and M3_PATH_BIN too: copies that could only drift, and a
-    # stale M3_PATH_BIN in an agent config was later imported into a MacBook's
-    # paths.bin, pointing every m3 process at a test checkout.
+    # stale M3_PATH_BIN in an agent config can be imported into paths.bin,
+    # pointing every m3 process at a test checkout.
     from m3_memory import _roots
 
     conf = _roots.config_root()
@@ -382,7 +382,7 @@ def _memory_entry_needs_repoint(entry: object) -> bool:
     # m3 reads one variable, M3_CONFIG_ROOT, and only a non-default one belongs
     # in an entry (user decision 2026-10-17). A root pin that names what m3
     # resolves anyway is a redundant copy that can only drift (one was imported
-    # into a MacBook's paths.bin), so the entry is rewritten to the canonical
+    # into paths.bin), so the entry is rewritten to the canonical
     # one. A pin naming a DIFFERENT place is kept: it still works this release,
     # dropping it would move that agent to another root, and doctor's M3_*
     # section tells the user to put it in m3_config.toml instead.

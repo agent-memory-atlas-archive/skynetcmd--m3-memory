@@ -124,8 +124,8 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
 
 # Chat rows: every row of the chatlog's own types, live ones counted apart. The
 # total includes soft-deleted (decayed) rows, which is what `m3 chatlog status`
-# counts; the stores panel counts live rows. A MacBook doctor showed both as bare
-# "rows" (139,941 vs 72,152) and they read as a contradiction (2026-10-17). The
+# counts; the stores panel counts live rows. Both were shown as bare "rows" and
+# read as a contradiction (2026-10-17). The
 # newest row may have arrived by sync from another machine, so it is not the
 # last capture on this one; that comes from the chatlog state file.
 _CHAT_STATS_SELECT = (
@@ -139,17 +139,16 @@ def _chat_stats_row(out: dict, row) -> None:
 
 
 def _last_local_capture() -> str:
-    """When this machine last flushed a captured turn (chatlog state file's
-    ``last_write_at``), or "" when unknown. The same field `m3 chatlog status`
-    reports."""
+    """When this machine last flushed a captured turn: the chatlog state file's
+    ``last_write_at``, read by its one owner (chatlog_config.read_state, which
+    warns on a corrupt file) — the same field `m3 chatlog status` reports. ""
+    when none is recorded; the reason when the payload cannot be loaded."""
     try:
         _bin.ensure_on_path()
-        from chatlog_config import STATE_FILE
-
-        with open(STATE_FILE, encoding="utf-8") as f:
-            return str(json.load(f).get("last_write_at") or "")
-    except Exception:  # noqa: BLE001 — informational; absent before the first capture
-        return ""
+        from chatlog_config import read_state
+    except ImportError as e:
+        return f"(not readable: {e})"
+    return str(read_state().get("last_write_at") or "")
 
 
 def _print_chat_stats(stats: dict) -> None:
@@ -1052,7 +1051,7 @@ def _secrets_in_env_section(brief: bool = False) -> None:
         # A startup-file line that looks the value up (Keychain, a password
         # manager) stores nothing on disk: the exposure is that every process
         # started from that shell inherits it. Calling it a "plaintext copy"
-        # was wrong (MacBook, 2026-10-17).
+        # was wrong (2026-10-17).
         literal = sorted({f"{f.place} ({f.name})" for f in ours[name] if not f.computed})
         looked_up = sorted({f"{f.place} ({f.name})" for f in ours[name] if f.computed})
         if literal:

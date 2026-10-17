@@ -90,7 +90,7 @@ def test_foreign_interpreter_is_caught(probe, wire, tmp_path):
 def test_an_unpinned_posix_hook_is_not_a_finding(probe, wire, tmp_path, monkeypatch):
     """m3 reads one variable, M3_CONFIG_ROOT, and takes every root from
     m3_config.toml (user decision 2026-10-17), so a hook without root pins is
-    correct. Requiring them reported "CAPTURE MAY BE DEAD" on a MacBook whose
+    correct. Requiring them reported "CAPTURE MAY BE DEAD" on an install whose
     capture worked, and `--fix-hooks` put the pins back."""
     simulate_os(monkeypatch, "Linux")
     py = _make(tmp_path, "venv/Scripts/python.exe")
@@ -252,7 +252,7 @@ def _dist(tmp_path, venv: str, version: str) -> None:
 def test_another_venv_running_the_same_release_is_not_foreign(probe, wire, tmp_path):
     """In a Claude session the running payload is the plugin's copy, while the
     hooks rightly use the pipx install the `m3` CLI runs from: a different tree,
-    the same release. That was reported as foreign (MacBook, 2026-10-17)."""
+    the same release. That was reported as foreign (2026-10-17)."""
     from m3_memory import __version__
 
     pipx = _make(tmp_path, "pipx/venvs/m3-memory/Scripts/python.exe")

@@ -106,7 +106,7 @@ def offer(ask, say) -> None:
         return
     if not at_the_mac():
         # Over SSH the fingerprint cannot be read, so do not ask, but say so: a
-        # MacBook upgraded only over SSH never heard of the offer (2026-10-17).
+        # Mac installed and upgraded only over SSH never sees the offer (2026-10-17).
         say("  Touch ID for sudo is available on this Mac; to turn it on, run `m3 touchid enable` at the Mac.")
         return
     if not ask(

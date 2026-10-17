@@ -31,13 +31,6 @@ the policy is forward-going only.
   CUDA wheel · **Action:** none; `m3 upgrade` installs it. If you set
   `M3_EMBED_*` for the in-process embedder, `m3 config import-env` moves them ·
   **Data status:** none.
-- **MCP tools describe themselves to agents.** `tools/list` now carries every
-  parameter's description and each tool's annotations (`readOnlyHint`,
-  `destructiveHint`); clients previously received bare types. The parameters
-  of the files tools and of `memory_search_routed` / `memory_search_multi_db`
-  gained descriptions, and the meta-tools say when to use each.
-  `bin/tool_quality_check.py` checks the catalog and the listed schemas.
-  **Affected:** all MCP clients · **Action:** none · **Data status:** none.
 - **Smaller default startup tool set.** Six tools register at startup
   (`memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
   `chatlog_search`, `m3_call`; about 3,200 tokens, was 10 and about 4,000).
@@ -55,7 +48,19 @@ the policy is forward-going only.
   **Affected:** installs with `M3_*` variables in shell profiles or agent
   configs · **Action:** move each listed variable into the config file as
   doctor shows, then remove it · **Data status:** none.
-- **m3 install/upgrade UX & correctness**
+- **MCP tools and m3 doctor: clearer and correct**
+  - MCP tools describe themselves to agents: `tools/list` carries every
+    parameter's description and each tool's `readOnlyHint` / `destructiveHint`
+    (clients received bare types before), and tool descriptions say what each
+    returns and when to use it instead of its neighbours.
+    `bin/tool_quality_check.py` checks the catalog and the listed schemas.
+  - `m3 doctor` checks other agents' capture when Claude Code is absent
+    (without `~/.claude/settings.json` it stopped before them).
+  - Three `m3 doctor` false alarms are gone: a folder in the spill quarantine
+    counted as a quarantined file; a hook interpreter in another venv on the
+    same m3 release reported as foreign; and a Claude MCP report that read only
+    the user-level disable list. A folder with its own list (set with `/mcp`) is
+    now listed with the server that runs there.
   - `m3 doctor` and `m3 chatlog status` label their figures: live chat rows
     vs stored (including soft-deleted), the newest row (which may have arrived
     by sync) vs the last capture on this machine.
@@ -63,7 +68,8 @@ the policy is forward-going only.
     check for Claude Code, `null` for agents it cannot see.
   - Over SSH, setup on a Mac prints how to turn on Touch ID for sudo
     (`m3 touchid enable`, at the Mac) instead of saying nothing.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
+  **Affected:** all installs and MCP clients · **Action:** none ·
+  **Data status:** none.
 
 ### Fixed
 
@@ -80,20 +86,6 @@ the policy is forward-going only.
   (`m3 secret set M3_CDW_PG_URL --keyring --stdin`); steps in
   [Troubleshooting](docs/TROUBLESHOOTING.md#fips-mode-refuses-the-postgresql-connection) ·
   **Data status:** none; sync resumes from where it stopped.
-- **`m3 doctor` checks other agents' capture when Claude Code is absent.**
-  Without `~/.claude/settings.json` it stopped before checking the other
-  enabled agents, so a user on OpenClaw, Gemini or OpenCode alone was never
-  told when m3 could not capture one of them.
-  **Affected:** installs without Claude Code · **Action:** none ·
-  **Data status:** none.
-- **Three false alarms in `m3 doctor`.** A folder in the spill quarantine was
-  counted as a quarantined file; a hook interpreter in another venv on the
-  same m3 release was reported as foreign; and the Claude MCP check read only
-  the user-level disable list, so where a folder has its own (set with `/mcp`)
-  it reported the server Claude does not run. Each such folder is now listed
-  with the server that runs there.
-  **Affected:** macOS and other installs with a plugin and a CLI install ·
-  **Action:** none · **Data status:** none.
 
 ## [2026.10.17.2] — 2026-10-17 — doctor and upgrade correctness, announced admin prompts
 

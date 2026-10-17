@@ -164,7 +164,7 @@ def spill_inventory(now: float | None = None) -> dict:
         fp = os.path.join(qdir, fn)
         # Files only: an archive folder such as drained-YYYYMMDD/ holds turns
         # already put back, and counting it raised "1 quarantined spill file"
-        # on a MacBook whose quarantine was empty (2026-10-17).
+        # when the quarantine held no parked file (2026-10-17).
         if not os.path.isfile(fp):
             continue
         try:

@@ -60,7 +60,7 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
     report = {"moved": [], "kept": [], "failed": [], "skipped": None}
     new = Path(new_root or Path(os.path.expanduser("~")) / ".m3")
     # Skipped only when the pin names ANOTHER root (the user chose it). A pin to
-    # ~/.m3 itself is the target: skipping then left a MacBook unmigrated, so an
+    # ~/.m3 itself is the target: skipping then left the install unmigrated, so an
     # unpinned process fell back to ~/.m3-memory (2026-10-17). The source is then
     # the real legacy ~/.m3-memory; legacy_memory_root() would answer the pin, so
     # the migration would copy ~/.m3 onto itself.

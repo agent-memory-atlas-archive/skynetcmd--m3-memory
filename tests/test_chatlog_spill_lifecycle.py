@@ -463,8 +463,8 @@ def test_claim_skips_a_file_it_cannot_rename(tmp_path, monkeypatch, name):
 
 
 def test_an_archive_folder_in_quarantine_is_not_a_quarantined_file(tmp_path, monkeypatch):
-    """A MacBook's quarantine held only drained-20260912/ (turns already put back)
-    and status reported "1 quarantined spill file" (2026-10-17). Folders are not
+    """A quarantine holding only an archive folder (turns already put back)
+    was reported as "1 quarantined spill file" (2026-10-17). Folders are not
     counted; a real parked file still is."""
     import os
 

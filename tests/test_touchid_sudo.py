@@ -135,7 +135,7 @@ def test_install_script_asks_on_the_terminal_not_the_download_pipe():
 
 
 def test_over_ssh_the_offer_points_at_the_command_without_asking(mac, monkeypatch):
-    """A Mac upgraded only over SSH never heard of the offer (2026-10-17): say
+    """A Mac upgraded only over SSH never sees the offer (2026-10-17): say
     how to turn it on, ask nothing, and record no refusal."""
     marker = mac / "config" / touchid.DECLINED
     monkeypatch.setattr(touchid, "_declined_marker", lambda: str(marker))

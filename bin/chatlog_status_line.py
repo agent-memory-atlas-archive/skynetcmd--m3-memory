@@ -13,10 +13,9 @@ Respects env:
 
 from __future__ import annotations
 
-import json
 import os
 import sys
-from typing import Any, cast
+from typing import Any
 
 from m3_core.config import settings as _m3cfg
 
@@ -28,14 +27,9 @@ except ImportError:
 
 
 def _load_state_file() -> dict[str, Any]:
-    state_path = chatlog_config.STATE_FILE
-    if not os.path.exists(state_path):
-        return {}
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            return cast("dict[str, Any]", json.load(f))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    # chatlog_config.read_state is the one reader: a copy here read a corrupt
+    # state file as {} without a word, so status showed "no writes" silently.
+    return chatlog_config.read_state()
 
 
 def _humanize_bytes(b: int) -> str:

@@ -163,7 +163,7 @@ def test_a_retry_after_a_failed_copy_merges_the_trail_once(home, monkeypatch):
 
 
 def test_a_pin_to_the_target_still_migrates_from_the_legacy_root(home, monkeypatch):
-    """A MacBook had M3_MEMORY_ROOT=~/.m3: the migration skipped itself, so the
+    """With M3_MEMORY_ROOT=~/.m3 the migration skipped itself, so the
     marker was never written and an unpinned process fell back to ~/.m3-memory
     (2026-10-17). A pin naming ~/.m3 is the target: migrate, from ~/.m3-memory."""
     monkeypatch.setenv("M3_MEMORY_ROOT", str(home / ".m3"))

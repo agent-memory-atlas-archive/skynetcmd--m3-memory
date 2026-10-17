@@ -134,7 +134,7 @@ def _project_overrides(direct_present: bool, plugin: dict) -> list:
     A folder's NON-EMPTY ~/.claude.json projects[dir].disabledMcpServers (written
     by `/mcp` in a session started there) REPLACES the user-level settings.json
     list for sessions started in that folder; an empty list leaves the user-level
-    one in force. Measured, not documented, on a MacBook (2026-10-17), with
+    one in force. Measured, not documented (2026-10-17), with
     settings.json disabling plugin:m3:memory: the home folder (own list
     ["m3_memory"]) showed the plugin server Connected and m3_memory "Disabled for
     this project"; a folder with an empty list, and one with no entry, each showed

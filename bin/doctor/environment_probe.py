@@ -197,7 +197,7 @@ def _same_m3_release(interpreter: str) -> bool:
     Another venv with the same version is the same code: in a Claude session the
     running payload is the plugin's copy, while hooks rightly use the install the
     `m3` CLI and services run from, and judging by tree alone flagged that as
-    foreign (MacBook, 2026-10-17)."""
+    foreign (2026-10-17)."""
     try:
         from m3_memory import __version__ as running
     except ImportError:
