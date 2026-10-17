@@ -665,3 +665,20 @@ def test_the_hooks_do_not_derive_their_own_opencode_path():
         py = fh.read()
     assert 'transcript = "auto"' in py, "opencode_session_end.py no longer defers store discovery to chatlog_ingest"
     assert ".local/share" not in py
+
+
+def test_an_unsupported_agent_is_reported_without_any_claude_settings(monkeypatch):
+    """A user on another host has no ~/.claude/settings.json; check() returned
+    before the other agents were looked at, so that user never got the finding
+    (a CI runner, which has no Claude Code, showed it 2026-10-17)."""
+    from doctor import environment_probe as ep
+
+    monkeypatch.setattr(ep, "_load_settings", lambda: None)
+
+    class _Cfg:
+        host_agents = {"some-unwired-agent": chatlog_config.HookSpec(enabled=True)}
+
+    monkeypatch.setattr(chatlog_config, "resolve_config", lambda *a, **k: _Cfg())
+    res = ep.check()
+    assert res["status"] == "issues"
+    assert any(f["kind"] == "claimed_not_supported" and f["event"] == "some-unwired-agent" for f in res["findings"])

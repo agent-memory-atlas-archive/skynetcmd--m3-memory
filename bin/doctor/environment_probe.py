@@ -221,10 +221,10 @@ def check() -> dict:
       'issues'   — at least one finding
     """
     settings = _load_settings()
-    if settings is None:
-        return {"status": "unknown", "findings": [], "hooks_seen": 0}
-
-    entries = _m3_hook_entries(settings)
+    # No ~/.claude/settings.json is normal for a user on another host, and the
+    # check of the OTHER enabled agents below must still run: returning here
+    # left exactly those users without the finding (CI, 2026-10-17).
+    entries = _m3_hook_entries(settings) if settings is not None else []
     payload_root = _payload_root()
     findings: list[dict] = []
 
@@ -313,7 +313,7 @@ def check() -> dict:
 
         cfg = chatlog_config.resolve_config()
         claimed = {n for n, s in cfg.host_agents.items() if s.enabled}
-        if "claude-code" in claimed and not entries:
+        if "claude-code" in claimed and not entries and settings is not None:
             findings.append(
                 {
                     "kind": "claimed_not_wired",
@@ -353,8 +353,10 @@ def check() -> dict:
 
     if findings:
         status = "issues"
-    elif config_error:
-        # Which agents SHOULD be wired is unknown, so "OK" would be unverified.
+    elif settings is None or config_error:
+        # settings.json absent: Claude Code's wiring was not verified. Config
+        # unreadable: which agents SHOULD be wired is unknown. "OK" would be
+        # unverified either way.
         status = "unknown"
     else:
         status = "ok"

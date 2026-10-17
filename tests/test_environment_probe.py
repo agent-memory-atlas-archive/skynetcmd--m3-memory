@@ -144,9 +144,25 @@ def test_absent_settings_reports_unknown_not_ok(probe, monkeypatch, capsys):
     """Nothing was verified. Reporting OK here is the exact lie this probe exists
     to catch."""
     monkeypatch.setattr(probe, "_load_settings", lambda: None)
+    # Claude Code installed: the machine's own answer must not pick the branch
+    # (a CI runner has no Claude Code and took the "not installed" one).
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda name, *a, **k: "/usr/bin/claude" if name == "claude" else None)
     assert probe.check()["status"] == "unknown"
     assert probe.run(brief=True) == 0
     assert "SKIPPED" in capsys.readouterr().out
+
+
+def test_no_claude_code_at_all_is_nothing_to_check(probe, monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(probe, "_load_settings", lambda: None)
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda name, *a, **k: None)
+    monkeypatch.setattr(probe, "_claude_settings_path", lambda: str(tmp_path / "absent" / "settings.json"))
+    assert probe.run(brief=True) == 0
+    out = capsys.readouterr().out
+    assert "not installed here" in out and "SKIPPED" not in out
 
 
 def test_user_hooks_are_not_claimed(probe, wire, tmp_path):

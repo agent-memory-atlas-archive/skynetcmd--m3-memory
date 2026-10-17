@@ -353,7 +353,7 @@ jobs:
         python -c "import importlib.metadata as m; print('mcp', m.version('mcp'), '| crewai', m.version('crewai'), '| pydantic-ai-slim', m.version('pydantic-ai-slim'))"
     - name: Run the integration tests (must not skip)
       run: |
-        pytest tests/test_pydantic_ai_conformance.py tests/test_crewai_conformance.py tests/test_crewai_live.py -rs -q -p no:cacheprovider > extras.log 2>&1; rc=$?
+        pytest tests/test_pydantic_ai_conformance.py tests/test_crewai_conformance.py tests/test_crewai_live.py -rfEs -q -p no:cacheprovider > extras.log 2>&1; rc=$?
         cat extras.log
         if grep -q "^SKIPPED" extras.log; then echo "::error::an integration test skipped in the lane that installs its extra"; exit 1; fi
         exit $rc
@@ -475,7 +475,7 @@ jobs:
       # ambiguity this lane exists to remove.
       run: |
         set -o pipefail
-        pytest tests/ -m "not integration" -p no:cacheprovider -q -rs --m3-pg-url "$CI_PG_DSN" | tee pg-full.log
+        pytest tests/ -m "not integration" -p no:cacheprovider -q -rfEs --m3-pg-url "$CI_PG_DSN" | tee pg-full.log
         n=$(grep -c 'no reachable PostgreSQL' pg-full.log || true)
         echo "observed: $n tests skipped for an unreachable cluster"
         if [ "$n" -ne 0 ]; then

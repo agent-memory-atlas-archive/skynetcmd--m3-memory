@@ -19,6 +19,15 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`m3 doctor` checks other agents' capture when Claude Code is absent.**
+  Without `~/.claude/settings.json` it stopped before checking the other
+  enabled agents, so a user on OpenClaw, Gemini or OpenCode alone was never
+  told when m3 could not capture one of them.
+  **Affected:** installs without Claude Code · **Action:** none ·
+  **Data status:** none.
+
 ## [2026.10.17.2] — 2026-10-17 — doctor and upgrade correctness, announced admin prompts
 
 ### Changed
