@@ -19,6 +19,54 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Changed
+
+- **Every administrator prompt says what it is for, and how it ended.** Before
+  the Windows UAC dialog m3 prints "You will be asked to authorize actions
+  requiring elevated privileges:", the steps, and the time it asked (local
+  time and UTC); the dialog's "Show more details" lists the same steps.
+  Afterwards it prints `permission approved`, `disapproved` or `timed out`
+  with the time it ended, and records the same line in `elevation.log` in the
+  logs folder.
+  **Affected:** Windows · **Action:** none · **Data status:** none.
+
+### Fixed
+
+- **The native core installs when the GitHub API refuses.** On shared networks
+  the API refused the wheel lookup and m3 fell back to pure Python. The
+  installer now reads the release's checksum file and downloads the wheel
+  directly, asking the API only for releases that publish no checksums.
+  **Affected:** installs and upgrades behind shared addresses (CI runners,
+  offices) · **Action:** none · **Data status:** none.
+
+- **The embed server that `m3 doctor --fix` starts writes a log.** It wrote
+  none, so when it stopped nothing said why. It now logs to
+  `embed_server_inproc.log` in the logs folder, as the boot task's server does.
+  **Affected:** installs where `doctor --fix` started the embed server ·
+  **Action:** none · **Data status:** none.
+
+- **The FIPS backend error no longer claims a "compliance mode".** It now says
+  FIPS mode is on and the wolfSSL backend it requires failed to start.
+  **Affected:** FIPS-mode installs · **Action:** none · **Data status:** none.
+
+- **`m3 doctor --fix` runs every check `m3 doctor` runs.** It repaired and
+  then stopped, so problems only the report finds (such as an embed service
+  registered without `--config`) never showed under `--fix`. It now repairs,
+  then runs the full report, and exits nonzero when the report does.
+  **Affected:** everyone who runs `m3 doctor --fix` or `m3 upgrade` ·
+  **Action:** none · **Data status:** none.
+
+- **The embed service is re-registered when it lacks `--config`, and a restart
+  is checked.** On Windows a service registered by an older m3 starts the new
+  core without `--config`, cannot find `m3_config.toml`, and exits; `doctor
+  --fix` then said it had restarted it. It now re-registers the service under
+  the same administrator prompt, and reports a restart only when the service
+  answers on its port.
+  **Affected:** Windows installs upgraded from before 2026.10.17.0 ·
+  **Action:** run `m3 doctor --fix` at a console and approve the prompt ·
+  **Data status:** items saved while the service was down may lack
+  vectors; `m3 embedder backfill` adds them.
+
 ## [2026.10.17.1] — 2026-10-17 — dependency floor and clearer FIPS error
 
 ### Changed
