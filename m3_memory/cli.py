@@ -2580,6 +2580,12 @@ Examples:
     p_cfg_import.add_argument(
         "--non-interactive", action="store_true", help="Never ask; list each disagreement and import nothing for it."
     )
+    p_cfg_import.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="Import a paths.bin that points into a source checkout (refused otherwise).",
+    )
     for p_cfg in (p_cfg_show, p_cfg_get, p_cfg_set, p_cfg_unset, p_cfg_import):
         p_cfg.add_argument("--config", metavar="FILE", help="Use this file instead of the located one.")
     p_config.set_defaults(func=_cmd_config)

@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: 4164a9b39418
-mtime_utc: 2026-10-17T04:54:20.195697+00:00
-generated_utc: 2026-10-17T04:54:46.951033+00:00
+sha1: 6257e4461657
+mtime_utc: 2026-10-17T12:41:34.676169+00:00
+generated_utc: 2026-10-17T12:41:35.096327+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ private: false
     m3 config get KEY [--origin] [--config FILE]
     m3 config set KEY VALUE [--yes] [--config FILE]
     m3 config unset KEY [--yes] [--config FILE]
-    m3 config import-env [--dry-run] [--non-interactive] [--config FILE]
+    m3 config import-env [--dry-run] [--non-interactive] [--yes] [--config FILE]
 
 `set` takes a value as the environment would spell it (a list comma-separated)
 and writes it in its TOML type under the file's lock. Secrets
@@ -54,6 +54,7 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 | `key` |  | — |  | str |  |
 | `--dry-run` | say what would be imported; write nothing | `False` |  | store_true |  |
 | `--non-interactive` | never ask; list each disagreement | `False` |  | store_true |  |
+| `--yes`, `-y` | import a paths.bin inside a source checkout (refused otherwise) | `False` |  | store_true |  |
 | `--yes`, `-y` | skip the confirmation for a sensitive key | `False` |  | store_true |  |
 
 ---

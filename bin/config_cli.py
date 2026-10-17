@@ -5,7 +5,7 @@
     m3 config get KEY [--origin] [--config FILE]
     m3 config set KEY VALUE [--yes] [--config FILE]
     m3 config unset KEY [--yes] [--config FILE]
-    m3 config import-env [--dry-run] [--non-interactive] [--config FILE]
+    m3 config import-env [--dry-run] [--non-interactive] [--yes] [--config FILE]
 
 `set` takes a value as the environment would spell it (a list comma-separated)
 and writes it in its TOML type under the file's lock. Secrets
@@ -264,6 +264,9 @@ def main(argv: list[str] | None = None) -> int:
     im = sub.add_parser("import-env", help="move settings from env, rc files, .env and MCP env blocks into the file")
     im.add_argument("--dry-run", action="store_true", help="say what would be imported; write nothing")
     im.add_argument("--non-interactive", action="store_true", help="never ask; list each disagreement")
+    im.add_argument(
+        "--yes", "-y", action="store_true", help="import a paths.bin inside a source checkout (refused otherwise)"
+    )
     # The one --config owner: it also PINS the file for the process, so the
     # secrets file and every root follow it, not only this command's own reads.
     for q in (p, g, s_, u, im):
@@ -278,7 +281,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "import-env":
             from m3_memory.install import import_env  # the sweep lives with the installer
 
-            return import_env.run(args.config_file, dry_run=args.dry_run, non_interactive=args.non_interactive)
+            return import_env.run(
+                args.config_file, dry_run=args.dry_run, non_interactive=args.non_interactive, allow_checkout=args.yes
+            )
         settings = with_flags(build(locate(args.config_file)))
     except _Refused as e:
         print(e, file=sys.stderr)

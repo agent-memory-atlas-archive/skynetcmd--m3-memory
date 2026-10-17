@@ -895,7 +895,7 @@ def _inside(path: str, root: str) -> bool:
         return False
 
 
-def _git_tree_of(path: str) -> str | None:
+def git_tree_of(path: str) -> str | None:
     """The git working tree ``path`` sits in, or None."""
     d = os.path.dirname(os.path.realpath(path))
     while True:
@@ -927,7 +927,7 @@ def _secrets_file_exposure_section(brief: bool = False) -> None:
     if not os.path.isfile(path):
         return
     problems = []
-    tree = _git_tree_of(path)
+    tree = git_tree_of(path)
     if tree:
         problems.append(f"it is inside the git working tree {tree}: a commit would publish it")
     problems += [

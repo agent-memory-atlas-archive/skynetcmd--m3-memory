@@ -404,3 +404,39 @@ def test_dry_run_says_it_would_create_the_file(world, capsys):
     assert _run(world, "--dry-run") == 0
     assert not world["cfg"].exists()
     assert "would create" in capsys.readouterr().out
+
+
+# ── a paths.bin inside a source checkout ─────────────────────────────────────
+# An agent registration on a MacBook carried M3_PATH_BIN = the test lane's
+# checkout; imported, it pointed every m3 process at that tree (2026-10-17).
+
+
+def _checkout_bin(world):
+    tree = world["home"].parent / "checkout"
+    (tree / ".git").mkdir(parents=True)
+    (tree / "bin").mkdir()
+    return tree / "bin"
+
+
+def test_a_paths_bin_inside_a_checkout_is_not_imported(world, capsys):
+    bin_dir = _checkout_bin(world)
+    _rc(world, f"export M3_PATH_BIN={bin_dir.as_posix()}\n")
+    assert _run(world) == 0
+    assert "bin" not in _file(world).get("paths", {})
+    out = capsys.readouterr().out
+    assert "is inside the source checkout" in out and "not imported" in out and "--yes" in out
+
+
+def test_yes_imports_it(world, capsys):
+    bin_dir = _checkout_bin(world)
+    _rc(world, f"export M3_PATH_BIN={bin_dir.as_posix()}\n")
+    assert _run(world, "--yes") == 0
+    assert Path(_file(world)["paths"]["bin"]) == bin_dir
+
+
+def test_a_paths_bin_outside_any_checkout_is_imported(world):
+    bin_dir = world["home"].parent / "payload" / "bin"
+    bin_dir.mkdir(parents=True)
+    _rc(world, f"export M3_PATH_BIN={bin_dir.as_posix()}\n")
+    assert _run(world) == 0
+    assert Path(_file(world)["paths"]["bin"]) == bin_dir

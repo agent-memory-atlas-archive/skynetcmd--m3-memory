@@ -121,8 +121,17 @@ def _resolves_from_file(settings: Settings, key: Key, value: ConfigValue) -> boo
     return r.origin.startswith("file:") and bool(r.value == value)
 
 
+def _checkout_holding(name: str, value: ConfigValue) -> str | None:
+    """The git working tree a `paths.bin` value points into, or None."""
+    if name != "paths.bin" or not value:
+        return None
+    from m3_memory.install.sections import git_tree_of
+
+    return git_tree_of(os.path.join(str(value), "x"))  # the tree holding the directory itself
+
+
 def _plan(
-    loc: Location, current: Settings, *, interactive: bool, verb: str
+    loc: Location, current: Settings, *, interactive: bool, verb: str, allow_checkout: bool = False
 ) -> tuple[dict[Key, ConfigValue], list[str], list[EnvFound]]:
     names = sorted(n for k in REGISTRY if k.klass in (KeyClass.CONFIG, KeyClass.SECRET) for n in k.env_names)
     found = scan(names)
@@ -156,6 +165,17 @@ def _plan(
             lines += [f"        {s}  from {_where(c.values[s])}" for s in sorted(c.values)]
             lines.append(f"      settle it with `m3 config set {name} VALUE`")
             continue
+        checkout = _checkout_holding(name, c.parsed[shown])
+        if checkout and not allow_checkout:
+            # A source checkout's bin/ in an agent's registration is a dev or test
+            # run's leftover, not where this install's payload lives; imported, it
+            # sends every m3 process to that tree (a MacBook, 2026-10-17).
+            lines.append(
+                f"  [!] {name} = {shown} (from {_where(c.values[shown])}) is inside the source checkout "
+                f"{checkout}; not imported. If m3 should run from there: `m3 config set {name} VALUE`, "
+                "or rerun with --yes"
+            )
+            continue
         chosen[c.key] = c.parsed[shown]
         lines.append(f"  [+] {verb} {name} = {shown}  (from {_where(c.values[shown])})")
         if all(f.kind == "rc" for f in c.values[shown]):
@@ -183,11 +203,11 @@ def _rename_llm_file(loc: Location, after: Settings) -> str | None:
     return f"  [+] renamed {path} to {done.name}; its values are in {loc.file}"
 
 
-def run(config: str | None, *, dry_run: bool, non_interactive: bool = False) -> int:
+def run(config: str | None, *, dry_run: bool, non_interactive: bool = False, allow_checkout: bool = False) -> int:
     """Import the legacy settings, then move the retired m3-embed-server
     config.toml into the same files (after the import, so it sees the result).
     2 when either step was refused or could not write."""
-    rc = _import_settings(config, dry_run=dry_run, non_interactive=non_interactive)
+    rc = _import_settings(config, dry_run=dry_run, non_interactive=non_interactive, allow_checkout=allow_checkout)
     from m3_memory.install.embed_server_legacy import migrate
 
     report = migrate(config=config, dry_run=dry_run)
@@ -199,7 +219,7 @@ def run(config: str | None, *, dry_run: bool, non_interactive: bool = False) -> 
     return rc or (0 if report.ok else 2)
 
 
-def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool) -> int:
+def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool, allow_checkout: bool = False) -> int:
     from m3_core.atomic_io import GuardedRewrite, atomic_write
     from m3_core.config.writer import ConfigWriteError, create_from_default, set_values
 
@@ -224,7 +244,11 @@ def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool
         return 2
     verb = "would import" if dry_run else "imported"
     chosen, lines, secrets = _plan(
-        loc, current, interactive=console_has_person() and not (dry_run or non_interactive), verb=verb
+        loc,
+        current,
+        interactive=console_has_person() and not (dry_run or non_interactive),
+        verb=verb,
+        allow_checkout=allow_checkout,
     )
     print(f"m3 config import-env: {loc.file}")
     for line in lines:
@@ -298,11 +322,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--non-interactive", action="store_true", help="never ask: list each disagreement and import nothing for it"
     )
+    ap.add_argument(
+        "--yes", action="store_true", help="import a paths.bin that points into a source checkout (refused otherwise)"
+    )
     from m3_core.paths import add_config_arg
 
     add_config_arg(ap)  # the one --config owner: pins it, so the secrets file follows it
     args = ap.parse_args(argv)
-    return run(args.config_file, dry_run=args.dry_run, non_interactive=args.non_interactive)
+    return run(args.config_file, dry_run=args.dry_run, non_interactive=args.non_interactive, allow_checkout=args.yes)
 
 
 if __name__ == "__main__":
