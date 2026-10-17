@@ -133,19 +133,22 @@ def test_data_status_is_never_left_blank():
 PRE_CONVENTION_SECTION = "## [2026.8.30.1]"
 
 
+PRE_CONVENTION_ARCHIVE = REPO / "docs" / "changelog" / "2026-Q3.md"
+
+
 def test_history_below_the_marker_is_not_required_to_comply():
     """Pins the scoping decision itself. Pre-September sections have no headers
     and that must stay a PASSING state, or the next person 'fixes' the gap by
-    inventing claims about entries nobody re-verified."""
-    text = _text()
-    below = text[text.find(MARKER) :]
-    assert PRE_CONVENTION_SECTION in below, (
-        f"{PRE_CONVENTION_SECTION} is expected to sit BELOW the marker as "
-        "pre-convention history; if the marker moved past it, those entries "
-        "now need real verified headers rather than invented ones"
+    inventing claims about entries nobody re-verified. They now live in the
+    docs/changelog/ quarter archives, outside the marker's scope entirely."""
+    assert PRE_CONVENTION_SECTION not in _above_marker(_text()), (
+        f"{PRE_CONVENTION_SECTION} is pre-convention history and must not sit above "
+        "the marker; there it would need real verified headers rather than invented ones"
     )
+    archive = PRE_CONVENTION_ARCHIVE.read_text(encoding="utf-8")
+    assert PRE_CONVENTION_SECTION in archive, f"{PRE_CONVENTION_SECTION} expected in {PRE_CONVENTION_ARCHIVE.name}"
     # It genuinely has none — that is the point.
-    section = below.split(PRE_CONVENTION_SECTION, 1)[1].split("\n## [", 1)[0]
+    section = archive.split(PRE_CONVENTION_SECTION, 1)[1].split("\n## [", 1)[0]
     assert "**Affected:**" not in section
 
 

@@ -51,9 +51,11 @@ def _anchors(text: str) -> set[str]:
 _SYNTAX_EXAMPLES = {"page.md", "page.md#section", "path/to/file.md", "other-page.md"}
 
 # CHANGELOG is history: an entry may correctly reference a path that has since
-# been removed (docs/audits/ was deleted after its entry was written). Rewriting
-# it would falsify the record, so only its ANCHORS are checked, not file paths.
+# been removed or renamed. Rewriting it would falsify the record, so only its
+# ANCHORS are checked, not file paths. Older quarters live in docs/changelog/
+# (moved there whole) and are history too.
 _HISTORY_ONLY = {"CHANGELOG.md"}
+_HISTORY_DIR = REPO / "docs" / "changelog"
 
 
 def _doc_files() -> list[Path]:
@@ -91,7 +93,7 @@ def test_internal_doc_links_resolve() -> None:
             target = (path.parent / target_path).resolve()
 
             if not target.exists():
-                if path.name not in _HISTORY_ONLY:
+                if path.name not in _HISTORY_ONLY and path.parent != _HISTORY_DIR:
                     problems.append(f"{rel}: missing file {href}")
                 continue
             if frag and target.suffix == ".md":
