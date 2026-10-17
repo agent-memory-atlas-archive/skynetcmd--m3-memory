@@ -287,30 +287,18 @@ def _canonical_memory_env() -> dict:
     Single source of truth shared by install-time registration and
     ``doctor --fix`` self-heal, so the two never drift apart again.
     """
-    state_root = str(_m3_state_root()).replace("\\", "/")
-    # The roots come from their one owner, so the bridge and this env block cannot
-    # disagree on which roots are authoritative. (A config-file override once
-    # beat an explicit env var here; later it sat below the owner, which always
-    # answers, so it could never be reached and is gone.)
+    # m3 reads ONE variable, M3_CONFIG_ROOT, and only a non-default one needs
+    # writing (user decision 2026-10-17); the roots, the payload's bin/ and every
+    # setting come from m3_config.toml. The block once carried M3_MEMORY_ROOT,
+    # M3_ENGINE_ROOT and M3_PATH_BIN too: copies that could only drift, and a
+    # stale M3_PATH_BIN in an agent config was later imported into a MacBook's
+    # paths.bin, pointing every m3 process at a test checkout.
     from m3_memory import _roots
 
-    eng = _roots.engine_root()
     conf = _roots.config_root()
-    env = {
-        "M3_MEMORY_ROOT": state_root,
-        "M3_ENGINE_ROOT": str(eng).replace("\\", "/"),
-        "M3_CONFIG_ROOT": str(conf).replace("\\", "/"),
-    }
-    # Pin the payload bin/ DIRECTORY via M3_PATH_BIN (replaces the removed
-    # M3_BRIDGE_PATH file-var). Only written when the resolved bin/ is NOT the
-    # packaged default — a packaged install needs no pin (the server resolves
-    # bin/ from its own package location), so we keep the env block clean in the
-    # common case and only pin a non-standard (dev / staged) location.
-    _bd = bin_dir()
-    if _bd is not None:
-        _packaged_default = Path(__file__).resolve().parent / "bin"
-        if _bd.resolve() != _packaged_default.resolve():
-            env["M3_PATH_BIN"] = str(_bd).replace("\\", "/")
+    env: dict[str, str] = {}
+    if not _roots.same_dir(conf, _roots.default_config_root()):
+        env["M3_CONFIG_ROOT"] = str(conf).replace("\\", "/")
     # Deliberately NO M3_EMBED_GGUF in the MCP server env. An env var forces the
     # bridge to load its OWN in-process CUDA embedder (a second context; the exact
     # hang that motivated this). Discover the GGUF and seed it into the SHARED
@@ -389,7 +377,42 @@ def _memory_entry_needs_repoint(entry: object) -> bool:
 
     # The old memory root survives its migration (repo/ stays), so an entry still
     # naming it passed the existence check while its state went to the old place.
-    return moved_away(env.get(_roots.MEMORY_ROOT_ENV))
+    if moved_away(env.get(_roots.MEMORY_ROOT_ENV)):
+        return True
+    # m3 reads one variable, M3_CONFIG_ROOT, and only a non-default one belongs
+    # in an entry (user decision 2026-10-17). A root pin that names what m3
+    # resolves anyway is a redundant copy that can only drift (one was imported
+    # into a MacBook's paths.bin), so the entry is rewritten to the canonical
+    # one. A pin naming a DIFFERENT place is kept: it still works this release,
+    # dropping it would move that agent to another root, and doctor's M3_*
+    # section tells the user to put it in m3_config.toml instead.
+    return any(_redundant_root_pin(k, v) for k, v in env.items())
+
+
+def _redundant_root_pin(name: str, value: object) -> bool:
+    """Whether an agent entry's M3_* root pin names what m3 resolves without it."""
+    from m3_memory import _roots
+
+    if not isinstance(value, str) or not value.strip():
+        return False
+    if name == _roots.CONFIG_ROOT_ENV_NAME:
+        resolved = _roots.default_config_root()
+    elif name == "M3_PATH_BIN":
+        b = bin_dir()
+        if b is None:
+            return False
+        resolved = str(b)
+    else:
+        owner = {
+            _roots.MEMORY_ROOT_ENV: _roots.memory_root,
+            "M3_ENGINE_ROOT": _roots.engine_root,
+            "M3_LOGS_ROOT": _roots.logs_root,
+            "M3_MODELS_ROOT": _roots.models_root,
+        }.get(name)
+        if owner is None:
+            return False
+        resolved = owner()
+    return _roots.same_dir(os.path.expanduser(value), resolved)
 
 
 def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_absent: bool = False) -> str | None:

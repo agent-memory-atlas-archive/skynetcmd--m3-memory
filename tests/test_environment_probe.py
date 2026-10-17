@@ -87,21 +87,18 @@ def test_foreign_interpreter_is_caught(probe, wire, tmp_path):
     assert any(f["kind"] == "foreign_interpreter" for f in res["findings"]), res["findings"]
 
 
-def test_missing_root_pins_are_caught(probe, wire, tmp_path, monkeypatch):
-    """CLAUDE.md split-brain: hooks reload live, server env only on restart.
-
-    POSIX only — the inline `VAR=val` prefix is POSIX shell syntax. See
-    test_posix_prefix_on_windows_is_the_finding for the inverted Windows rule.
-    """
+def test_an_unpinned_posix_hook_is_not_a_finding(probe, wire, tmp_path, monkeypatch):
+    """m3 reads one variable, M3_CONFIG_ROOT, and takes every root from
+    m3_config.toml (user decision 2026-10-17), so a hook without root pins is
+    correct. Requiring them reported "CAPTURE MAY BE DEAD" on a MacBook whose
+    capture worked, and `--fix-hooks` put the pins back."""
     simulate_os(monkeypatch, "Linux")
     py = _make(tmp_path, "venv/Scripts/python.exe")
     sc = _make(tmp_path, "venv/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
-    wire({"PreCompact": f"{py} {sc}"})  # no set M3_ENGINE_ROOT/M3_CONFIG_ROOT
+    wire({"PreCompact": f"{py} {sc}"})
 
     res = probe.check()
-    hits = [f for f in res["findings"] if f["kind"] == "unpinned_roots"]
-    assert hits, res["findings"]
-    assert "M3_ENGINE_ROOT" in hits[0]["detail"]
+    assert not [f for f in res["findings"] if f["kind"] == "unpinned_roots"], res["findings"]
 
 
 def test_unpinned_roots_is_not_a_finding_on_windows(probe, wire, tmp_path, monkeypatch):

@@ -95,10 +95,6 @@ def _capture_support_gap(agent: str) -> str | None:
     return " and ".join(reasons) if reasons else None
 
 
-# Roots that must be pinned inline in the hook command (CLAUDE.md split-brain).
-REQUIRED_ROOT_PINS = ("M3_ENGINE_ROOT", "M3_CONFIG_ROOT")
-
-
 def _claude_settings_path() -> str:
     return os.path.join(os.path.expanduser("~"), ".claude", "settings.json")
 
@@ -262,31 +258,14 @@ def check() -> dict:
                     }
                 )
 
-        # The inline `VAR=val cmd` pins are POSIX shell syntax. Claude Code runs
-        # hooks through cmd.exe on Windows, where that form is not just useless
-        # but FATAL: cmd tries to execute a program named `M3_ENGINE_ROOT=C:/…`
-        # and the hook dies before it starts. The writers therefore emit no
-        # prefix there (generate_configs._hook_env_prefix), and a Windows hook
-        # WITHOUT pins is correct. Flagging it as "CAPTURE MAY BE DEAD" sends the
-        # user to `--fix-hooks` to reinstate the thing that breaks capture — the
-        # precise inversion of this probe's job (§5: does it actually work).
-        # The roots still agree on Windows via .chatlog_config.json's db_path and
-        # the shared ~/.m3 defaults.
-        if event in CAPTURE_EVENTS and not is_windows():
-            missing = [v for v in REQUIRED_ROOT_PINS if v not in command]
-            if missing:
-                findings.append(
-                    {
-                        "kind": "unpinned_roots",
-                        "event": event,
-                        "detail": "missing inline "
-                        + ", ".join(missing)
-                        + " — hooks reload live but server env re-resolves "
-                        "only on restart, so turns can be written to a "
-                        "different engine root than the server reads",
-                    }
-                )
-        elif event in CAPTURE_EVENTS and is_windows():
+        # No root pins are required, on any OS: m3 reads one variable,
+        # M3_CONFIG_ROOT, and takes every root from m3_config.toml (user decision
+        # 2026-10-17). This probe once required inline M3_ENGINE_ROOT /
+        # M3_CONFIG_ROOT on POSIX hooks and reported their absence as "CAPTURE
+        # MAY BE DEAD" while capture worked, and `--fix-hooks` put the pins back.
+        # On Windows the inline form is not just unneeded but fatal: cmd.exe
+        # cannot run `VAR=val cmd`, which the branch below catches.
+        if event in CAPTURE_EVENTS and is_windows():
             # Windows: the FATAL shape is the opposite — a POSIX prefix present.
             # A command whose first token carries an `=` is one cmd.exe cannot
             # run, so capture really is dead. This is the check that would have

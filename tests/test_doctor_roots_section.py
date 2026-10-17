@@ -47,32 +47,24 @@ def test_no_warning_when_nothing_pinned(monkeypatch):
     assert "Decoupled-roots reminder" not in out
 
 
-def test_asymmetric_engine_only_warns(monkeypatch):
+def test_an_engine_root_pin_is_reported_as_deprecated(monkeypatch):
+    """m3 reads one variable, M3_CONFIG_ROOT (user decision 2026-10-17): an
+    M3_ENGINE_ROOT pin is deprecated in favour of paths.engine_root. The section
+    used to say "pin BOTH M3_ENGINE_ROOT and M3_CONFIG_ROOT", the opposite."""
     _clear_roots(monkeypatch)
     monkeypatch.setenv("M3_ENGINE_ROOT", "/tmp/eng")
     out = _roots_output()
-    assert "ASYMMETRIC" in out
-    assert "M3_ENGINE_ROOT is set but M3_CONFIG_ROOT is not" in out
-    # The both-surfaces reminder always accompanies any pinning.
-    assert "Decoupled-roots reminder" in out
+    assert "M3_ENGINE_ROOT set in this process: deprecated" in out
+    assert "paths.engine_root" in out
+    assert "ASYMMETRIC" not in out and "Pin M3_ENGINE_ROOT + M3_CONFIG_ROOT" not in out
 
 
-def test_asymmetric_config_only_warns(monkeypatch):
+def test_m3_config_root_alone_is_not_flagged(monkeypatch):
+    """The one variable m3 reads: setting it is not a finding here."""
     _clear_roots(monkeypatch)
     monkeypatch.setenv("M3_CONFIG_ROOT", "/tmp/cfg")
     out = _roots_output()
-    assert "ASYMMETRIC" in out
-    assert "M3_CONFIG_ROOT is set but M3_ENGINE_ROOT is not" in out
-
-
-def test_both_pinned_no_asymmetry_warning(monkeypatch):
-    _clear_roots(monkeypatch)
-    monkeypatch.setenv("M3_ENGINE_ROOT", "/tmp/eng")
-    monkeypatch.setenv("M3_CONFIG_ROOT", "/tmp/cfg")
-    out = _roots_output()
-    assert "ASYMMETRIC" not in out
-    # But the both-surfaces reminder still shows (env IS pinned).
-    assert "Decoupled-roots reminder" in out
+    assert "deprecated" not in out and "ASYMMETRIC" not in out
 
 
 def test_section_never_raises_without_sdk(monkeypatch):

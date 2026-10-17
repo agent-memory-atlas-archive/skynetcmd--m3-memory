@@ -438,7 +438,7 @@ def _roots_section() -> None:
     cfg_root = get_m3_config_root()
     eng_root = get_m3_engine_root()
     # env-owner: doctor reports which root a pin set
-    mem_src = _src("M3_MEMORY_ROOT", "~/.m3-memory")
+    mem_src = _src("M3_MEMORY_ROOT", "~/.m3" if _roots.memory_root_migrated() else "~/.m3-memory")
     # env-owner: doctor reports which root a pin set
     cfg_src = _src("M3_CONFIG_ROOT", "~/.m3/config")
     # env-owner: doctor reports which root a pin set
@@ -457,32 +457,17 @@ def _roots_section() -> None:
     else:
         print("  engine DBs present:       (engine root does not exist yet)")
 
-    # Split-brain hazard. Two independent risk signals (CLAUDE.md "Split-brain
-    # hazard"): (a) exactly ONE of the engine/config roots is explicitly pinned
-    # while the other only derives — the two can diverge; (b) a root is pinned
-    # in THIS process but the MCP server / hook may not inherit it. We can only
-    # observe this process's env, so we flag the structural asymmetry (a) and
-    # always remind about the both-surfaces requirement when ANY root is pinned.
-    eng_pinned = _roots.pinned(_roots.ENGINE_ROOT_ENV) is not None  # env-owner: doctor reports which root a pin set
+    # m3 reads one variable, M3_CONFIG_ROOT, and takes every root from
+    # m3_config.toml (user decision 2026-10-17). This used to say "pin
+    # M3_ENGINE_ROOT + M3_CONFIG_ROOT on BOTH surfaces", the opposite of what keeps
+    # them in agreement now: no copies at all.
     # env-owner: doctor reports which root a pin set
-    cfg_pinned = _roots.pinned(_roots.CONFIG_ROOT_ENV_NAME) is not None
-    if eng_pinned != cfg_pinned:
+    pinned = [n for n in (_roots.MEMORY_ROOT_ENV, _roots.ENGINE_ROOT_ENV) if _roots.pinned(n)]
+    if pinned:
         print()
-        only = "M3_ENGINE_ROOT" if eng_pinned else "M3_CONFIG_ROOT"
-        other = "M3_CONFIG_ROOT" if eng_pinned else "M3_ENGINE_ROOT"
-        print(f"  [!] ASYMMETRIC root pinning: {only} is set but {other} is not.")
-        print("      Pin BOTH together so the config and engine roots can't")
-        print("      diverge. (Setting only one leaves the other on its")
-        print("      derived/default path.)")
-    # env-owner: doctor reports which root a pin set
-    if eng_pinned or cfg_pinned or _roots.pinned(_roots.MEMORY_ROOT_ENV):
-        print()
-        print("  [i] Decoupled-roots reminder: the m3 MCP server reads its root")
-        print("      from the server `env` block in the client settings.json,")
-        print("      while the chatlog Stop/PreCompact hook inherits the agent's")
-        print("      PROCESS env. Pin M3_ENGINE_ROOT + M3_CONFIG_ROOT on BOTH")
-        print("      surfaces, or the two halves write to different DBs.")
-        print("      See CLAUDE.md → 'Split-brain hazard'.")
+        print(f"  [i] {', '.join(pinned)} set in this process: deprecated. Put the root in m3_config.toml")
+        print("      (paths.memory_root / paths.engine_root) and remove the variable from every place it is")
+        print("      set; the last section of this report lists them.")
 
 
 def _fmt_dual_time(value: object) -> str:

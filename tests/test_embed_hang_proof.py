@@ -33,15 +33,14 @@ def _fresh_embed(monkeypatch, **env):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
-    saved = {m: sys.modules[m] for m in list(sys.modules) if m.startswith("memory.")}
-    for m in saved:
-        del sys.modules[m]
-    try:
-        mod = importlib.import_module("memory.embed")
-        return importlib.reload(mod)
-    finally:
-        # leave the fresh module in place for the test; restore after via fixture
-        pass
+    # monkeypatch.delitem, not `del`: it puts every original memory.* module back
+    # at teardown. The bare `del` left later tests on a second set of module
+    # objects while modules imported at collection held the first, and
+    # test_notify_writes_to_dispatch then failed after this file (2026-10-17).
+    for m in [m for m in list(sys.modules) if m.startswith("memory.")]:
+        monkeypatch.delitem(sys.modules, m)
+    mod = importlib.import_module("memory.embed")
+    return importlib.reload(mod)
 
 
 # ── Defect 2: safe-by-default when config is unresolved ───────────────────────

@@ -172,13 +172,12 @@ def test_interpreter_falls_back_to_sys_executable_when_no_repo_venv(monkeypatch)
     assert not any(c.startswith(("python ", "python3 ")) for c in _all_commands(settings))
 
 
-def test_decoupled_roots_pinned_in_server_env_and_hooks(monkeypatch):
-    """The MCP server does not inherit the shell env, and capture hooks inherit
-    the agent's PROCESS env (not the server env block). So every server env block
-    must carry all three data roots, and every capture hook must inline-pin
-    M3_ENGINE_ROOT + M3_CONFIG_ROOT — resolved from the DATA root, never the code
-    location. Regression for the remediation that wrote M3_MEMORY_ROOT=<site-
-    packages> and dropped the engine/config roots (split-brain)."""
+def test_only_a_non_default_config_root_reaches_server_env_and_hooks(monkeypatch):
+    """m3 reads one variable, M3_CONFIG_ROOT, and takes every root from
+    m3_config.toml (user decision 2026-10-17). So a server env block and a POSIX
+    capture hook carry M3_CONFIG_ROOT when the config root is not the default,
+    and no other root (they once pinned all three, copies that could only
+    drift). Never the code location."""
     monkeypatch.setenv("M3_MEMORY_ROOT", "/data/.m3")
     monkeypatch.setenv("M3_ENGINE_ROOT", "/data/.m3/engine")
     monkeypatch.setenv("M3_CONFIG_ROOT", "/data/.m3/config")
@@ -201,11 +200,9 @@ def test_decoupled_roots_pinned_in_server_env_and_hooks(monkeypatch):
 
     for name, srv in settings["mcpServers"].items():
         env = srv.get("env", {})
-        assert env.get("M3_MEMORY_ROOT") == "/data/.m3", (name, env)
-        assert env.get("M3_ENGINE_ROOT") == "/data/.m3/engine", (name, env)
         assert env.get("M3_CONFIG_ROOT") == "/data/.m3/config", (name, env)
-        # never the code location
-        assert "site-packages" not in env.get("M3_MEMORY_ROOT", "")
+        assert "M3_MEMORY_ROOT" not in env and "M3_ENGINE_ROOT" not in env, (name, env)
+        assert "site-packages" not in env.get("M3_CONFIG_ROOT", "")
 
     for event in ("PreCompact", "Stop", "SessionStart"):
         cmd = settings["hooks"][event][0]["hooks"][0]["command"]
@@ -220,8 +217,8 @@ def test_decoupled_roots_pinned_in_server_env_and_hooks(monkeypatch):
             assert "M3_CONFIG_ROOT=" not in cmd, cmd
             assert "=" not in cmd.split(" ", 1)[0], cmd
         else:
-            assert "M3_ENGINE_ROOT=/data/.m3/engine" in cmd, cmd
             assert "M3_CONFIG_ROOT=/data/.m3/config" in cmd, cmd
+            assert "M3_ENGINE_ROOT=" not in cmd, cmd
 
 
 def test_stop_hook_omitted_when_disabled(monkeypatch):

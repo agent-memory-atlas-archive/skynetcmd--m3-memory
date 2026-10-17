@@ -56,8 +56,13 @@ def test_generate_configs_hook_prefix_is_os_aware(monkeypatch):
     import generate_configs as gc
 
     monkeypatch.setattr(gc.os, "name", "posix")
+    # One variable, M3_CONFIG_ROOT, and only for a non-default config root
+    # (user decision 2026-10-17); never M3_ENGINE_ROOT.
     posix = gc._hook_env_prefix("/data/.m3/engine", "/data/.m3/config")
-    assert posix.startswith("M3_ENGINE_ROOT=") and posix.endswith(" ")
+    assert posix == "M3_CONFIG_ROOT=/data/.m3/config "
+    from m3_memory import _roots
+
+    assert gc._hook_env_prefix("/x/engine", _roots.default_config_root()) == ""
 
     monkeypatch.setattr(gc.os, "name", "nt")
     assert gc._hook_env_prefix("C:/data/.m3/engine", "C:/data/.m3/config") == ""

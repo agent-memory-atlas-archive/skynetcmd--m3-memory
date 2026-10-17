@@ -41,7 +41,8 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
 
     COPIES, never moves or deletes: the old root keeps everything and gets a
     MOVED.txt. Idempotent: a second run, or one after the marker exists, does
-    nothing. Skipped when M3_MEMORY_ROOT pins a root explicitly (the user chose it).
+    nothing. Skipped when M3_MEMORY_ROOT pins a root other than ~/.m3 (the user
+    chose it); a pin to ~/.m3 itself still migrates.
 
       audit_trail.log.jsonl   appended into the new file (old lines first)
       config.json             copied unless the new root already has one
@@ -57,11 +58,17 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
     marker is NOT written, so the default does not flip on a partial migration.
     """
     report = {"moved": [], "kept": [], "failed": [], "skipped": None}
-    if roots.memory_root_pin():
+    new = Path(new_root or Path(os.path.expanduser("~")) / ".m3")
+    # Skipped only when the pin names ANOTHER root (the user chose it). A pin to
+    # ~/.m3 itself is the target: skipping then left a MacBook unmigrated, so an
+    # unpinned process fell back to ~/.m3-memory (2026-10-17). The source is then
+    # the real legacy ~/.m3-memory; legacy_memory_root() would answer the pin, so
+    # the migration would copy ~/.m3 onto itself.
+    pin = roots.memory_root_pin()
+    if pin and not roots.same_dir(pin, str(new)):
         report["skipped"] = "M3_MEMORY_ROOT pins the memory root explicitly"
         return report
-    old = Path(old_root or roots.legacy_memory_root())
-    new = Path(new_root or Path(os.path.expanduser("~")) / ".m3")
+    old = Path(old_root or (Path(os.path.expanduser("~")) / ".m3-memory" if pin else roots.legacy_memory_root()))
     cfg = Path(config_root or roots.config_root())
     marker = new / roots.MIGRATED_MARKER
     if os.path.exists(marker):

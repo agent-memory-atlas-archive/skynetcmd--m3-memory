@@ -64,10 +64,11 @@ def test_stale_memory_entry_is_repointed(canonical, tmp_path):
 
     after = json.loads(cfg.read_text())["mcpServers"]["memory"]
     assert after["args"] == [str(canonical["bridge"]).replace("\\", "/")]
-    # M3_BRIDGE_PATH is removed project-wide; the canonical env now pins the
-    # bin/ DIRECTORY via M3_PATH_BIN (non-packaged install -> pin is written).
-    assert after["env"]["M3_PATH_BIN"] == str(canonical["bridge"].parent).replace("\\", "/")
-    assert "M3_BRIDGE_PATH" not in after["env"]
+    # The canonical entry pins nothing: m3 reads one variable, M3_CONFIG_ROOT, and
+    # only a non-default one (user decision 2026-10-17). The old M3_BRIDGE_PATH
+    # and the later M3_PATH_BIN pin are both gone.
+    env = after.get("env", {})
+    assert "M3_PATH_BIN" not in env and "M3_BRIDGE_PATH" not in env
 
 
 def test_healthy_entry_is_left_untouched(canonical, tmp_path):
@@ -345,9 +346,38 @@ def test_an_entry_naming_a_moved_memory_root_is_repointed(canonical, tmp_path, m
     _write(cfg, {"mcpServers": {"memory": entry}})
 
     msg = I._heal_agent_settings(cfg)
-    after = json.loads(cfg.read_text())["mcpServers"]["memory"]["env"]["M3_MEMORY_ROOT"]
+    after = json.loads(cfg.read_text())["mcpServers"]["memory"].get("env", {}).get("M3_MEMORY_ROOT")
     if moved:
+        # Repointed to the canonical entry, which pins no memory root at all.
         assert msg and "repointed" in msg
-        assert after == str(canonical["state"]).replace("\\", "/")
+        assert after is None
     else:
         assert msg is None and after == str(old).replace("\\", "/")
+
+
+def test_a_redundant_root_pin_is_removed_and_a_chosen_one_kept(canonical, tmp_path, monkeypatch):
+    """A pin naming the root m3 resolves anyway is a copy that can only drift: the
+    entry is rewritten without it. A pin naming another root still works this
+    release, so it is left (doctor's M3_* section says to move it to the file)."""
+    from m3_memory import _roots
+
+    eng = tmp_path / "engine"
+    eng.mkdir()
+    monkeypatch.setattr(_roots, "engine_root", lambda: str(eng))
+    entry = I._canonical_memory_server()
+
+    redundant = tmp_path / "a" / "settings.json"
+    _write(
+        redundant, {"mcpServers": {"memory": {**entry, "env": {**entry.get("env", {}), "M3_ENGINE_ROOT": str(eng)}}}}
+    )
+    assert "repointed" in (I._heal_agent_settings(redundant) or "")
+    assert "M3_ENGINE_ROOT" not in json.loads(redundant.read_text())["mcpServers"]["memory"].get("env", {})
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    chosen = tmp_path / "b" / "settings.json"
+    _write(
+        chosen, {"mcpServers": {"memory": {**entry, "env": {**entry.get("env", {}), "M3_ENGINE_ROOT": str(elsewhere)}}}}
+    )
+    assert I._heal_agent_settings(chosen) is None
+    assert json.loads(chosen.read_text())["mcpServers"]["memory"]["env"]["M3_ENGINE_ROOT"] == str(elsewhere)

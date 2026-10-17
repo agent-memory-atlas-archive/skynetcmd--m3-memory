@@ -293,8 +293,10 @@ def test_wire_openclaw_builds_a_real_spec_with_no_env_mock(monkeypatch):
     spec = _payload(calls)
     assert spec["command"], "real spec has no command"
     assert spec["transport"] == "stdio"
-    for root in ("M3_ENGINE_ROOT", "M3_CONFIG_ROOT"):
-        assert root in spec["env"], f"real spec lost {root}: {spec['env']}"
+    # One variable, and only a non-default one (user decision 2026-10-17): the
+    # test's config root is a temp dir, so M3_CONFIG_ROOT is there; no other root.
+    assert "M3_CONFIG_ROOT" in spec["env"], f"real spec lost M3_CONFIG_ROOT: {spec['env']}"
+    assert "M3_ENGINE_ROOT" not in spec["env"], spec["env"]
     # 10 tools, derived — not the 115-tool fallback that a failed import causes.
     assert len(spec["toolFilter"]["include"]) == 10
 

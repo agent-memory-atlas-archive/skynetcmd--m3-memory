@@ -160,3 +160,15 @@ def test_a_retry_after_a_failed_copy_merges_the_trail_once(home, monkeypatch):
     monkeypatch.setattr(shutil, "copy2", real_copy2)
     assert not _migrate(home)["failed"]
     assert (home / ".m3" / "audit_trail.log.jsonl").read_text(encoding="utf-8") == '{"old": 1}\n'
+
+
+def test_a_pin_to_the_target_still_migrates_from_the_legacy_root(home, monkeypatch):
+    """A MacBook had M3_MEMORY_ROOT=~/.m3: the migration skipped itself, so the
+    marker was never written and an unpinned process fell back to ~/.m3-memory
+    (2026-10-17). A pin naming ~/.m3 is the target: migrate, from ~/.m3-memory."""
+    monkeypatch.setenv("M3_MEMORY_ROOT", str(home / ".m3"))
+    report = _migrate(home)
+    assert not report["skipped"], report
+    assert (home / ".m3" / ".memory_root_migrated").exists()
+    assert (home / ".m3" / "version_state.json").exists(), "copied from ~/.m3-memory, not from ~/.m3 itself"
+    assert (home / ".m3-memory" / "MOVED.txt").exists()

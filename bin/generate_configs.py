@@ -115,7 +115,12 @@ def _windowless(interpreter: str) -> str:
 
 
 def _hook_env_prefix(engine_root: str, config_root: str) -> str:
-    """Inline `VAR=val ` root pins for a hook command — POSIX only.
+    """Inline `M3_CONFIG_ROOT=val ` for a hook command: POSIX only, and only for
+    a non-default config root (otherwise "").
+
+    m3 reads one variable, M3_CONFIG_ROOT, and takes every root from
+    m3_config.toml, so a hook needs no pin unless the config root moved. It once
+    pinned M3_ENGINE_ROOT as well, a copy that could only drift.
 
     Returns a trailing-space prefix on macOS/Linux, and an EMPTY STRING on
     Windows. `VAR=val cmd` is POSIX shell syntax with no cmd.exe equivalent:
@@ -136,9 +141,16 @@ def _hook_env_prefix(engine_root: str, config_root: str) -> str:
     """
     if os.name == "nt":
         return ""
+    # Only a non-default config root needs a pin: m3 reads that one variable and
+    # takes every root from m3_config.toml (user decision 2026-10-17).
+    # `engine_root` is kept in the signature for the callers; it is not written.
     import shlex
 
-    return f"M3_ENGINE_ROOT={shlex.quote(engine_root)} M3_CONFIG_ROOT={shlex.quote(config_root)} "
+    from m3_core.seams import roots
+
+    if roots.same_dir(config_root, roots.default_config_root()):
+        return ""
+    return f"M3_CONFIG_ROOT={shlex.quote(config_root)} "
 
 
 # cmd.exe metacharacters plus whitespace: a path holding any of them must be
@@ -237,9 +249,9 @@ def generate_configs(write: bool = True):
             return os.path.join(payload_bin, path[4:]).replace("\\", "/")
         return os.path.join(m3_repo_root, path).replace("\\", "/")
 
-    # Decoupled roots (CLAUDE.md "Split-brain hazard"): the MCP server does NOT
-    # inherit the shell env, so its env block AND the capture hooks must carry the
-    # DATA roots explicitly. Resolve them the way the rest of m3 does — NEVER from
+    # The MCP server does not inherit the shell env, so a non-default config root
+    # must reach it (and the capture hooks) as M3_CONFIG_ROOT; every other root
+    # comes from m3_config.toml. Resolve them the way the rest of m3 does — NEVER from
     # the code location (the repo's parent is site-packages under
     # an installed layout, which would point the server at a nonexistent
     # site-packages/engine and silently orphan the real DB on the next restart).
@@ -255,21 +267,16 @@ def generate_configs(write: bool = True):
     config_root = str(config_root).replace("\\", "/")
 
     def mcp_server(script, extra_env=None):
-        # All three roots so the server resolves its DBs/config correctly without
-        # the shell env (which it does not see).
-        env = {
-            "M3_MEMORY_ROOT": memory_root,
-            "M3_ENGINE_ROOT": engine_root,
-            "M3_CONFIG_ROOT": config_root,
-        }
+        # The server finds its roots in m3_config.toml; only a non-default config
+        # root needs passing, as M3_CONFIG_ROOT (user decision 2026-10-17).
+        env = {} if roots.same_dir(config_root, roots.default_config_root()) else {"M3_CONFIG_ROOT": config_root}
         if extra_env:
             env.update(extra_env)
         return {"command": python_cmd, "args": [repo(f"bin/{script}")], "env": env}
 
-    # Inline-pin the engine + config roots on every capture hook. The hook
-    # inherits Claude Code's PROCESS env (NOT the server env block above), so
-    # without these it can resolve a different engine root than the server and
-    # diverge the two chatlog halves (CLAUDE.md "Split-brain hazard").
+    # A non-default config root is pinned inline on every capture hook: the hook
+    # inherits Claude Code's PROCESS env (NOT the server env block above), and
+    # both halves must read the same m3_config.toml. Nothing else is pinned.
     #
     # ⚠ The `VAR=val cmd` prefix is POSIX SHELL SYNTAX AND IS FATAL ON WINDOWS.
     # An earlier version emitted it unconditionally, on the belief that Claude

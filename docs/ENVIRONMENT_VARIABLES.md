@@ -30,7 +30,7 @@ A locator says where m3's files are, so it is read before any configuration load
 | `M3_MEMORY_ROOT` | `[paths].memory_root` | Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed after N+3. |
 | `M3_MODELS_ROOT` | `[paths].models_root` | GGUF weights m3 owns. Default: &lt;memory_root>/models, else ~/.m3/models. |
 
-**Split-brain hazard.** An agent's MCP server reads these from the `env` block of its own MCP registration (for Claude Code, `~/.claude.json`, written by `claude mcp add --env`), not from your shell, while the chatlog hooks inherit the agent's process environment. Pin a root in both places, or the server and the hooks can resolve different databases.
+**Deprecated.** m3 reads one variable, `M3_CONFIG_ROOT`, and takes every root from `m3_config.toml` (the `paths.*` keys above). These names still work, below the file, and `m3 doctor` lists any still set, with the `m3 config set` that replaces each. Set `M3_CONFIG_ROOT` only for a config root other than `~/.m3/config`, and then everywhere m3 runs: an agent's MCP server reads it from its registration's `env` block (for Claude Code, `~/.claude.json`), the chatlog hooks from the agent's process environment.
 
 ### Not settings
 
