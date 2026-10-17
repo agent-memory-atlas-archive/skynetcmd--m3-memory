@@ -15,7 +15,17 @@ import sys
 import pytest
 
 _BIN = pathlib.Path(__file__).resolve().parent.parent / "bin"
-_SKIP = ["--skip-shared-embedder", "--skip-dashboard", "--skip-environment", "--skip-agent-paths", "--skip-claude-mcp"]
+# --skip-schedule: the job repair judges the machine's REAL launchd/systemd jobs
+# against this checkout's version, and moved a real install's units aside the day
+# the checkout's version passed the installed one.
+_SKIP = [
+    "--skip-shared-embedder",
+    "--skip-dashboard",
+    "--skip-environment",
+    "--skip-agent-paths",
+    "--skip-claude-mcp",
+    "--skip-schedule",
+]
 
 
 def _load():

@@ -782,6 +782,38 @@ def _service_files_state() -> dict:
     return state
 
 
+def _service_files_snapshot() -> dict:
+    """{path: (bytes, mode, atime_ns, mtime_ns)} of the same files, to put back."""
+    snap = {}
+    for path in _service_files_state():
+        try:
+            st = _os.stat(path)
+            with open(path, "rb") as f:
+                snap[path] = (f.read(), st.st_mode, st.st_atime_ns, st.st_mtime_ns)
+        except OSError:
+            continue
+    return snap
+
+
+def _restore_service_files(snap: dict, changed: list[str]) -> list[str]:
+    """Put each changed real unit back as ``snap`` had it (and remove one a test
+    created). Returns the paths it could not restore."""
+    failed = []
+    for path in changed:
+        try:
+            if path in snap:
+                data, mode, atime_ns, mtime_ns = snap[path]
+                with open(path, "wb") as f:
+                    f.write(data)
+                _os.chmod(path, mode & 0o7777)
+                _os.utime(path, ns=(atime_ns, mtime_ns))
+            elif _os.path.exists(path):
+                _os.remove(path)
+        except OSError:
+            failed.append(path)
+    return failed
+
+
 # The developer's REAL Claude Code config: only the parts m3 writes. A test that
 # reached the keep-mode repair rewrote the live hooks and status line to the
 # test's checkout and registered m3_memory with a pytest temp root (2026-10-15);
@@ -1320,15 +1352,23 @@ def _real_service_units_untouched():
 
     Per test, so the failure names the test that did it. A real m3 install on the
     same machine rewriting its own units mid-run would also trip this; rerun.
+
+    The units are put back before the failure: reporting alone left a developer's
+    units moved into a pytest temp dir that pytest later deletes (`doctor --fix`'s
+    job repair, 2026-10-17). The service-manager shim keeps them loaded meanwhile.
     """
     before = _service_files_state()
+    snap = _service_files_snapshot()
     yield
     after = _service_files_state()
     if after != before:
         changed = sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
+        failed = _restore_service_files(snap, changed)
+        restored = "restored" if not failed else "NOT restored: " + ", ".join(failed)
         pytest.fail(
-            "this test changed REAL service units: " + ", ".join(changed) + ". "
-            "Redirect os.path.expanduser (or HOME) to tmp_path before calling an installer.",
+            "this test changed REAL service units: " + ", ".join(changed) + f" ({restored}). "
+            "Redirect os.path.expanduser (or HOME) to tmp_path before calling an installer, "
+            "or pass the command's skip flag (doctor --fix: --skip-schedule).",
             pytrace=False,
         )
 
