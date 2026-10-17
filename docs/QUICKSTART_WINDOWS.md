@@ -72,7 +72,7 @@ Restart your agent and you're done. The rest of this doc covers the features.
 
 > **Have a GPU?** The wizard asks once whether to add GPU acceleration on top of the default embedder for ~10-50× faster embeddings (needs CUDA Toolkit + nvcc on PATH, or Vulkan SDK). You can also add it later with `m3 embedder install-gpu`.
 
-> **Tool catalog stays small in your context.** m3 ships 100+ MCP tools but groups them into 9 domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin). Only 6 tools load at MCP startup (~3,249 tokens, ~1.6% of a 200K window); the rest are reached by name through `m3_call`. The agent pulls in a domain on demand — just say "load the files tools" and it does. To load every tool at startup instead: `m3 config set tools.lazy false`.
+> **Tool catalog stays small in your context.** m3 ships 100+ MCP tools but groups them into 9 domains (memory, chatlog, files, entity, agent, tasks, conversations, diagnostics, admin). Only 6 tools load at MCP startup (~3,217 tokens, ~1.6% of a 200K window); the rest are reached by name through `m3_call`. The agent pulls in a domain on demand — just say "load the files tools" and it does. To load every tool at startup instead: `m3 config set tools.lazy false`.
 
 ---
 

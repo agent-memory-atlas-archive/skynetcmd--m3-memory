@@ -223,7 +223,7 @@ client: `memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
 set, so a custom `m3 config set tools.startup "..."` carries over; with
 `m3 config set tools.lazy false` no filter is written and every tool registers.
 
-That is ~3,249 tokens on the wire, a small fraction of the full catalog
+That is ~3,217 tokens on the wire, a small fraction of the full catalog
 (measure both with `python bin/measure_tool_tokens.py`). Nothing is lost:
 `m3_call` invokes any catalog tool by name, and
 `m3_call("tools_load_domain", {"domain": "files"})` pulls a whole domain in live

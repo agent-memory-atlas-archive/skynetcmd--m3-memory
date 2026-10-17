@@ -203,7 +203,7 @@ quality claim. Skips gracefully when the local LLM server is offline.
 
 ## 🧰 100+ MCP Tools at a Glance
 
-The full catalog spans 9 domains, but it costs near-zero context: **lazy tool-loading** registers only 6 tools at startup (`memory_write`, `memory_search`, `memory_supersede`, `memory_get`, `chatlog_search`, `m3_call`; ~3,249 tokens, ~1.6% of a 200K window) and reaches every other tool by name through `m3_call`. Configure the set with `m3 config set tools.startup "..."` (it must include `m3_call`), or `m3 config set tools.lazy false` to register everything. Most MCP servers load their entire surface up front — m3 doesn't.
+The full catalog spans 9 domains, but it costs near-zero context: **lazy tool-loading** registers only 6 tools at startup (`memory_write`, `memory_search`, `memory_supersede`, `memory_get`, `chatlog_search`, `m3_call`; ~3,217 tokens, ~1.6% of a 200K window) and reaches every other tool by name through `m3_call`. Configure the set with `m3 config set tools.startup "..."` (it must include `m3_call`), or `m3 config set tools.lazy false` to register everything. Most MCP servers load their entire surface up front — m3 doesn't.
 
 | Category | Tools |
 |----------|-------|

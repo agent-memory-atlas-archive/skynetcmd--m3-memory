@@ -2022,7 +2022,7 @@
       "destructive": false,
       "domain": "files",
       "name": "files_stats",
-      "summary": "Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype."
+      "summary": "Counts for the files store, one corpus or all: file nodes and leaves (total, current, superseded),\u2026"
     },
     {
       "args": [
@@ -2859,7 +2859,7 @@
       "destructive": false,
       "domain": "memory",
       "name": "memory_search",
-      "summary": "Search across memory items using semantic similarity or keyword matching."
+      "summary": "Find memories by meaning and keywords: hybrid by default; search_mode semantic (vector only) or key\u2026"
     },
     {
       "args": [
@@ -3462,7 +3462,7 @@
       "destructive": false,
       "domain": "memory",
       "name": "memory_supersede",
-      "summary": "Explicitly supersede an existing memory with a new one."
+      "summary": "Replace one specific memory, by its full id, with a new version."
     },
     {
       "args": [
@@ -3726,7 +3726,7 @@
       "destructive": false,
       "domain": "memory",
       "name": "memory_write",
-      "summary": "Creates a MemoryItem and optionally embeds it for semantic search."
+      "summary": "Store a new memory and, by default, embed it for semantic search."
     },
     {
       "args": [

@@ -198,7 +198,12 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="files_stats",
-        description="Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype.",
+        description=(
+            "Counts for the files store, one corpus or all: file nodes and leaves (total, "
+            "current, superseded), leaves with a text embedding and the coverage ratio, "
+            "files by type, and ingest runs. Read-only; files_health checks integrity and "
+            "files_search finds content."
+        ),
         parameters={
             "type": "object",
             "properties": {

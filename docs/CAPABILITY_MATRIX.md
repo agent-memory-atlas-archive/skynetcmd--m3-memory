@@ -50,20 +50,20 @@ _Write, retrieve, version, and reconcile long-term agent memory._
 | `memory_pin` | Pin a memory to exempt it from decay, expiry archival, and retention soft-deletes. | default-allowed |
 | `memory_refresh_queue` | List memories whose refresh_on timestamp has arrived and need review. | default-allowed |
 | `memory_restore` | Restore memories that an AUTONOMOUS maintenance pass soft-deleted. | ⚠️ opt-in required |
-| `memory_search` | Search across memory items using semantic similarity or keyword matching. | default-allowed |
+| `memory_search` | Find memories by meaning and keywords: hybrid by default; search_mode semantic (vector only) or key… | default-allowed |
 | `memory_search_multi_db` | Search across multiple SQLite databases (e.g. | ⚠️ opt-in required |
 | `memory_search_routed` | Temporal-aware routed retrieval. | ⚠️ opt-in required |
 | `memory_search_scored` | Structured hybrid FTS5+vector+MMR search. | default-allowed |
 | `memory_search_slim` | Search memory (semantic + keyword). | default-allowed |
 | `memory_set_retention` | Set or update per-agent memory retention policy. | ⚠️ opt-in required |
 | `memory_suggest` | Preview which memories would be retrieved for a query, with score breakdowns explaining why each wa… | default-allowed |
-| `memory_supersede` | Explicitly supersede an existing memory with a new one. | default-allowed |
+| `memory_supersede` | Replace one specific memory, by its full id, with a new version. | default-allowed |
 | `memory_supersede_slim` | Replace an existing memory with a corrected one, preserving the audit link. | default-allowed |
 | `memory_unpin` | Unpin a memory, restoring normal decay/expiry/retention handling. | default-allowed |
 | `memory_update` | Edit a memory in place by full id: content, title, metadata, importance, refresh reminder or conver… | default-allowed |
 | `memory_update_bulk` | Apply many metadata-only updates in one transaction per chunk. | default-allowed |
 | `memory_verify` | Verify content integrity by comparing stored hash with computed hash. | default-allowed |
-| `memory_write` | Creates a MemoryItem and optionally embeds it for semantic search. | default-allowed |
+| `memory_write` | Store a new memory and, by default, embed it for semantic search. | default-allowed |
 | `memory_write_from_file` | Write a memory whose content is read from a file on disk. | default-allowed |
 | `memory_write_slim` | Write a memory. | default-allowed |
 
@@ -112,7 +112,7 @@ _Index, search, and recall project files as memory._
 | `files_promotion_list` | List existing promotions. | default-allowed |
 | `files_search` | Hybrid FTS5 + vector search over file-ingestion leaves. | default-allowed |
 | `files_staleness_review` | Compare filesystem against files.db. | default-allowed |
-| `files_stats` | Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype. | default-allowed |
+| `files_stats` | Counts for the files store, one corpus or all: file nodes and leaves (total, current, superseded),… | default-allowed |
 | `files_watch_once` | Single-pass staleness check + notification dispatch. | default-allowed |
 
 ## 🕸️ Entity Graph

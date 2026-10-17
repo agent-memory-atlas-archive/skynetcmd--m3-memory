@@ -363,13 +363,13 @@ To expose m3 to any Model Context Protocol host, add it to your configuration fi
 
 Most MCP servers make you pay for every tool in every prompt; m3 registers a small set at startup and loads the rest on demand. Tools are grouped into **9 domains** (`memory`, `chatlog`, `files`, `entity`, `agent`, `tasks`, `conversations`, `diagnostics`, `admin`) and loaded lazily.
 
-Only 6 schemas register at startup (~3,249 tokens): `memory_write`, `memory_search`, `memory_supersede`, `memory_get`, `chatlog_search` and `m3_call`. That set is chosen by measurement rather than judgement: across real-world development sessions the four memory tools alone absorbed **95% of all direct tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it invokes any tool by name through `m3_call` (`m3_call("m3_index")` lists them all), with no domain load at all; `m3_call("tools_load_domain", {"domain": "..."})` registers a whole domain. The set is yours to change: `m3 config set tools.startup "memory_write,memory_search,m3_call"`.
+Only 6 schemas register at startup (~3,217 tokens): `memory_write`, `memory_search`, `memory_supersede`, `memory_get`, `chatlog_search` and `m3_call`. That set is chosen by measurement rather than judgement: across real-world development sessions the four memory tools alone absorbed **95% of all direct tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it invokes any tool by name through `m3_call` (`m3_call("m3_index")` lists them all), with no domain load at all; `m3_call("tools_load_domain", {"domain": "..."})` registers a whole domain. The set is yours to change: `m3 config set tools.startup "memory_write,memory_search,m3_call"`.
 
 | Gating Mode | Registered Tools | Tokens in Schema | % of 200K Window |
 | :--- | :---: | :---: | :---: |
-| **Lazy (Default)** | **6** | **~3,249** | **1.6%** |
-| Typical Active Session (+`memory` +`admin`) | 59 | ~19,581 | 9.8% |
-| Eager Mode (`tools.lazy = false`) | 119 | ~33,144 | 16.6% |
+| **Lazy (Default)** | **6** | **~3,217** | **1.6%** |
+| Typical Active Session (+`memory` +`admin`) | 59 | ~19,549 | 9.8% |
+| Eager Mode (`tools.lazy = false`) | 119 | ~33,149 | 16.6% |
 
 > 🛠️ *Note: If your client does not support dynamic tool registration, run `m3 config set tools.lazy false` (or set `lazy = false` under `[tools]` in `m3_config.toml`) to register every tool at startup.*
 

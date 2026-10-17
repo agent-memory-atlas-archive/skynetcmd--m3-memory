@@ -73,12 +73,12 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_write",
         description=(
-            "Creates a MemoryItem and optionally embeds it for semantic search. "
-            "Contradiction detection is automatic when the write is embedded — if new content "
-            "closely matches an existing memory of the same type from the same agent "
-            "(cosine > 0.92 by default; "
-            "titles need not match) but says something different, the old one is superseded. "
-            "Use type='auto' to let the LLM decide the best category."
+            "Store a new memory and, by default, embed it for semantic search. For a new "
+            "fact; to replace a specific memory whose id you know use memory_supersede, "
+            "and to edit one in place memory_update. An embedded write is checked against "
+            "existing memories of the same type from the same agent: if it closely matches "
+            "one (cosine > 0.92 by default) but says something different, the old one is "
+            "superseded automatically. type='auto' lets the LLM choose the type."
         ),
         parameters={
             "type": "object",
@@ -222,27 +222,17 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_supersede",
         description=(
-            "Explicitly supersede an existing memory with a new one. Use this to "
-            "record an intentional update — 'this fact replaces that specific "
-            "memory' — when you know the old memory's id. Unlike memory_write's "
-            "automatic contradiction detection (a cosine + title heuristic that "
-            "may link the wrong prior memory or none at all), this targets the "
-            "given old_id deterministically. Non-destructive: the old memory is "
-            "retained, its validity interval is closed (is_deleted=1, valid_to "
-            "set), and a 'supersedes' edge is recorded new -> old. The old "
-            "memory stays retrievable by id and via memory_history, and "
-            "as_of-filtered search still sees it valid before the supersession "
-            "point — it is only dropped from default search. Fields you omit "
-            "(type, title, importance, scope) are inherited from the old memory, "
-            "so pass only what changed. To remove it instead, memory_delete "
-            "soft-deletes (hard delete is GDPR-only: gdpr_forget). "
-            "old_id MUST be the full UUID — a prefix is rejected (full UUID "
-            "required for mutation safety; memory_get accepts a prefix, this "
-            "does not). Pass content to create a NEW successor memory, or "
-            "replacement_id (a full UUID) to retire old_id into an EXISTING "
-            "active memory without creating anything: use that to clean up "
-            "duplicates, since writing a fresh successor per duplicate "
-            "multiplies them. Exactly one of the two."
+            "Replace one specific memory, by its full id, with a new version. Use it when "
+            "you know which memory a new fact replaces; memory_write's automatic "
+            "contradiction check may link the wrong one or none. Non-destructive: the old "
+            "memory is closed, not deleted (still retrievable by id, in memory_history and "
+            "in as_of search, linked new -> old by a 'supersedes' edge); it only leaves "
+            "default search. Pass content to create the successor (type, title, importance "
+            "and scope you omit are inherited), or replacement_id (a full UUID) to retire "
+            "old_id into an EXISTING active memory without creating one: the way to clean "
+            "up duplicates. Exactly one of the two. old_id must be the full UUID; a prefix "
+            "is rejected (full UUID required for mutation safety; memory_get accepts a "
+            "prefix). To remove a memory use memory_delete."
         ),
         parameters={
             "type": "object",
@@ -330,7 +320,14 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="memory_search",
-        description="Search across memory items using semantic similarity or keyword matching. Filter by user_id and scope for isolation.",
+        description=(
+            "Find memories by meaning and keywords: hybrid by default; search_mode "
+            "semantic (vector only) or keyword (lexical only). Returns the top k matches, "
+            "ranked, with their ids; grade the ones you use with memory_grade. Narrow with "
+            "type_filter, agent_filter, user_id, scope or conversation_id; as_of searches "
+            "the store as it was at a past time. Use chatlog_search for captured chat "
+            "turns and files_search for indexed files."
+        ),
         parameters={
             "type": "object",
             "properties": {
