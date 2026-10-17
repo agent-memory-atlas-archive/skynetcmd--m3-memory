@@ -420,12 +420,12 @@ def os_fips_mode() -> bool | None:
         except OSError:
             return None
     if is_windows():
+        if _winreg is None:
+            return None
         try:
-            import winreg
-
             key = r"SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy"
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as k:
-                value, _ = winreg.QueryValueEx(k, "Enabled")
+            with _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, key) as k:
+                value, _ = _winreg.QueryValueEx(k, "Enabled")
             return bool(value)
         except OSError:
             return None

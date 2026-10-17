@@ -47,6 +47,7 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime
+from typing import Any
 
 
 def refresh_agent_ids(current: list[str]) -> list[str]:
@@ -154,8 +155,11 @@ def _no_window() -> dict:
     if not hasattr(subprocess, "STARTUPINFO"):
         return {}
     si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    si.wShowWindow = subprocess.SW_HIDE
+    # Typeshed defines these two names only for win32; the alias keeps mypy quiet
+    # on POSIX (same convention as _platform.hidden_window_kwargs).
+    win: Any = subprocess
+    si.dwFlags |= win.STARTF_USESHOWWINDOW
+    si.wShowWindow = win.SW_HIDE
     return {"startupinfo": si}
 
 
