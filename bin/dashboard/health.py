@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 from m3_core.config import settings as _m3cfg
@@ -1273,5 +1274,5 @@ def collect_health() -> dict:
         "cdw": _cdw_block(),
         "pipeline": pipeline,
         "probe_errors": verdict.get("probe_errors", probe_errors),
-        "generated_at": _fmt_dual_time(__import__("datetime").datetime.now(__import__("datetime").timezone.utc)),
+        "generated_at": _fmt_dual_time(datetime.now(UTC)),
     }

@@ -43,6 +43,8 @@ the policy is forward-going only.
     attention; a healthy run stays one line.
   - Two database restores in quick succession each keep the store they moved
     aside; on Windows the second used to refuse.
+  - The code base no longer carries workarounds for Python 3.11 and older:
+    Python 3.12 is the supported floor (`requires-python >= 3.12`).
   **Affected:** all installs; the prompts on Windows only · **Action:** none ·
   **Data status:** none.
 
