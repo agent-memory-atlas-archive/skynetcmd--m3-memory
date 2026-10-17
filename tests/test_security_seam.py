@@ -119,6 +119,15 @@ def test_tests_set_the_tier_through_config_not_aliases():
     )
 
 
+def test_the_sandbox_hides_the_developers_crypto_env():
+    """An exported M3_FIPS_MODE made a migration test fail on a FIPS shell only."""
+    import os
+
+    names = _policy().legacy_env_names()
+    assert {"M3_FIPS_MODE", "M3_FIPS_STRICT"} <= names
+    assert not names & set(os.environ), sorted(names & set(os.environ))
+
+
 def test_an_unknown_transport_is_refused_not_guessed():
     with pytest.raises(ValueError, match="unknown transport kind"):
         _policy().transport_allowed("carrier_pigeon")

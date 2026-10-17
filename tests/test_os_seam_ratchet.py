@@ -14,6 +14,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from conftest import BUILD_STAGED_COPIES
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SEAM = _ROOT / "m3_memory" / "_platform.py"
 
@@ -45,7 +47,7 @@ def _sites(roots=("bin", "m3_memory"), base: Path = _ROOT) -> tuple[list[str], l
     checks, banned = [], []
     for root in roots:
         for p in sorted((base / root).rglob("*.py")):
-            if p == _SEAM or p.relative_to(base).as_posix() in EXEMPT:
+            if p == _SEAM or p.relative_to(base).as_posix() in (EXEMPT.keys() | BUILD_STAGED_COPIES):
                 continue
             try:
                 tree = ast.parse(p.read_text(encoding="utf-8"))

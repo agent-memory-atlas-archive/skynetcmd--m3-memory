@@ -44,6 +44,15 @@ def crypto_text(name: str) -> str:
     return str(crypto_setting(name) or "").strip()
 
 
+def legacy_env_names() -> frozenset[str]:
+    """Every env name a [crypto] setting still answers to (below the file). The
+    test sandbox clears them: an exported M3_FIPS_MODE otherwise sets the tier
+    for every test, and the suite passes or fails by the developer's shell."""
+    from m3_core.config import REGISTRY
+
+    return frozenset(n for k in REGISTRY if k.name.startswith("crypto.") for n in k.env_names)
+
+
 def fips_mode() -> bool:
     return bool(crypto_setting("crypto.fips_mode"))
 

@@ -23,6 +23,8 @@ from pathlib import Path
 import pytest
 from packaging.specifiers import SpecifierSet
 
+from conftest import BUILD_STAGED_COPIES
+
 _ROOT = Path(__file__).resolve().parents[1]
 _PYVER = _ROOT / "m3_memory" / "_pyver.py"
 _PLATFORM = _ROOT / "m3_memory" / "_platform.py"
@@ -90,6 +92,7 @@ def test_the_bin_path_owner_is_stdlib_only():
 _SYS_PATH_ALLOWED = {
     "m3_memory/_bin.py",  # the owner
     "m3_memory/team_cli.py",  # the examples/ orchestrator dir, not bin/
+    *BUILD_STAGED_COPIES,
     "m3_memory/integrations/crewai/test_provider_logic.py",  # test harness: repo root
     "m3_memory/integrations/langchain/test_provider_logic.py",
     "m3_memory/integrations/pydantic_ai/test_provider_logic.py",

@@ -76,7 +76,8 @@ the policy is forward-going only.
   doc and default, commented out so later default changes still apply; an
   existing file is never replaced. Settings in it reach background services
   and the embed server, which no longer has its own `config.toml` (its values
-  move into `m3_config.toml` and the secrets file). `m3 embedder secure` records
+  move into `m3_config.toml` and the secrets file; the old file is kept, unread,
+  as `config.toml.migrated` for a rollback to an older core). `m3 embedder secure` records
   the listener there. `docs/ENVIRONMENT_VARIABLES.md` lists the variables m3
   still reads and where each legacy name moved. **Affected:** every install ·
   **Action:** run `m3 upgrade`, restart m3's services, and on Windows run

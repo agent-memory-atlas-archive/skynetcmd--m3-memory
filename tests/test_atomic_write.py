@@ -104,6 +104,7 @@ _MOVES = {
     ("bin/memory/model_fetch.py", "part"): "publishes a finished, validated download",
     ("bin/m3_core/locking.py", "lock_path"): "moves a stale lock aside to reclaim it atomically (not a write)",
     ("m3_memory/install/import_env.py", "path"): "renames .llm_config.json to .imported once imported",
+    ("m3_memory/install/embed_server_legacy.py", "old"): "renames the retired server config to .migrated",
     ("m3_memory/embedder_admin.py", "tmp"): (
         "NOT a move: a hand-rolled temp-then-replace config WRITE that should use "
         "atomic_write; listed so the guard runs, to be converted (m3_memory phase)"

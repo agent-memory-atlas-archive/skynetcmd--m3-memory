@@ -350,6 +350,12 @@ def _memory_core_importable() -> bool:
 #            here, so the report lists every one for review.
 SKIP_DIMENSIONS = ("os", "python", "db", "dep", "env", "na")
 
+# Copies setup.py stages into the package at build time (`_stage_root_file`),
+# including on `pip install -e .`, so a contributor's tree has them. Gitignored,
+# not source: a gate scanning m3_memory/ skips them (their source is scanned or
+# exempted where it lives). The lanes used to delete them first, which hid this.
+BUILD_STAGED_COPIES = frozenset({"m3_memory/install_os.py"})
+
 
 def skip_reason(dimension: str, text: str) -> str:
     """The reason string for a skip: ``pytest.skip(skip_reason("dep", "no numpy"))``."""
@@ -1022,6 +1028,12 @@ def _registry_secret_names() -> frozenset[str]:
     from m3_core.config import REGISTRY, KeyClass
 
     return frozenset(n for k in REGISTRY if k.klass is KeyClass.SECRET for n in (k.name, *k.env_names))
+
+
+def _crypto_policy_env_names() -> frozenset[str]:
+    import crypto_policy
+
+    return crypto_policy.legacy_env_names()
 
 
 import keyring.backend as _keyring_backend  # noqa: E402
@@ -2118,7 +2130,9 @@ def m3_sandbox(monkeypatch, tmp_path):
     # 2. Leaky env → cleared. Every m3 secret's env names too (the registry is
     # the list): m3 no longer reads them, but a developer's real key in the test
     # process would reach every child a test spawns and every env sweep it runs.
-    for _var in (*_SANDBOX_CLEAR_ENV, *_registry_secret_names()):
+    # The [crypto] legacy names as well (the security seam lists them): a FIPS
+    # test sets its tier with m3_settings, never through the developer's shell.
+    for _var in (*_SANDBOX_CLEAR_ENV, *_registry_secret_names(), *_crypto_policy_env_names()):
         monkeypatch.delenv(_var, raising=False)
     yield
 

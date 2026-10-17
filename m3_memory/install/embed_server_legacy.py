@@ -4,9 +4,10 @@ Cores before 3.10.16 kept the server's settings in a file of their own; the
 server now reads m3_config.toml and the secrets file only (m3 ``9655f30a``) and
 merely warns that the old file exists. ``migrate`` moves its values: settings to
 m3_config.toml, ``token_sha256`` to the secret ``M3_EMBED_SERVER_TOKEN_SHA256``,
-then removes the file. A value m3_config.toml (or the secrets file) already
-holds differently is reported and kept, and so is the old file, until the
-person settles it. Idempotent: run by `m3 config import-env` (so `m3 upgrade`)
+then renames the file to ``config.toml.migrated`` (inert, kept for a rollback
+to an older core). A value m3_config.toml (or the secrets file) already holds
+differently is reported and kept, and so is the old file, until the person
+settles it. Idempotent: run by `m3 config import-env` (so `m3 upgrade`)
 and `m3 embedder install`.
 """
 
@@ -68,6 +69,8 @@ class Report:
     conflicts: list[str] = field(default_factory=list)  # one line each, with its fix
     errors: list[str] = field(default_factory=list)  # nothing could be decided or written
     removed: bool = False
+    kept_copy: Path | None = None  # where the retired file went (renamed, inert)
+    written: bool = False  # the moved values reached m3's files
     dry_run: bool = False
 
     @property
@@ -87,9 +90,16 @@ class Report:
         out += [f"  [!] {e}" for e in self.errors]
         if self.removed:
             out.append(
-                f"  {'would remove' if self.dry_run else 'removed'} {self.old}: m3-embed-server no longer reads it"
+                f"  {'would retire' if self.dry_run else 'retired'} {self.old}: m3-embed-server no longer reads it"
             )
-        elif self.conflicts or self.errors:
+            if self.kept_copy is not None:
+                out.append(
+                    f"  kept it as {self.kept_copy} (not read); a core before 3.10.16 needs it renamed back to "
+                    f"{self.old.name}"
+                )
+        elif self.conflicts or (self.errors and not self.written):
+            # Only when the old file still holds values m3 does not use; after a
+            # successful write that failed only to rename, the values ARE in effect.
             out.append(
                 f"  kept {self.old} until the above is settled; m3-embed-server does not read it, so its values "
                 "are NOT in effect. Re-run `m3 config import-env` afterwards."
@@ -112,7 +122,7 @@ def _same(a: object, b: object) -> bool:
 
 
 def migrate(*, config: str | None = None, dry_run: bool = False, old: Path | None = None) -> Report | None:
-    """Move the old file's values into m3's files and remove it. None when there
+    """Move the old file's values into m3's files and retire it (renamed). None when there
     is no old file. Never raises: every failure is a line of the report."""
     from m3_core.config import REGISTRY, locate
     from m3_core.config.keys_embed import EMBED_SERVER_M3_WIDE
@@ -208,11 +218,27 @@ def migrate(*, config: str | None = None, dry_run: bool = False, old: Path | Non
     except (OSError, ConfigWriteError, SecretsFileError) as e:
         rep.errors.append(f"could not write the moved values ({type(e).__name__}: {e}); {old} is unchanged")
         return rep
+    rep.written = True
     if not rep.conflicts:
+        # Renamed, not deleted: a core before 3.10.16 reads only config.toml, so
+        # the copy is inert, but a rollback to one needs it back (renamed again).
+        kept = migrated_copy_path(old)
         try:
-            old.unlink()
+            os.replace(old, kept)
             rep.removed = True
+            rep.kept_copy = kept
         except OSError as e:
-            fix = f'Remove-Item "{old}"  (in an Administrator terminal)' if is_windows() else f'rm "{old}"'
-            rep.errors.append(f"could not remove {old} ({type(e).__name__}: {e}); its values are moved. fix: {fix}")
+            if is_windows():
+                fix = f'Move-Item "{old}" "{kept}"  (in an Administrator terminal)'
+            else:
+                fix = f'mv "{old}" "{kept}"'
+            rep.errors.append(
+                f"could not rename {old} to {kept} ({type(e).__name__}: {e}); its values are moved, and the "
+                f"server ignores the old file either way. fix: {fix}"
+            )
     return rep
+
+
+def migrated_copy_path(old: Path) -> Path:
+    """Where the retired file is kept after its values move (inert: no core reads it)."""
+    return old.with_name(old.name + ".migrated")

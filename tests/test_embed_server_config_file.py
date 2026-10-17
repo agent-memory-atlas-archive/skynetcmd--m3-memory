@@ -344,15 +344,41 @@ def test_migrate_moves_values_and_the_token_then_removes_the_file(tmp_path):
     gguf = (tmp_path / "bge.gguf").as_posix()
     digest = "cd" * 32
     old = _legacy(f'[embed]\ngguf = "{gguf}"\nport = 8093\nstreams = 2\nn_threads = 4\ntoken_sha256 = "{digest}"\n')
+    original = old.read_bytes()
     rep = migrate()
     assert rep is not None and rep.ok and rep.removed, rep.lines()
     table = _file_table()["embed"]
     assert table["gguf"] == gguf and table["server"]["port"] == 8093 and table["server"]["streams"] == 2
     assert ss.get_secret("M3_EMBED_SERVER_TOKEN_SHA256") == digest
     assert not old.exists()
+    kept = old.with_name("config.toml.migrated")
+    assert rep.kept_copy == kept and kept.read_bytes() == original, "kept, byte for byte, for a rollback"
     text = "\n".join(rep.lines())
-    assert digest not in text and "n_threads" in text
+    assert digest not in text and "n_threads" in text and str(kept) in text
     assert migrate() is None, "idempotent: nothing left to move"
+
+
+def test_a_failed_rename_says_rename_and_never_suggests_deleting(monkeypatch):
+    import m3_memory.install.embed_server_legacy as legacy
+
+    old = _legacy("[embed]\nport = 8096\n")
+
+    real_replace = legacy.os.replace
+
+    def refuse(src, dst):  # only the retired file's rename; atomic_write also uses os.replace
+        if pathlib.Path(src) == old:
+            raise PermissionError(13, "Access is denied")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(legacy.os, "replace", refuse)
+    rep = legacy.migrate()
+    text = "\n".join(rep.lines())
+    kept = str(old.with_name("config.toml.migrated"))
+    assert not rep.ok and old.exists() and not rep.removed, text
+    assert "could not rename" in text and kept in text and "PermissionError" in text, text
+    assert "Remove-Item" not in text and "rm " not in text, "the copy is the rollback: never suggest deleting it"
+    assert "NOT in effect" not in text, "the values were written; only the rename failed"
+    assert _file_table()["embed"]["server"]["port"] == 8096
 
 
 def test_migrate_reports_a_differing_value_and_keeps_the_file(tmp_path):
