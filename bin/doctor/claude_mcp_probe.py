@@ -128,22 +128,54 @@ def _local_servers() -> list:
     return out
 
 
-def _project_disabled() -> list:
-    """Folders where Claude Code has the direct server switched off for that
-    project (~/.claude.json projects[dir].disabledMcpServers, shown by
-    `claude mcp list` as "Disabled for this project"). Sessions started there do
-    not get it, whatever the user-level state says: on a MacBook this probe
-    reported "direct m3_memory: yes" while `claude mcp list` showed it disabled
-    for the home folder (2026-10-17)."""
+def _project_overrides(direct_present: bool, plugin: dict) -> list:
+    """Folders whose own MCP disable list changes which m3 server runs there.
+
+    A folder's NON-EMPTY ~/.claude.json projects[dir].disabledMcpServers (written
+    by `/mcp` in a session started there) REPLACES the user-level settings.json
+    list for sessions started in that folder; an empty list leaves the user-level
+    one in force. Measured, not documented, on a MacBook (2026-10-17), with
+    settings.json disabling plugin:m3:memory: the home folder (own list
+    ["m3_memory"]) showed the plugin server Connected and m3_memory "Disabled for
+    this project"; a folder with an empty list, and one with no entry, each showed
+    only m3_memory. This probe read the user-level list alone and reported the
+    reverse for the home folder.
+
+    Returns [{dir, direct, plugin}] (effective on/off) for each folder that has
+    its own list and whose effective state differs from the user-level one.
+    """
     d = _read_json(os.path.join(os.path.expanduser("~"), ".claude.json"))
     projects = d.get("projects") if isinstance(d, dict) else None
+    user_level = (direct_present, bool(plugin["active"]))
     out: list = []
     if isinstance(projects, dict):
         for directory, cfg in projects.items():
             disabled = cfg.get("disabledMcpServers") if isinstance(cfg, dict) else None
-            if isinstance(disabled, list) and _DIRECT_NAME in disabled:
-                out.append(directory)
-    return sorted(out)
+            if not isinstance(disabled, list) or not disabled:
+                continue
+            direct_on = direct_present and _DIRECT_NAME not in disabled
+            plugin_on = bool(plugin["installed"] and plugin["enabled"]) and not any(
+                pid in disabled for pid in _PLUGIN_SERVER_IDS
+            )
+            if (direct_on, plugin_on) != user_level:
+                out.append({"dir": directory, "direct": direct_on, "plugin": plugin_on})
+    return sorted(out, key=lambda o: o["dir"])
+
+
+def _project_line(o: dict) -> str:
+    """What sessions started in one overriding folder get, and the fix."""
+    if o["direct"] and o["plugin"]:
+        state, mark = "both the direct m3_memory and the plugin's server run (two servers)", "⚠️ "
+    elif not o["direct"] and not o["plugin"]:
+        state, mark = "no m3 server runs", "⚠️ "
+    else:
+        state = "only the plugin's server runs" if o["plugin"] else "only the direct m3_memory runs"
+        mark = "ℹ️ "
+    return (
+        f"{mark} claude mcp: in sessions started in {o['dir']}, {state}; that folder's own "
+        "disabledMcpServers (set with `/mcp` there) replaces the user-level list. "
+        "To change it: `/mcp` in a Claude session started in that folder"
+    )
 
 
 def _plugin_state() -> dict:
@@ -180,9 +212,10 @@ def _assess() -> dict:
     two_direct = direct_present and legacy_present
     legacy_rootless = legacy_present and not _has_root_pins(direct.get(_LEGACY_DIRECT_NAME))
     local = _local_servers()
+    overrides = _project_overrides(direct_present, plugin)
 
     return {
-        "project_disabled": _project_disabled(),
+        "project_overrides": overrides,
         "local": local,
         "direct": direct,
         "direct_present": direct_present,
@@ -192,7 +225,13 @@ def _assess() -> dict:
         "double_run": double_run,
         "two_direct": two_direct,
         "legacy_rootless": legacy_rootless,
-        "problem": double_run or two_direct or legacy_present or bool(local),
+        # A folder running two servers or none is a problem; one that runs a
+        # different single server is reported as information.
+        "problem": double_run
+        or two_direct
+        or legacy_present
+        or bool(local)
+        or any(o["direct"] == o["plugin"] for o in overrides),
         # No m3 server anywhere — not this probe's job to register (that's setup),
         # but worth an FYI so the user isn't left guessing.
         "none": not direct_active and not plugin["installed"] and not local,
@@ -343,13 +382,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
 
     if brief:
         p_state = a["plugin"]
-        for directory in a.get("project_disabled", ()) if a["direct_present"] else ():
-            then = "they use the plugin's server" if p_state["active"] else "they have no m3 server"
-            print(
-                f"⚠️  claude mcp: m3_memory is disabled for the project {directory} (Claude Code: "
-                f'"Disabled for this project"); in sessions started there {then}. To enable it: '
-                "`/mcp` in a Claude session started in that folder"
-            )
+        for o in a.get("project_overrides", ()):
+            print(_project_line(o))
         for directory, name, _e in a.get("local", ()):
             print(
                 f"⚠️  claude mcp: `{name}` is also registered for {directory} (local "
@@ -364,6 +398,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
             print("⚠️  claude mcp: `memory` AND `m3_memory` both registered — run `m3 doctor --fix --fix-hooks`")
         elif a["legacy_present"]:
             print("⚠️  claude mcp: legacy `memory` server (wrong namespace / no root pins) — run `m3 setup`")
+        elif any(o["direct"] == o["plugin"] for o in a.get("project_overrides", ())):
+            pass  # the folder warning above is the verdict; "connected once" would contradict it
         elif a["direct_present"]:
             print("✅ Claude Code: connected to m3 once (as m3_memory)")
         elif a["plugin"]["active"]:
@@ -393,11 +429,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
             f"the user-scope server in sessions started there"
         )
     print(f"  plugin installed : {p['installed']}  enabled: {p['enabled']}  server disabled: {p['server_disabled']}")
-    for directory in a.get("project_disabled", ()) if a["direct_present"] else ():
-        print(
-            f'  project disable  : m3_memory is off for {directory} [WARN] ("Disabled for this project");'
-            " enable it with `/mcp` in a session started there"
-        )
+    for o in a.get("project_overrides", ()):
+        print(f"  folder override  : {_project_line(o).split('claude mcp: ', 1)[1]}")
 
     if a["double_run"]:
         _which = "m3_memory" if a["direct_present"] else "legacy `memory`"
@@ -419,6 +452,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
         )
         print("  fix       : m3 setup   (migrates `memory` -> `m3_memory`, pins roots,")
         print("              disables the plugin's competing server)")
+    elif any(o["direct"] == o["plugin"] for o in a.get("project_overrides", ())):
+        print("  status    : WARN — one server at user level, but not in the folder(s) above.")
     elif a["direct_present"]:
         print("  status    : OK — single direct server (mcp__m3_memory__), plugin server off.")
     elif a["plugin"]["active"]:

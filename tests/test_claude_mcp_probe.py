@@ -30,7 +30,7 @@ from doctor import claude_mcp_probe as _probe  # noqa: E402
 
 # The real local-scope reader, captured before the autouse fixture replaces it.
 _REAL_LOCAL_SERVERS = _probe._local_servers
-_REAL_PROJECT_DISABLED = _probe._project_disabled
+_REAL_PROJECT_OVERRIDES = _probe._project_overrides
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,7 @@ def _no_real_local_scope(monkeypatch):
     from doctor import claude_mcp_probe as p
 
     monkeypatch.setattr(p, "_local_servers", lambda: [])
-    monkeypatch.setattr(p, "_project_disabled", lambda: [])
+    monkeypatch.setattr(p, "_project_overrides", lambda *a: [])
 
 
 def _load(path):
@@ -368,32 +368,64 @@ def test_fix_without_claude_does_not_claim_a_connection(monkeypatch, capsys):
     assert "nothing to check" in out
 
 
-def test_a_project_level_disable_is_reported(monkeypatch, tmp_path, capsys):
-    """~/.claude.json projects[dir].disabledMcpServers switches the direct server
-    off for sessions started in that folder. The user-scope-only read reported the
-    server as live while `claude mcp list` said "Disabled for this project"."""
-    from doctor import claude_mcp_probe as p
-
+def _home_with_project_list(tmp_path, project_disabled):
     home = tmp_path / "home"
     home.mkdir()
     (home / ".claude.json").write_text(
         json.dumps(
             {
                 "mcpServers": {"m3_memory": {"command": "m3"}},
-                "projects": {str(home): {"disabledMcpServers": ["m3_memory"]}, "/other": {"disabledMcpServers": []}},
+                "projects": {str(home): {"disabledMcpServers": project_disabled}, "/other": {}},
             }
         ),
         encoding="utf-8",
     )
+    return home
+
+
+def test_a_folders_own_disable_list_replaces_the_user_level_one(monkeypatch, tmp_path, capsys):
+    """Measured on a MacBook (2026-10-17): settings.json disabled the plugin's
+    server, the home folder's own list held only m3_memory, and `claude mcp list`
+    there showed the plugin Connected and m3_memory disabled. The probe read the
+    user-level list alone and reported the reverse."""
+    from doctor import claude_mcp_probe as p
+
+    home = _home_with_project_list(tmp_path, ["m3_memory"])
     monkeypatch.setattr(p.os.path, "expanduser", lambda s: s.replace("~", str(home), 1))
     monkeypatch.setattr(p, "_plugin_state", lambda: _plugin(installed=True, enabled=True, server_disabled=True))
-    monkeypatch.setattr(p, "_project_disabled", _REAL_PROJECT_DISABLED)
+    monkeypatch.setattr(p, "_project_overrides", _REAL_PROJECT_OVERRIDES)
 
     a = p._assess()
-    assert a["project_disabled"] == [str(home)]
+    assert a["project_overrides"] == [{"dir": str(home), "direct": False, "plugin": True}]
+    assert a["problem"] is False, "one server still runs there: information, not a fault"
     p.run(brief=True)
     out = capsys.readouterr().out
-    assert f"m3_memory is disabled for the project {home}" in out
-    assert "they have no m3 server" in out
+    assert f"in sessions started in {home}, only the plugin's server runs" in out
+    assert "no m3 server" not in out
+
+
+def test_a_folder_running_two_servers_is_a_problem(monkeypatch, tmp_path, capsys):
+    from doctor import claude_mcp_probe as p
+
+    # A non-empty list that disables neither m3 server (an empty one changes nothing).
+    home = _home_with_project_list(tmp_path, ["some_other_server"])
+    monkeypatch.setattr(p.os.path, "expanduser", lambda s: s.replace("~", str(home), 1))
+    monkeypatch.setattr(p, "_plugin_state", lambda: _plugin(installed=True, enabled=True, server_disabled=True))
+    monkeypatch.setattr(p, "_project_overrides", _REAL_PROJECT_OVERRIDES)
+
+    a = p._assess()
+    assert a["project_overrides"] == [{"dir": str(home), "direct": True, "plugin": True}]
+    assert a["problem"] is True
     p.run(brief=False)
-    assert f"m3_memory is off for {home}" in capsys.readouterr().out
+    assert "two servers" in capsys.readouterr().out
+
+
+def test_an_empty_folder_list_keeps_the_user_level_one(monkeypatch, tmp_path):
+    """Measured: a folder whose list is [] ran only m3_memory, as the user level."""
+    from doctor import claude_mcp_probe as p
+
+    home = _home_with_project_list(tmp_path, [])
+    monkeypatch.setattr(p.os.path, "expanduser", lambda s: s.replace("~", str(home), 1))
+    monkeypatch.setattr(p, "_plugin_state", lambda: _plugin(installed=True, enabled=True, server_disabled=True))
+    monkeypatch.setattr(p, "_project_overrides", _REAL_PROJECT_OVERRIDES)
+    assert p._assess()["project_overrides"] == []

@@ -56,9 +56,6 @@ the policy is forward-going only.
   configs · **Action:** move each listed variable into the config file as
   doctor shows, then remove it · **Data status:** none.
 - **m3 install/upgrade UX & correctness**
-  - Under FIPS mode, a refused PostgreSQL connection names the fix
-    (`sslmode=verify-full` with `sslrootcert`), in the error and in
-    `m3 doctor`, without printing the connection string.
   - `m3 doctor` and `m3 chatlog status` label their figures: live chat rows
     vs stored (including soft-deleted), the newest row (which may have arrived
     by sync) vs the last capture on this machine.
@@ -70,6 +67,19 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **FIPS mode: a PostgreSQL connection string without `verify-full` is named,
+  with the fix.** Since 2026.10.17.1, FIPS mode refuses a networked PostgreSQL
+  connection that does not verify the server, so warehouse sync stopped for
+  FIPS users whose stored DSN had no `sslmode` (only the sync log showed it).
+  `m3 doctor`, which `m3 upgrade` runs, now lists that DSN as refused with the
+  fix, and the error points to the steps; the connection string is never
+  printed.
+  **Affected:** `crypto.fips_mode` on, with a warehouse or PostgreSQL primary
+  DSN lacking `sslmode=verify-full` · **Action:** add `sslmode=verify-full` and
+  the server's CA as `sslrootcert` to the DSN and store it again
+  (`m3 secret set M3_CDW_PG_URL --keyring --stdin`); steps in
+  [Troubleshooting](docs/TROUBLESHOOTING.md#fips-mode-refuses-the-postgresql-connection) ·
+  **Data status:** none; sync resumes from where it stopped.
 - **`m3 doctor` checks other agents' capture when Claude Code is absent.**
   Without `~/.claude/settings.json` it stopped before checking the other
   enabled agents, so a user on OpenClaw, Gemini or OpenCode alone was never
@@ -78,9 +88,10 @@ the policy is forward-going only.
   **Data status:** none.
 - **Three false alarms in `m3 doctor`.** A folder in the spill quarantine was
   counted as a quarantined file; a hook interpreter in another venv on the
-  same m3 release was reported as foreign; and a direct `m3_memory` server
-  disabled for one project was reported as live (it is now listed with the
-  fix).
+  same m3 release was reported as foreign; and the Claude MCP check read only
+  the user-level disable list, so where a folder has its own (set with `/mcp`)
+  it reported the server Claude does not run. Each such folder is now listed
+  with the server that runs there.
   **Affected:** macOS and other installs with a plugin and a CLI install ·
   **Action:** none · **Data status:** none.
 
