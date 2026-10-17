@@ -155,6 +155,8 @@ _UNGATED_BY_DESIGN = {
     # make the changelog lie about the release it describes.
     os.path.normpath("CHANGELOG.md"),
 }
+# The older quarters of the same record, moved out of CHANGELOG.md whole.
+_UNGATED_HISTORY_DIRS = ("docs/changelog/",)
 
 
 def _looks_generated(text: str) -> bool:
@@ -292,7 +294,7 @@ def test_every_doc_quoting_a_tool_count_is_gated():
         # Bench/private trees are excluded from public-count policy.
         if rel.startswith(("benchmarks/", "build/", ".scratch/")):
             continue
-        if os.path.normpath(rel) in _UNGATED_BY_DESIGN:
+        if os.path.normpath(rel) in _UNGATED_BY_DESIGN or rel.startswith(_UNGATED_HISTORY_DIRS):
             continue
         try:
             with open(path, encoding="utf-8") as fh:

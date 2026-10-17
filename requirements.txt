@@ -2,7 +2,7 @@
 # The project's dependencies + dependency groups lint, test, resolved
 # for every supported platform and Python. Declarations: pyproject.toml.
 # Pin notes: docs/DEPENDENCY_NOTES.md.
-# declarations sha256: 1afabac7d3dd319aa00cb11cb3f44a76941a9ea019a994d5cee3f4bbb124db7c
+# declarations sha256: 1162a2a7d0ecd5278ae0371a17085a7ee833144fda836da168bc4938f649663f
 aiofile==3.12.3
     # via py-key-value-aio
 annotated-doc==0.0.5

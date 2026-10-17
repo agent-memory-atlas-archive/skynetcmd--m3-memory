@@ -217,7 +217,10 @@ ONE CVE REMAINS and is ACCEPTED:
 
 ## Utilities
 
-### `python-dotenv` (`python-dotenv>=1.2.3,<2`)
+### `python-dotenv` (`python-dotenv>=1.2.2,<2`)
+
+The floor is 1.2.2, not the newest release, so m3 installs beside tools that pin
+it (Hermes 0.22 pins 1.2.2). OSV lists no advisory for 1.2.2 (checked 2026-10-17).
 
 torch was pinned `>=2.14.0,<3` here until 2026-09-22; see the note under
 "Embedding Server" above for why it moved to the `embed-server` extra.
