@@ -151,6 +151,9 @@ async def test_search_falls_back_when_sqlite_vec_inactive(monkeypatch):
 
     # Mock _detect_sqlite_vec to return False
     monkeypatch.setattr(search, "_detect_sqlite_vec", lambda db: False)
+    # This tests the sqlite-vec fallback alone: a core with the resident vector
+    # index would answer first (it probes PRAGMA database_list on the mock).
+    monkeypatch.setattr(importlib.import_module("memory.vector_index"), "available", lambda: False)
 
     # Mock _embed to return a dummy query vector
     dummy_q_vec = [1.0, 0.0, 0.0]

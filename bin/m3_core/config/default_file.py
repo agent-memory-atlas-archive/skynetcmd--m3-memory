@@ -160,8 +160,10 @@ def render(registry: Registry = REGISTRY) -> str:
 
 def digest(data: bytes) -> str:
     """SHA-256 of the file's CONTENT: CRLF is read as LF, so a checkout that
-    converted line endings (core.autocrlf) still matches the generated hash."""
-    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+    converted line endings (core.autocrlf) still matches the generated hash.
+    Outside the FIPS boundary: it detects an edited or damaged shipped file, not
+    an attacker (whoever can edit the file can edit the hash module beside it)."""
+    return hashlib.sha256(data.replace(b"\r\n", b"\n"), usedforsecurity=False).hexdigest()
 
 
 class DefaultFileError(ValueError):

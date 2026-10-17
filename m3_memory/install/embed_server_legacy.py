@@ -124,7 +124,7 @@ def migrate(*, config: str | None = None, dry_run: bool = False, old: Path | Non
     from m3_core.secret_store import SecretsFileError, get_secret, set_secret
 
     old = old or legacy_server_config_path()
-    if not old.is_file():
+    if not os.path.isfile(old):  # Path.is_file raises PermissionError on 3.12/3.13
         return None
     loc = locate(config)
     rep = Report(old=old, config=loc.file, dry_run=dry_run)
