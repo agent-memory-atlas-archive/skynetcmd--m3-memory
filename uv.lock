@@ -2689,7 +2689,7 @@ wheels = [
 
 [[package]]
 name = "m3-memory"
-version = "2026.10.7.1"
+version = "2026.10.17.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -2856,7 +2856,7 @@ requires-dist = [
     { name = "pypdf", specifier = ">=6.19.0,<7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3,<10" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4.0,<2" },
-    { name = "python-dotenv", specifier = ">=1.2.3,<2" },
+    { name = "python-dotenv", specifier = ">=1.2.2,<2" },
     { name = "pyyaml", specifier = ">=6.0.3,<7" },
     { name = "rapidfuzz", specifier = ">=3.14.6,<4" },
     { name = "requests", specifier = ">=2.34.2,<3" },

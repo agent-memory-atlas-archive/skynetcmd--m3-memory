@@ -126,7 +126,7 @@ dependencies = [
     # The floor is now 3.12, where it is valid. Verified: mypy over bin/ with
     # numpy 2.5.3 reports zero errors across 281 files.
     "numpy>=2.5.3",
-    "python-dotenv>=1.2.3,<2",
+    "python-dotenv>=1.2.2,<2",
     # The writer of m3_config.toml (comment-preserving). EXACT pin:
     # pure Python, MIT, zero dependencies; tomllib stays the
     # only parser. Upgrade deliberately, re-running the writer's round-trip tests.

@@ -19,6 +19,13 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Changed
+
+- **`python-dotenv` 1.2.2 is accepted again** (the floor was 1.2.3), so m3
+  installs beside tools that pin 1.2.2.
+  **Affected:** installs that share an environment with such a tool ·
+  **Action:** none · **Data status:** none.
+
 ### Fixed
 
 - **The FIPS "no wolfSSL" error names the folders it searched.** It used to
