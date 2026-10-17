@@ -570,6 +570,14 @@ module = "memory_bridge"
 ignore_errors = true
 warn_unused_ignores = false
 
+# The integrations subclass types from optional extras (langchain, pydantic_ai).
+# With the extra installed a `type: ignore` there is needed; without it the base
+# is Any and the same ignore is unused. CI's mypy job installs no extras, a dev
+# box usually has them, so neither setting of the warning holds in both.
+[[tool.mypy.overrides]]
+module = "m3_memory.integrations.*"
+warn_unused_ignores = false
+
 # Legacy untyped modules — typing them is a separate project, not a CI gate.
 # Each file listed here has >3 errors that aren't real bugs, just missing
 # annotations on params/returns or loose dict/list unions. Trim this list as
