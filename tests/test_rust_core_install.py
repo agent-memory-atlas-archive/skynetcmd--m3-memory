@@ -45,6 +45,10 @@ def _host_neutral(monkeypatch):
     # Sibling-package cleanup reads THIS env's installed distributions and would
     # pip-uninstall a real m3-core-rs-* package. Tests that exercise it patch it.
     monkeypatch.setattr(rci, "_installed_core_packages", lambda: [])
+    # The Release path asks the release's SHA256SUMS download first and the API
+    # only without one; these tests drive the API path (and the digest checks
+    # both share). The direct path: tests/test_rust_core_release_direct.py.
+    monkeypatch.setattr(rci, "_release_assets_direct", lambda repo, tag: None)
 
 
 # ── name mapping (must mirror build_wheel.py) ──────────────────────────────────

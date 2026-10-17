@@ -1034,6 +1034,25 @@ class DigestManifestError(RuntimeError):
     """The Release lists a SHA256SUMS asset that cannot be used to verify."""
 
 
+def _parse_sha256sums(text: str) -> dict[str, str]:
+    """``{basename: hexdigest}`` from a SHA256SUMS body; unparseable lines skipped."""
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # GNU coreutils format: "<hex>  <name>" (text) or "<hex> *<name>"
+        # (binary). Our generator emits the binary marker; accept both, and key
+        # on the basename so a path prefix cannot confuse the lookup.
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        digest, name = parts[0].lower(), parts[1].lstrip("*").strip()
+        if len(digest) == 64 and all(c in "0123456789abcdef" for c in digest):
+            out[os.path.basename(name)] = digest
+    return out
+
+
 def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] | None:
     """Digests from the Release's ``SHA256SUMS`` asset, or None if absent.
 
@@ -1063,20 +1082,7 @@ def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] |
             f"SHA256SUMS for {git_tag} is listed but could not be fetched from {url} ({type(e).__name__}: {e})"
         ) from e
 
-    out: dict[str, str] = {}
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        # GNU coreutils format: "<hex>  <name>" (text) or "<hex> *<name>"
-        # (binary). Our generator emits the binary marker; accept both, and key
-        # on the basename so a path prefix cannot confuse the lookup.
-        parts = line.split(None, 1)
-        if len(parts) != 2:
-            continue
-        digest, name = parts[0].lower(), parts[1].lstrip("*").strip()
-        if len(digest) == 64 and all(c in "0123456789abcdef" for c in digest):
-            out[os.path.basename(name)] = digest
+    out = _parse_sha256sums(text)
     if not out:
         raise DigestManifestError(f"SHA256SUMS for {git_tag} ({url}) contains no parseable '<sha256> <name>' line")
     return out
@@ -1176,13 +1182,60 @@ def install_from_github_release(
     download failure, pip rejection). On non-zero the caller falls through
     to install_from_source.
     """
-    import json
-    import tempfile
-    import urllib.error
-    import urllib.request
 
     py_tag = wheel_python_tag()
     asset_prefix = f"m3_core_rs_{choice.os_tok}_{choice.backend}-{version}-{py_tag}-"
+
+    # The release's own download URLs first: they need no API call, and the
+    # unauthenticated API allows 60 requests an hour per IP, which shared CI
+    # runners and office NATs exhaust (HTTP 403, 2026-10-17). The API is the
+    # fallback for releases that publish no SHA256SUMS to list the wheels.
+    direct = _release_assets_direct(repo, git_tag)
+    release = {"assets": direct} if direct is not None else _release_from_api(repo, git_tag)
+    if not release:
+        return 1
+
+    assets = release.get("assets") or []
+    matches = sorted(
+        (a for a in assets if str(a.get("name", "")).startswith(asset_prefix)),
+        key=lambda a: a["name"],
+    )
+    return _install_release_asset(choice, matches, assets, asset_prefix, git_tag=git_tag, repo=repo)
+
+
+def _release_download_url(repo: str, git_tag: str, name: str) -> str:
+    return f"https://github.com/{repo}/releases/download/{git_tag}/{name}"
+
+
+def _release_assets_direct(repo: str, git_tag: str) -> list[dict] | None:
+    """The release's assets as listed by its SHA256SUMS, fetched from the plain
+    download URL (no API). None when that manifest is not there (a release from
+    before v2026.9.16) or cannot be read; the API is asked then."""
+    import urllib.error
+    import urllib.request
+
+    url = _release_download_url(repo, git_tag, "SHA256SUMS")
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 - static https GitHub URL
+            text = resp.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        print(f"[speed-up] {url} not readable ({type(e).__name__}: {e}); asking the GitHub API", file=sys.stderr)
+        return None
+    names = sorted(_parse_sha256sums(text))
+    if not names:
+        print(f"[speed-up] {url} lists no wheels; asking the GitHub API", file=sys.stderr)
+        return None
+    return [
+        {"name": n, "browser_download_url": _release_download_url(repo, git_tag, n), "size": 0}
+        for n in [*names, "SHA256SUMS"]
+    ]
+
+
+def _release_from_api(repo: str, git_tag: str) -> dict | None:
+    """The release as the GitHub API describes it, or None (said, on stderr)."""
+    import json
+    import urllib.error
+    import urllib.request
 
     api_url = f"https://api.github.com/repos/{repo}/releases/tags/{git_tag}"
     try:
@@ -1205,18 +1258,22 @@ def install_from_github_release(
             )
         else:
             print(f"[speed-up] GitHub API HTTP {e.code} fetching {git_tag}; skipping Release fallback", file=sys.stderr)
-        return 1
+        return None
     except (urllib.error.URLError, OSError, ValueError) as e:
         print(
             f"[speed-up] GitHub API fetch failed ({type(e).__name__}: {e}); skipping Release fallback", file=sys.stderr
         )
-        return 1
+        return None
+    return release if isinstance(release, dict) else None
 
-    assets = release.get("assets") or []
-    matches = sorted(
-        (a for a in assets if str(a.get("name", "")).startswith(asset_prefix)),
-        key=lambda a: a["name"],
-    )
+
+def _install_release_asset(
+    choice: BackendChoice, matches: list, assets: list, asset_prefix: str, *, git_tag: str, repo: str
+) -> int:
+    """Download, verify against SHA256SUMS and pip-install the first match."""
+    import tempfile
+    import urllib.error
+
     if not matches:
         print(
             f"[speed-up] no Release asset matches {asset_prefix}*.whl ({len(assets)} assets in {git_tag})",
@@ -1237,7 +1294,8 @@ def install_from_github_release(
         print(f"[speed-up] refusing non-https asset URL ({wheel_url!r}); skipping Release fallback", file=sys.stderr)
         return 1
 
-    print(f"[speed-up] downloading {wheel_name} ({wheel_size / (1024 * 1024):.1f} MiB)...")
+    size = f" ({wheel_size / (1024 * 1024):.1f} MiB)" if wheel_size else ""  # unknown on the direct path
+    print(f"[speed-up] downloading {wheel_name}{size}...")
 
     # Download into a temp DIR, keeping the original filename: pip parses
     # the wheel filename per PEP 427 to identify the package, so the file
