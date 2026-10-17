@@ -17,7 +17,7 @@ import ctypes
 import os
 import re
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator
 
 from m3_core.seams import is_windows
 
@@ -64,6 +64,8 @@ def _api():
     adv.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, P, D, PD]
     adv.GetTokenInformation.restype = wintypes.BOOL
     adv.ConvertSidToStringSidW.argtypes, adv.ConvertSidToStringSidW.restype = [P, PW], wintypes.BOOL
+    adv.ConvertStringSidToSidW.argtypes = [wintypes.LPCWSTR, PP]
+    adv.ConvertStringSidToSidW.restype = wintypes.BOOL
     adv.GetNamedSecurityInfoW.argtypes = [wintypes.LPCWSTR, ctypes.c_int, D, PP, PP, PP, PP, PP]
     adv.GetNamedSecurityInfoW.restype = D
     adv.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = [P, D, D, PW, PD]
@@ -99,6 +101,35 @@ def current_user_sid() -> str:
         k32.CloseHandle(token)
 
 
+def user_aliases(user_sid: str) -> list[str]:
+    """The SDDL aliases that stand for ``user_sid`` in a descriptor's text. SDDL
+    writes two user accounts as aliases, never as their SID: ``LA`` (the
+    built-in Administrator, RID 500) and ``LG`` (Guest, RID 501). A check that
+    compares SIDs alone reads that user's own ace as someone else's."""
+    return [a for a in ("LA", "LG") if _alias_sid(a) == user_sid]
+
+
+def _alias_sid(alias: str) -> str | None:
+    """The SID an SDDL alias stands for on this machine, or None if Windows
+    does not resolve it."""
+    from ctypes import wintypes
+
+    adv, k32 = _api()
+    psid = ctypes.c_void_p()
+    if not adv.ConvertStringSidToSidW(alias, ctypes.byref(psid)):
+        return None
+    try:
+        out = wintypes.LPWSTR()
+        if not adv.ConvertSidToStringSidW(psid, ctypes.byref(out)):
+            return None
+        try:
+            return str(out.value)
+        finally:
+            k32.LocalFree(out)
+    finally:
+        k32.LocalFree(psid)
+
+
 def file_sddl(path: str) -> str:
     """The owner and DACL of ``path`` as an SDDL string."""
     if not is_windows():
@@ -127,9 +158,14 @@ def file_sddl(path: str) -> str:
         k32.LocalFree(psd)
 
 
-def foreign_principals(sddl: str, user_sid: str) -> list[str]:
-    """SIDs an ALLOW ace grants this object to beyond the trusted set. A missing
-    DACL grants everyone, reported as "Everyone (no DACL)". Pure, for tests."""
+def foreign_principals(sddl: str, user: Collection[str]) -> list[str]:
+    """SIDs an ALLOW ace grants this object to beyond the trusted set and the
+    current user. ``user`` is every string that names the current user in SDDL:
+    its SID and any alias Windows writes for it instead (``user_aliases``). A
+    missing DACL grants everyone, reported as "Everyone (no DACL)". Pure, for
+    tests."""
+    if isinstance(user, str):
+        raise TypeError("foreign_principals takes the user's SID AND its aliases: [sid, *user_aliases(sid)]")
     dacl = sddl.split("D:", 1)[1] if "D:" in sddl else ""
     dacl = re.split(r"S:", dacl, maxsplit=1)[0]
     if not dacl or dacl.startswith("NO_ACCESS_CONTROL"):
@@ -139,7 +175,7 @@ def foreign_principals(sddl: str, user_sid: str) -> list[str]:
         if not ace_type.startswith("A") or "IO" in flags:  # deny, or inherit-only
             continue
         named = f"{sid} ({_NAMES[sid]})" if sid in _NAMES else sid
-        if sid not in _TRUSTED and sid != user_sid and named not in foreign:
+        if sid not in _TRUSTED and sid not in user and named not in foreign:
             foreign.append(named)
     return foreign
 
@@ -173,7 +209,8 @@ def probe_new_file(directory: str | os.PathLike[str]) -> Iterator[str]:
 
 def file_foreign_principals(path: str) -> list[str]:
     """Who besides the trusted set can open ``path``; [] means private."""
-    return foreign_principals(file_sddl(path), current_user_sid())
+    sid = current_user_sid()
+    return foreign_principals(file_sddl(path), [sid, *user_aliases(sid)])
 
 
 def icacls_user_only(path: str | os.PathLike[str], *, directory: bool = False) -> str:

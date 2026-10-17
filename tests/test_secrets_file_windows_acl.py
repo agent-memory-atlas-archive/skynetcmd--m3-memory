@@ -34,7 +34,32 @@ USER = "S-1-5-21-1-2-3-1001"
 def test_foreign_principals(sddl, expected):
     from m3_core.win_acl import foreign_principals
 
-    assert foreign_principals(sddl, USER) == expected
+    assert foreign_principals(sddl, [USER]) == expected
+
+
+def test_the_builtin_administrator_is_recognised_by_its_alias():
+    """SDDL writes the RID-500 account as LA, never as its SID (measured on
+    SkyPC; GitHub's Windows runner runs as that account)."""
+    from m3_core.win_acl import foreign_principals
+
+    admin, sddl = "S-1-5-21-1-2-3-500", "O:LAD:PAI(A;;FA;;;LA)(A;;FA;;;SY)"
+    assert foreign_principals(sddl, [admin, "LA"]) == []
+    assert foreign_principals(sddl, [admin]) == ["LA"], "by its SID alone, its own ace looks foreign"
+    assert foreign_principals(sddl, [USER]) == ["LA"], "for anyone else, the Administrator is not the user"
+    with pytest.raises(TypeError, match="aliases"):
+        foreign_principals(sddl, admin)  # a bare str would match by substring
+
+
+@windows_only
+def test_la_resolves_to_this_machines_administrator_and_names_only_that_user():
+    from m3_core.win_acl import _alias_sid, current_user_sid, user_aliases
+
+    admin = _alias_sid("LA")
+    assert admin and admin.startswith("S-1-5-21-") and admin.endswith("-500"), admin
+    assert user_aliases(admin) == ["LA"]
+    me = current_user_sid()
+    assert ("LA" in user_aliases(me)) == (me == admin)
+    assert user_aliases("S-1-5-18") == []
 
 
 def _grant_users_read(path):
