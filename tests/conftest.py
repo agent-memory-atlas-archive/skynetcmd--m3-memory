@@ -127,6 +127,9 @@ def embed_backend_reachable() -> bool:
         return False
 
 
+_LLM_PROBE_WHY = ""  # why the last _llm_chat_reachable() returned False; the skip says it
+
+
 def _llm_chat_reachable() -> bool:
     """True iff a local OpenAI-compatible CHAT endpoint answers a real completion.
 
@@ -134,12 +137,16 @@ def _llm_chat_reachable() -> bool:
     enough: LM Studio accepts the connection but returns 401 without the resolved
     token, so we do the same authenticated round-trip the judge does (token via
     auth_utils) and require a non-empty reply. Fast-fails on any error so the suite
-    stays hermetic when no model is loaded."""
+    stays hermetic when no model is loaded, and records the cause in
+    _LLM_PROBE_WHY: one "no reachable model" message for a refused token, a crypto
+    failure and an empty reply hid which of them it was."""
+    global _LLM_PROBE_WHY
     url = (
         _os.environ.get("M3_WIKI_DRIFT_URL")
         or _os.environ.get("M3_WIKI_SYNTH_URL")
         or "http://127.0.0.1:1234/v1/chat/completions"
     )
+    token_note = ""
     try:
         import httpx
 
@@ -148,8 +155,14 @@ def _llm_chat_reachable() -> bool:
             from auth_utils import get_api_key  # type: ignore
 
             token = get_api_key("LM_API_TOKEN")
-        except Exception:
+            if not token:
+                token_note = (
+                    "; no LM_API_TOKEN is visible to the test session (conftest points "
+                    "M3_CONFIG_ROOT at a temp dir before collection)"
+                )
+        except Exception as e:  # noqa: BLE001 -- the reason is reported in the skip
             token = None
+            token_note = f"; reading LM_API_TOKEN failed ({type(e).__name__}: {str(e)[:120]})"
         headers = {"Content-Type": "application/json"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
@@ -164,10 +177,21 @@ def _llm_chat_reachable() -> bool:
             headers=headers,
             timeout=5.0,
         )
-        r.raise_for_status()
-        return bool(r.json()["choices"][0]["message"]["content"])
-    except Exception:
+        if r.status_code != 200:
+            _LLM_PROBE_WHY = f"{url} refused the request (HTTP {r.status_code}){token_note}"
+            return False
+        if not r.json()["choices"][0]["message"]["content"]:
+            _LLM_PROBE_WHY = f"{url} answered with an empty reply"
+            return False
+        return True
+    except Exception as e:  # noqa: BLE001 -- the reason is reported in the skip
+        _LLM_PROBE_WHY = f"no chat model answered at {url} ({type(e).__name__}){token_note}"
         return False
+
+
+def _llm_skip_reason() -> str:
+    why = _LLM_PROBE_WHY or "no reachable local chat model"
+    return f"{why} (set M3_WIKI_DRIFT_URL / load a model in LM Studio)"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -382,7 +406,7 @@ _CAPABILITY_PROBES = {
     "requires_llm": (
         _llm_chat_reachable,
         "env",
-        "no reachable local chat model (set M3_WIKI_DRIFT_URL / load a model in LM Studio)",
+        _llm_skip_reason,  # a callable: says why the probe failed
     ),
     "requires_memory_core": (
         _memory_core_importable,
@@ -453,6 +477,7 @@ def pytest_collection_modifyitems(config, items):
         for m in capability_marks:
             if not _ok(m):
                 _probe, dim, reason = _CAPABILITY_PROBES[m]
+                reason = reason() if callable(reason) else reason
                 item.add_marker(pytest.mark.skip(reason=skip_reason(dim, reason)))
 
 
