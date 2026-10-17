@@ -550,10 +550,11 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   call (`user_id`, or the new `memory_ids` for specific memories) erases nothing:
   it returns what would be erased and a token valid for 15 minutes. The second
   call adds `confirm=<token>` and a compliance record with `legal_basis` and
-  `verified_by`, and erases. Every other delete is now a soft delete (kept and
-  recoverable): `memory_delete` / `memory_delete_bulk` / `task_delete` with
-  `hard=true` and a curation plan's `delete_hard` soft-delete and return a notice
-  naming `gdpr_forget`; expired memories are soft-deleted instead of removed;
+  `verified_by`, and erases. A plain delete was already a soft delete (kept and
+  recoverable); now the requests that used to remove rows are soft too:
+  `memory_delete` / `memory_delete_bulk` / `task_delete` with `hard=true` and a
+  curation plan's `delete_hard` soft-delete and return a notice naming
+  `gdpr_forget`; expired memories are soft-deleted instead of removed;
   LangGraph `delete_thread` marks the thread deleted. The dashboard's Hard Delete
   and GDPR purge show the erasure plan and ask for the compliance record.
   Two-step GDPR forget is enforced on LangChain too: `Memory.forget()` returns
