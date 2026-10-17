@@ -31,19 +31,20 @@ class _Reply:
     ],
 )
 def test_each_failure_names_its_cause(monkeypatch, outcome, expect):
-    def post(*a, **kw):
+    posted = []
+
+    def post(url, *a, **kw):
+        posted.append(url)
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
 
     monkeypatch.setattr(httpx, "post", post)
-    monkeypatch.setenv("M3_WIKI_DRIFT_URL", "http://127.0.0.1:9/v1/chat/completions")
     assert conftest._llm_chat_reachable() is False
     reason = conftest._llm_skip_reason()
-    assert expect in reason and "127.0.0.1:9" in reason, reason
+    assert posted and expect in reason and posted[0] in reason, reason
 
 
 def test_a_working_endpoint_passes(monkeypatch):
     monkeypatch.setattr(httpx, "post", lambda *a, **kw: _Reply(200, "ok"))
-    monkeypatch.setenv("M3_WIKI_DRIFT_URL", "http://127.0.0.1:9/v1/chat/completions")
     assert conftest._llm_chat_reachable() is True
