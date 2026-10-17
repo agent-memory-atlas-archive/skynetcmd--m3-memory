@@ -47,6 +47,11 @@ def run(brief: bool = False) -> int:
         if tier != "off" or refused:
             state = f"{len(refused)} path(s) refused" if refused else "all paths accepted"
             print(f"fips: tier {tier}; {state}")
+            # Each refused path by name, with its fix: a bare count sent no one
+            # anywhere (warehouse sync failed hourly behind "1 path(s) refused").
+            if tier != "off":
+                for r in refused:
+                    print(f"  ✗ {r['path']}: {r['note']}" + (f"\n    fix: {r['remedy']}" if r.get("remedy") else ""))
         return 1 if refused and tier != "off" else 0
     print()
     print("=== FIPS 140-3 posture ===")
@@ -57,6 +62,8 @@ def run(brief: bool = False) -> int:
         flag = "OK  " if r["ok"] else "FAIL"
         print(f"  [{flag}] {r['path']}")
         print(f"         {r['served_by']}  ({_mark(r['validated'])})" + (f"  {r['note']}" if r["note"] else ""))
+        if not r["ok"] and r.get("remedy"):
+            print(f"         fix: {r['remedy']}")
     print("  m3 is FIPS 140-3 ready, not validated: validation belongs to the modules above in an assessed")
     print("  deployment. Profiles and remedies: docs/FIPS_MODULE_BOUNDARY.md")
     return 1 if refused and tier != "off" else 0

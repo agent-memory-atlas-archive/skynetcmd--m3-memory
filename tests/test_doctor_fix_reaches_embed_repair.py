@@ -42,6 +42,7 @@ _PROBES = (
     "governor_probe",
     "job_inventory",
     "lock_probe",
+    "m3_env_probe",
     "misplaced_rows",
     "oxidation_probe",
     "plugin_version_probe",

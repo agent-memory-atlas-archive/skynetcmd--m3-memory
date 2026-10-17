@@ -614,6 +614,12 @@ def main() -> int:
     if brief and exit_code != 0:
         print("\nFor full detail, run:  m3 doctor --verbose")
 
+    # Last: m3 settings still set as M3_* variables (deprecated; m3_config.toml
+    # replaces them). At the bottom so the fixes it names are the last thing read.
+    from doctor import m3_env_probe
+
+    m3_env_probe.run(brief=brief)
+
     return max(exit_code, fix_rc)
 
 

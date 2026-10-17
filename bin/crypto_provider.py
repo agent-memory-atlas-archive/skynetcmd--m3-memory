@@ -1153,6 +1153,20 @@ def _install_strict_tls_guard() -> None:
     logger.error("M3 Crypto: %s", message)
 
 
+def _pg_verify_full_remedy(role) -> str:
+    """How to make a role's DSN acceptable to FIPS tiers, without echoing the DSN
+    (it holds a password). Shape and steps: docs/TROUBLESHOOTING.md."""
+    from m3_core.secret_store import pg_secret_name
+
+    name = pg_secret_name(role)
+    return (
+        f"store the {role.value} DSN with sslmode=verify-full and sslrootcert=<the server's CA file> "
+        f"(when the certificate names a host other than the one you dial, host=<name in the certificate> "
+        f"plus hostaddr=<address>): `m3 secret set {name} --keyring --stdin`. "
+        "Getting the CA and the full steps: docs/TROUBLESHOOTING.md, 'FIPS mode refuses the PostgreSQL connection'"
+    )
+
+
 def require_pg_transport(dsn: str) -> None:
     """Refuse a PostgreSQL connection the active FIPS tier does not allow.
     Called by m3_core.pgconn before every connect; a no-op outside FIPS tiers."""
@@ -1167,7 +1181,9 @@ def require_pg_transport(dsn: str) -> None:
         raise FipsTransportError(
             "FIPS mode refuses a PostgreSQL connection that can fall back to plaintext or skip the server's "
             f"certificate. observed: host {parts.host}, sslmode={parts.sslmode or 'unset (libpq default: prefer)'}. "
-            "remedy: add sslmode=verify-full (and the server's CA as sslrootcert) to the DSN."
+            "remedy: add sslmode=verify-full (and the server's CA as sslrootcert) to the DSN; store it with "
+            "`m3 secret set <M3_CDW_PG_URL or M3_PRIMARY_PG_URL> --keyring --stdin`. Steps, including how to get "
+            "the CA: docs/TROUBLESHOOTING.md, 'FIPS mode refuses the PostgreSQL connection'."
         )
     if _fips_strict():
         if not _tls_validated_attested():
@@ -1302,15 +1318,16 @@ def crypto_paths_report() -> dict:
                 else f"sslmode={parts.sslmode or 'unset (libpq default: prefer)'}"
                 + ("" if mode_ok else "; FIPS tiers require verify-full")
             )
-            rows.append(
-                {
-                    "path": f"PostgreSQL ({role.value})",
-                    "served_by": pg_lib,
-                    "validated": None if local else (True if attested and not _psycopg2_is_binary_wheel() else False),
-                    "ok": ok,
-                    "note": note,
-                }
-            )
+            row: dict[str, object] = {
+                "path": f"PostgreSQL ({role.value})",
+                "served_by": pg_lib,
+                "validated": None if local else (True if attested and not _psycopg2_is_binary_wheel() else False),
+                "ok": ok,
+                "note": note,
+            }
+            if not ok and not mode_ok:
+                row["remedy"] = _pg_verify_full_remedy(role)
+            rows.append(row)
     except Exception as e:  # noqa: BLE001 — the report is best-effort
         rows.append(
             {"path": "PostgreSQL", "served_by": pg_lib, "validated": None, "ok": True, "note": f"not read ({e})"}

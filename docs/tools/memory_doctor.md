@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_doctor.py
-sha1: b7dfab9f9a7d
-mtime_utc: 2026-10-17T11:56:28.279336+00:00
-generated_utc: 2026-10-17T11:56:48.632373+00:00
+sha1: 301a706b35f5
+mtime_utc: 2026-10-17T15:21:02.748410+00:00
+generated_utc: 2026-10-17T15:21:03.715622+00:00
 private: false
 ---
 
@@ -109,6 +109,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `doctor (governor_probe)`
 - `doctor (job_inventory)`
 - `doctor (lock_probe)`
+- `doctor (m3_env_probe)`
 - `doctor (misplaced_rows)`
 - `doctor (oxidation_probe)`
 - `doctor (plugin_version_probe)`

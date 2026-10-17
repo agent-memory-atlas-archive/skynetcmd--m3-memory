@@ -452,6 +452,11 @@ _DSN_ENV_NAMES: dict[PgRole, tuple[str, ...]] = {
 }
 
 
+def pg_secret_name(role: PgRole) -> str:
+    """The secret name a role's DSN is stored under (`m3 secret set <name>`)."""
+    return _STORE_KEYS[role][0]
+
+
 def store_keys_for(name: str) -> tuple[str, ...]:
     """The names a secret's value may be stored under, its own name first (the
     warehouse DSN may sit under the older PG_URL)."""

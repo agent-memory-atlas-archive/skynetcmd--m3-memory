@@ -1042,12 +1042,91 @@ def _secrets_in_env_section(brief: bool = False) -> None:
         print(f"        {', '.join(sorted({f'{f.place} ({f.name})' for f in ours[name]}))}")
         print(f"      fix: `m3 config import-env` (moves it), or `m3 secret set {name}` (prompts).")
     for name in leftover:
-        print(f"  [i] {name}: plaintext copies m3 does not read; remove them once nothing else does:")
-        print(f"        {', '.join(sorted({f'{f.place} ({f.name})' for f in ours[name]}))}")
+        # A startup-file line that looks the value up (Keychain, a password
+        # manager) stores nothing on disk: the exposure is that every process
+        # started from that shell inherits it. Calling it a "plaintext copy"
+        # was wrong (MacBook, 2026-10-17).
+        literal = sorted({f"{f.place} ({f.name})" for f in ours[name] if not f.computed})
+        looked_up = sorted({f"{f.place} ({f.name})" for f in ours[name] if f.computed})
+        if literal:
+            print(f"  [i] {name}: plaintext copies m3 does not read; remove them once nothing else does:")
+            print(f"        {', '.join(literal)}")
+        if looked_up:
+            print(
+                f"  [i] {name}: exported into every shell's environment by a lookup at startup (no value stored "
+                "there), which m3 does not read; drop the export once nothing else needs it:"
+            )
+            print(f"        {', '.join(looked_up)}")
     for f in sorted(others, key=lambda f: (f.name, f.place)):
         print(f"  [i] {f.name} in {f.place}: another tool's key; m3 leaves it there.")
     for u in sorted(set(unchecked)):
         print(f"  [i] could not check {u} for secrets; inspect it by hand.")
+
+
+def m3_env_settings_section(brief: bool = False) -> int:
+    """The last doctor section: every m3 setting still set as an M3_*
+    environment variable (the process, a shell startup file, `.env`, the Windows
+    registry, or an m3 MCP entry's env block), deprecated in favour of
+    m3_config.toml, each with the `m3 config set` that replaces it. m3 reads one
+    variable, M3_CONFIG_ROOT, and that one only when it is not the default.
+    Names and places only, never values. Silent when nothing is set. Returns the
+    number of variables reported (exit-code neutral: deprecated, not broken)."""
+    try:
+        _bin.ensure_on_path()
+        from m3_core.config import REGISTRY, KeyClass
+        from m3_core.config import settings as _settings
+        from m3_core.paths import get_m3_config_root
+
+        from m3_memory._roots import default_config_root, same_dir
+        from m3_memory.install.env_sources import scan
+
+        unchecked: list[str] = []
+        names = [n for k in REGISTRY if k.klass is KeyClass.CONFIG for n in k.env_names if n.startswith("M3_")]
+        found = scan([*names, "M3_CONFIG_ROOT"], unchecked=unchecked)
+        current = _settings.current()
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not check which M3_* variables are still set: {e}")
+        return 0
+    by_name: dict[str, set[str]] = {}
+    config_root_places: set[str] = set()
+    for f in found:
+        if not f.value.strip() or (f.kind == "mcp" and not f.m3_server):
+            continue
+        if f.name == "M3_CONFIG_ROOT":
+            value = os.path.expanduser(f.value)
+            if same_dir(value, get_m3_config_root()) and same_dir(value, default_config_root()):
+                config_root_places.add(f.place)
+            continue
+        by_name.setdefault(f.name, set()).add(f.place)
+    if not by_name and not config_root_places:
+        return 0
+    print()
+    print("M3_* environment variables (deprecated: m3 reads its settings from m3_config.toml):")
+    in_use = 0
+    for name in sorted(by_name):
+        key = REGISTRY.by_env(name)
+        if key is None:
+            continue
+        where = ", ".join(sorted(by_name[name]))
+        ignored = current.origin(key).startswith("file")
+        in_use += not ignored
+        state = "ignored, m3_config.toml sets it" if ignored else "in use"
+        print(f"  [deprecated] {name} -> {key.name} ({state}); set in {where}")
+        if not ignored:
+            print(f"      fix: `m3 config set {key.name} <value>`, then remove {name} from those places")
+    if in_use:
+        print("  `m3 config import-env` moves every one still in use into m3_config.toml at once.")
+    if len(by_name) > in_use:
+        print("  Remove the ignored ones from the places named: m3_config.toml already sets each of them.")
+    if config_root_places:
+        print(
+            f"  [i] M3_CONFIG_ROOT is set to the default in {', '.join(sorted(config_root_places))}; "
+            "remove it there (set it only for a non-default config root, on every surface)."
+        )
+    for u in sorted(set(unchecked)):
+        print(f"  [i] could not check {u}; inspect it by hand.")
+    return len(by_name)
 
 
 def _interrupted_rewrite_section() -> None:

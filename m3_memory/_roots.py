@@ -173,9 +173,19 @@ def located_config_args() -> list[str]:
     variable naming the default root is the default: pinning it changed every job
     definition, and re-registering a boot task needs an administrator."""
     root, tier = config_root_with_tier()
-    if tier == CONFIG_ROOT_DEFAULT or _same_dir(root, _home(".m3", "config")):
+    if tier == CONFIG_ROOT_DEFAULT or same_dir(root, default_config_root()):
         return []
     return ["--config", config_file()]
+
+
+def default_config_root() -> str:
+    """``~/.m3/config``: the config root when nothing names another one."""
+    return _home(".m3", "config")
+
+
+def same_dir(a: str, b: str) -> bool:
+    """Whether two paths name one directory (see ``_same_dir``)."""
+    return _same_dir(a, b)
 
 
 def _same_dir(a: str, b: str) -> bool:
