@@ -17,7 +17,7 @@ across session boundaries, memory does not.
 ## Verify capture is live
 
 **Registered ≠ working.** The server can be connected while chatlog capture is
-silently dead. Call `chatlog_status` once early in a substantive session. If
+silently dead. Call `m3_call("chatlog_status")` once early in a substantive session. If
 hooks are off or `last_write` is null/stale, say so loudly and don't proceed
 silently — a dead chatlog means this session's decisions vanish at the next
 session boundary. Never degrade quietly to flat files.
@@ -51,7 +51,7 @@ PostgreSQL** — a deployment choice only the tools know.
 
 Querying `agent_memory.db` for `type='chat_log'` returns **zero rows on a split
 deployment even when capture is perfectly healthy** — a false emergency. On a
-PostgreSQL primary there's no local file at all. Use `chatlog_status`;
+PostgreSQL primary there's no local file at all. Use `m3_call("chatlog_status")`;
 `m3 chatlog status --json` reports `unified: true|false` if you need the
 topology.
 
@@ -63,6 +63,9 @@ the store is empty.
 
 ## More
 
-Only some tools load at startup — `tools_list_domains` / `tools_load_domain`
-reach the rest (100+ in total). Health: `m3 doctor`, `m3 chatlog doctor`.
+Only six tools load at startup (`memory_write`, `memory_search`,
+`memory_supersede`, `memory_get`, `chatlog_search`, `m3_call`). Reach any other
+tool (100+ in total) with `m3_call("<tool>", {...args})`; `m3_call("m3_index")`
+lists them with exact args. `m3_call("tools_load_domain", {"domain": "files"})`
+is optional — worth it only when you'll call many tools from one domain. Health: `m3 doctor`, `m3 chatlog doctor`.
 Full reference: [`docs/AGENT_INSTRUCTIONS.md`](https://github.com/skynetcmd/m3-memory/blob/main/docs/AGENT_INSTRUCTIONS.md)

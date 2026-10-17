@@ -137,8 +137,8 @@ LFS-tracked model file and any extra wheels you'll need offline.
 
 > **Tool catalog stays small in your context.** m3 ships 100+ MCP tools but
 > groups them into 9 domains (memory, chatlog, files, entity, agent, tasks,
-> conversations, diagnostics, admin). Only 10 tools load at MCP startup
-> (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The
+> conversations, diagnostics, admin). Only 6 tools load at MCP startup
+> (~3,249 tokens, ~1.6% of a 200K window); the rest are reached by name through `m3_call`. The
 > agent pulls in a domain on demand — just say "load the files tools" and it does.
 > To load every tool at startup instead: `m3 config set tools.lazy false`. Especially relevant in air-gapped settings
 > where every token of context margin counts.

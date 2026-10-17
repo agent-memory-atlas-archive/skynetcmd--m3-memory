@@ -38,7 +38,7 @@
 | **Customize what's remembered/forgotten?** | Yes — write-gating, importance, confidence decay, TTL/expiry, and per-agent retention policies ([MEMORY_MODEL.md](MEMORY_MODEL.md)). |
 | **Debugging/introspection?** | Yes — `memory_suggest` returns a per-result score breakdown, `memory_history` shows the audit trail, `memory_verify` checks integrity, and `m3 doctor --fix` diagnoses the store. |
 | **Integrates with my stack?** | Yes — **MCP** (native), **LangChain/LangGraph** ([LANGCHAIN.md](integrations/LANGCHAIN.md)), **CrewAI** (`StorageBackend`; `pip install m3-memory[crewai]`), and **PydanticAI** (tools + `M3MemoryToolset`; `pip install m3-memory[pydantic-ai]`; runs on Python 3.14) are all drop-in. Beyond those, call the MCP tools directly. |
-| **Disable/replace components independently?** | Yes — run as a plain store (`M3_ENABLE_FACT_ENRICHED=0`, `M3_ENABLE_ENTITY_GRAPH=0`), swap the extractor (`M3_EXTRACTION_TYPE`), swap the embedder (`M3_EMBED_URL`/GGUF), or disable the Rust core — all via settings in `m3_config.toml`, no fork ([CONFIG_REFERENCE.md](CONFIG_REFERENCE.md); legacy env names: [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)). |
+| **Disable/replace components independently?** | Yes — run as a plain store (`m3 config set memory.fact_enriched false`, `memory.entity_graph false`), swap the extractor (`extraction.type`), swap the embedder (`embed.url`/GGUF), or disable the Rust core — all via settings in `m3_config.toml`, no fork ([CONFIG_REFERENCE.md](CONFIG_REFERENCE.md); legacy env names: [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)). |
 | **Portable data if I migrate away?** | Yes — `memory_export` / `gdpr_export` produce portable JSON (GDPR Article 20), and the store is a plain SQLite file any tool can read. |
 
 ---
@@ -82,6 +82,29 @@ It detects how m3 was installed (`pipx`, `pip`, `pip --user`, or a host plugin) 
 > ⚠️ **`m3 update` is not a package upgrade.** It only re-syncs the payload/bridge to your **installed** version — it will not pull a newer release. Use `m3 upgrade` for that. (`m3 update` prints a nudge when PyPI has a newer version than you have installed.)
 
 Upgrading a **git checkout** instead? See the [Upgrade Guide](HOW-TO-UPGRADE.md).
+
+### Q: `m3 doctor` says my `M3_*` environment variables are deprecated. What do I do?
+**A:** m3 now keeps every setting in `m3_config.toml` and reads only one variable,
+`M3_CONFIG_ROOT` (and only for a non-default config root). Doctor's last section
+lists each variable still set, where, and the `m3 config set …` that replaces it;
+`m3 config import-env` moves them all at once. Then delete the `export` lines (or
+Windows user variables) and restart your agent. Step by step:
+[Troubleshooting](TROUBLESHOOTING.md#m3-doctor-lists-m3_-variables-as-deprecated).
+
+### Q: Sync stopped with "FIPS mode refuses a PostgreSQL connection". How do I fix it?
+**A:** In FIPS mode the warehouse DSN must verify the server:
+`sslmode=verify-full` plus the server's CA certificate as `sslrootcert`. Get the CA,
+check its fingerprint with the server's operator, store the new DSN with
+`m3 secret set M3_CDW_PG_URL --keyring --stdin`, and re-run `m3 doctor`. Full steps:
+[Troubleshooting](TROUBLESHOOTING.md#fips-mode-refuses-the-postgresql-connection).
+
+### Q: Can an AI agent fix m3 errors for me?
+**A:** Yes, safely: point it at `m3 doctor` (read-only) and these docs. Every
+doctor finding prints a `fix:` line, and `m3 doctor --fix` repairs what m3 owns,
+with backups. Two rules for the agent: it must never ask for, print or paste a
+secret (keys, passwords, DSNs); you run `m3 secret set NAME` yourself, which
+prompts for the value. And it should confirm each fix with `m3 doctor` rather
+than assume it worked.
 
 ### Q: Why do my writes take so long? I thought m3 was "zero-lag."
 **A:** They're two different clocks, and the slow one isn't m3.

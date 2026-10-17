@@ -300,14 +300,23 @@ Check the status of the local sovereign embedder server (default `127.0.0.1:8082
 ## Tool Dispatcher
 
 The dispatcher reaches the full catalog without paying for every schema at
-startup. Pair it with the lazy domain-loading meta-tools (`tools_list_domains`,
-`tools_load_domain`): use the dispatcher for one-off or cross-domain calls,
-load a domain when you'll use several of its tools.
+startup. In lazy mode (the default) only six tools register at session start —
+`memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
+`chatlog_search` and `m3_call` — and every other tool, including `m3_index` and
+the domain meta-tools `tools_list_domains` / `tools_load_domain`, is reached
+through `m3_call`. Loading a domain (`m3_call("tools_load_domain", {"domain":
+"files"})`) is optional and worth it only when you'll call many of its tools.
+
+The startup set is configurable: `m3 config set tools.startup
+"memory_write,memory_search,m3_call"` (any custom set must include `m3_call`),
+or `m3 config set tools.lazy false` to register every tool. Every registered
+tool's `tools/list` entry carries each parameter's description and the MCP
+annotations `readOnlyHint` / `destructiveHint`.
 
 ### `m3_index`
-List catalog tools (optionally one domain) as structured rows — name, domain, one-line summary, destructive flag, and arg specs (name/type/required). Read-only; discover a tool's exact signature before calling it via `m3_call`.
+List catalog tools (optionally one domain) as structured rows — name, domain, one-line summary, destructive flag, and arg specs (name/type/required). Read-only; discover a tool's exact signature before calling it via `m3_call`. Not in the startup set: call it as `m3_call("m3_index", {"domain": "files"})`.
 - **Args**: `domain` (str, optional — empty = whole catalog)
 
 ### `m3_call`
-Invoke any catalog tool by name without loading its domain — the low-token path to the full tool surface. Destructive tools require `MCP_PROXY_ALLOW_DESTRUCTIVE=1`.
+Invoke any catalog tool by name without loading its domain — the low-token path to the full tool surface. Destructive tools are refused unless `m3 config set mcp.allow_destructive true` (the `M3_MCP_PROXY_ALLOW_DESTRUCTIVE` env var is deprecated).
 - **Args**: `tool` (str, e.g. `files_stats`), `args` (object), `batch` (array of `{tool, args}`, isolated, capped at 100), `dry_run` (bool — validate + gate-check only)

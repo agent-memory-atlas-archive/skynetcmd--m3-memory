@@ -69,7 +69,8 @@ Distinguish that from a server that is registered but momentarily **unreachable*
 
 2. **Verify chatlog is writing** (for long-running projects — check within the
    first few exchanges). This is the check that actually protects context:
-   - Call `chatlog_status`.
+   - Call `m3_call("chatlog_status")` (`chatlog_status` is not in the startup
+     tool set), or run `m3 chatlog status` from a shell.
    - Trust **`capture.healthy`** and **`last_write_at`** — the DATA. Do **not**
      trust `hooks[*].enabled`: that flag records only whether a per-turn shell
      hook was wired at init time and reads `false` on healthy installs where the
@@ -504,23 +505,25 @@ reports today's and the last 7 days' verdicts, which survive a restart.
 
 ### Reaching tools that aren't in your startup surface
 
-Only the **essentials** (the main searches + writes) are registered at session
-start; the rest load on demand. You never need to drop to raw
-`sqlite3` or shell out via Bash to touch a tool — that fallback is a tool-spec
-gap, not a missing capability. Use the dispatcher instead:
+Only six tools are registered at session start: `memory_write`,
+`memory_search`, `memory_supersede`, `memory_get`, `chatlog_search` and
+`m3_call`. Every other tool — `chatlog_status`, `files_search`,
+`tools_load_domain` included — is reached through `m3_call`. You never need to
+drop to raw `sqlite3` or shell out via Bash to touch a tool — that fallback is a
+tool-spec gap, not a missing capability. Use the dispatcher instead:
 
 | Tool | When to Use |
 |------|-------------|
-| `m3_index(domain)` | List the catalog (or one domain) with each tool's name, summary, destructive flag, and arg specs. Use it to find the exact arguments before you call a tool. |
 | `m3_call(tool, args)` | Invoke any catalog tool by name without loading its domain — the low-token path. Pass `batch=[{tool, args}, ...]` to run several in one round-trip (each isolated; capped at 100), or `dry_run=true` to validate args + the destructive gate without executing. |
-| `tools_load_domain(domain)` | Register a whole domain's tools natively when you'll call several of them — `m3_call` is better for one-off or cross-domain calls. |
+| `m3_call("m3_index", {"domain": ...})` | List the catalog (or one domain) with each tool's name, summary, destructive flag, and arg specs. Use it to find the exact arguments before you call a tool. |
+| `m3_call("tools_load_domain", {"domain": ...})` | Optional. Registers a whole domain's tools natively — worth it only when you'll call many tools from that one domain. |
 
 Rule of thumb: **known tool, few calls → `m3_call` directly**; **unsure of the
-args → `tools_load_domain("admin")` to register `m3_index`, call it, then
-`m3_call`** (`m3_index` is not in the startup set, and `m3_call` refuses to
-dispatch it); **about to use many tools from one
-domain → `tools_load_domain`**. Destructive tools still require
-`MCP_PROXY_ALLOW_DESTRUCTIVE=1` whether reached directly or via `m3_call`.
+args → `m3_call("m3_index")`, then `m3_call`**; **about to use many tools from
+one domain → `m3_call("tools_load_domain", {"domain": "files"})`**.
+Destructive tools are refused unless the operator has run
+`m3 config set mcp.allow_destructive true`, whether reached directly or via
+`m3_call` (the `M3_MCP_PROXY_ALLOW_DESTRUCTIVE` env var is deprecated).
 
 ### If the MCP server is down, use the CLI — it is not a degraded mode
 

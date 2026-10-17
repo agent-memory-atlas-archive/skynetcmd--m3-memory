@@ -17,9 +17,12 @@ the specific snags.
 
 ### Q: A tool I need (e.g. `memory_delete`) isn't in my tool list / `ToolSearch` finds nothing. Is it missing?
 
-**No — it's domain-gated, not missing.** Only the 20 *essentials* (main searches +
-writes) register at MCP session start; everything else loads on demand to keep the
-startup context small. A tool not being in your surface is **not** "capability
+**No — it's domain-gated, not missing.** Only 6 tools register at MCP session start
+(`memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
+`chatlog_search`, `m3_call`); everything else is reached through `m3_call` to keep
+the startup context small. The set is configurable with
+`m3 config set tools.startup "..."` (must include `m3_call`), or
+`m3 config set tools.lazy false` registers every tool. A tool not being in your surface is **not** "capability
 absent," and you should **never** fall back to raw `sqlite3` or shelling out via
 Bash to touch it.
 
@@ -28,11 +31,12 @@ Reach it through the dispatcher instead:
 - **Known tool, one-off** → `m3_call(tool="memory_delete", args={...})` — invokes any
   catalog tool without loading its domain. Add `dry_run=true` to validate args and
   check the destructive gate first.
-- **Unsure of the args** → `m3_index(domain)` first (lists name/args/destructive
-  flag), then `m3_call`.
-- **About to use many tools from one domain** → `tools_load_domain(domain)` (valid:
+- **Unsure of the args** → `m3_call("m3_index", {"domain": ...})` first (lists
+  name/args/destructive flag), then `m3_call`.
+- **About to use many tools from one domain** → optionally
+  `m3_call("tools_load_domain", {"domain": ...})` to register it natively (valid:
   `memory`, `chatlog`, `files`, `entity`, `agent`, `tasks`, `conversations`,
-  `diagnostics`, `admin`).
+  `diagnostics`, `admin`). Not needed for one or two calls.
 
 Full detail: [AGENT_INSTRUCTIONS.md → "Reaching tools that aren't in your startup
 surface"](AGENT_INSTRUCTIONS.md) and the [Domain Gating section in the
@@ -42,11 +46,13 @@ README](../README.md). Every catalog tool is listed in
 ### Q: `m3_call` refuses my delete/forget with `destructive_gated`. How do I proceed?
 
 That gate is intentional. Destructive tools (`memory_delete`, `gdpr_forget`, …)
-require `MCP_PROXY_ALLOW_DESTRUCTIVE=1` whether reached directly or via `m3_call`.
+are refused unless `m3 config set mcp.allow_destructive true` has been run, whether
+reached directly or via `m3_call` (the `M3_MCP_PROXY_ALLOW_DESTRUCTIVE` env var is
+deprecated).
 For low-stakes cleanup, prefer the **non-destructive** alternative rather than
 enabling destructive ops — e.g. `memory_supersede` closes a memory's validity and
 drops it from default search without hard-deleting it (it stays retrievable by id /
-`as_of`). Only set the env flag when you genuinely mean to delete: `memory_delete`
+`as_of`). Only enable that setting when you genuinely mean to delete: `memory_delete`
 soft-deletes by default (kept and recoverable); `gdpr_forget` is the GDPR erasure
 and hard-deletes.
 

@@ -18,8 +18,8 @@ included, add them to `M3_SYNC_DBS` and supply your own warehouse schema — see
 
 ## What gets synced
 
-Both stores live in the engine root (`~/.m3/engine` by default; `M3_ENGINE_ROOT`
-overrides):
+Both stores live in the engine root (`~/.m3/engine` by default; `paths.engine_root`
+in `m3_config.toml` overrides):
 
 - **`agent_memory.db`** — your production memory: notes, decisions,
   facts, conversations, embeddings, relationships. Bidirectional row-level
@@ -60,9 +60,15 @@ a pointer). A DSN already in m3's encrypted vault under `PG_URL` keeps working.
 m3 never reads the DSN from the environment; an `export M3_CDW_PG_URL` / `PG_URL`
 from an earlier setup is moved into the secrets file by `m3 config import-env`.
 
-Sync takes the warehouse host from the DSN. `M3_POSTGRES_SERVER` (or
-`SYNC_TARGET_IP`) is optional and only overrides the host used for the
-reachability check.
+Sync takes the warehouse host from the DSN. `sync.warehouse_host`
+(`m3 config set sync.warehouse_host <host>`) is optional and only overrides the
+host used for the reachability check; the older `M3_POSTGRES_SERVER` /
+`SYNC_TARGET_IP` variables are deprecated.
+
+**FIPS mode:** with `crypto.fips_mode` on, the DSN must verify the server
+(`sslmode=verify-full` plus `sslrootcert=<the server's CA file>`), or sync is
+refused. Steps, including how to get the CA:
+[FIPS mode refuses the PostgreSQL connection](TROUBLESHOOTING.md#fips-mode-refuses-the-postgresql-connection).
 
 The warehouse schema comes from its own migration chain
 (`memory/warehouse_migrations/`), which `pg_sync` applies automatically at the
@@ -101,7 +107,7 @@ What it does:
    where it came from.
 2. If reachable, runs `bin/pg_sync.py` for each store
    (`Starting synchronization for 2 targets: ['main', 'chatlog']`).
-3. Logs to `~/.m3/logs/sync_all.log` (`M3_LOGS_ROOT` overrides).
+3. Logs to `~/.m3/logs/sync_all.log` (`paths.logs_root` overrides).
 
 Dry-run (just check connectivity, don't write):
 
@@ -176,6 +182,10 @@ the newer one wins. This means:
 
 ## Troubleshooting
 
+**"FIPS mode refuses a PostgreSQL connection …"** → the DSN lacks
+`sslmode=verify-full` and the server's CA; see
+[FIPS mode refuses the PostgreSQL connection](TROUBLESHOOTING.md#fips-mode-refuses-the-postgresql-connection).
+
 **"No warehouse configured … skipping sync"** → the job found no DSN. Store it
 with `m3 secret set M3_CDW_PG_URL` (see Setup); m3 does not read an `export` in
 your shell rc (`m3 config import-env` moves it).
@@ -188,7 +198,8 @@ failed. Check:
 **Only `['main']` is synced, no chatlog** → the chat log resolved to the main
 store, usually because the job pins the main DB with `--database` (or the
 legacy `M3_DATABASE`) and nothing pins the chat log's path. Run `m3 setup` once (it pins
-the chat log's own path), or set `M3_CHATLOG_DB_PATH`.
+the chat log's own path in the chatlog config); the legacy `M3_CHATLOG_DB_PATH` also
+works, through release N+3.
 
 **"pg_sync SKIPPED … (EX_TEMPFAIL)"** → the run could not take the sync lock
 and replicated nothing; the next scheduled run retries. The lock is a row in the
@@ -288,14 +299,19 @@ provide. It appears to work, which is what makes it dangerous — the failure
 surfaces later as a corrupt store or silently lost turns. Each machine keeps its
 own local SQLite; the warehouse is the meeting point.
 
-### Pin both roots, or the chat log splits
+### Keep roots in the config file, or the chat log splits
 
-The **MCP server** reads its roots from its own registration's `env` block; the
-**chatlog hook** inherits the agent's *process* environment. Pin only one and the
-server reads the new root while hooks keep writing to the old one.
+The **MCP server** reads its environment from its own registration's `env` block;
+the **chatlog hook** inherits the agent's *process* environment. A root set by an
+environment variable in only one of them makes the server read one store while
+hooks keep writing to another.
 
-On machine B, set `M3_ENGINE_ROOT` and `M3_CONFIG_ROOT` in **both** the
-`claude mcp add --env …` registration **and** inline on each hook `command`.
+So set roots in `m3_config.toml` (`paths.engine_root`, `paths.logs_root`), which
+every process reads, and set no `M3_*_ROOT` variable. The one exception is
+`M3_CONFIG_ROOT`, needed only for a config root other than `~/.m3/config`; then
+set it in **both** places, the `claude mcp add --env …` registration **and** inline
+on each hook `command` (`m3 setup` does both). `m3 doctor` lists any `M3_*`
+variable still set and where.
 
 ### Verifying capture on the agent machine
 
@@ -312,7 +328,8 @@ chase that independently of whether the MCP tools work.
 ## Advanced: M3_SYNC_DBS
 
 If you want to override the default DB list (e.g., to sync a custom
-named DB). The override **replaces** the default list rather than adding to it:
+named DB) for one run. The override **replaces** the default list rather than
+adding to it. It is a legacy store locator, read through release N+3:
 
 ```bash
 # Sync only agent_memory.db

@@ -27,6 +27,32 @@
   `pip install --force-reinstall --no-deps m3-memory==<previous version>` using the
   install's own Python), then `m3 setup`.
 
+### m3 doctor lists `M3_*` variables as deprecated
+- **What it means**: m3 now reads one environment variable, `M3_CONFIG_ROOT`,
+  and only when your config root is not the default `~/.m3/config`. Every other
+  setting lives in `m3_config.toml`. The last section of `m3 doctor` lists each
+  `M3_*` variable still set, where it is set, whether m3 still uses it ("in use")
+  or the config file already overrides it ("ignored"), and the command that
+  replaces it.
+- **Why it matters**: a variable set in one place and not another (your shell
+  profile but not an agent's MCP server entry, or the reverse) makes m3 read
+  different settings in different processes. With roots, that can split the
+  store.
+- **Fix**:
+  1. For each line, run the `fix:` command doctor prints, e.g.
+     `m3 config set paths.engine_root ~/.m3/engine`. Or move them all at once:
+     `m3 config import-env` (it shows what it will write and asks first).
+  2. Remove the variable where doctor says it is set: the `export` line in
+     `~/.zshenv`, `~/.zshrc`, `~/.bashrc` or `~/.profile`; a Windows user
+     variable (`setx NAME ""`, or System Properties → Environment Variables);
+     or an `env` entry in an agent's MCP config. `m3 doctor --fix` removes the
+     pins m3 itself wrote into agent configs and hooks.
+  3. Open a new terminal (on macOS, log out and back in if the variable came from
+     `launchctl`), restart the agent, and run `m3 doctor` again.
+- A `M3_CONFIG_ROOT` that equals the default is flagged as redundant: remove it.
+  Secrets (API keys, DSNs) are never read from variables; doctor's secrets section
+  says where each one is stored, and `m3 secret set NAME` stores one.
+
 ---
 
 ## Database Issues
@@ -57,31 +83,78 @@
 
 ## FIPS Crypto Issues
 
+FIPS settings live in `m3_config.toml` (`[crypto]`). The older variables
+(`M3_FIPS_MODE`, `M3_FIPS_STRICT`, `M3_WOLFSSL_SHA256`) still work but are
+deprecated; see [m3 doctor lists `M3_*` variables](#m3-doctor-lists-m3_-variables-as-deprecated).
+
 ### Crash / RuntimeError: "FIPS mode enabled but … wolfSSL … could not be loaded"
-- **Cause**: `M3_FIPS_MODE` (or `M3_FIPS_STRICT`) is set, but the wolfSSL library
-  isn't installed in a trusted path. FIPS mode **fails closed** by design — it
-  will not silently fall back to non-wolfCrypt crypto.
+- **Cause**: `crypto.fips_mode` (or `crypto.fips_strict`) is on, but the wolfSSL
+  library isn't installed in a trusted path. FIPS mode **fails closed** by design —
+  it will not silently fall back to non-wolfCrypt crypto.
 - **Solution** — install wolfSSL, then retry:
   ```bash
   m3 fips install-wolfssl      # builds open-source wolfSSL into ~/.m3/lib
   m3 doctor                    # confirm the "crypto (FIPS)" section shows it loaded
   ```
-- **Or** disable FIPS for now: `unset M3_FIPS_MODE M3_FIPS_STRICT` (Windows:
-  `setx M3_FIPS_MODE ""`).
+- **Or** turn FIPS off for now: `m3 config set crypto.fips_mode false` (and
+  `crypto.fips_strict false`), and remove any `M3_FIPS_*` variable still set.
 
-### "M3_FIPS_STRICT=1 requires the CMVP-validated wolfCrypt FIPS module … OPEN-SOURCE build"
-- **Cause**: `M3_FIPS_STRICT` requires the **commercial, CMVP-validated** wolfCrypt
+### "crypto.fips_strict requires the CMVP-validated wolfCrypt FIPS module … OPEN-SOURCE build"
+- **Cause**: strict mode requires the **commercial, CMVP-validated** wolfCrypt
   FIPS module, but you have the free **open-source** wolfSSL build.
-- **Solution**: For real FIPS 140-3, obtain the validated module via wolfSSL's
+- **Solution**: For a validated FIPS 140-3 module, obtain it through wolfSSL's
   commercial channel. For homelab/dev (hardened wolfCrypt without the license),
-  use `M3_FIPS_MODE=1` **without** `M3_FIPS_STRICT`.
+  keep `crypto.fips_mode true` and set `crypto.fips_strict false`.
 
-### "wolfSSL … failed integrity pin (M3_WOLFSSL_SHA256)"
-- **Cause**: The wolfSSL library's SHA-256 doesn't match your pinned
-  `M3_WOLFSSL_SHA256`. Expected after you intentionally rebuild/upgrade wolfSSL;
-  **investigate** if you didn't.
+### "wolfSSL … failed integrity pin"
+- **Cause**: The wolfSSL library's SHA-256 doesn't match `crypto.wolfssl_sha256`.
+  Expected after you intentionally rebuild/upgrade wolfSSL; **investigate** if you
+  didn't.
 - **Solution**: If you trust the new build, re-pin: `m3 doctor` prints the loaded
-  library's SHA-256 — copy it into `M3_WOLFSSL_SHA256`.
+  library's SHA-256; `m3 config set crypto.wolfssl_sha256 <that value>`.
+
+### FIPS mode refuses the PostgreSQL connection
+Symptom: sync to the warehouse (or a PostgreSQL primary store) fails with *"FIPS
+mode refuses a PostgreSQL connection that can fall back to plaintext or skip the
+server's certificate"*, and `m3 doctor`'s crypto section lists the path as
+refused, with a `fix:` line.
+
+- **Cause**: under FIPS mode a networked PostgreSQL connection must verify the
+  server: `sslmode=verify-full` plus the server's CA certificate as
+  `sslrootcert`. A DSN with `sslmode=prefer` (libpq's default), `require` or
+  `verify-ca` can skip that check, so m3 refuses it. A local Unix socket is not
+  affected.
+- **Solution**:
+  1. Get the CA certificate that signed the server's certificate. Ask whoever runs
+     the server, or read the chain the server presents and keep its last
+     (root) certificate:
+     ```bash
+     openssl s_client -starttls postgres -connect <host>:5432 -showcerts </dev/null
+     ```
+     Copy the last `-----BEGIN CERTIFICATE-----` … `-----END CERTIFICATE-----`
+     block into a file in your config root, e.g. `~/.m3/config/pg_root.pem`.
+     **Check its fingerprint** with the server's operator
+     (`openssl x509 -in ~/.m3/config/pg_root.pem -noout -fingerprint -sha256`)
+     before trusting it: reading it over the network alone proves nothing.
+  2. Build the DSN (placeholders; never paste a real password into a ticket or
+     chat):
+     ```text
+     postgresql://<user>:<password>@<host in the certificate>:5432/<db>?sslmode=verify-full&sslrootcert=<config root>/pg_root.pem
+     ```
+     If you connect by an address or a name that is not in the certificate, keep
+     the certificate's name as the host and add `hostaddr=<address>`:
+     `postgresql://…@<name in certificate>:5432/<db>?hostaddr=<address>&sslmode=verify-full&sslrootcert=…`.
+     On Windows, write the `sslrootcert` path with forward slashes.
+  3. Store it (it is read from standard input, so it never lands in your shell
+     history):
+     ```bash
+     m3 secret set M3_CDW_PG_URL --keyring --stdin       # the sync warehouse
+     m3 secret set M3_PRIMARY_PG_URL --keyring --stdin   # a PostgreSQL primary store
+     ```
+  4. Run `m3 doctor`: the refused path should be gone. Then run a sync.
+- **For an AI agent helping a user**: never ask for or echo the DSN or password.
+  Have the user run the `m3 secret set … --stdin` command themselves (in Claude
+  Code, `! <command>`), and confirm with `m3 doctor`, which prints DSNs masked.
 
 See [FIPS_MODULE_BOUNDARY.md](FIPS_MODULE_BOUNDARY.md) for the full model.
 
@@ -169,13 +242,14 @@ references, and why we deliberately did not switch the default transport.
 
 ### Agent can't find previous memories
 - Memories live under the **engine root**: `~/.m3/engine/agent_memory.db` by
-  default. Resolution is `M3_ENGINE_ROOT` > `M3_MEMORY_ROOT/engine` >
-  `~/.m3/engine`. Ask m3 rather than guessing: `m3 chatlog status --json`
-  reports the resolved backend and roots.
-- ⚠ `~/.m3-memory/` is the **payload** root (the `M3_MEMORY_ROOT` default):
-  `m3 install-m3` fetches the payload into `~/.m3-memory/repo` and keeps its
-  `config.json` there. It holds no live database — a DB found there is a
-  leftover from the old unified layout, not your live store.
-  `bin/homecoming.py` migrates a legacy layout to the split roots.
+  default, or `paths.engine_root` in `m3_config.toml`. Ask m3 rather than
+  guessing: `m3 chatlog status --json` reports the resolved backend and roots,
+  and `m3 config show` says where each setting came from. A leftover
+  `M3_ENGINE_ROOT` or `M3_MEMORY_ROOT` in one place (a shell profile, an agent's
+  MCP `env` block) and not another can split the store; `m3 doctor` lists any
+  that is set.
+- ⚠ `~/.m3-memory/` is the legacy memory root. It holds no live database — a DB
+  found there is a leftover from the old unified layout, not your live store.
+  `m3 doctor --fix` migrates its state into `~/.m3` and leaves a `MOVED.txt`.
 - The bridge resolves the DB from those roots regardless of the directory
   `m3` was launched from.

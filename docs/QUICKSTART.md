@@ -125,8 +125,8 @@ to list a domain's tools.
 
 > **Tool catalog stays small in your context.** m3 ships 100+ MCP tools but
 > groups them into 9 domains (memory, chatlog, files, entity, agent, tasks,
-> conversations, diagnostics, admin). Only 10 tools load at MCP startup
-> (~3,962 tokens, ~2% of a 200K window; the rest load on demand). The
+> conversations, diagnostics, admin). Only 6 tools load at MCP startup
+> (~3,249 tokens, ~1.6% of a 200K window); the rest are reached by name through `m3_call`. The
 > agent pulls in a domain on demand — just say "load the files tools" and it does.
 > To load every tool at startup instead: `m3 config set tools.lazy false`.
 
@@ -284,8 +284,8 @@ model emits `tool_calls` → proxy executes them against m3-memory →
 results fed back → final answer returned to agent.
 
 The proxy routes by model name: `claude-*` → Anthropic, `gemini-*` →
-Google AI, `grok-*` → xAI, `sonar-*` → Perplexity. Set
-`MCP_PROXY_ALLOW_DESTRUCTIVE=1` to expose `memory_delete`, `gdpr_*`,
+Google AI, `grok-*` → xAI, `sonar-*` → Perplexity. Run
+`m3 config set mcp.allow_destructive true` to expose `memory_delete`, `gdpr_*`,
 `*_export` etc. (off by default).
 
 #### Starting the proxy

@@ -71,8 +71,8 @@ Use the plugin **or** `m3 setup`'s direct registration
 (`claude mcp add --scope user -- m3_memory m3`), not both — both gives two live
 m3 servers; `m3 doctor --fix --fix-hooks` converges back to one.
 
-**Verify**: `tools_list_domains` from any Claude Code session lists 9
-domains including `diagnostics`. Calling `memory_doctor` returns
+**Verify**: `m3_call("tools_list_domains")` from any Claude Code session lists 9
+domains including `diagnostics`. Calling `m3_call("memory_doctor")` returns
 `{"summary": "healthy"}` if the embedder service is up.
 
 ---
@@ -217,15 +217,17 @@ re-running is safe — but a partial spec silently drops the fields you omit.
 
 ### The startup tool surface
 
-m3 registers a `toolFilter` of the same 10 tools it exposes to every other
-client: `memory_search`, `memory_write`, `memory_get`, `memory_supersede`,
-`chatlog_search`, `chatlog_status`, `files_search`, `m3_call`,
-`tools_list_domains`, `tools_load_domain`.
+m3 registers a `toolFilter` of the same 6 tools it exposes to every other
+client: `memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
+`chatlog_search`, `m3_call`. The list is derived from m3's configured startup
+set, so a custom `m3 config set tools.startup "..."` carries over; with
+`m3 config set tools.lazy false` no filter is written and every tool registers.
 
-That is ~3,962 tokens on the wire instead of ~30,701 for the full catalog
-— a ~87% reduction, measured with `python bin/measure_tool_tokens.py`. Nothing
-is lost: `m3_call` invokes any catalog tool by name, and `tools_load_domain`
-pulls a whole domain in live.
+That is ~3,249 tokens on the wire, a small fraction of the full catalog
+(measure both with `python bin/measure_tool_tokens.py`). Nothing is lost:
+`m3_call` invokes any catalog tool by name, and
+`m3_call("tools_load_domain", {"domain": "files"})` pulls a whole domain in live
+when the agent needs many of its tools.
 
 ### Sandboxed OpenClaw via Docker
 
@@ -331,8 +333,8 @@ Auto-wired to `~/.cursor/mcp.json` (only when `~/.cursor` exists). Manual config
 ```
 
 > **Cursor's ~40-tool cap.** Cursor limits the active tool surface across all
-> MCP servers. m3 exposes 100+ tools but lazy-loads only 10 at
-> startup (the rest via `tools_load_domain`), so it stays well under the ceiling.
+> MCP servers. m3 exposes 100+ tools but registers only 6 at
+> startup (the rest via `m3_call`), so it stays well under the ceiling.
 
 ### Cline (VS Code extension)
 
@@ -367,14 +369,18 @@ Restart Cursor / reload Cline's MCP servers. Verify via the client's MCP tool li
 
 ## Verifying any client
 
-Once registered, every client should expose these meta-tools:
+Once registered, every client should expose the 6 startup tools
+(`memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
+`chatlog_search`, `m3_call`). Everything else is reached through `m3_call`:
 
 | Tool | Purpose |
 |---|---|
-| `tools_list_domains` | List all 9 domains + tool counts |
-| `tools_load_domain` | Surface a domain's tools to the agent |
+| `m3_call` (startup) | Invoke any catalog tool by name, e.g. `m3_call("memory_doctor")` |
+| `m3_call("m3_index")` | List the catalog with each tool's exact args |
+| `m3_call("tools_list_domains")` | List all 9 domains + tool counts |
+| `m3_call("tools_load_domain", {"domain": ...})` | Optional: register a whole domain natively when calling many of its tools |
 | `memory_doctor` (in `diagnostics` domain) | Run health probes — tier-1/tier-2/db/roundtrip with structured recommendations |
-| `memory_search` (essential, always loaded) | Hybrid FTS5 + vector search |
+| `memory_search` (startup, always loaded) | Hybrid FTS5 + vector search |
 
 A healthy install: `memory_doctor` returns `{"summary": "healthy"}` — in the
 default shared-embedder mode that only needs the :8082 server up (tier-1 is
@@ -388,7 +394,7 @@ intentionally off). `"degraded"` comes with explicit recommendations.
 |---|---|---|
 | `memory_search` hangs > 10s | No embedder reachable | Run `m3 embedder install-gpu` (binary), `m3 embedder install`, then `m3 embedder status` |
 | `memory_search` returns wrong vectors | Cascade fell to Ollama (cross-space) | Same — ensure :8082 is up; m3 cascade now prefers it (commit 0dfdf56+) |
-| `tools_load_domain('diagnostics')` returns 0 tools | Pre-cascade-fix server version | `pip install -U m3-memory` then restart the MCP server |
+| `m3_call("tools_load_domain", {"domain": "diagnostics"})` returns 0 tools | Pre-cascade-fix server version | `pip install -U m3-memory` then restart the MCP server |
 | Plugin install dialog doesn't show new userConfig knobs | Cached plugin manifest | Re-pull the plugin: `/plugin remove m3@skynetcmd && /plugin install m3@skynetcmd` |
 
 For deeper diagnostics, call `memory_doctor` and read the

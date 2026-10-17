@@ -53,9 +53,10 @@ m3 serve --host 127.0.0.1 --port 8080 --public-host <your-tunnel-hostname>
 
 This starts the same 100+ tool bridge you use locally on
 `http://127.0.0.1:8080/mcp` (Streamable HTTP transport, the spec Claude
-expects). Domain-gated by default — only ~6 essentials register at session
-start, rest expand on demand via `tools_load_domain` (see the
-[lazy-loading note](../README.md#domain-gating)).
+expects). Domain-gated by default — only six tools register at session start
+(`memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
+`chatlog_search`, `m3_call`); every other tool is reached by name through
+`m3_call` (see the [lazy-loading note](../README.md#domain-gating)).
 
 `--public-host` is **required when you use a tunnel**: the transport validates the
 `Host` header, and a tunnel forwards its own public hostname. Without it every
@@ -143,8 +144,10 @@ section below.
    If you do not see a **Request headers** section, your organization does not
    have that beta — see point 3 at the top of this page.
 5. Save. Claude.ai will probe the endpoint and list the active tool set
-   — by default ~6 essentials plus the two `tools_*` meta-tools (the
-   agent expands more domains as needed).
+   — by default the six startup tools above (the agent reaches the rest through
+   `m3_call`, and can register a whole domain with
+   `m3_call("tools_load_domain", {"domain": "files"})` when it needs many of
+   its tools).
 
 **If the connector fails to probe**, check in this order — the failure modes look
 alike from the dialog:

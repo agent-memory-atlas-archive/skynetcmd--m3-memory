@@ -64,7 +64,7 @@ New `memory_delete_bulk_impl(ids, hard=False)` in `bin/memory_core.py`.
 
 Destructive-gated via `ToolSpec(default_allowed=False)` in
 `bin/mcp_tool_catalog.py` — same gate as the single-id `memory_delete`,
-only exposed when `MCP_PROXY_ALLOW_DESTRUCTIVE` is set on the proxy.
+only exposed when `m3 config set mcp.allow_destructive true` has been run.
 
 Effect: a 178-id delete drops from ~178 MCP round-trips (~3s each =
 ~10 min) to one round-trip plus a single batched SQL transaction

@@ -397,7 +397,7 @@ memory.call("chatlog_status")
 > are **not** gated, `.call()` goes through m3's guarded dispatcher — the same one the
 > MCP/LLM surface uses. So a destructive call by raw name (e.g.
 > `.call("memory_delete", id=…)`) returns `{"ok": false, "error": "destructive_gated"}`
-> unless `MCP_PROXY_ALLOW_DESTRUCTIVE=1` is set in the environment. This is deliberate:
+> unless `m3 config set mcp.allow_destructive true` has been run. This is deliberate:
 > the guard exists to stop an agent/LLM from deleting by surprise through the generic
 > tool surface. **For deletes, prefer the typed `.delete()` / `.forget()` / `.clear()`
 > methods** — they express explicit user intent and need no flag.
