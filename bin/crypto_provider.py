@@ -621,8 +621,8 @@ class CryptoProvider:
         except Exception as e:
             if _fips_active():
                 raise RuntimeError(
-                    f"FATAL: FIPS 140-3 Compliance Mode Enforced, but FIPS-validated "
-                    f"wolfSSL/wolfCrypt backend failed to initialize: {e}. "
+                    f"FATAL: FIPS mode is on (crypto.fips_mode / crypto.fips_strict), and the "
+                    f"wolfSSL/wolfCrypt backend it requires failed to initialize: {e}. "
                     f"observed: {type(e).__name__} while loading the backend. "
                     f"inspect: crypto.wolfssl_lib (M3_WOLFSSL_LIB), crypto.fips_mode / crypto.fips_strict (M3_FIPS_MODE / M3_FIPS_STRICT) (docs/FIPS_MODULE_BOUNDARY.md)"
                 ) from e

@@ -247,7 +247,7 @@ The secrets vault uses **AES-256-GCM**. Traffic to the embedder on port 8082
 is plain HTTP to `127.0.0.1` (loopback only), not TLS.
 
 See the [FIPS Module Boundary](FIPS_MODULE_BOUNDARY.md) and
-[FIPS Compliance Guide](FIPS_COMPLIANCE.md) for deep technical details and
+[FIPS 140-3 readiness guide](FIPS_COMPLIANCE.md) for deep technical details and
 control mappings.
 
 ---

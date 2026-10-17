@@ -447,6 +447,17 @@ def get_m3_logs_root() -> str:
     return _roots.logs_root()
 
 
+# The in-process embed server's log, one name for every launcher (the boot task
+# and doctor's stop-gap start). The stop-gap once started it with no log at all,
+# so when it died nothing said why (2026-10-17).
+EMBED_SERVER_INPROC_LOG = "embed_server_inproc.log"
+
+
+def embed_server_inproc_log() -> str:
+    """<logs root>/embed_server_inproc.log."""
+    return os.path.join(get_m3_logs_root(), EMBED_SERVER_INPROC_LOG)
+
+
 def resolve_engine_file(filename: str) -> str:
     """Resolve a path under the engine root, honoring the legacy fallback.
 

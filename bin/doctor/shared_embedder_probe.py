@@ -482,13 +482,19 @@ def _fix_start_server() -> bool:
             if os.path.exists(pyw):
                 exe = pyw
         kwargs.update(detached_spawn_kwargs())
+        # Its own log: stdout/stderr go nowhere (no console), and without one a
+        # server that later died left no trace of why.
+        from m3_core.paths import embed_server_inproc_log
+
+        log = embed_server_inproc_log()
+        os.makedirs(os.path.dirname(log), exist_ok=True)
         subprocess.Popen(  # noqa: S603 — fixed argv, our own script
-            [exe, script, "--port", str(_port())],
+            [exe, script, "--port", str(_port()), "--log-file", log],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             **kwargs,
         )
-        print(f"  [fix] launched embed server on {_default_url()} (loading may take a few seconds).")
+        print(f"  [fix] launched embed server on {_default_url()} (loading may take a few seconds; log: {log}).")
         return True
     except Exception as e:  # noqa: BLE001
         print(f"  [fix] could not start the embed server: {e}")

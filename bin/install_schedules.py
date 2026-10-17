@@ -5,6 +5,7 @@ Automatically configures crontab (macOS/Linux) or schtasks (Windows).
 Uses project virtual environment paths and ensures log directories exist.
 """
 
+from m3_core.paths import EMBED_SERVER_INPROC_LOG
 from m3_core.paths import apply_early_argv as _apply_early_argv
 
 # --config FILE (setup passes the file it chose) is pinned before any import
@@ -1371,7 +1372,7 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
                 "--port",
                 "8082",
                 "--log-file",
-                _log("embed_server_inproc.log"),
+                _log(EMBED_SERVER_INPROC_LOG),
             ],
             "schedule": "ONSTART",
             "modifier": "",

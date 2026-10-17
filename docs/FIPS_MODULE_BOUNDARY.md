@@ -162,8 +162,8 @@ So:
   hardened algorithm boundary on the open-source build, without paying for the
   FIPS license. It still **fails closed** if wolfCrypt is entirely absent, still
   runs the power-up Known-Answer-Tests, and still blocks non-approved algorithms.
-- **`M3_FIPS_STRICT`** is the gate for *actual* FIPS 140-3 compliance: it
-  requires the validated module (FIPS symbols present + POST passes) and
+- **`M3_FIPS_STRICT`** is the gate that requires a FIPS 140-3 validated
+  module (FIPS symbols present + POST passes) and
   refuses the open-source build with a clear, actionable error.
 
 ---
