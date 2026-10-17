@@ -1,8 +1,8 @@
 ---
 tool: bin/check_deps.py
-sha1: 9e70ac316499
-mtime_utc: 2026-10-10T21:05:16.838500+00:00
-generated_utc: 2026-10-10T21:05:29.393148+00:00
+sha1: 06195dbefdc6
+mtime_utc: 2026-10-17T11:50:41.956976+00:00
+generated_utc: 2026-10-17T11:51:00.059286+00:00
 private: false
 ---
 
@@ -26,7 +26,7 @@ distributions to import names (yaml -> PyYAML, PIL -> pillow, ...).
 
 ## Entry points
 
-- `def main()` (line 64)
+- `def main()` (line 70)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -53,8 +53,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `[sys.executable, '-m', 'deptry', '--version']`` (line 67)
-- `subprocess.run()  → `cmd`` (line 84)
+- `subprocess.run()  → `[sys.executable, '-m', 'deptry', '--version']`` (line 73)
+- `subprocess.run()  → `cmd`` (line 90)
 
 
 ---

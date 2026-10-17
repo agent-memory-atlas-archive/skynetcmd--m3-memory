@@ -52,6 +52,12 @@ EXCEPTIONS: dict[str, dict[str, str]] = {
         "pydantic-ai-slim": "pydantic-ai extra, imported as pydantic_ai where installed",
         "psycopg": "test group: the PostgreSQL lanes, driven from tests",
         "setuptools": "test group: the CVE floor (docs/DEPENDENCY_NOTES.md)",
+        "langgraph-checkpoint": "langchain extra: security floor for a langgraph transitive (pyproject comment)",
+        "langgraph-sdk": "langchain extra: security floor for a langgraph transitive (pyproject comment)",
+    },
+    # DEP004: imported but declared only in a dev group
+    "DEP004": {
+        "tiktoken": "dev group; measure_tool_tokens is a dev script with a guarded import",
     },
 }
 

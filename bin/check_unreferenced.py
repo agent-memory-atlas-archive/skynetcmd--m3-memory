@@ -44,6 +44,12 @@ INTERFACE: dict[tuple[str, str], str] = {
     ("bin/test_fips_integrity.py", "authIn"): "ctypes mock of a wolfCrypt AES-GCM entry point: the C signature",
     ("bin/test_fips_integrity.py", "authInSz"): "ctypes mock of a wolfCrypt AES-GCM entry point: the C signature",
     ("bin/test_fips_integrity.py", "typeH"): "ctypes mock of a wolfCrypt HMAC entry point: the C signature",
+    ("bin/test_fips_integrity.py", "nonce_sz"): "ctypes mock of wolfCrypt wc_rng_new: the C signature",
+    ("bin/test_fips_integrity.py", "heap"): "ctypes mock of wolfCrypt wc_rng_new: the C signature",
+    (
+        "bin/test_fips_integrity.py",
+        "rng",
+    ): "ctypes mock of wolfCrypt wc_rng_free / wc_RNG_GenerateBlock: the C signature",
 }
 
 # (path, name) -> the planned feature it is held for
