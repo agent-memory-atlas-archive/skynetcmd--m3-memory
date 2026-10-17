@@ -214,7 +214,9 @@ def test_the_default_file_ships_in_the_wheel():
     from m3_core.config.default_file import DEFAULT_FILE
 
     assert (root / package_dir[pkg] / DEFAULT_FILE.name).is_file()
-    assert DEFAULT_FILE.parent == (root / package_dir[pkg]).resolve()
+    # Resolved on both sides: a test that put an unresolved `tests/../bin` on
+    # sys.path first leaves m3_core's __file__ spelled that way (same directory).
+    assert DEFAULT_FILE.parent.resolve() == (root / package_dir[pkg]).resolve()
 
 
 def test_the_environment_page_covers_every_name():

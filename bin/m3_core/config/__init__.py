@@ -1,7 +1,7 @@
 """m3's configuration: the registry, the m3_config.toml loader, the resolver.
 
 Only
-this package reads m3-owned environment variables once the cutover lands (N+3);
+this package reads m3-owned environment variables once the cutover lands (after N+3);
 until then legacy readers keep working beside it (2D converts them).
 """
 

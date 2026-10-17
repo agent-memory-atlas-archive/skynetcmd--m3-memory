@@ -61,7 +61,7 @@ _HEADER = f"""\
 # if you set one; left as is, the line is not valid TOML and m3 says so.
 #
 # "env (legacy)" lists the environment names a setting answered to before this
-# file. m3 still reads them, below this file, until release N+3;
+# file. m3 still reads them, below this file, through release N+3;
 # `m3 config import-env` (run by `m3 setup` and `m3 upgrade`) moves them here.
 #
 # Paths: "~" is your home folder on every OS. Use forward slashes, which work

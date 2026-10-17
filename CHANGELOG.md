@@ -746,7 +746,7 @@ the policy is forward-going only.
 
 - **`M3_DATABASE` is a legacy setting; use `--database` or `--store`.** m3 no
   longer sets it for itself. It is still read when nothing else names the
-  database, with a warning, until a later release removes it. A `--database`
+  database, with a warning (deprecated). A `--database`
   given to a script also chooses the chatlog when the chatlog is not pinned
   elsewhere, as `M3_DATABASE` did. `m3 config import-env` and `m3 doctor` name
   where `M3_DATABASE` is still set, with the replacement.
@@ -764,8 +764,8 @@ the policy is forward-going only.
 - **The storage backend is chosen in `m3_config.toml`, not the environment.**
   `[db] backend = "postgres"` (or `m3 config set db.backend postgres`) selects
   it; `--set` changes it for one run. `M3_DB_BACKEND` no longer overrides the
-  file: it is read only when the file does not set the backend, with a warning,
-  until a later release removes it. `m3 config import-env` (run by
+  file: it is read only when the file does not set the backend, with a warning
+  (deprecated). `m3 config import-env` (run by
   `m3 upgrade`) moves it into the file, and `m3 doctor` names leftover copies.
   **Affected:** installs that select PostgreSQL with `M3_DB_BACKEND` ·
   **Action:** run `m3 upgrade` (or `m3 config set db.backend postgres`), then
@@ -962,7 +962,7 @@ the policy is forward-going only.
   **Affected:** code calling `with_m3_history` · **Action:** move to `M3Saver`
   before langchain-core 2.0 · **Data status:** none.
 
-- **Legacy environment names for settings** keep working for now and log a
+- **Legacy environment names for settings** still work and log a
   warning; `m3 config show --origin` shows which name supplied a value.
   `LLAMA_SERVER_EXE` and `GGUF_MODEL_PATH` are now `M3_LLAMA_SERVER_EXE` and
   `M3_GGUF_MODEL_PATH`.
@@ -980,8 +980,7 @@ the policy is forward-going only.
   **Affected:** PostgreSQL installs whose DSN is in the vault ·
   **Action:** store it in the keyring or the secrets file · **Data status:** none.
 
-- **The `m3-memory[dev]` extra** is an alias of the `dev` dependency group and
-  will be removed in the next release.
+- **The `m3-memory[dev]` extra** is now an alias of the `dev` dependency group.
   **Affected:** contributors · **Action:** `uv sync --group dev` (or
   `pip install --group dev` with pip 25.1+) · **Data status:** none.
 

@@ -348,7 +348,7 @@ class SecretResolution:
     errors: tuple[str, ...]  # what each tier HIT on the way, for an honest "not found"
 
 
-# D1 (user, 2026-10-08): the primary DSN's vault copy keeps working, loudly, until N+3.
+# D1 (user, 2026-10-08): the primary DSN's vault copy keeps working, loudly, through N+3.
 _VAULT_DEPRECATED = frozenset({"M3_PRIMARY_PG_URL"})
 
 
@@ -420,7 +420,7 @@ def explain_secret(
                 logging.getLogger(__name__).warning(
                     "observed: %s came from the encrypted vault, which is deprecated for it: it is "
                     "a bootstrap secret, and the vault lives in the store it unlocks. It still "
-                    "works; the vault fallback is removed at N+3. fix: `m3 secret set %s` "
+                    "works; the vault fallback is removed after N+3. fix: `m3 secret set %s` "
                     "(prompts for the value, so it stays out of shell history).",
                     key,
                     key,

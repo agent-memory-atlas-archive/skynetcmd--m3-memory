@@ -399,7 +399,7 @@ m3 ships a Rust compute core (`m3_core_rs`) that speeds up MMR re-ranking by **9
     | `[paths] engine_root` | `~/.m3/engine` | Databases + runtime state (`agent_memory.db`, `agent_chatlog.db`, `files_database.db`) |
     | `M3_CONFIG_ROOT` (or `m3 --config FILE`) | `~/.m3/config` | Configuration: `m3_config.toml`, chatlog config, salt |
     | `[paths] logs_root` | `~/.m3/logs` | Scheduled-task and service logs |
-    | `[paths] memory_root` | unset | Legacy, removed at release N+3: when set, the others derive from it. Set `engine_root` and `logs_root` instead |
+    | `[paths] memory_root` | unset | Legacy, removed after release N+3: when set, the others derive from it. Set `engine_root` and `logs_root` instead |
 
     **All are relocatable.** Set a root under `[paths]` in `m3_config.toml`; the config file itself is found through `M3_CONFIG_ROOT` or `m3 --config`. A specific root wins over `memory_root`, from which the others otherwise derive as `<root>/engine` and `<root>/logs`. (See [Architecture](docs/ARCHITECTURE.md).)
 

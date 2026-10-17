@@ -11,7 +11,7 @@ default).
 
 Resolution order for the chatlog DB path:
     1. the configured chatlog store: a script's --chatlog-db pin, else a legacy
-       chatlog env name until N+3 (m3_core.paths.configured_chatlog_db)
+       chatlog env name through N+3 (m3_core.paths.configured_chatlog_db)
     2. active_database() ContextVar (per-call override set by the MCP tool
        dispatcher when a caller passes `database` on a chatlog_* tool)
     3. .chatlog_config.json db_path field, when it pins one

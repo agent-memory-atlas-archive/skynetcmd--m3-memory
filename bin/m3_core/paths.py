@@ -865,12 +865,12 @@ def pin_database(path: "str | os.PathLike[str] | None") -> str | None:
 def configured_main_db() -> str | None:
     """This process's main database as configured, or None for the default: the
     ``--database`` pin, else the legacy ``M3_DATABASE`` env var (warned once per
-    process; honoured until N+3). THE reader for every caller that used to read
+    process; honoured through N+3). THE reader for every caller that used to read
     ``os.environ.get("M3_DATABASE")``."""
     global _LEGACY_DB_WARNED
     if _pinned_db:
         return _pinned_db
-    # env-owner: the legacy-name shim for M3_DATABASE (warned; until N+3, M3_DATABASE design Q1)
+    # env-owner: the legacy-name shim for M3_DATABASE (warned; through N+3, M3_DATABASE design Q1)
     legacy = (os.environ.get("M3_DATABASE") or "").strip()
     if not legacy:
         return None
@@ -878,7 +878,7 @@ def configured_main_db() -> str | None:
         _LEGACY_DB_WARNED = True
         logger.warning(
             "observed: the database comes from the environment variable M3_DATABASE, which m3 "
-            "reads only until release N+3. fix: pass --database PATH to the command, or name a "
+            "reads only through release N+3. fix: pass --database PATH to the command, or name a "
             "store in m3_config.toml ([stores.<name>]) and pass --store NAME; then remove M3_DATABASE."
         )
     return legacy
@@ -905,7 +905,7 @@ def configured_chatlog_db() -> str | None:
     """This process's chatlog store as configured, or None: the ``--chatlog-db``
     pin, else the legacy chatlog env names, read in ONE place (M3_CHATLOG_DB_PATH /
     CHATLOG_DB_PATH, then M3_CHATLOG_DB / CHATLOG_DB, then M3_CHATLOG_DATABASE;
-    honoured until N+3, warned once per process). THE reader for every caller that
+    honoured through N+3, warned once per process). THE reader for every caller that
     read one of them."""
     global _LEGACY_CHATLOG_WARNED
     if _pinned_chatlog:
@@ -931,7 +931,7 @@ def configured_chatlog_db() -> str | None:
         _LEGACY_CHATLOG_WARNED = True
         logger.warning(
             "observed: the chatlog store comes from the environment variable %s, which m3 reads "
-            "only until release N+3. fix: pass --chatlog-db PATH to the command, or set db_path in "
+            "only through release N+3. fix: pass --chatlog-db PATH to the command, or set db_path in "
             ".chatlog_config.json; then remove %s.",
             name,
             name,
@@ -1146,7 +1146,7 @@ def resolve_backend_name() -> str:
     THE single owner of this predicate; ``memory.backends.selector`` re-exports
     it. An ordinary registry key: a ``--set`` flag, then ``[db] backend`` in m3_config.toml, then the
     legacy env names ``M3_DB_BACKEND`` / ``DB_BACKEND`` (below the file, warned
-    once per process, until N+3), then ``sqlite``. An unrecognised value raises —
+    once per process, through N+3), then ``sqlite``. An unrecognised value raises —
     a typo like ``postgre`` must not silently run SQLite.
 
     Never memoised: a module-global memo lives per module instance, and two
@@ -1176,7 +1176,7 @@ _BACKEND_ENV_WARNED: set[str] = set()
 
 def _warn_backend_from_legacy_env(name: str) -> None:
     """Once per process: the backend came from M3_DB_BACKEND / DB_BACKEND, which
-    m3 honours for it only until N+3. A daemon that runs on PostgreSQL because
+    m3 honours for it only through N+3. A daemon that runs on PostgreSQL because
     of a variable nobody sees must say so (§3)."""
     from m3_core.config.settings import current
 
@@ -1189,7 +1189,7 @@ def _warn_backend_from_legacy_env(name: str) -> None:
     _BACKEND_ENV_WARNED.add(var)
     logger.warning(
         "observed: the storage backend (%s) comes from the environment variable %s, which m3 "
-        "reads for it only until release N+3. fix: `m3 config set db.backend %s` (or "
+        "reads for it only through release N+3. fix: `m3 config set db.backend %s` (or "
         "`m3 config import-env`), then remove %s where it is set.",
         name,
         var,

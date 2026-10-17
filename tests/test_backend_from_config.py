@@ -46,7 +46,7 @@ def test_the_file_beats_env(postgres_in_file, monkeypatch):
 
 
 def test_the_legacy_env_name_answers_below_the_file_and_warns_once(monkeypatch, caplog):
-    """With no [db] backend in the file, M3_DB_BACKEND still selects until N+3,
+    """With no [db] backend in the file, M3_DB_BACKEND still selects through N+3,
     and says so once per process: a daemon on PostgreSQL because of a variable
     nobody sees must not be silent (§3)."""
     import logging

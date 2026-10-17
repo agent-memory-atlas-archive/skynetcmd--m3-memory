@@ -63,7 +63,7 @@ Every DB-aware script accepts a standardized `--database PATH` flag. To use a na
 2. The active named store (`--store`)
 3. A call's `active_database()` scope
 4. The process's `--database PATH` pin
-5. `M3_DATABASE` environment variable — **legacy**: read only when nothing above names a database, with a one-time warning, until release N+3. m3 itself no longer writes it.
+5. `M3_DATABASE` environment variable — **legacy**: read only when nothing above names a database, with a one-time warning, through release N+3. m3 itself no longer writes it.
 6. Default: `<engine_root>/agent_memory.db` — i.e. `~/.m3/engine/agent_memory.db`
    (the engine root resolves `M3_ENGINE_ROOT` → `M3_MEMORY_ROOT/engine` → `~/.m3/engine`;
    see [Roots and locators](ENVIRONMENT_VARIABLES.md#roots-and-locators)).
@@ -89,7 +89,7 @@ CHATLOG_DB_PATH=memory/my_chatlog.db python bin/chatlog_ingest.py --format claud
 
 ## Running tests against an isolated DB
 
-The test suites (`test_memory_bridge.py`, `test_debug_agent.py`, `test_mcp_proxy.py`) read their `DB_PATH` via `resolve_db_path(None)` at import time. They define no `--database` flag, so point them at a scratch DB with the legacy `M3_DATABASE` env var (read until release N+3, with a one-time warning).
+The test suites (`test_memory_bridge.py`, `test_debug_agent.py`, `test_mcp_proxy.py`) read their `DB_PATH` via `resolve_db_path(None)` at import time. They define no `--database` flag, so point them at a scratch DB with the legacy `M3_DATABASE` env var (read through release N+3, with a one-time warning).
 
 Isolated test run:
 
@@ -140,7 +140,7 @@ The chatlog subsystem has its own resolver (see `bin/chatlog_config.py`):
 | Env | Role |
 | --- | --- |
 | `CHATLOG_DB_PATH` | Explicit chatlog-only path override, highest priority for chatlog reads/writes |
-| `M3_DATABASE` | **Legacy** (read until release N+3, warned). Unified layout: with no `CHATLOG_DB_PATH` and no `db_path` pinned in `.chatlog_config.json`, the chatlog shares the process's `--database` (or legacy `M3_DATABASE`) main DB |
+| `M3_DATABASE` | **Legacy** (read through release N+3, warned). Unified layout: with no `CHATLOG_DB_PATH` and no `db_path` pinned in `.chatlog_config.json`, the chatlog shares the process's `--database` (or legacy `M3_DATABASE`) main DB |
 | `CHATLOG_MODE` | **Deprecated** — ignored with a one-time warning. The three-mode system (integrated/separate/hybrid) has collapsed into path equality: same file = integrated behavior, different file = separate behavior, promote semantics switch automatically. |
 
 See [CHATLOG.md](CHATLOG.md) for the full chatlog architecture.

@@ -74,7 +74,7 @@ def _warn_legacy_once(root: str) -> None:
         _LEGACY_WARNED.add(root)
         logger.warning(
             "The m3 config root comes from the legacy M3_MEMORY_ROOT/config tier (%s), which is "
-            "removed at N+3. Set M3_CONFIG_ROOT, or pass --config <file>.",
+            "removed after N+3. Set M3_CONFIG_ROOT, or pass --config <file>.",
             root,
         )
 

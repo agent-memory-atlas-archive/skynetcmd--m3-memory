@@ -90,7 +90,7 @@ python -m pytest tests/ -m "not slow"
 
 # Against an isolated DB (see bin/setup_test_db.py)
 python bin/setup_test_db.py --database memory/_test.db --force
-M3_DATABASE=memory/_test.db python -m pytest tests/   # legacy env name (read until N+3, warned)
+M3_DATABASE=memory/_test.db python -m pytest tests/   # legacy env name (read through N+3, warned)
 ```
 
 ---
@@ -102,7 +102,7 @@ for scenarios that need a real live DB, a running MCP server, or LM Studio
 on localhost — things pytest would have to mock extensively.
 
 They define no `--database` flag; point them at a scratch DB with the legacy
-`M3_DATABASE` env var (read until release N+3, with a one-time warning):
+`M3_DATABASE` env var (read through release N+3, with a one-time warning):
 
 ```bash
 python bin/setup_test_db.py --database memory/_test.db --force
@@ -126,7 +126,7 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 The three harnesses that take over the live DB (`test_memory_bridge.py`,
 `test_debug_agent.py`, `test_mcp_proxy.py`) resolve `DB_PATH` at import
 time via `m3_sdk.resolve_db_path(None)` and define no `--database` flag, so
-setting the legacy `M3_DATABASE` before invocation isolates them (read until
+setting the legacy `M3_DATABASE` before invocation isolates them (read through
 release N+3, warned). Typical flow:
 
 ```bash

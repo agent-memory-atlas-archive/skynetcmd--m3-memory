@@ -64,7 +64,7 @@ def test_file_then_keyring(tiers):
 
 
 def test_primary_from_the_vault_works_but_warns_every_time(tiers, caplog):
-    """D1: a deprecated fallback until N+3, never silent."""
+    """D1: a deprecated fallback through N+3, never silent."""
     tiers["vault"]["M3_PRIMARY_PG_URL"] = PRIMARY
     with caplog.at_level(logging.WARNING):
         r1 = _explain("primary")

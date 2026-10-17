@@ -4,14 +4,14 @@ Precedence for a CONFIG key, N..N+2 (the deprecation window):
 
     m3_config.toml (no key's env value outranks it, db.backend
     included)
-    > legacy env (any other key's old env name; honoured, and reported, until N+3)
+    > legacy env (any other key's old env name; honoured, and reported, through N+3)
     > .env (parsed, never injected)
     > <config_root>/.llm_config.json (the [llm] keys' old file; folds in at import-env)
     > the registry default
 
 So ``m3 config set`` wins at once even while HKCU / rc files / MCP env blocks
 still hold an old value; the shadowed env name is reported, never silently
-dropped. At N+3 the third rung goes. Secrets are not resolved here: their
+dropped. After N+3 the third rung goes. Secrets are not resolved here: their
 chain (``m3_core.secret_store``) touches the keyring, so they resolve on demand.
 """
 

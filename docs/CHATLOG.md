@@ -11,7 +11,7 @@ Chat logs write to whatever path `chatlog_db_path()` resolves to. Resolution ord
 1. `M3_CHATLOG_DB_PATH` (or legacy `CHATLOG_DB_PATH`) env var — explicit chatlog-only override
 2. A call's `active_database()` scope
 3. `.chatlog_config.json` `db_path` field, when one is pinned there
-4. The process's `--database` pin (or legacy `M3_DATABASE`, read until release N+3 with a one-time warning) — unified main DB (chatlog shares it)
+4. The process's `--database` pin (or legacy `M3_DATABASE`, read through release N+3 with a one-time warning) — unified main DB (chatlog shares it)
 5. Default: `agent_chatlog.db` in the engine root (separate file)
 
 `m3 setup` pins the separate path in `.chatlog_config.json` unless the main DB

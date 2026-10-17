@@ -123,7 +123,7 @@ def test_legacy_tier_warns(monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(loader, "_LEGACY_WARNED", set())
     with caplog.at_level(logging.WARNING):
         loc = locate()
-    assert loc.tier.startswith("legacy:") and "removed at N+3" in caplog.text
+    assert loc.tier.startswith("legacy:") and "removed after N+3" in caplog.text
 
 
 # ── loader ───────────────────────────────────────────────────────────────────

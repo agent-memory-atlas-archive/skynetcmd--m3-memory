@@ -132,7 +132,7 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
     if settings.legacy_env_in_use():
         lines += [
             "",
-            "# honoured from legacy environment names until N+3; move them into the file:",
+            "# honoured from legacy environment names through N+3; move them into the file:",
             *(f"#   {n}" for n in settings.legacy_env_in_use()),
         ]
     if settings.llm_file_in_use():

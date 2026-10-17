@@ -5,7 +5,7 @@ or ``system/NAME`` when the file does not list the name -> the vault. The
 environment is never read for a secret. The vault policy comes
 from the registry's ``bootstrap`` flag: such a secret is never read from the
 vault, except D1's primary DSN, which still works and warns
-until N+3.
+through N+3.
 """
 
 from __future__ import annotations

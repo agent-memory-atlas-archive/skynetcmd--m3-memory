@@ -848,7 +848,7 @@ def _config_env_disagreement_section() -> None:
 
 
 # The legacy env names that LOCATE a store, each with its fix. m3 reads them only
-# until N+3 and never moves them into a file: a database PATH is a locator, so the
+# through N+3 and never moves them into a file: a database PATH is a locator, so the
 # fix is a flag, a named store or the chatlog config's db_path (M3_DATABASE design
 # Q2, 2026-10-12; chatlog design, 2026-10-13).
 LOCATOR_ENV_FIXES: tuple[tuple[tuple[str, ...], str], ...] = (
@@ -880,7 +880,7 @@ def locator_env_leftovers() -> list[str]:
                 lines.append(
                     f"  [i] {name} is set in: "
                     + "; ".join(places)
-                    + f". m3 reads it only until release N+3. fix: {fix}; then remove it."
+                    + f". m3 reads it only through release N+3. fix: {fix}; then remove it."
                 )
     return lines
 

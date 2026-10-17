@@ -80,11 +80,15 @@ def render_markdown() -> str:
         f"`{default_file.DEFAULT_FILE_NAME}`, which lists every key below commented at its default.",
         "",
         "Precedence for each setting: the environment, for the keys marked *env override* "
-        "only; then this file; then, until release N+3, the setting's legacy environment "
+        "only; then this file; then, through release N+3, the setting's legacy environment "
         "names; then `.env`; then, for the `[llm]` keys, `.llm_config.json`; then the default. "
         "`m3 config show --origin` prints where each value came from; `m3 config set KEY VALUE` "
         "and `m3 config unset KEY` change this file; `m3 config import-env` moves settings "
         "from the environment, rc files, `.env` and MCP env blocks into it.",
+        "",
+        "**N+3**, here and in m3's messages: N is release 2026.10.17.0, the first with this "
+        "file. Legacy names keep working, with a warning, through the third release after it "
+        "(N+3) and stop being read in the release after that.",
         "",
     ]
     for table, keys in sorted(REGISTRY.tables().items()):
@@ -191,7 +195,7 @@ def render_env_markdown() -> str:
         "secrets in the user-only secrets file. The environment is left with three jobs: saying "
         "where m3's files are (the locators), a few switches and handoffs that are read before any "
         "configuration loads, and other programs' own variables. Every other name below is a "
-        f"**legacy name** of a setting: m3 still reads it, below `{CONFIG_FILE_NAME}`, until release "
+        f"**legacy name** of a setting: m3 still reads it, below `{CONFIG_FILE_NAME}`, through release "
         "N+3, and `m3 doctor` and `m3 config import-env` name any still set.",
         "",
         f"`m3 config import-env` moves them into `{CONFIG_FILE_NAME}` (and secrets into the secrets "
@@ -241,7 +245,7 @@ def render_env_markdown() -> str:
         "### Legacy store locations",
         "",
         "A database path is a locator, not a setting, so `import-env` never moves these. m3 reads "
-        "them until release N+3; `m3 doctor` and `m3 config import-env` name where one is set with "
+        "them through release N+3; `m3 doctor` and `m3 config import-env` name where one is set with "
         "its replacement (`--database PATH` or a `[stores.<name>]` table with `--store NAME`; "
         "`--chatlog-db PATH` for the chatlog).",
         "",

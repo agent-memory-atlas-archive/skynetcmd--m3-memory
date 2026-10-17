@@ -4,7 +4,9 @@
 
 The file is `m3_config.toml` in the config root (`--config <file>` > `M3_CONFIG_ROOT` > `M3_MEMORY_ROOT/config` (legacy) > `~/.m3/config`). It carries `schema_version = 1`. When the config root has none, `m3 setup`, `m3 upgrade` and `m3 config import-env` create it from `default-m3_config.toml`, which lists every key below commented at its default.
 
-Precedence for each setting: the environment, for the keys marked *env override* only; then this file; then, until release N+3, the setting's legacy environment names; then `.env`; then, for the `[llm]` keys, `.llm_config.json`; then the default. `m3 config show --origin` prints where each value came from; `m3 config set KEY VALUE` and `m3 config unset KEY` change this file; `m3 config import-env` moves settings from the environment, rc files, `.env` and MCP env blocks into it.
+Precedence for each setting: the environment, for the keys marked *env override* only; then this file; then, through release N+3, the setting's legacy environment names; then `.env`; then, for the `[llm]` keys, `.llm_config.json`; then the default. `m3 config show --origin` prints where each value came from; `m3 config set KEY VALUE` and `m3 config unset KEY` change this file; `m3 config import-env` moves settings from the environment, rc files, `.env` and MCP env blocks into it.
+
+**N+3**, here and in m3's messages: N is release 2026.10.17.0, the first with this file. Legacy names keep working, with a warning, through the third release after it (N+3) and stop being read in the release after that.
 
 ## [audit]
 
@@ -89,7 +91,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
-| `backend` | string | `sqlite` | `M3_DB_BACKEND`, `DB_BACKEND` | restart to apply; one of `sqlite`, `postgres`; Primary storage backend. Set it with `m3 config set db.backend postgres`; M3_DB_BACKEND is read only as a legacy name (below this file) until N+3. |
+| `backend` | string | `sqlite` | `M3_DB_BACKEND`, `DB_BACKEND` | restart to apply; one of `sqlite`, `postgres`; Primary storage backend. Set it with `m3 config set db.backend postgres`; M3_DB_BACKEND is read only as a legacy name (below this file) through N+3. |
 | `pool_size` | integer | `5` | `M3_DB_POOL_SIZE`, `DB_POOL_SIZE` | restart to apply; SQLite connections in M3Context's pool. |
 | `pool_timeout_s` | integer | `30` | `M3_DB_POOL_TIMEOUT`, `DB_POOL_TIMEOUT` | restart to apply; Seconds to wait for a pooled SQLite connection. |
 | `sqlite_mmap_size` | integer | (none) | `M3_SQLITE_MMAP_SIZE` | restart to apply; SQLite mmap_size in bytes; unset keeps the pragma profile's own value. |
@@ -426,7 +428,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `examples` | path | (none) | `M3_PATH_EXAMPLES` | restart to apply; The payload's examples/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one. |
 | `lib_dir` | path | (none) | `M3_LIB_DIR` | restart to apply; Where the wolfSSL library is trusted from. Default: &lt;config root's parent>/lib. |
 | `logs_root` | path | (none) | `M3_LOGS_ROOT` | restart to apply; Scheduled-task and service logs. Default: &lt;memory_root>/logs, else ~/.m3/logs. |
-| `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3. |
+| `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed after N+3. |
 | `models_root` | path | (none) | `M3_MODELS_ROOT` | restart to apply; GGUF weights m3 owns. Default: &lt;memory_root>/models, else ~/.m3/models. |
 
 ## [promote]

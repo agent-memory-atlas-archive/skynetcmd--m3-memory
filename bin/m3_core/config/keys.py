@@ -33,7 +33,7 @@ DB_BACKEND = Key[str](
     env_names=("M3_DB_BACKEND", "DB_BACKEND"),
     reloadable=False,
     doc="Primary storage backend. Set it with `m3 config set db.backend postgres`; "
-    "M3_DB_BACKEND is read only as a legacy name (below this file) until N+3.",
+    "M3_DB_BACKEND is read only as a legacy name (below this file) through N+3.",
 )
 
 _POSITIVE = in_range(lo=1)
@@ -145,7 +145,7 @@ PATHS: list[Key] = [
         scope=Scope.LOCATOR,
         reloadable=False,
         doc="Legacy master root: config, engine, logs and models derive from it when their own "
-        "keys are unset. Removed at N+3.",
+        "keys are unset. Removed after N+3.",
     ),
     Key(
         name="paths.engine_root",

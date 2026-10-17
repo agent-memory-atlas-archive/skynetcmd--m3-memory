@@ -1,8 +1,8 @@
 ---
 tool: bin/split_chatlog_from_core.py
-sha1: 138b9df215d9
-mtime_utc: 2026-10-13T10:49:42.148514+00:00
-generated_utc: 2026-10-13T10:51:52.978315+00:00
+sha1: 7d6fbd8907dc
+mtime_utc: 2026-10-17T04:54:20.223812+00:00
+generated_utc: 2026-10-17T04:54:47.572633+00:00
 private: false
 ---
 
@@ -54,7 +54,7 @@ Source (CORE, where chat_log rows currently live), in priority order:
 Target (CHATLOG, where they should go), in priority order:
   1. --target <path>
   2. the configured chatlog store (m3_core.paths.configured_chatlog_db: a legacy
-     chatlog env name until N+3)
+     chatlog env name through N+3)
   3. <engine_root>/agent_chatlog.db  (via m3_core.paths.resolve_engine_file)
 
 The target must already carry the chatlog schema (memory_items,

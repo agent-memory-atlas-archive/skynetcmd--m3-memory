@@ -186,6 +186,15 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 ---
 
+## 🗑️ Planned removals
+
+Deprecated in v2026.10.17.0 (see the [CHANGELOG](../CHANGELOG.md)). Each still works, with a warning, until it is removed.
+
+- [ ] **Legacy environment names for settings**, including `M3_DATABASE` and `M3_DB_BACKEND` — read through the third release after v2026.10.17.0 ([N+3](CONFIG_REFERENCE.md)), no longer read in the release after that. `m3 config import-env` (also run by `m3 upgrade`) moves them into `m3_config.toml`.
+- [ ] **The `m3-memory[dev]` extra** — removed in the next release; use the `dev` dependency group (`uv sync --group dev`).
+
+---
+
 ## 🚧 In progress
 
 - [ ] **LoCoMo audit** — harness scaffolded under `benchmarks/locomo/`; full run pending
