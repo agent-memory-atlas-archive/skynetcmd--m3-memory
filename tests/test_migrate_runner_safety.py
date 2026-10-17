@@ -344,3 +344,27 @@ def test_a_failed_history_insert_keeps_the_callers_write(mdb, tmp_path, caplog):
     conn.close()
     assert "memory_history row NOT recorded for memory mem-1" in caplog.text
     assert os.path.exists(tmp_path / "h.db")
+
+
+def test_two_restores_in_one_clock_tick_keep_two_sidecars(tmp_path, monkeypatch):
+    """Windows' clock can read the same microseconds twice in a row; the second
+    restore then found its sidecar name taken and refused (CI, 2026-10-17)."""
+    from datetime import UTC, datetime
+
+    live, backup = tmp_path / "agent_memory.db", tmp_path / "backup.db"
+    _make_db(live, ["live"])
+    _make_db(backup, ["old"])
+    monkeypatch.setattr(migrate_memory, "_live_store_writers", list)
+    frozen = datetime(2026, 10, 17, 12, 0, 0, 123456, tzinfo=UTC)
+
+    class _Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen
+
+    monkeypatch.setattr(migrate_memory, "datetime", _Clock)
+    migrate_memory.restore_backup(str(backup), _target(live))
+    migrate_memory.restore_backup(str(backup), _target(live))
+    sidecars = sorted(p.name for p in tmp_path.glob("agent_memory.db.pre-restore.*"))
+    assert len(sidecars) == 2 and sidecars[1] == sidecars[0] + ".1", sidecars
+    assert _rows(live) == ["old"]

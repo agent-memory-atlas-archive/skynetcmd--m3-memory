@@ -14,6 +14,8 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 
+import pytest
+
 from m3_memory import setup_wizard
 
 _BIN = pathlib.Path(__file__).resolve().parent.parent / "bin"
@@ -112,3 +114,40 @@ def test_upgrade_warns_when_an_enabled_runtime_went_away(monkeypatch, capsys):
     setup_wizard._probe_llm_endpoints(None, None)
     out = capsys.readouterr().out
     assert "Ollama enabled for enrichment but not reachable now" in out
+
+
+# `doctor --fix` runs the whole report after repairing (2026.10.17.2); a healthy
+# report must still collapse, and anything short of healthy must not.
+_REPORT_AFTER_FIX = (
+    "[OK] m3 HEALTHY · 17588 memories · embedder: shared server (port 8082)\n"
+    "==> Running m3-memory self-repair...\n"
+    "Repair Summary: NOTHING_TO_DO (run_migrations skipped)\n"
+    "\n"
+    "=== after repair: full report ===\n"
+    "agent MCP configs:\n"
+    "  [OK] Gemini CLI   /home/u/.gemini/settings.json\n"
+    "store: SQLite — /home/u/.m3/engine/agent_memory.db\n"
+    "✅ embedding: working (the local server answered in 227 ms)\n"
+    "fips: tier mode; all paths accepted\n"
+    "file locks: ok\n"
+    "tools loaded at start: 8 (from shipped default)\n"
+    "jobs: 7 m3 job(s), all current\n"
+    "For full detail, run:  m3 doctor --verbose\n"
+)
+
+
+def test_a_healthy_report_after_fix_collapses():
+    assert m3u.doctor_is_all_healthy(_REPORT_AFTER_FIX)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "fips: tier mode; 1 path(s) refused\n",
+        "jobs: 7 m3 job(s), 2 need attention: m3 doctor --verbose\n",
+        "store: unknown (storage seam not loadable: ImportError)\n",
+        "file locks: 1 stale lock\n",
+    ],
+)
+def test_a_report_line_short_of_healthy_prints_the_report(line):
+    assert not m3u.doctor_is_all_healthy(_REPORT_AFTER_FIX + line)

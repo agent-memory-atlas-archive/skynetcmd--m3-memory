@@ -39,6 +39,10 @@ the policy is forward-going only.
     `embed_server_inproc.log`, as the boot task's server does.
   - The FIPS backend error says FIPS mode is on and its wolfSSL backend failed,
     not that a "compliance mode" is enforced.
+  - `m3 upgrade` shows doctor's full output only when something needs
+    attention; a healthy run stays one line.
+  - Two database restores in quick succession each keep the store they moved
+    aside; on Windows the second used to refuse.
   **Affected:** all installs; the prompts on Windows only · **Action:** none ·
   **Data status:** none.
 

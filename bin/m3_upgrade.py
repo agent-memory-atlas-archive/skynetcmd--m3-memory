@@ -777,7 +777,12 @@ _DOCTOR_HEALTHY = re.compile(
     r"|✅ |\[OK\] Web Dashboard available at|agent paths: no agent is set up to use m3 yet"
     r"|\s*\[ok\] plugin plugin: .*already at the latest version"
     r"|\s*\[ok\] plugin plugin: .*updated from \S+ to \S+"
-    r"|\s*\[ok\] plugin restart: )"
+    r"|\s*\[ok\] plugin restart: "
+    # `doctor --fix` runs the whole report after its repairs (2026.10.17.2); its
+    # healthy brief lines, each in the exact wording its probe prints when well:
+    r"|=== after repair: full report ===$|store: (?!unknown)|agent MCP configs:$|\s+\[OK\] "
+    r"|embed-server: serving on :\d+|fips: tier \w+; all paths accepted$|file locks: ok$"
+    r"|tools loaded at start: |jobs: \d+ m3 job\(s\), all current$|For full detail, run:)"
 )
 
 _PLUGIN_UPDATED = re.compile(r"\[ok\] plugin plugin: .*updated from (\S+) to (\S+?)(?=\s|$)")

@@ -507,8 +507,15 @@ def restore_backup(backup_path: str, target: MigrationTarget):
 
     # Move the current DB aside under a unique name, so a failed copy can be undone
     # and a second restore never overwrites the first one's sidecar.
+    # The time names it; a counter makes it unique. The clock alone cannot: on
+    # Windows two restores inside one timer tick (~15.6 ms) read the same
+    # microseconds, and the second refused with "sidecar already exists" (CI,
+    # 2026-10-17).
     now = datetime.now(UTC)
-    sidecar = f"{target.db_path}.pre-restore.{now:%Y%m%dT%H%M%S}.{now.microsecond:06d}Z.p{os.getpid()}"
+    base = f"{target.db_path}.pre-restore.{now:%Y%m%dT%H%M%S}.{now.microsecond:06d}Z.p{os.getpid()}"
+    sidecar, n = base, 1
+    while any(os.path.exists(sidecar + s) for s in ("", *_SQLITE_SIDE_FILES)):
+        sidecar, n = f"{base}.{n}", n + 1
     moved: list[tuple[str, str]] = []
     try:
         for suffix in ("", *_SQLITE_SIDE_FILES):
