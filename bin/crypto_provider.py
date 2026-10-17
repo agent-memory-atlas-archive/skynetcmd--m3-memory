@@ -373,14 +373,27 @@ class CryptoProvider:
             self._lib_path = _resolve_wolfssl_path()
             if self._lib_path is None:
                 if _fips_active():
+                    # Name the paths actually searched: m3's lib dir follows the
+                    # config root, so a fixed "~/.m3/lib" here sent people to a
+                    # folder the loader never looked in.
+                    m3lib = _m3_lib_dir()
+                    default_lib = os.path.abspath(os.path.expanduser(os.path.join("~", ".m3", "lib")))
+                    moved = ""
+                    if os.path.normcase(m3lib) != os.path.normcase(default_lib):
+                        moved = (
+                            f" m3's lib folder is {m3lib}, not {default_lib}, because M3_LIB_DIR or the "
+                            "config root points elsewhere; set M3_LIB_DIR to the folder that holds wolfSSL."
+                        )
                     raise RuntimeError(
                         "FATAL: FIPS mode enabled but no wolfSSL library was found "
-                        "in any TRUSTED location (crypto.wolfssl_lib (M3_WOLFSSL_LIB), ~/.m3/lib, or a "
-                        "system lib dir). M3 refuses to search the CWD/PATH for a "
-                        "crypto library. Install wolfSSL to a trusted path or unset "
-                        "crypto.fips_mode / crypto.fips_strict (M3_FIPS_MODE / M3_FIPS_STRICT) (see docs/FIPS_MODULE_BOUNDARY.md). "
-                        "observed: no wolfSSL library in crypto.wolfssl_lib (M3_WOLFSSL_LIB), ~/.m3/lib or a system lib dir. "
-                        "inspect: crypto.wolfssl_lib (M3_WOLFSSL_LIB)"
+                        "in any TRUSTED location. M3 refuses to search the CWD/PATH for a "
+                        "crypto library. observed: searched "
+                        + ", ".join(_trusted_wolfssl_candidates())
+                        + "; none exists."
+                        + moved
+                        + f" fix: install wolfSSL in {m3lib} or pin its full path with crypto.wolfssl_lib "
+                        "(M3_WOLFSSL_LIB), or unset crypto.fips_mode / crypto.fips_strict "
+                        "(M3_FIPS_MODE / M3_FIPS_STRICT) (see docs/FIPS_MODULE_BOUNDARY.md)."
                     )
                 logger.info("M3 Crypto: no wolfSSL in a trusted path; using DEFAULT backend.")
                 self.backend = "DEFAULT"

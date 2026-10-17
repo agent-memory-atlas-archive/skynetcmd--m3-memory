@@ -708,9 +708,14 @@ class TestSecureWolfsslDiscovery:
                 cp.CryptoProvider("WOLFSSL")
             except RuntimeError as exc:
                 msg = str(exc)
-            _emit(msg=msg)
+            _emit(msg=msg, empty=empty)
             """,
             env={"M3_FIPS_MODE": "1"},
         )
         assert v["msg"] is not None, "FIPS mode with no trusted lib must be FATAL"
         assert "TRUSTED" in v["msg"] or "trusted" in v["msg"]
+        # It names the folder it searched (the moved roots' lib), not a fixed
+        # ~/.m3/lib that it never looked in.
+        assert os.path.join(v["empty"], "lib") in v["msg"], v["msg"]
+        assert "~/.m3/lib" not in v["msg"], v["msg"]
+        assert "M3_LIB_DIR" in v["msg"], v["msg"]

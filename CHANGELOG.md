@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **The FIPS "no wolfSSL" error names the folders it searched.** It used to
+  say `~/.m3/lib` even when the config root had moved m3's lib folder
+  elsewhere; it now lists each path tried and says to set `M3_LIB_DIR`.
+  **Affected:** installs in FIPS mode with relocated roots · **Action:** none ·
+  **Data status:** none.
+
 - **The Hermes plugin reports m3's version.** Its manifest said 2026.10.16 in
   the 2026.10.17.0 release; it now follows each release.
   **Affected:** Hermes users (the version shown by `hermes plugins`) ·
