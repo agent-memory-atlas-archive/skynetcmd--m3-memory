@@ -128,6 +128,24 @@ def _local_servers() -> list:
     return out
 
 
+def _project_disabled() -> list:
+    """Folders where Claude Code has the direct server switched off for that
+    project (~/.claude.json projects[dir].disabledMcpServers, shown by
+    `claude mcp list` as "Disabled for this project"). Sessions started there do
+    not get it, whatever the user-level state says: on a MacBook this probe
+    reported "direct m3_memory: yes" while `claude mcp list` showed it disabled
+    for the home folder (2026-10-17)."""
+    d = _read_json(os.path.join(os.path.expanduser("~"), ".claude.json"))
+    projects = d.get("projects") if isinstance(d, dict) else None
+    out: list = []
+    if isinstance(projects, dict):
+        for directory, cfg in projects.items():
+            disabled = cfg.get("disabledMcpServers") if isinstance(cfg, dict) else None
+            if isinstance(disabled, list) and _DIRECT_NAME in disabled:
+                out.append(directory)
+    return sorted(out)
+
+
 def _plugin_state() -> dict:
     """Plugin install/enabled/server-disabled state. Reuses plugin_version_probe
     for the install+enabled read so there is one source of truth for that."""
@@ -164,6 +182,7 @@ def _assess() -> dict:
     local = _local_servers()
 
     return {
+        "project_disabled": _project_disabled(),
         "local": local,
         "direct": direct,
         "direct_present": direct_present,
@@ -324,6 +343,13 @@ def run(brief: bool = False, fix: bool = False) -> int:
 
     if brief:
         p_state = a["plugin"]
+        for directory in a.get("project_disabled", ()) if a["direct_present"] else ():
+            then = "they use the plugin's server" if p_state["active"] else "they have no m3 server"
+            print(
+                f"⚠️  claude mcp: m3_memory is disabled for the project {directory} (Claude Code: "
+                f'"Disabled for this project"); in sessions started there {then}. To enable it: '
+                "`/mcp` in a Claude session started in that folder"
+            )
         for directory, name, _e in a.get("local", ()):
             print(
                 f"⚠️  claude mcp: `{name}` is also registered for {directory} (local "
@@ -367,6 +393,11 @@ def run(brief: bool = False, fix: bool = False) -> int:
             f"the user-scope server in sessions started there"
         )
     print(f"  plugin installed : {p['installed']}  enabled: {p['enabled']}  server disabled: {p['server_disabled']}")
+    for directory in a.get("project_disabled", ()) if a["direct_present"] else ():
+        print(
+            f'  project disable  : m3_memory is off for {directory} [WARN] ("Disabled for this project");'
+            " enable it with `/mcp` in a session started there"
+        )
 
     if a["double_run"]:
         _which = "m3_memory" if a["direct_present"] else "legacy `memory`"

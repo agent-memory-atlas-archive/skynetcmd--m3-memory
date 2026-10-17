@@ -243,3 +243,32 @@ def test_installed_layout_still_catches_a_foreign_venv(probe, wire, tmp_path):
 
     res = probe.check()
     assert any(f["kind"] == "foreign_interpreter" for f in res["findings"]), res["findings"]
+
+
+def _dist(tmp_path, venv: str, version: str) -> None:
+    (tmp_path / venv / "Lib" / "site-packages" / f"m3_memory-{version}.dist-info").mkdir(parents=True)
+
+
+def test_another_venv_running_the_same_release_is_not_foreign(probe, wire, tmp_path):
+    """In a Claude session the running payload is the plugin's copy, while the
+    hooks rightly use the pipx install the `m3` CLI runs from: a different tree,
+    the same release. That was reported as foreign (MacBook, 2026-10-17)."""
+    from m3_memory import __version__
+
+    pipx = _make(tmp_path, "pipx/venvs/m3-memory/Scripts/python.exe")
+    _dist(tmp_path, "pipx/venvs/m3-memory", __version__)
+    sc = _make(tmp_path, "plugin/venv/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
+    wire({"PreCompact": _pin(pipx, sc)}, payload=str(tmp_path / "plugin/venv/Lib/site-packages/m3_memory"))
+
+    res = probe.check()
+    assert not any(f["kind"] == "foreign_interpreter" for f in res["findings"]), res["findings"]
+
+
+def test_another_venv_on_an_older_release_is_still_foreign(probe, wire, tmp_path):
+    old = _make(tmp_path, "pipx/venvs/OLD/Scripts/python.exe")
+    _dist(tmp_path, "pipx/venvs/OLD", "2026.1.1.0")
+    sc = _make(tmp_path, "pipx/venvs/m3-memory/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
+    wire({"PreCompact": _pin(old, sc)}, payload=str(tmp_path / "pipx/venvs/m3-memory/Lib/site-packages/m3_memory"))
+
+    res = probe.check()
+    assert any(f["kind"] == "foreign_interpreter" for f in res["findings"]), res["findings"]

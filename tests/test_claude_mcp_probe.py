@@ -30,6 +30,7 @@ from doctor import claude_mcp_probe as _probe  # noqa: E402
 
 # The real local-scope reader, captured before the autouse fixture replaces it.
 _REAL_LOCAL_SERVERS = _probe._local_servers
+_REAL_PROJECT_DISABLED = _probe._project_disabled
 
 
 @pytest.fixture(autouse=True)
@@ -39,6 +40,7 @@ def _no_real_local_scope(monkeypatch):
     from doctor import claude_mcp_probe as p
 
     monkeypatch.setattr(p, "_local_servers", lambda: [])
+    monkeypatch.setattr(p, "_project_disabled", lambda: [])
 
 
 def _load(path):
@@ -364,3 +366,34 @@ def test_fix_without_claude_does_not_claim_a_connection(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "connected to m3 once" not in out
     assert "nothing to check" in out
+
+
+def test_a_project_level_disable_is_reported(monkeypatch, tmp_path, capsys):
+    """~/.claude.json projects[dir].disabledMcpServers switches the direct server
+    off for sessions started in that folder. The user-scope-only read reported the
+    server as live while `claude mcp list` said "Disabled for this project"."""
+    from doctor import claude_mcp_probe as p
+
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".claude.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {"m3_memory": {"command": "m3"}},
+                "projects": {str(home): {"disabledMcpServers": ["m3_memory"]}, "/other": {"disabledMcpServers": []}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(p.os.path, "expanduser", lambda s: s.replace("~", str(home), 1))
+    monkeypatch.setattr(p, "_plugin_state", lambda: _plugin(installed=True, enabled=True, server_disabled=True))
+    monkeypatch.setattr(p, "_project_disabled", _REAL_PROJECT_DISABLED)
+
+    a = p._assess()
+    assert a["project_disabled"] == [str(home)]
+    p.run(brief=True)
+    out = capsys.readouterr().out
+    assert f"m3_memory is disabled for the project {home}" in out
+    assert "they have no m3 server" in out
+    p.run(brief=False)
+    assert f"m3_memory is off for {home}" in capsys.readouterr().out

@@ -161,8 +161,14 @@ def spill_inventory(now: float | None = None) -> dict:
     for fn in qentries:
         if fn.endswith(QUARANTINE_REASON_SUFFIX):
             continue
+        fp = os.path.join(qdir, fn)
+        # Files only: an archive folder such as drained-YYYYMMDD/ holds turns
+        # already put back, and counting it raised "1 quarantined spill file"
+        # on a MacBook whose quarantine was empty (2026-10-17).
+        if not os.path.isfile(fp):
+            continue
         try:
-            inv["quarantine_bytes"] += os.path.getsize(os.path.join(qdir, fn))
+            inv["quarantine_bytes"] += os.path.getsize(fp)
             inv["quarantine_files"] += 1
         except OSError:
             continue

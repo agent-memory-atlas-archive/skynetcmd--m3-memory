@@ -174,6 +174,38 @@ def _is_installed_layout(payload_root: str) -> bool:
     return owner(os.path.abspath(payload_root))
 
 
+def _venv_m3_version(interpreter: str) -> str | None:
+    """The m3-memory version installed in an interpreter's venv, read from its
+    ``m3_memory-<version>.dist-info`` (no subprocess), or None when none is found."""
+    import glob
+
+    bin_dir = os.path.dirname(os.path.abspath(interpreter))
+    venv = os.path.dirname(bin_dir)
+    patterns = (
+        os.path.join(venv, "Lib", "site-packages", "m3_memory-*.dist-info"),  # Windows
+        os.path.join(venv, "lib", "python3*", "site-packages", "m3_memory-*.dist-info"),  # POSIX
+    )
+    for pat in patterns:
+        for d in sorted(glob.glob(pat)):
+            name = os.path.basename(d)[len("m3_memory-") : -len(".dist-info")]
+            if name:
+                return name
+    return None
+
+
+def _same_m3_release(interpreter: str) -> bool:
+    """Whether a hook's interpreter runs the same m3 release as this process.
+    Another venv with the same version is the same code: in a Claude session the
+    running payload is the plugin's copy, while hooks rightly use the install the
+    `m3` CLI and services run from, and judging by tree alone flagged that as
+    foreign (MacBook, 2026-10-17)."""
+    try:
+        from m3_memory import __version__ as running
+    except ImportError:
+        return False
+    return _venv_m3_version(interpreter) == running
+
+
 def _same_install(path: str, payload_root: str) -> bool:
     """Is `path` inside the same install tree as the running payload?
 
@@ -247,7 +279,12 @@ def check() -> dict:
                         "silently on every fire, so capture is DEAD",
                     }
                 )
-            elif _is_interpreter(path) and _is_installed_layout(payload_root) and not _same_install(path, payload_root):
+            elif (
+                _is_interpreter(path)
+                and _is_installed_layout(payload_root)
+                and not _same_install(path, payload_root)
+                and not _same_m3_release(path)
+            ):
                 findings.append(
                     {
                         "kind": "foreign_interpreter",

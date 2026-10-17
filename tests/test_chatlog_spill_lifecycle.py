@@ -460,3 +460,20 @@ def test_claim_skips_a_file_it_cannot_rename(tmp_path, monkeypatch, name):
 
     _store(tmp_path, monkeypatch)
     assert S._claim_spill_file(str(tmp_path / "spill" / name)) is None
+
+
+def test_an_archive_folder_in_quarantine_is_not_a_quarantined_file(tmp_path, monkeypatch):
+    """A MacBook's quarantine held only drained-20260912/ (turns already put back)
+    and status reported "1 quarantined spill file" (2026-10-17). Folders are not
+    counted; a real parked file still is."""
+    import os
+
+    import chatlog_config
+
+    _store(tmp_path, monkeypatch)
+    q = chatlog_config.quarantine_dir()
+    os.makedirs(os.path.join(q, "drained-20260912"), exist_ok=True)
+    assert chatlog_config.spill_inventory()["quarantine_files"] == 0
+    with open(os.path.join(q, "parked.jsonl"), "w", encoding="utf-8") as fh:
+        fh.write("{}\n")
+    assert chatlog_config.spill_inventory()["quarantine_files"] == 1
