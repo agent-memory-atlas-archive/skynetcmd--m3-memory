@@ -21,51 +21,36 @@ the policy is forward-going only.
 
 ### Changed
 
-- **Every administrator prompt says what it is for, and how it ended.** Before
-  the Windows UAC dialog m3 prints "You will be asked to authorize actions
-  requiring elevated privileges:", the steps, and the time it asked (local
-  time and UTC); the dialog's "Show more details" lists the same steps.
-  Afterwards it prints `permission approved`, `disapproved` or `timed out`
-  with the time it ended, and records the same line in `elevation.log` in the
-  logs folder.
-  **Affected:** Windows · **Action:** none · **Data status:** none.
+- **m3 install/upgrade UX & correctness**
+  - `m3 doctor --fix` runs every check `m3 doctor` runs: it repairs, then
+    reports, and exits nonzero when the report does (`--fix --verbose` adds
+    detail only).
+  - Every Windows administrator prompt is announced first ("You will be asked
+    to authorize actions requiring elevated privileges:", the steps, the time),
+    and its result is printed and kept in `elevation.log`: `permission
+    approved`, `disapproved` or `timed out`, with the time it ended.
+  - The native core installs on networks where GitHub's API refuses the
+    lookup: the wheel comes from the release's checksum file and download links.
+  - `m3 config import-env` skips a `paths.bin` inside a source checkout, a
+    leftover from a development or test run (`--yes` imports it).
+  - The embed server `m3 doctor --fix` starts as a stop-gap writes
+    `embed_server_inproc.log`, as the boot task's server does.
+  - The FIPS backend error says FIPS mode is on and its wolfSSL backend failed,
+    not that a "compliance mode" is enforced.
+  **Affected:** all installs; the prompts on Windows only · **Action:** none ·
+  **Data status:** none.
 
 ### Fixed
 
-- **The native core installs when the GitHub API refuses.** On shared networks
-  the API refused the wheel lookup and m3 fell back to pure Python. The
-  installer now reads the release's checksum file and downloads the wheel
-  directly, asking the API only for releases that publish no checksums.
-  **Affected:** installs and upgrades behind shared addresses (CI runners,
-  offices) · **Action:** none · **Data status:** none.
-
-- **The embed server that `m3 doctor --fix` starts writes a log.** It wrote
-  none, so when it stopped nothing said why. It now logs to
-  `embed_server_inproc.log` in the logs folder, as the boot task's server does.
-  **Affected:** installs where `doctor --fix` started the embed server ·
-  **Action:** none · **Data status:** none.
-
-- **The FIPS backend error no longer claims a "compliance mode".** It now says
-  FIPS mode is on and the wolfSSL backend it requires failed to start.
-  **Affected:** FIPS-mode installs · **Action:** none · **Data status:** none.
-
-- **`m3 doctor --fix` runs every check `m3 doctor` runs.** It repaired and
-  then stopped, so problems only the report finds (such as an embed service
-  registered without `--config`) never showed under `--fix`. It now repairs,
-  then runs the full report, and exits nonzero when the report does.
-  **Affected:** everyone who runs `m3 doctor --fix` or `m3 upgrade` ·
-  **Action:** none · **Data status:** none.
-
-- **The embed service is re-registered when it lacks `--config`, and a restart
-  is checked.** On Windows a service registered by an older m3 starts the new
-  core without `--config`, cannot find `m3_config.toml`, and exits; `doctor
-  --fix` then said it had restarted it. It now re-registers the service under
-  the same administrator prompt, and reports a restart only when the service
-  answers on its port.
+- **A Windows embed service registered by an older m3 now starts.** It started
+  the new core without `--config`, could not find `m3_config.toml` and stopped,
+  while `m3 doctor --fix` reported it restarted. Doctor now re-registers it
+  under the same administrator prompt, and reports a restart only when the
+  service answers on its port.
   **Affected:** Windows installs upgraded from before 2026.10.17.0 ·
   **Action:** run `m3 doctor --fix` at a console and approve the prompt ·
-  **Data status:** items saved while the service was down may lack
-  vectors; `m3 embedder backfill` adds them.
+  **Data status:** items saved while the service was down may lack vectors;
+  `m3 embedder backfill` adds them.
 
 ## [2026.10.17.1] — 2026-10-17 — dependency floor and clearer FIPS error
 
@@ -78,16 +63,15 @@ the policy is forward-going only.
 
 ### Fixed
 
-- **The FIPS "no wolfSSL" error names the folders it searched.** It used to
-  say `~/.m3/lib` even when the config root had moved m3's lib folder
-  elsewhere; it now lists each path tried and says to set `M3_LIB_DIR`.
-  **Affected:** installs in FIPS mode with relocated roots · **Action:** none ·
-  **Data status:** none.
-
-- **The Hermes plugin reports m3's version.** Its manifest said 2026.10.16 in
-  the 2026.10.17.0 release; it now follows each release.
-  **Affected:** Hermes users (the version shown by `hermes plugins`) ·
-  **Action:** none · **Data status:** none.
+- **m3 install/upgrade UX & correctness**
+  - **The FIPS "no wolfSSL" error names the folders it searched.** It used to
+    say `~/.m3/lib` even when the config root had moved m3's lib folder
+    elsewhere; it now lists each path tried and says to set `M3_LIB_DIR`.
+    *(Affected: installs in FIPS mode with relocated roots.)*
+  - **The Hermes plugin reports m3's version.** Its manifest said 2026.10.16 in
+    the 2026.10.17.0 release; it now follows each release.
+    *(Affected: Hermes users (the version shown by `hermes plugins`).)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
 ## [2026.10.17.0] — 2026-10-17 — one config file for m3 and its Rust core
 
@@ -112,7 +96,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   `config/zshenv.example` · **Action:** run `m3 config import-env` (or
   `m3 secret set AGENT_OS_MASTER_KEY --keyring`), then delete secret `export`
   lines from shell profiles · **Data status:** none.
-
 - **FIPS mode set in `m3_config.toml` takes effect everywhere**, including
   background services and the embed server, and error messages name the
   config key with its environment alias. A process configured by the file
@@ -120,20 +103,11 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   options in `m3_config.toml` · **Action:** upgrade, restart m3's services and
   run `m3 embedder install` (on Windows from an Administrator terminal); a
   missing wolfSSL now stops them, as FIPS mode requires · **Data status:** none.
-
 - **The mac-agent example no longer resolves vulnerable `httpx2`/`httpcore2`.**
   Its requirements set security floors (`httpx2>=2.12.0`, `httpcore2>=2.10.0`),
   as the langchain-agent example does. **Affected:** users of
   `examples/mac-agent` · **Action:** reinstall its requirements ·
   **Data status:** none.
-
-- **A bad custom redaction regex is never quoted back.** With the native
-  core, `m3 chatlog status` showed the text of a `custom_regex` that failed to
-  compile; it now names the entry's position and length only, and reports an
-  unknown pattern group. **Affected:** installs with the native core and a
-  custom redaction regex that does not compile · **Action:** none ·
-  **Data status:** none.
-
 - **The dashboard and MCP proxy refuse unauthenticated network binds.** The
   dashboard refuses a non-loopback bind when its token cannot be resolved or
   decrypted or the auth module fails to load (it served without auth); on
@@ -143,21 +117,11 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   overwrite a working token). **Affected:** dashboard or proxy bound beyond
   loopback · **Action:** fix the token (`m3 doctor`) or bind 127.0.0.1 ·
   **Data status:** none.
-
 - **Embed servers serve plaintext only on loopback.** The shared embed server
   and the Python embed servers refuse a non-loopback bind address (exit 78),
   since they receive raw memory text. **Affected:** setups binding an embed
   server to a LAN address or `0.0.0.0` · **Action:** bind `127.0.0.1`; to serve
   other machines, use `m3 embedder secure` · **Data status:** none.
-
-
-- **The postgres_fdw sync link keeps the warehouse DSN's TLS terms.** It ignored
-  `sslmode`, `sslrootcert` and `hostaddr`, so it ran at libpq's default (`prefer`),
-  and it kept its first options after the DSN changed. Under FIPS tiers it is
-  skipped and sync uses the bridge. A DSN naming `localhost` but dialing a
-  remote `hostaddr` is no longer treated as local. **Affected:** PostgreSQL
-  primaries syncing to a warehouse · **Action:** none · **Data status:** none.
-
 - **FIPS mode no longer lets network connections fall back silently.** Under
   `M3_FIPS_MODE`, a PostgreSQL connection that crosses a network must use
   `sslmode=verify-full`; it could previously fall back to plaintext or skip the
@@ -168,14 +132,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   warehouse on another machine · **Action:** add `sslmode=verify-full` and the
   server's CA (`sslrootcert`) to that DSN; under strict, also see
   docs/FIPS_MODULE_BOUNDARY.md · **Data status:** none.
-
-- **Keys, IVs, salts and tokens come from the crypto provider's random source.**
-  With the wolfCrypt backend they are drawn from wolfCrypt's DRBG instead of the
-  operating system's. `m3 doctor` now shows each cryptographic path, what serves
-  it and whether the active FIPS tier accepts it, and the FIPS documentation
-  now lists every path, including network TLS, which the platform's TLS library
-  serves. **Affected:** all · **Action:** none · **Data status:** none.
-
 - **The `[langchain]` extra moves to LangChain 1.x.** It now requires
   `langchain-core>=1.4.0`, `langgraph>=1.2.4`, `langgraph-checkpoint>=4.1.1` and
   `langgraph-sdk>=0.4.4`, past the 2026 advisories in those packages (path traversal
@@ -184,7 +140,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs with `m3-memory[langchain]` · **Action:** upgrade; code
   using `with_m3_history` keeps working with a deprecation warning ·
   **Data status:** none.
-
 - **Search expansion no longer returns another agent's private memories.** With
   `requesting_agent` set (or `M3_ENFORCE_AGENT_ISOLATION`), a search kept other
   agents' private (`scope = agent`) memories out of its own results, but graph
@@ -195,21 +150,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   with any expansion option · **Action:** upgrade · **Data status:** no data was
   changed; earlier search results may have included another agent's private
   memories.
-
-- **The dashboard's audit view escapes what it shows.** A memory's title,
-  content, type and user id, and a memory id from the URL, are rendered as text,
-  so a memory written with markup in it can no longer run script in the browser
-  of whoever opens the audit view; the search query shown back is escaped too.
-  **Affected:** installs that run `m3 dashboard` · **Action:** none ·
-  **Data status:** none.
-
-- **m3's API keys and vault secrets no longer reach non-m3 programs.** `pg_dump`,
-  `pg_restore` and the pip/uv upgrade step used to inherit every secret set in
-  m3's environment; they now start without them. Child-process environments are
-  built in one place.
-  **Affected:** installs that put API keys or the vault key in the environment ·
-  **Action:** none · **Data status:** none.
-
 - **PostgreSQL: a keyword-form DSN (`host=... dbname=...`) no longer puts its
   password into store identities and snapshot names.** The whole DSN was read
   as the database name, which also hid the warehouse from the same-database
@@ -218,35 +158,61 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   delete store snapshots whose names contain the password ·
   **Data status:** snapshot names created by earlier versions may contain the
   DSN password.
+- **The installer stores the primary PostgreSQL DSN in the OS keyring or the
+  secrets file,** not in a plaintext environment variable, and `m3 doctor`
+  names plaintext copies left behind.
+  **Affected:** PostgreSQL installs · **Action:** remove the plaintext copies
+  `m3 doctor` names · **Data status:** none.
+- **Security and FIPS**
+  - **A bad custom redaction regex is never quoted back.** With the native
+    core, `m3 chatlog status` showed the text of a `custom_regex` that failed to
+    compile; it now names the entry's position and length only, and reports an
+    unknown pattern group.
+    *(Affected: installs with the native core and a
+  custom redaction regex that does not compile.)*
+  - **The postgres_fdw sync link keeps the warehouse DSN's TLS terms.** It ignored
+    `sslmode`, `sslrootcert` and `hostaddr`, so it ran at libpq's default (`prefer`),
+    and it kept its first options after the DSN changed. Under FIPS tiers it is
+    skipped and sync uses the bridge. A DSN naming `localhost` but dialing a
+    remote `hostaddr` is no longer treated as local.
+    *(Affected: PostgreSQL
+  primaries syncing to a warehouse.)*
+  - **Keys, IVs, salts and tokens come from the crypto provider's random source.**
+    With the wolfCrypt backend they are drawn from wolfCrypt's DRBG instead of the
+    operating system's. `m3 doctor` now shows each cryptographic path, what serves
+    it and whether the active FIPS tier accepts it, and the FIPS documentation
+    now lists every path, including network TLS, which the platform's TLS library
+    serves.
+    *(Affected: all.)*
+  - **The dashboard's audit view escapes what it shows.** A memory's title,
+    content, type and user id, and a memory id from the URL, are rendered as text,
+    so a memory written with markup in it can no longer run script in the browser
+    of whoever opens the audit view; the search query shown back is escaped too.
+    *(Affected: installs that run `m3 dashboard`.)*
+  - **m3's API keys and vault secrets no longer reach non-m3 programs.** `pg_dump`,
+    `pg_restore` and the pip/uv upgrade step used to inherit every secret set in
+    m3's environment; they now start without them. Child-process environments are
+    built in one place.
+    *(Affected: installs that put API keys or the vault key in the environment.)*
+  - **Archive extraction applies Python's tarfile data filter** after m3's own
+    path checks: setuid/setgid and group/other write bits are cleared and archive
+    ownership is dropped.
+    *(Affected: installs and upgrades that unpack an archive.)*
+  - **FIPS mode: security hashes use the FIPS crypto provider** — the native-core
+    wheel check, secret HMACs, the vault-salt fingerprint and the PostgreSQL
+    store id.
+    *(Affected: installs running in FIPS mode.)*
+  - **Windows: the secrets file's access list is checked before writing and on
+    read,** and a Credential Manager probe that reported any name as stored was
+    removed.
+    *(Affected: Windows.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
 - **PostgreSQL: scored search applies the conversation, variant and
   agent-isolation filters.** That path ignored them and could return another
   conversation's or agent's rows.
   **Affected:** PostgreSQL; searches filtered by conversation, variant or
   requesting agent · **Action:** none · **Data status:** none.
-
-- **The installer stores the primary PostgreSQL DSN in the OS keyring or the
-  secrets file,** not in a plaintext environment variable, and `m3 doctor`
-  names plaintext copies left behind.
-  **Affected:** PostgreSQL installs · **Action:** remove the plaintext copies
-  `m3 doctor` names · **Data status:** none.
-
-- **Archive extraction applies Python's tarfile data filter** after m3's own
-  path checks: setuid/setgid and group/other write bits are cleared and archive
-  ownership is dropped.
-  **Affected:** installs and upgrades that unpack an archive · **Action:** none ·
-  **Data status:** none.
-
-- **FIPS mode: security hashes use the FIPS crypto provider** — the native-core
-  wheel check, secret HMACs, the vault-salt fingerprint and the PostgreSQL
-  store id.
-  **Affected:** installs running in FIPS mode · **Action:** none ·
-  **Data status:** none.
-
-- **Windows: the secrets file's access list is checked before writing and on
-  read,** and a Credential Manager probe that reported any name as stored was
-  removed.
-  **Affected:** Windows · **Action:** none · **Data status:** none.
 
 ### Added
 
@@ -263,7 +229,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Action:** run `m3 upgrade`, restart m3's services, and on Windows run
   `m3 embedder install` once from an Administrator terminal ·
   **Data status:** none.
-
 - **Hermes Agent memory provider (Hermes 0.22+).** m3-memory registers a
   `hermes_agent.memory_providers` entry point, so installing it into Hermes'
   Python makes `m3` selectable in `hermes memory setup`. Cron and subagent
@@ -272,7 +237,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   delegates to the installed package. `hermes memory status` shows why m3 is
   unavailable, with the fix. **Affected:** Hermes users · **Action:** optional ·
   **Data status:** none.
-
 - **`m3 embedder secure`: the shared embed server for other machines.** Adds a
   second listener to m3-embed-server with TLS 1.3 (rustls on aws-lc-rs; the
   `fips` build uses AWS-LC's FIPS module) and a bearer token, stored server-side
@@ -281,60 +245,22 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   `embed.fallback_ca` for a private CA; the token is never sent in plaintext to
   another machine. **Affected:** multi-machine setups · **Action:** optional ·
   **Data status:** none.
-
-
-- **`m3 doctor` reports the dispatch doorbell.** It shows whether `m3-dispatchd`
-  is serving this engine root, which reader sets wait on it and how much is
-  pending, and says when a core that ships the daemon has nothing answering.
-  Report-only. **Affected:** all installs · **Action:** none ·
-  **Data status:** none.
-
-- **Agent mail can wake waiters at once instead of on a one-second poll.** When
-  the Rust core's dispatch doorbell (`m3-dispatchd`) is running, sending a
-  message rings it and each agent's waiter is woken immediately, once per burst
-  (fifty messages, one wake). It runs on local IPC only and does no
-  cryptography. Without it, waiters poll as before. **Affected:** installs
-  running `m3-dispatchd` · **Action:** none · **Data status:** none.
-
-- **Semantic search on SQLite keeps vectors in memory.** With a Rust core that
-  has the vector index, m3 holds each store's vectors in memory at a quarter of
-  their size and reads only the nearest rows from the database, instead of every
-  vector on every search. Results are scored exactly as before. **Affected:**
-  SQLite stores without sqlite-vec · **Action:** none · **Data status:** none.
-
-- **Long memories are embedded in fewer pieces.** When the embedder can count
-  tokens exactly, m3 cuts a long memory at real token boundaries instead of a
-  conservative estimate: on one store's 110 longest memories, 112 embeddings
-  instead of 192. **Affected:** installs whose embed server or in-process
-  embedder offers token windows · **Action:** none · **Data status:** none.
-
-- **`explain` says whether to trust each result.** Every explained result now
-  carries a `trust` block from its record: confidence, corroborations and
-  contradictions, helpful/unhelpful grades, pinned, superseded, age, and who wrote
-  it on which device. The reason line names cautions ("superseded",
-  "contradicted 2x"), and a meaning-only match is no longer called a keyword
-  match. **Affected:** all · **Action:** none · **Data status:** none.
-
 - **[Coming from an older release](docs/HOW-TO-UPGRADE.md#coming-from-an-older-release)**
   in the Upgrade Guide: the one-time steps for a release without `m3 upgrade`.
   **Affected:** installs from before `m3 upgrade` · **Action:** follow it once ·
   **Data status:** none.
-
 - **m3 says when an upgrade still needs `m3 setup`.** After a bare `pipx upgrade`,
   every `m3` command except the setup ones prints one line until setup has run on
   the new version, which it now records. **Affected:** pip and pipx installs ·
   **Action:** run `m3 setup` when it says so · **Data status:** none.
-
 - **`m3 doctor` finds copies an older sync put in the wrong store** of a split
   install (chat turns in the memory store, memories in the chat store). `m3 doctor
   --fix` removes a copy only when its home store holds the same row, its links and
   an embedding. **Affected:** split installs that synced before this release ·
   **Action:** `m3 doctor --fix` · **Data status:** removes duplicate copies only.
-
 - **`m3 doctor` names an older `m3-embed-server` copy on PATH** with the command
   that removes it. **Affected:** installs that followed older guides · **Action:**
   remove the copy if you like · **Data status:** none.
-
 - **`m3 doctor` lists every m3 background job with a verdict**, on macOS, Linux and
   Windows: `current`, `outdated` (runs an older m3 install, with its version), `newer`,
   `retired`, `dangling` (its program is gone) or `unknown`. `m3 setup` (so `m3 upgrade`)
@@ -342,25 +268,17 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   under `<config root>/removed-jobs/` first; `newer` and `unknown` are never removed.
   **Affected:** everyone · **Action:** none; check `m3 doctor` if you see m3 entries you do
   not recognise · **Data status:** none.
-
 - **`m3 touchid status|enable|offer` (macOS).** Lets `sudo` accept Touch ID instead of
   your password, at any time. The install script now asks on the terminal (under
   `curl | bash` setup could not ask), and `m3 doctor` shows a tip on a Mac that could
   use it.
   **Affected:** macOS with Touch ID · **Action:** optional, `m3 touchid enable` at the
   Mac · **Data status:** none.
-
-- **The [Upgrade Guide](docs/HOW-TO-UPGRADE.md) starts with how you installed m3** (pipx,
-  pip, the install script, a GitHub checkout, a git URL, or a host plugin) and the upgrade
-  for each.
-  **Affected:** everyone upgrading · **Action:** none · **Data status:** none.
-
 - **[Upgrading your warehouse](docs/WAREHOUSE_UPGRADE.md).** What m3 changes in the
   warehouse on upgrade, the ownership it needs, and how to move the warehouse server to a
   new PostgreSQL version.
   **Affected:** PostgreSQL warehouse users · **Action:** read it before upgrading ·
   **Data status:** none.
-
 - **On PostgreSQL with pgvector, vector search runs in the database.** Results
   are unchanged (search is still exact); only the top results leave the server,
   so search is faster, most of all when the database is on another machine
@@ -372,39 +290,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** PostgreSQL stores on a server with pgvector · **Action:** none ·
   **Data status:** additive: a `vector` copy beside each embedding; the stored
   embedding is unchanged.
-
-- **`m3 batch` runs several commands in one process.** Each line of stdin is a
-  command as it would follow `m3` (the same quoting on every OS), or a JSON
-  array of its arguments. Results come back as one JSON object per command;
-  `--text` prints readable sections instead.
-  - **Failures:** a failing command does not stop the rest unless
-    `--stop-on-error` is given.
-  - **`--set` and `--config`** apply to the whole batch: `m3 "--set={...}" batch`.
-  - **Not run inside a batch:** commands that prompt, that run until stopped,
-    or that change the m3 installation. Each refusal says why.
-
-  **Affected:** none · **Action:** none · **Data status:** none.
-
-- **`--set` overrides settings for one run.** It works on any `m3` command and
-  any m3 script. One table in double quotes goes right after `m3`, with the
-  setting names of `m3_config.toml`; strings go in `^...^`:
-  `m3 "--set={db.backend=^postgres^, search.row_cap=50}" search "query"`.
-  The same form works in bash, zsh, PowerShell and cmd.
-  - **Scope:** the whole run, including m3 processes it starts.
-    `m3 config show --origin` labels these values `cli`.
-  - **Refused:** secrets and paths (use the secrets file and `--config`). A
-    refused `--set` names each problem and runs nothing. The format, with
-    quoting for each shell, is in `m3 --help`.
-
-  **Affected:** none · **Action:** none · **Data status:** none.
-
-- **`m3 secret set NAME [--keyring]`.** Stores one secret. m3 asks for the value
-  twice and never shows it; a value is never taken from the command line. The
-  value goes to the secrets file by default, or with `--keyring` to Windows
-  Credential Manager or the macOS keychain (it is checked by reading it back,
-  and its line in the secrets file is removed).
-  **Affected:** none · **Action:** none · **Data status:** none.
-
 - **`m3 doctor` warns when the secrets file can leave the machine.** The secrets
   file holds secrets in plain text, protected by its permissions. Doctor names it
   when it sits inside a git working tree or a synced folder (OneDrive, Dropbox,
@@ -414,7 +299,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   command for each secret.
   **Affected:** installs with a secrets file · **Action:** move the file if doctor
   names it · **Data status:** none.
-
 - **`m3 config import-env`.** It moves settings into `m3_config.toml` from the
   places they used to live: the environment, shell startup files, `.env` files,
   MCP client `env` blocks (including `~/.claude.json`), the Windows registry
@@ -431,38 +315,11 @@ and secrets into the two files, then restart m3's services; on Windows, also run
 
   **Affected:** none · **Action:** run `m3 config import-env --dry-run` to
   preview · **Data status:** none.
-
-- **`m3 config get`, `m3 config set` and `m3 config unset`.** Read one setting,
-  or write or remove it in `m3_config.toml`. A value is checked before it is
-  written; secrets are refused. Changing the storage backend, a root directory
-  or the secrets file asks for confirmation, or needs `--yes`. `set` names any
-  environment variable that disagrees with the new value.
-  **Affected:** none · **Action:** none · **Data status:** none.
-
-- **`m3 --config FILE`.** Runs any `m3` command against that config file; its
-  directory becomes the config root. It takes precedence over `M3_CONFIG_ROOT`.
-  **Affected:** none · **Action:** none · **Data status:** none.
-
 - **`m3 doctor` and setup report environment variables that disagree with
   `m3_config.toml`.** Each one is named with both values and which one m3 uses.
   Nothing is printed when they agree.
   **Affected:** installs with m3 settings in the environment · **Action:** remove
   the reported variable, or change the file · **Data status:** none.
-
-- **The engine, logs and models roots can be set in `m3_config.toml`.** Under
-  `[paths]` (`engine_root`, `logs_root`, `models_root`); a value in the file wins
-  over `M3_ENGINE_ROOT` / `M3_LOGS_ROOT` / `M3_MODELS_ROOT`, which still work. A
-  malformed value stops with an error naming the key.
-  **Affected:** installs that relocate a root · **Action:** none ·
-  **Data status:** none.
-
-- **`search.prefer_observations` and `search.two_stage_observations` settings.**
-  The observation-ranking switches, previously env-only (`M3_PREFER_OBSERVATIONS`,
-  `M3_TWO_STAGE_OBSERVATIONS`), can be set in `m3_config.toml` and appear in
-  `m3 config show`. They still switch on automatically once 100 observations
-  exist.
-  **Affected:** none · **Action:** none · **Data status:** none.
-
 - **Read-access audit log (GDPR Article 30).** Every memory read, by
   `memory_get` or as a search hit, is recorded with the reading agent, the data
   subject and the time. Rows are written in batches off the read path, kept 90
@@ -472,30 +329,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** all installs · **Action:** none (the table is created by
   migration) · **Data status:** new table `memory_access_log`; reads before
   this version were not recorded.
-
-- **`m3 secret refresh`, and API keys found where m3 stores them.** The LLM
-  extraction keys (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) and the cloud embed
-  token are now looked up through m3's secret store (environment, keyring,
-  secrets file, vault) instead of the environment alone, so a key kept in the
-  keyring also reaches background services. Each is read once per process and
-  cached; storing, deleting, rotating or syncing a secret, or running
-  `m3 secret refresh` after changing one outside m3, makes running processes
-  re-read it within a few seconds.
-  **Affected:** users of LLM extraction or the cloud embedder · **Action:** none ·
-  **Data status:** none.
-
-- **The README states the project's status.** A "Project status" section near
-  the top labels each feature Stable, Beta or Planned, lists the tested
-  platforms and the known limits, and states the deprecation policy, each line
-  linked to the doc with the detail. Tests keep it consistent with the ROADMAP
-  and the package metadata.
-  **Affected:** readers of the README · **Action:** none · **Data status:** none.
-
-- **`notifications_peek` reads an inbox without side effects.** It returns
-  what `notifications_poll` returns but records no heartbeat and reclaims no
-  leases, so checking another agent's inbox no longer marks that agent alive.
-  **Affected:** multi-agent setups · **Action:** none · **Data status:** none.
-
 - **Memories written while no embedder is reachable are now checked for
   contradictions.** The check runs when the background embedding backfill gives
   them a vector, so an older memory they contradict is superseded then rather
@@ -504,19 +337,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs whose embedder is sometimes unavailable · **Action:**
   none · **Data status:** memories written by earlier versions while the
   embedder was down are not re-checked.
-
-- **`memory_supersede` can retire a memory into an existing one.** Pass
-  `replacement_id` (a full id) instead of `content`: the old memory is closed and
-  linked to the existing one, and nothing new is created. Use it to clean up
-  duplicates; passing `content` for each duplicate adds another copy.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-
-- **`m3_config.toml`: one file for every setting,** in the config root, with
-  `m3 config show [--origin] [--json] [--config FILE]` to print each value and
-  where it came from. Environment variables keep working and take precedence
-  for the keys marked *env override*. Reference: `docs/CONFIG_REFERENCE.md`.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-
 - **Named stores.** `[stores.<name>]` in `m3_config.toml` defines a store (core
   plus files; on SQLite the files half is `<stem>.files.db` beside it). Select
   one per call with the `store` tool argument, or per process with `--store` on
@@ -524,13 +344,33 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   is refused, as is an unknown store.
   **Affected:** all installs · **Action:** none · **Data status:** a new
   PostgreSQL store's schema is created when it is first selected.
-
-- **A user-only secrets file** (`m3_secrets.toml` in the config root, or
-  `[secrets].file`) is consulted after the OS keyring and before the vault. m3
-  refuses a file that other users can read or that another user owns, and a
-  name it does not know.
-  **Affected:** all installs, mainly machines without a keyring ·
-  **Action:** none · **Data status:** none.
+- **`agent_list` reports each agent's membership** — member (active within
+  24 hours), idle (client still running) or left — derived from recorded
+  activity.
+  **Affected:** multi-agent setups · **Action:** none ·
+  **Data status:** migrations `051` / `pg_059` add the activity columns.
+- **Security and FIPS**
+  - **`m3 secret set NAME [--keyring]`.** Stores one secret. m3 asks for the value
+    twice and never shows it; a value is never taken from the command line. The
+    value goes to the secrets file by default, or with `--keyring` to Windows
+    Credential Manager or the macOS keychain (it is checked by reading it back,
+    and its line in the secrets file is removed).
+    *(Affected: none.)*
+  - **`m3 secret refresh`, and API keys found where m3 stores them.** The LLM
+    extraction keys (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) and the cloud embed
+    token are now looked up through m3's secret store (environment, keyring,
+    secrets file, vault) instead of the environment alone, so a key kept in the
+    keyring also reaches background services. Each is read once per process and
+    cached; storing, deleting, rotating or syncing a secret, or running
+    `m3 secret refresh` after changing one outside m3, makes running processes
+    re-read it within a few seconds.
+    *(Affected: users of LLM extraction or the cloud embedder.)*
+  - **A user-only secrets file** (`m3_secrets.toml` in the config root, or
+    `[secrets].file`) is consulted after the OS keyring and before the vault. m3
+    refuses a file that other users can read or that another user owns, and a
+    name it does not know.
+    *(Affected: all installs, mainly machines without a keyring.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
 - **PostgreSQL support** for `M3Saver` (LangGraph checkpointer),
   `m3_entities_gliner`, `m3_enrich_stage`, `m3_enrich_assign` (migration
@@ -540,14 +380,113 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   on PostgreSQL.
   **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
 
-- **`search_profile` tool:** per-stage timing of one real search.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
+- **Search and memory**
+  - **Semantic search on SQLite keeps vectors in memory.** With a Rust core that
+    has the vector index, m3 holds each store's vectors in memory at a quarter of
+    their size and reads only the nearest rows from the database, instead of every
+    vector on every search. Results are scored exactly as before.
+    *(Affected: SQLite stores without sqlite-vec.)*
+  - **Long memories are embedded in fewer pieces.** When the embedder can count
+    tokens exactly, m3 cuts a long memory at real token boundaries instead of a
+    conservative estimate: on one store's 110 longest memories, 112 embeddings
+    instead of 192.
+    *(Affected: installs whose embed server or in-process
+  embedder offers token windows.)*
+  - **`explain` says whether to trust each result.** Every explained result now
+    carries a `trust` block from its record: confidence, corroborations and
+    contradictions, helpful/unhelpful grades, pinned, superseded, age, and who wrote
+    it on which device. The reason line names cautions ("superseded",
+    "contradicted 2x"), and a meaning-only match is no longer called a keyword
+    match.
+    *(Affected: all.)*
+  - **`search.prefer_observations` and `search.two_stage_observations` settings.**
+    The observation-ranking switches, previously env-only (`M3_PREFER_OBSERVATIONS`,
+    `M3_TWO_STAGE_OBSERVATIONS`), can be set in `m3_config.toml` and appear in
+    `m3 config show`. They still switch on automatically once 100 observations
+    exist.
+    *(Affected: none.)*
+  - **`memory_supersede` can retire a memory into an existing one.** Pass
+    `replacement_id` (a full id) instead of `content`: the old memory is closed and
+    linked to the existing one, and nothing new is created. Use it to clean up
+    duplicates; passing `content` for each duplicate adds another copy.
+    *(Affected: all installs.)*
+  - **`search_profile` tool:** per-stage timing of one real search.
+    *(Affected: all installs.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
-- **`agent_list` reports each agent's membership** — member (active within
-  24 hours), idle (client still running) or left — derived from recorded
-  activity.
-  **Affected:** multi-agent setups · **Action:** none ·
-  **Data status:** migrations `051` / `pg_059` add the activity columns.
+- **The [Upgrade Guide](docs/HOW-TO-UPGRADE.md) starts with how you installed m3** (pipx,
+  pip, the install script, a GitHub checkout, a git URL, or a host plugin) and the upgrade
+  for each.
+  **Affected:** everyone upgrading · **Action:** none · **Data status:** none.
+
+- **Configuration and CLI**
+  - **`m3 batch` runs several commands in one process.** Each line of stdin is a
+    command as it would follow `m3` (the same quoting on every OS), or a JSON
+    array of its arguments. Results come back as one JSON object per command;
+    `--text` prints readable sections instead.
+    - **Failures:** a failing command does not stop the rest unless
+      `--stop-on-error` is given.
+    - **`--set` and `--config`** apply to the whole batch: `m3 "--set={...}" batch`.
+    - **Not run inside a batch:** commands that prompt, that run until stopped,
+      or that change the m3 installation. Each refusal says why.
+    *(Affected: none.)*
+  - **`--set` overrides settings for one run.** It works on any `m3` command and
+    any m3 script. One table in double quotes goes right after `m3`, with the
+    setting names of `m3_config.toml`; strings go in `^...^`:
+    `m3 "--set={db.backend=^postgres^, search.row_cap=50}" search "query"`.
+    The same form works in bash, zsh, PowerShell and cmd.
+    - **Scope:** the whole run, including m3 processes it starts.
+      `m3 config show --origin` labels these values `cli`.
+    - **Refused:** secrets and paths (use the secrets file and `--config`). A
+      refused `--set` names each problem and runs nothing. The format, with
+      quoting for each shell, is in `m3 --help`.
+    *(Affected: none.)*
+  - **`m3 config get`, `m3 config set` and `m3 config unset`.** Read one setting,
+    or write or remove it in `m3_config.toml`. A value is checked before it is
+    written; secrets are refused. Changing the storage backend, a root directory
+    or the secrets file asks for confirmation, or needs `--yes`. `set` names any
+    environment variable that disagrees with the new value.
+    *(Affected: none.)*
+  - **`m3 --config FILE`.** Runs any `m3` command against that config file; its
+    directory becomes the config root. It takes precedence over `M3_CONFIG_ROOT`.
+    *(Affected: none.)*
+  - **The engine, logs and models roots can be set in `m3_config.toml`.** Under
+    `[paths]` (`engine_root`, `logs_root`, `models_root`); a value in the file wins
+    over `M3_ENGINE_ROOT` / `M3_LOGS_ROOT` / `M3_MODELS_ROOT`, which still work. A
+    malformed value stops with an error naming the key.
+    *(Affected: installs that relocate a root.)*
+  - **`m3_config.toml`: one file for every setting,** in the config root, with
+    `m3 config show [--origin] [--json] [--config FILE]` to print each value and
+    where it came from. Environment variables keep working and take precedence
+    for the keys marked *env override*. Reference: `docs/CONFIG_REFERENCE.md`.
+    *(Affected: all installs.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **Agents and integrations**
+  - **`m3 doctor` reports the dispatch doorbell.** It shows whether `m3-dispatchd`
+    is serving this engine root, which reader sets wait on it and how much is
+    pending, and says when a core that ships the daemon has nothing answering.
+    Report-only.
+    *(Affected: all installs.)*
+  - **Agent mail can wake waiters at once instead of on a one-second poll.** When
+    the Rust core's dispatch doorbell (`m3-dispatchd`) is running, sending a
+    message rings it and each agent's waiter is woken immediately, once per burst
+    (fifty messages, one wake). It runs on local IPC only and does no
+    cryptography. Without it, waiters poll as before.
+    *(Affected: installs
+  running `m3-dispatchd`.)*
+  - **`notifications_peek` reads an inbox without side effects.** It returns
+    what `notifications_poll` returns but records no heartbeat and reclaims no
+    leases, so checking another agent's inbox no longer marks that agent alive.
+    *(Affected: multi-agent setups.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **The README states the project's status.** A "Project status" section near
+  the top labels each feature Stable, Beta or Planned, lists the tested
+  platforms and the known limits, and states the deprecation policy, each line
+  linked to the doc with the detail. Tests keep it consistent with the ROADMAP
+  and the package metadata.
+  **Affected:** readers of the README · **Action:** none · **Data status:** none.
 
 ### Changed
 
@@ -555,18 +494,15 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   server never read it; its worker count is `embed.server.streams`.
   **Affected:** scripts passing `--concurrency` · **Action:** use
   `m3 config set embed.server.streams <n>` · **Data status:** none.
-
 - **The OS installer and `setup_memory.py` use the engine and logs roots.**
   `install_os.py` created `~/.m3-memory/memory` and `~/.m3-memory/logs`, and
   `setup_memory.py` defaulted to `<repo>/memory/agent_memory.db`; both now use
   `~/.m3/engine` and `~/.m3/logs` (or the configured roots). **Affected:**
   source installs using those scripts · **Action:** none ·
   **Data status:** none (existing stores are found by m3's resolver; nothing moves).
-
 - **An unknown `dispatch.mode` is an error** naming the key, instead of
   meaning `separate`. **Affected:** configs with a misspelt dispatch mode ·
   **Action:** set `dispatch.mode` to a listed value · **Data status:** none.
-
 - **Destructive operations need an explicit target.** `memory_consolidate`
   previews unless `dry_run=false` and requires `agent_filter`;
   `memory_consolidate` and `memory_dedup` are marked destructive;
@@ -574,25 +510,9 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   `dispatch`); `enrich_pending` over MCP refuses to apply when no fact enricher
   is configured. **Affected:** scripts and agents calling these · **Action:**
   pass the target (and `dry_run=false` to apply) · **Data status:** none.
-
-- **An empty, whitespace or `*` query lists memories by their filters**
-  (`memory_search`, `memory_search_scored`), ordered by importance then
-  recency, instead of returning nothing. **Affected:** callers passing an empty
-  query · **Action:** none · **Data status:** none.
-
 - **Windows: the cognitive-loop scheduled task changed.** **Affected:**
   Windows · **Action:** run `m3 schedules repair` from an elevated shell after
   upgrading · **Data status:** none.
-
-- **The notification waiter blocks on the dispatch doorbell when the core has it.**
-  With a core that ships `m3-dispatchd` and `m3-wait`, the waiter starts the
-  daemon if it is not running and waits in `m3-wait` (about 19 MB committed in
-  all, against about 515 MB for the polling child), confirming each wake in the
-  store. On that path, mail that arrived while no waiter ran is reported at its
-  first wake. `m3 stop` also stops both programs. Otherwise the waiter polls as
-  before. **Affected:** installs whose core ships the dispatch programs ·
-  **Action:** none · **Data status:** none.
-
 - **m3's background jobs show under their own names on macOS and Linux.** Login items
   and process lists read `m3-cognitive-loop`, `m3-sync`, `m3-dashboard` and so on instead
   of seven entries named `python`. Each job runs through a launcher of that name, which
@@ -600,32 +520,10 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   Windows is unchanged: Task Scheduler already shows each task's name.
   **Affected:** macOS and Linux · **Action:** none; `m3 setup` (run by `m3 upgrade`)
   re-registers the jobs · **Data status:** none.
-
 - **PostgreSQL 16 or newer is the supported range, as the store and as the sync
   warehouse.** It is tested on 16, 17 and 18, each on its own test machine.
   **Affected:** PostgreSQL users · **Action:** if your server is older than 16, plan
   an upgrade · **Data status:** none.
-
-- **Python 3.15 is tested on the 3.15.0 release and must pass like 3.12–3.14.**
-  Release candidates are no longer used.
-  **Affected:** Python 3.15 users · **Action:** none · **Data status:** none.
-
-- **The web dashboard, the cognitive loop and the Observer & Reflector stages are
-  stable.** They leave hardening and follow the deprecation policy.
-  **Affected:** everyone · **Action:** none · **Data status:** none.
-
-- **Setup, `m3 doctor` and the install guides speak plainly.** Internal names
-  (project code names, tier numbers, task names, step labels) are replaced by
-  what each part does; setup no longer asks about Claude Code when it is not
-  installed, says how to connect an agent when none is found, and `m3 setup
-  --help` hides internal options. The guides give `m3 config set` commands
-  instead of environment variables, and the README leads with `pipx` (with how
-  to get it on each system). Doctor lines, the dashboard and background-processing
-  questions, and the folder and speed-up module messages follow suit; "no agents
-  wired" is printed once.
-  **Affected:** everyone running setup or reading the guides · **Action:** none ·
-  **Data status:** none.
-
 - **On a shared machine, another account's embedder is reported as such.** Doctor
   warns instead of saying OK when the embedder this account reaches belongs to
   another user, the stale-server check ignores other users' servers, and the
@@ -640,43 +538,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** Linux and macOS machines with more than one m3 user ·
   **Action:** give each account its own port (`m3 config set embed.server.port`) ·
   **Data status:** none.
-
-- **`m3 doctor --fix` no longer reports a Claude Code connection that does not
-  exist.** With nothing to change it now gives the same verdict as `m3 doctor`,
-  including "nothing to check" where Claude Code is not installed, and says when
-  no agent is set up instead of "all healthy".
-  **Affected:** machines without Claude Code or without wired agents ·
-  **Action:** none · **Data status:** none.
-
-- **`m3` commands no longer print internal log lines.** `m3 memory ...` and other
-  commands printed every embedding request (`httpx: [INFO] HTTP Request: ...`)
-  and search details, because modules they load turned on informational logging
-  for the whole process when imported. Logging is now set up only by the program
-  being run; warnings and errors still show.
-  **Affected:** everyone using the `m3` command line · **Action:** none ·
-  **Data status:** none.
-
-- **Switching to PostgreSQL before storing its address is explained, not a
-  crash.** `m3 doctor`, `m3 status` and other commands print what is missing and
-  both ways out (store the address, or go back to SQLite) instead of a traceback.
-  `m3 config set db.backend` says what the chosen store still needs and that
-  running m3 programs keep the old store until `m3 stop` and `m3 setup`.
-  **Affected:** installs switching to PostgreSQL · **Action:** none ·
-  **Data status:** none.
-
-- **`m3 secret set NAME --stdin` stores a value piped in by a script.** The value
-  could only be typed at a prompt, so scripted setups could not store the
-  database address. A terminal on standard input is refused, so a typed value is
-  never shown. With no keyring on the computer, the lookup note now says so
-  instead of suggesting a package to install.
-  **Affected:** scripted and automated installs · **Action:** none ·
-  **Data status:** none.
-
-- **The macOS installer offers PostgreSQL 18.** When no server is found, `m3 setup`
-  offers `brew install postgresql@18` (was `postgresql@16`), and the manual hint
-  names the same formula.
-  **Affected:** macOS users choosing PostgreSQL · **Action:** none · **Data status:** none
-
 - **Hard delete is GDPR-only, and `gdpr_forget` takes two steps.** The first
   call (`user_id`, or the new `memory_ids` for specific memories) erases nothing:
   it returns what would be erased and a token valid for 15 minutes. The second
@@ -695,25 +556,12 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   with the token and the compliance record; nothing else · **Data status:** from this release, expiry and
   `hard=true` keep the rows (soft-deleted) instead of removing them; existing
   data is unchanged.
-
 - **`[autonomy]` in `m3_config.toml` sets the loop's autonomous-write toggles.**
   `consolidation_auto` and `chatlog_prune_auto` now resolve `m3_config.toml`
   first, then `.cognitive_loop_config.json`, then `M3_CONSOLIDATION_AUTO` /
   `M3_CHATLOG_PRUNE_AUTO` (read by the settings registry), then off.
   **Affected:** installs that enable an autonomous pass · **Action:** none;
   prefer `[autonomy]` in `m3_config.toml` · **Data status:** none.
-
-- **Several m3 processes can open a new SQLite store at the same time.** The
-  second process to open a brand-new store could fail at start with "database is
-  locked"; it now waits, within the 30-second busy timeout.
-  **Affected:** SQLite stores opened by several processes at once before their first
-  use · **Action:** none · **Data status:** none.
-
-- **Bulk writes on PostgreSQL no longer log a defect.** Every bulk write ran a
-  SQLite-only WAL checkpoint and logged a syntax error on PostgreSQL; the write itself
-  succeeded. Checkpointing now goes through the storage backend.
-  **Affected:** PostgreSQL stores · **Action:** none · **Data status:** none.
-
 - **Agents are asked to grade the memories they used, and grading is measured.**
   The server instructions ask an agent to call `memory_grade` (through `m3_call`)
   after answering. `memory_search` ends its results with `grade_with: [...]`, the
@@ -723,7 +571,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** all installs (migration 058 / pg_065 adds a small table) ·
   **Action:** none · **Data status:** new table `memory_grade_daily`; no
   existing data changed.
-
 - **Three more settings move to `m3_config.toml`; `M3Context.get_setting` is
   deprecated.** `identity.default_user_id` (legacy `M3_DEFAULT_USER_ID`, the
   LangChain / mem0 tenancy default) and `db.postgres.pg_restore` (legacy
@@ -734,7 +581,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   `M3_FIPS_MODE` from the environment (nothing read them back).
   **Affected:** callers of `M3Context.get_setting`; installs that set these names ·
   **Action:** call `m3_core.config.settings.setting(name)` · **Data status:** none.
-
 - **`m3_config.toml` reaches the ingest LLM gates and the startup tool set.**
   `[ingest] auto_title` / `auto_entities`, `[observer] no_embed`, `[tools] lazy`
   and the new `[tools] startup` are read through the settings registry, with
@@ -745,7 +591,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   boolean is reported instead of read as on.
   **Affected:** installs that set these names · **Action:** none; prefer
   `m3_config.toml` · **Data status:** none.
-
 - **`[governor]` in `m3_config.toml` sets the background-work governor.** The
   load thresholds resolve `m3_config.toml` first, then `.governor_config.json`,
   then the `M3_GOVERNOR_*` names (read by the settings registry), then the
@@ -754,15 +599,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   now reported at startup instead of clamped.
   **Affected:** installs that tune the governor · **Action:** none; prefer
   `[governor]` in `m3_config.toml` · **Data status:** none.
-
-- **No secret is read from the environment, in two more places.** The dashboard's
-  cloud health probe no longer falls back to an exported API key when the secret
-  chain fails; it reports the cause. `m3 serve --generate-token` no longer warns that an
-  exported `M3_SERVE_TOKEN` overrides the vault (it does not), nor suggests
-  exporting one.
-  **Affected:** dashboard health on cloud LLM profiles; `m3 serve` token setup ·
-  **Action:** none · **Data status:** none.
-
 - **The chatlog store's environment names are legacy; use `--chatlog-db`.** m3
   no longer sets them itself: `--chatlog-db` (cognitive loop, `migrate_memory`)
   and `chatlog_ingest --db` choose the store for the run in-process. A name still
@@ -772,7 +608,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs or scripts that set a chatlog store env name ·
   **Action:** pass `--chatlog-db PATH` or set `db_path` in `.chatlog_config.json`;
   then remove the name · **Data status:** none.
-
 - **One setting decides the chatlog store, for every tool.** The five
   environment names that chose it (`M3_CHATLOG_DB_PATH`, `CHATLOG_DB_PATH`,
   `M3_CHATLOG_DB`, `CHATLOG_DB`, `M3_CHATLOG_DATABASE`) are read in one place, in
@@ -781,7 +616,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   change only the default, below a `db_path` set in `.chatlog_config.json`.
   **Affected:** installs that set one of these names · **Action:** none; prefer
   `--chatlog-db` or `db_path` in `.chatlog_config.json` · **Data status:** none.
-
 - **The warehouse schema is versioned and applied by sync.** `pg_sync` brings
   the warehouse to its current schema before every run, from its own migration
   chain and under a lock so two machines cannot race; the manual
@@ -795,35 +629,17 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   warehouse role needs `CREATE` on the warehouse schema for a migration to apply
   (it already needed it: sync created tables itself) · **Data status:** none;
   existing tables and rows are kept.
-
-- **The agent dispatch store is migrated like the others.** `migrate_memory up
-  --target dispatch` brings it to the current schema, `--target all` includes an
-  existing dispatch store, and the first send migrates it through the same
-  runner, on SQLite and in its PostgreSQL schema, so later dispatch migrations
-  reach existing installs.
-  **Affected:** installs that use agent dispatch · **Action:** none ·
-  **Data status:** none.
-
-- **Entity-extraction status comes from migrations on every store.** Chatlog
-  migrations 008/009 add the `status` column and its index; main migration 055
-  restores that index on stores where it was missing, so processed turns are
-  skipped by an index lookup there too.
-  **Affected:** installs that run entity extraction · **Action:** none ·
-  **Data status:** none.
-
 - **A chatlog store gets its enrichment queues from its own migration (007).**
   The enrichment drain no longer replays a main-store migration against it at
   runtime; schemas change only through migrations.
   **Affected:** installs that enrich a separate chatlog store · **Action:** none ·
   **Data status:** none; queues already present are kept.
-
 - **The LangGraph checkpointer's tables are created by migrations.** Migration
   054 (SQLite) / pg_063 (PostgreSQL) creates them on a new store and brings an
   existing store's tables forward with their checkpoints.
   **Affected:** installs using the LangGraph checkpointer · **Action:** none ·
   **Data status:** none; existing checkpoints are kept and a `deleted_at` column
   is added.
-
 - **`M3_DATABASE` is a legacy setting; use `--database` or `--store`.** m3 no
   longer sets it for itself. It is still read when nothing else names the
   database, with a warning (deprecated). A `--database`
@@ -833,14 +649,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs or scripts that set `M3_DATABASE` · **Action:** pass
   `--database PATH`, or add `[stores.<name>]` to `m3_config.toml` and pass
   `--store NAME`; then remove `M3_DATABASE` · **Data status:** none.
-
-- **`m3` commands start faster.** A command now loads only what it uses: the
-  tool catalog loads for `m3 <domain> <tool>` commands, and the version only for
-  `--version`. `m3 config get` and `m3 --help` went from about 350 ms to about
-  150 ms on a Windows test machine.
-  **Affected:** CLI users and agents that call `m3` directly · **Action:** none ·
-  **Data status:** none.
-
 - **The storage backend is chosen in `m3_config.toml`, not the environment.**
   `[db] backend = "postgres"` (or `m3 config set db.backend postgres`) selects
   it; `--set` changes it for one run. `M3_DB_BACKEND` no longer overrides the
@@ -850,7 +658,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs that select PostgreSQL with `M3_DB_BACKEND` ·
   **Action:** run `m3 upgrade` (or `m3 config set db.backend postgres`), then
   remove `M3_DB_BACKEND` · **Data status:** none.
-
 - **m3 no longer reads secrets from environment variables.** DSNs, API keys,
   tokens and the vault master key come from the user-only secrets file, then
   the OS keyring entry the file names (or `system/<NAME>` when the file does not
@@ -876,27 +683,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   a shell profile, `.env`, an MCP env block or the Windows registry ·
   **Action:** run `m3 upgrade` (or `m3 config import-env`), then `m3 doctor` ·
   **Data status:** none; legacy copies are left in place.
-
-- **Each file m3 rewrites keeps `<name>.bak` and `<name>.backup_history`.**
-  - **`<name>.bak`** is the file exactly as it was before the latest change;
-    restoring is copying it back.
-  - **`<name>.backup_history`** gets one UTC-stamped entry per change: the full
-    previous content (every line prefixed `| `, so the history cannot be mistaken
-    for the file) and the diff. `m3 restore <file>` lists the versions;
-    `m3 restore <file> --at <time>` puts one back, and can itself be undone.
-  - **An unfinished change** (an entry with no `END` line) is named by `m3 doctor`,
-    with the restore.
-  - **The history keeps every previous version,** including any API keys the
-    file held. It has the same permissions as the file; delete it after
-    rotating a leaked key.
-  - **Which files:** MCP client settings, OpenCode, the Gemini hooks, the
-    crontab and launchd agents.
-  - **What it replaces:** the `.m3bak`, `.bak` and timestamped copies, which
-    could overwrite one another. Older ones can be deleted.
-  - **When a backup fails,** the file is not rewritten.
-
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-
 - **`m3 setup` moves settings into `m3_config.toml` and the secrets file.** Each
   run imports settings and keys from environment variables, shell startup files,
   `.env` and agent configs (`m3 config import-env --non-interactive`), so an
@@ -905,7 +691,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   the `m3 config set` that settles them, and nothing is written for them. A
   problem here never stops setup. **Affected:** all installs · **Action:** settle
   any disagreement setup lists · **Data status:** none.
-
 - **`m3 doctor --fix` no longer rewrites a `.env` or `~/.claude.json`.** Doctor
   prints the exact rename to make by hand in a `.env`. For `~/.claude.json`,
   which the `claude` CLI manages, it prints the `claude mcp` command to use
@@ -913,42 +698,15 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** users with deprecated variable names in a `.env` or
   `~/.claude.json` · **Action:** make the rename doctor prints ·
   **Data status:** none.
-
-- **The storage backend can be set in `m3_config.toml`.** `[db] backend =
-  "postgres"` selects PostgreSQL; `M3_DB_BACKEND` still overrides it. Choosing
-  PostgreSQL in `m3 install` now writes that line instead of setting
-  `M3_DB_BACKEND` in the Windows registry or your shell profile; a value already
-  there keeps working, and the installer reports one that disagrees.
-  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
-
-- **Setup records its choices in files, not environment variables.** The LLM
-  runtime switches and an `--llm-endpoint` pin go to `.llm_config.json` in the
-  config root, which every m3 process reads; setup no longer adds them to the
-  Windows registry, your shell profile or MCP server `env` blocks. Values already
-  there keep working.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-
-- **The LLM endpoint settings in `m3_config.toml` take effect.** `[llm]` `url`,
-  `endpoints`, `lmstudio_failover` and `ollama_failover` now choose the failover
-  list; they were ignored. Precedence: `m3_config.toml`, then the environment,
-  then `.env`, then `.llm_config.json`. The switches accept `on`/`off` as well
-  as `1`/`0`, and an unreadable value names the file it came from. `m3 doctor`
-  and `m3 config show --origin` list each value still read from
-  `.llm_config.json`.
-  **Affected:** users who set LLM endpoints · **Action:** none ·
-  **Data status:** none.
-
 - **`chatlog_set_redaction` is a CLI command only.** It writes your config, and
   MCP clients no longer get it: run `m3 chat chatlog_set_redaction --yes`. The
   MCP catalog lists one tool fewer.
   **Affected:** agents that called `chatlog_set_redaction` over MCP · **Action:**
   use the CLI command · **Data status:** none.
-
 - **`M3_DEBUG` output goes to stderr.** The SQL and database-path lines it
   enables were printed to stdout, mixed into a tool's results.
   **Affected:** users who set `M3_DEBUG` · **Action:** read the lines from stderr
   · **Data status:** none.
-
 - **m3's own state moves from `~/.m3-memory` to `~/.m3`.** `m3 setup`, and
   `m3 doctor --fix`, copy the audit trail, `config.json`, version state, `.env`
   and the vault salt into `~/.m3` (the salt into the config root), then
@@ -960,20 +718,17 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   `m3 setup` or `m3 doctor --fix`; delete `~/.m3-memory` once m3 runs from
   `~/.m3` · **Data status:** copied, never moved or deleted; a failed copy leaves
   m3 on the old directory.
-
 - **The entity extractor's LM Studio address is `llm.lmstudio_url`.** It used
   `M3_EMBED_URL`, which names an embedding endpoint everywhere else.
   **Affected:** users who pointed extraction at LM Studio through `M3_EMBED_URL`
   · **Action:** set `M3_LMSTUDIO_URL` (or `llm.lmstudio_url`) instead ·
   **Data status:** none.
-
 - **A bad `--embed-url` / `--embed-model` stops the run.** `m3_enrich`,
   `m3_enrich_batch` and `m3_entities` printed a warning and carried on with the
   default embedder.
   **Affected:** runs with an invalid embedder flag · **Action:** fix the flag ·
   **Data status:** none; before, such a run could embed with an unintended
   model.
-
 - **About a hundred settings are now read through the configuration registry.**
   They can be set in `m3_config.toml` as well as through their environment
   variables, and `m3 config show` reports them. A malformed or out-of-range
@@ -982,20 +737,11 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   ignored or clamped before; a blank value means the default.
   **Affected:** installs that set m3 environment variables · **Action:** fix any
   value the startup error names · **Data status:** none.
-
-- **Lint and format checks cover the whole repository.** `ruff check .` is the
-  gate; `scripts/`, `examples/` and the top-level scripts were outside it. Eight
-  unused one-off scripts were removed from `scripts/`. The homelab dashboard
-  example no longer blocks its event loop on file writes and the thermal probe.
-  **Affected:** contributors; users of the homelab dashboard example ·
-  **Action:** none · **Data status:** none.
-
 - **The `database` argument is refused where it would be ignored:** on a
   non-SQLite backend and on every files tool, where the call used to run against
   the default store.
   **Affected:** callers passing `database` there · **Action:** use the `store`
   argument (see Added) or drop `database` · **Data status:** none.
-
 - **Failures that were silent are reported.** A swallowed programming error or
   malformed query logs a WARNING; an unresolvable files backend and an
   unreadable migration ledger raise instead of answering SQLite and "nothing
@@ -1004,22 +750,11 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   none) and says when it could not count a store.
   **Affected:** all installs · **Action:** read new warnings; each carries
   `observed:` and `inspect:` · **Data status:** none.
-
-- **SQLite-only tools say so on another backend:** `migrate_memory` and
-  `split_chatlog_from_core` refuse PostgreSQL.
-  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
-
-- **Tool schemas are smaller:** the universal `database`, `store` and `timeout`
-  arguments carry short descriptions and no schema default, cutting the eager
-  schema from about 40,800 to 29,100 tokens.
-  **Affected:** MCP clients · **Action:** none · **Data status:** none.
-
 - **`memory_write_bulk`'s `*_concurrency` arguments warn** when set, since the
   process-wide settings `memory.fact_enrich_concurrency` and
   `entity.extract_concurrency` govern.
   **Affected:** callers passing those arguments · **Action:** set the settings
   instead · **Data status:** none.
-
 - **Dependencies:** `tomlkit` is a new core dependency, and `pydantic` and
   `starlette`, which m3 imports directly, are declared. The `entity-ner` extra
   adds `packaging`, cannot be installed together with `embed-server`, and the
@@ -1027,12 +762,168 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** all installs; `entity-ner` users · **Action:** none; install
   `entity-ner` and `embed-server` in separate environments ·
   **Data status:** none.
-
 - **The `crewai` extra installs with uv and an `mcp` override;** plain pip
   cannot resolve it (crewai pins `mcp<1.29`, m3 requires `mcp>=1.30`). The
   README gives the command.
   **Affected:** CrewAI users · **Action:** install as the README shows ·
   **Data status:** none.
+- **Security and FIPS**
+  - **`m3 secret set NAME --stdin` stores a value piped in by a script.** The value
+    could only be typed at a prompt, so scripted setups could not store the
+    database address. A terminal on standard input is refused, so a typed value is
+    never shown. With no keyring on the computer, the lookup note now says so
+    instead of suggesting a package to install.
+    *(Affected: scripted and automated installs.)*
+  - **No secret is read from the environment, in two more places.** The dashboard's
+    cloud health probe no longer falls back to an exported API key when the secret
+    chain fails; it reports the cause. `m3 serve --generate-token` no longer warns that an
+    exported `M3_SERVE_TOKEN` overrides the vault (it does not), nor suggests
+    exporting one.
+    *(Affected: dashboard health on cloud LLM profiles; `m3 serve` token setup.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **PostgreSQL and sync**
+  - **Switching to PostgreSQL before storing its address is explained, not a
+    crash.** `m3 doctor`, `m3 status` and other commands print what is missing and
+    both ways out (store the address, or go back to SQLite) instead of a traceback.
+    `m3 config set db.backend` says what the chosen store still needs and that
+    running m3 programs keep the old store until `m3 stop` and `m3 setup`.
+    *(Affected: installs switching to PostgreSQL.)*
+  - **The macOS installer offers PostgreSQL 18.** When no server is found, `m3 setup`
+    offers `brew install postgresql@18` (was `postgresql@16`), and the manual hint
+    names the same formula.
+    *(Affected: macOS users choosing PostgreSQL.)*
+  - **Bulk writes on PostgreSQL no longer log a defect.** Every bulk write ran a
+    SQLite-only WAL checkpoint and logged a syntax error on PostgreSQL; the write itself
+    succeeded. Checkpointing now goes through the storage backend.
+    *(Affected: PostgreSQL stores.)*
+  - **SQLite-only tools say so on another backend:** `migrate_memory` and
+    `split_chatlog_from_core` refuse PostgreSQL.
+    *(Affected: PostgreSQL installs.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **Search and memory**
+  - **An empty, whitespace or `*` query lists memories by their filters**
+    (`memory_search`, `memory_search_scored`), ordered by importance then
+    recency, instead of returning nothing.
+    *(Affected: callers passing an empty
+  query.)*
+  - **Several m3 processes can open a new SQLite store at the same time.** The
+    second process to open a brand-new store could fail at start with "database is
+    locked"; it now waits, within the 30-second busy timeout.
+    *(Affected: SQLite stores opened by several processes at once before their first
+  use.)*
+  - **Entity-extraction status comes from migrations on every store.** Chatlog
+    migrations 008/009 add the `status` column and its index; main migration 055
+    restores that index on stores where it was missing, so processed turns are
+    skipped by an index lookup there too.
+    *(Affected: installs that run entity extraction.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **m3 install/upgrade UX & correctness**
+  - **The notification waiter blocks on the dispatch doorbell when the core has it.**
+    With a core that ships `m3-dispatchd` and `m3-wait`, the waiter starts the
+    daemon if it is not running and waits in `m3-wait` (about 19 MB committed in
+    all, against about 515 MB for the polling child), confirming each wake in the
+    store. On that path, mail that arrived while no waiter ran is reported at its
+    first wake. `m3 stop` also stops both programs. Otherwise the waiter polls as
+    before.
+    *(Affected: installs whose core ships the dispatch programs.)*
+  - **The web dashboard, the cognitive loop and the Observer & Reflector stages are
+    stable.** They leave hardening and follow the deprecation policy.
+    *(Affected: everyone.)*
+  - **Setup, `m3 doctor` and the install guides speak plainly.** Internal names
+    (project code names, tier numbers, task names, step labels) are replaced by
+    what each part does; setup no longer asks about Claude Code when it is not
+    installed, says how to connect an agent when none is found, and `m3 setup
+    --help` hides internal options. The guides give `m3 config set` commands
+    instead of environment variables, and the README leads with `pipx` (with how
+    to get it on each system). Doctor lines, the dashboard and background-processing
+    questions, and the folder and speed-up module messages follow suit; "no agents
+    wired" is printed once.
+    *(Affected: everyone running setup or reading the guides.)*
+  - **`m3 doctor --fix` no longer reports a Claude Code connection that does not
+    exist.** With nothing to change it now gives the same verdict as `m3 doctor`,
+    including "nothing to check" where Claude Code is not installed, and says when
+    no agent is set up instead of "all healthy".
+    *(Affected: machines without Claude Code or without wired agents.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **Configuration and CLI**
+  - **`m3` commands no longer print internal log lines.** `m3 memory ...` and other
+    commands printed every embedding request (`httpx: [INFO] HTTP Request: ...`)
+    and search details, because modules they load turned on informational logging
+    for the whole process when imported. Logging is now set up only by the program
+    being run; warnings and errors still show.
+    *(Affected: everyone using the `m3` command line.)*
+  - **`m3` commands start faster.** A command now loads only what it uses: the
+    tool catalog loads for `m3 <domain> <tool>` commands, and the version only for
+    `--version`. `m3 config get` and `m3 --help` went from about 350 ms to about
+    150 ms on a Windows test machine.
+    *(Affected: CLI users and agents that call `m3` directly.)*
+  - **Each file m3 rewrites keeps `<name>.bak` and `<name>.backup_history`.**
+    - **`<name>.bak`** is the file exactly as it was before the latest change;
+      restoring is copying it back.
+    - **`<name>.backup_history`** gets one UTC-stamped entry per change: the full
+      previous content (every line prefixed `| `, so the history cannot be mistaken
+      for the file) and the diff. `m3 restore <file>` lists the versions;
+      `m3 restore <file> --at <time>` puts one back, and can itself be undone.
+    - **An unfinished change** (an entry with no `END` line) is named by `m3 doctor`,
+      with the restore.
+    - **The history keeps every previous version,** including any API keys the
+      file held. It has the same permissions as the file; delete it after
+      rotating a leaked key.
+    - **Which files:** MCP client settings, OpenCode, the Gemini hooks, the
+      crontab and launchd agents.
+    - **What it replaces:** the `.m3bak`, `.bak` and timestamped copies, which
+      could overwrite one another. Older ones can be deleted.
+    - **When a backup fails,** the file is not rewritten.
+    *(Affected: all installs.)*
+  - **The storage backend can be set in `m3_config.toml`.** `[db] backend =
+    "postgres"` selects PostgreSQL; `M3_DB_BACKEND` still overrides it. Choosing
+    PostgreSQL in `m3 install` now writes that line instead of setting
+    `M3_DB_BACKEND` in the Windows registry or your shell profile; a value already
+    there keeps working, and the installer reports one that disagrees.
+    *(Affected: PostgreSQL installs.)*
+  - **Setup records its choices in files, not environment variables.** The LLM
+    runtime switches and an `--llm-endpoint` pin go to `.llm_config.json` in the
+    config root, which every m3 process reads; setup no longer adds them to the
+    Windows registry, your shell profile or MCP server `env` blocks. Values already
+    there keep working.
+    *(Affected: all installs.)*
+  - **The LLM endpoint settings in `m3_config.toml` take effect.** `[llm]` `url`,
+    `endpoints`, `lmstudio_failover` and `ollama_failover` now choose the failover
+    list; they were ignored. Precedence: `m3_config.toml`, then the environment,
+    then `.env`, then `.llm_config.json`. The switches accept `on`/`off` as well
+    as `1`/`0`, and an unreadable value names the file it came from. `m3 doctor`
+    and `m3 config show --origin` list each value still read from
+    `.llm_config.json`.
+    *(Affected: users who set LLM endpoints.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **Agents and integrations**
+  - **The agent dispatch store is migrated like the others.** `migrate_memory up
+    --target dispatch` brings it to the current schema, `--target all` includes an
+    existing dispatch store, and the first send migrates it through the same
+    runner, on SQLite and in its PostgreSQL schema, so later dispatch migrations
+    reach existing installs.
+    *(Affected: installs that use agent dispatch.)*
+  - **Tool schemas are smaller:** the universal `database`, `store` and `timeout`
+    arguments carry short descriptions and no schema default, cutting the eager
+    schema from about 40,800 to 29,100 tokens.
+    *(Affected: MCP clients.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
+
+- **Other**
+  - **Python 3.15 is tested on the 3.15.0 release and must pass like 3.12–3.14.**
+    Release candidates are no longer used.
+    *(Affected: Python 3.15 users.)*
+  - **Lint and format checks cover the whole repository.** `ruff check .` is the
+    gate; `scripts/`, `examples/` and the top-level scripts were outside it. Eight
+    unused one-off scripts were removed from `scripts/`. The homelab dashboard
+    example no longer blocks its event loop on file writes and the thermal probe.
+    *(Affected: contributors; users of the homelab dashboard example.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
 ### Deprecated
 
@@ -1041,7 +932,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   persistence with `M3Saver` instead.
   **Affected:** code calling `with_m3_history` · **Action:** move to `M3Saver`
   before langchain-core 2.0 · **Data status:** none.
-
 - **Legacy environment names for settings** still work and log a
   warning; `m3 config show --origin` shows which name supplied a value.
   `LLAMA_SERVER_EXE` and `GGUF_MODEL_PATH` are now `M3_LLAMA_SERVER_EXE` and
@@ -1049,21 +939,17 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs configured through environment variables ·
   **Action:** move settings to `m3_config.toml` or the current names ·
   **Data status:** none.
-
 - **Renamed CLI options:** `embed_backfill --store core|chatlog` is
   `--target`, and `search_differential --store PATH` is `--engine-root`; the
   old spellings still work.
   **Affected:** scripts using those options · **Action:** switch to the new
   names · **Data status:** none.
-
 - **The vault as a source for the primary PostgreSQL DSN** warns on every use.
   **Affected:** PostgreSQL installs whose DSN is in the vault ·
   **Action:** store it in the keyring or the secrets file · **Data status:** none.
-
 - **The `m3-memory[dev]` extra** is now an alias of the `dev` dependency group.
   **Affected:** contributors · **Action:** `uv sync --group dev` (or
   `pip install --group dev` with pip 25.1+) · **Data status:** none.
-
 ### Removed
 
 - **Settings that had no effect are retired;** `m3 config show` lists any that
@@ -1076,7 +962,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   `M3_TRUST_AUTOTUNE`.
   **Affected:** installs that set them · **Action:** unset them ·
   **Data status:** none.
-
 ### Fixed
 
 - **Chat turns are captured on a fresh split install.** The first turn written
@@ -1085,96 +970,34 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   loop. **Affected:** split chatlog installs, integrations (Hermes, LangChain,
   CrewAI, PydanticAI) · **Action:** upgrade · **Data status:** spilled turns
   are stored on the next flush.
-
 - **GDPR erasure removes everything derived from a subject's memories**,
   including in a separate chatlog store, and reports a step that failed.
   **Affected:** GDPR forget requests · **Action:** re-run erasure for subjects
   forgotten before upgrading · **Data status:** earlier erasures may have left
   derived rows.
-
 - **Memory operations stay inside one user and agent.** Dedup, consolidation,
   contradiction detection and scoped search no longer cross users, agents or
   embedding models, skip pinned memories, and return in-scope matches a row
   limit used to drop. Updating a missing memory is an error. **Affected:**
   multi-user or multi-agent stores · **Action:** upgrade ·
   **Data status:** none.
-
 - **Sync and queues hold up under interruption and concurrency.** An
   interrupted PostgreSQL sync no longer advances past rows it did not store,
   and concurrent writers no longer lose queue retry counts. A fact-enrichment
   run that finds no facts is not repeated every pass (SQLite migration 060).
   **Affected:** PostgreSQL sync; fact enrichment · **Action:** upgrade (the
   migration runs on first open) · **Data status:** none.
-
-- **Setup never overwrites a file it cannot read.** Uninstall, the settings
-  writers and the Hermes provider refuse a malformed `settings.json` or
-  `m3.json` instead of replacing it; `m3 doctor` exit codes follow its
-  verdict; Windows permission hints name the user. **Affected:** all installs ·
-  **Action:** none · **Data status:** none.
-
 - **The CPU embedder (tier 2) comes back after an outage.** Once its breaker
   had opened, a background check could take the single retry slot meant for
   the next real embed, and tier 2 then stayed off until m3 restarted.
   **Affected:** installs using the shared CPU embedder · **Action:** none ·
   **Data status:** rows written meanwhile without a vector are filled by
   `m3 embedder backfill`.
-
-- **Embedding settings changed at runtime take effect**, and the embed sweep
-  says whether a batch failed for want of a vector, a dimension mismatch or a
-  write error. **Affected:** all installs · **Action:** none ·
-  **Data status:** none.
-
-- **Embedder and HTTP failures say what happened.** Tier-2 probes (doctor,
-  `embedder_status`, the shared-embedder check, the watchdog) tell refused,
-  timed out, 401/403, untrusted certificate, bad URL and an unhealthy server
-  apart, each with its fix, and all use the same `embed.fallback_url`. The
-  watchdog no longer restarts a server that answers but refuses. LLM, cloud,
-  proxy and dashboard errors name the endpoint (no query string), status and
-  cause; response bodies in logs are redacted; one log line no longer quotes
-  memory text. **Affected:** all installs · **Action:** none ·
-  **Data status:** none.
-
-- **With the local LLM's breaker open, the cloud embed tier still runs.** It
-  was skipped. An unset `LM_API_TOKEN` no longer sends a placeholder bearer
-  that an auth-enabled LM Studio rejects. **Affected:** setups using the cloud
-  tier or LM Studio auth · **Action:** none · **Data status:** none.
-
-- **Honest health and status.** The dashboard no longer reports "All
-  subsystems nominal" when a probe failed, treats a cloud 5xx or 429 as
-  healthy, or shows an unreadable store as absent; `m3 dashboard` start and
-  `--stop` check the result; destructive chatlog maintenance is refused when
-  the chatlog store cannot be resolved (it ran on the main store). The proxy's
-  `/health` reports a failed tool catalog, and upstream key errors are 502s
-  naming the backend's key. **Affected:** dashboard and proxy users ·
-  **Action:** none · **Data status:** none.
-
-- **The embed watchdog guards only a server on this machine.** With
-  `fallback_url` on another machine it restarted the local service whenever that
-  server was unreachable. **Affected:** shared mode with a remote server ·
-  **Action:** none · **Data status:** none.
-
-- **`m3 doctor` and `embedder_status` probe `https://` embed servers.** Both
-  used a plaintext-only HTTP client and now share one probe. **Affected:**
-  `https://` fallback URLs · **Action:** none · **Data status:** none.
-
-- **Warehouse sync probes the address it connects to.** With `hostaddr` in the
-  DSN, the reachability check resolved the host name instead, which may name only
-  the certificate, and skipped every sync as unreachable. A host list is
-  reachable when any of its hosts answers. **Affected:** warehouse DSNs using
-  `hostaddr` or several hosts · **Action:** none · **Data status:** none.
-
-- **Semantic search on SQLite considers every memory.** It ranked a fixed set of
-  50 memories, the same for every query, so most of a store could not be found by
-  meaning. Hybrid searches whose keywords matched nothing landed there too. It now
-  ranks every memory in scope. **Affected:** SQLite stores · **Action:** none ·
-  **Data status:** none.
-
 - **Searches no longer stall on keyword-index rewrites.** Recording that a memory
   was read rewrote its keyword-index entry, and the index upkeep that followed
   could pause a search for a quarter of a second. The index is now rewritten only
   when a memory's text changes. **Affected:** SQLite stores · **Action:** none
   (applied by the schema upgrade) · **Data status:** none.
-
 - **Upgrading from an older release leaves m3 fully working.** After `pipx upgrade`
   and `m3 setup`, answering *Keep the current settings* left Claude Code's hooks and
   the agents' entries on the old install, and verification failed. Setup now
@@ -1184,94 +1007,19 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   instead of downloading another copy, and offers background processing to an
   install that never had it. **Affected:** installs upgraded from a release without
   `m3 upgrade` · **Action:** run `m3 setup` · **Data status:** none.
-
-- **Deleting a memory no longer fails after nightly maintenance.** When the
-  maintenance pass compacted a store, the next delete through an already-running
-  m3 could fail with "no such table: memory_items". m3 now refreshes each
-  connection's view of the database before using it. **Affected:** SQLite stores
-  under 500 MB · **Action:** none · **Data status:** none.
-
-- **A second m3 user on a shared computer gets an embedder and dashboard of its
-  own.** Another account's m3 held the usual ports, so this account had neither,
-  and the fix was to choose ports by hand. Setup now picks free ports (Linux,
-  macOS) and records them; a registered embedder service moves to the new port
-  (its own installer left the port out), clients follow it, and the doctor checks
-  it. A port you chose is never changed. **Affected:** Linux and macOS computers
-  with more than one m3 user · **Action:** none · **Data status:** none.
-
-- **The embedder service starts when an unsupervised server of yours holds its
-  port.** A repair could leave one running; the service then restarted in a loop,
-  loading the model every few seconds. Setup stops your own unsupervised server
-  first, never another account's. **Affected:** Linux and macOS · **Action:** none ·
-  **Data status:** none.
-
-- **Setup no longer reports "verification passed — m3 is installed and working"
-  before checking the background services**, which then failed. **Affected:** all
-  installs · **Action:** none · **Data status:** none.
-
-- **A warehouse address kept in an environment variable keeps working after an
-  upgrade.** The new version reads no secret from the environment, and an older
-  release's upgrade had no step to move it, so sync found no warehouse while the
-  upgrade reported success. Setup moves it. **Affected:** installs whose warehouse
-  DSN was an environment variable · **Action:** none · **Data status:** none.
-
-- **An embed server started by an older install's crontab line is replaced by m3's
-  service.** It held the port, so the new service could not start; the job audit
-  also misread `@reboot` lines. Where m3 can run the service, setup removes the line
-  (the crontab is saved first) and stops what it started. **Affected:** Linux and
-  macOS installs that followed older guides · **Action:** none ·
-  **Data status:** none.
-
 - **m3 in a `su` shell uses the user's systemd session.** The shell drops
   `XDG_RUNTIME_DIR`, so every service step failed; m3 now reruns the command with
   it set when the session runs, and says once, up front, how to enable one when
   there is none. **Affected:** Linux users reached through `su` · **Action:** with
   no session, `loginctl enable-linger <user>` as root · **Data status:** none.
-
-- **Windows: an upgrade no longer asks for an administrator over the dashboard
-  task.** `M3_CONFIG_ROOT` set to the default folder counted as a custom one, so
-  every job gained a `--config` argument and setup tried to recreate a boot task.
-  **Affected:** installs with `M3_CONFIG_ROOT` set to the default · **Action:**
-  none · **Data status:** none.
-
-- **Sync's reachability check probes the address it connects to.** A host setting
-  naming another address (one kept after the warehouse moved) could skip a sync
-  that would have worked. **Affected:** installs with `sync.target_ip` or
-  `sync.warehouse_host` · **Action:** none · **Data status:** none.
-
-- **`m3 doctor` reports what is true.** It no longer counts another user's or a
-  container's processes as this user's (a container host reported a cognitive loop
-  that did not exist); it checks the embedder with this install's binary, not an
-  older copy on PATH; it no longer says "no agent is set up" when Claude Code is;
-  it names `m3 setup --cognitive-loop` for a missing loop; and setup reports a
-  dashboard boot task as starting only when it was enabled. **Affected:** all
-  installs · **Action:** none · **Data status:** none.
-
-- **An agent still naming the moved `~/.m3-memory` root is repointed.** The old
-  folder survives its migration, so the entry passed the existence check while its
-  state went to the old place. **Affected:** installs migrated from `~/.m3-memory`
-  · **Action:** none · **Data status:** none.
-
-- **A failed warehouse-sync pass in the cognitive loop logs a warning.** It was an
-  INFO line, so a sync that failed every hour went unnoticed. **Affected:** installs
-  that sync · **Action:** none · **Data status:** none.
-
-- **Two m3 processes starting on a new store no longer fail its setup.** Each takes a
-  backup before updating the store, and two in the same second chose the same file name;
-  the second refused to overwrite the first and its update failed (`no such table`).
-  **Affected:** fresh stores opened by two processes at once · **Action:** none ·
-  **Data status:** none.
-
 - **The macOS notification waiter's job file is valid XML.** A comment in it contained
   `--`, which launchd tolerates but other tools reject, so they could not read the job.
   **Affected:** macOS · **Action:** none; `m3 setup` rewrites it · **Data status:** none.
-
 - **LangChain chat history keeps turns in order when messages arrive quickly.** A second
   `add_messages` call could reuse the first call's turn numbers while those turns were still
   being written, and the conversation read back out of order.
   **Affected:** `[langchain]` users of `M3ChatMessageHistory` · **Action:** none ·
   **Data status:** conversations written out of order keep their stored order.
-
 - **Sync no longer misses rows that reach the warehouse late.** Each sync read the rows
   created or updated after its previous sync, by the writing machine's clock, so a row
   written before another machine's sync and sent after it never reached that machine.
@@ -1282,55 +1030,39 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   updates itself on the first sync and needs the ownership in
   [Upgrading your warehouse](docs/WAREHOUSE_UPGRADE.md) · **Data status:** missed rows are
   in the warehouse and arrive on the first sync.
-
 - **With separate memory and chat stores, each store gets only its own rows.** Sync
   pulled the whole warehouse into both, so the memory store filled with chat turns and
   the chat store with memories. New syncs no longer add them; rows already copied stay.
   **Affected:** installs with separate memory and chat stores · **Action:** none ·
   **Data status:** existing copies are left in place.
-
-- **A relationship or embedding whose memory has not arrived yet no longer fails the
-  sync.** One such row failed its whole batch on every run; it now waits for its memory.
-  **Affected:** syncing installs · **Action:** none · **Data status:** none.
-
 - **Sync no longer fails on the notification store.** Since the notification store
   joined the migration set, every SQLite sync also tried to sync it and logged
   `no such table: memory_items`. Sync now covers only the memory and chat stores.
   **Affected:** SQLite installs that sync to a warehouse · **Action:** none ·
   **Data status:** none; memories and chat synced normally.
-
 - **`m3 upgrade` no longer upgrades a source checkout or a git-URL install from PyPI.**
   An m3 installed with `pip install -e` or from a git URL was taken for a PyPI install, and
   the upgrade could target the system Python. It now names how m3 was installed and prints
   the steps for that method instead of running anything.
   **Affected:** source checkouts and git-URL installs · **Action:** follow the printed steps
   ([Upgrade Guide](docs/HOW-TO-UPGRADE.md)) · **Data status:** none.
-
 - **Sync to a warehouse in the `m3_warehouse` schema works after the schema update.**
   The step that sets the schema was undone by a later check, so every warehouse table
   read as missing (`relation "memory_items" does not exist`) and nothing synced.
   **Affected:** PostgreSQL warehouse sync · **Action:** none · **Data status:** none; the
   failed runs changed nothing and the next run sends what they missed.
-
 - **The warehouse schema update works when another account created the tables.** It
   stopped with `must be owner of table memory_items` even when nothing was missing. It now
   changes only what is missing, and a change that needs ownership names the table, its
   owner and the fix. `pg_setup --check` reports tables owned by another account (exit 3).
   **Affected:** warehouses whose tables an administrator created · **Action:** see
   [Upgrading your warehouse](docs/WAREHOUSE_UPGRADE.md) · **Data status:** none.
-
-- **Read-only opt-in tools run from the CLI without `--yes`.** `m3 memory
-  memory_search_routed`, `memory_search_multi_db`, `memory_export` and `gdpr_export`
-  asked for `--yes` and said they "mutate/delete data". They are still opt-in over MCP.
-  **Affected:** CLI users of those four tools · **Action:** none · **Data status:** none.
-
 - **A point-in-time search finds a memory that was later superseded.** Searching
   with `as_of` returned nothing for a memory replaced after that time, so the
   history was stored but could not be searched. A memory deleted outright stays
   hidden.
   **Affected:** `memory_search` with `as_of`, on SQLite and PostgreSQL ·
   **Action:** none · **Data status:** none; superseded memories were always kept.
-
 - **Moving settings out of shell startup files reads only real settings.** A value
   the shell works out when it starts, such as `$(security find-generic-password ...)`,
   was stored as the secret itself; lines inside functions and heredocs, and
@@ -1343,19 +1075,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   keychain, run `m3 secret set NAME` with the real value ·
   **Data status:** a wrongly stored secret could make m3 read the wrong key when the
   keychain is locked; no memory data is affected.
-
-- **`m3 schedules verify` names the agent the notification waiter watches.** With
-  no agent registered it printed "watching every registered agent ... (0 of 0)"
-  while it watched `claude-code`.
-  **Affected:** installs with no registered agents · **Action:** none ·
-  **Data status:** none.
-
-- **An installed m3 carries all of its schema migrations.** The package left out
-  two migration sets, so after an upgrade `m3 doctor --fix` failed with "no
-  migrations found" and the upgrade reported itself incomplete.
-  **Affected:** installs from a built package (pip, pipx, `m3 upgrade`) ·
-  **Action:** none · **Data status:** none.
-
 - **A PostgreSQL store from an earlier release is brought up to date on first
   use.** Choosing PostgreSQL with `m3 config set db.backend postgres` against an
   existing store left it on its old schema while `m3 doctor` reported it healthy.
@@ -1364,30 +1083,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   what it applied.
   **Affected:** PostgreSQL stores selected after install · **Action:** none ·
   **Data status:** missing tables and columns are added; existing data is kept.
-
-- **On a computer shared by several people, setup no longer touches another
-  user's m3.** It no longer offers to stop another account's background service
-  (or asks for a password to do so). When another account's m3 already uses the
-  embedder or dashboard port, setup and `m3 doctor` say so and name the setting
-  to change, instead of reporting this account's server as running.
-  **Affected:** Linux and macOS computers with more than one m3 user ·
-  **Action:** none · **Data status:** none.
-
-- **A new install starts clean.** A fresh store no longer reports "DEGRADED ·
-  chatlog: unreadable" before its first capture, and no longer gets an automatic
-  weekly report as its first memory (the first one now comes a week after
-  install). Commands no longer print a line per request to the embedder, and
-  pressing Ctrl-D at `m3 secret set` stops cleanly instead of showing an error.
-  **Affected:** new installs; every CLI user · **Action:** none ·
-  **Data status:** none.
-
-- **Choosing FIPS mode in setup is saved.** It is written to `m3_config.toml`
-  instead of asking you to add environment variables to your shell profile, and
-  setup asks for an environment variable only when you put your settings folder
-  somewhere other than the default.
-  **Affected:** installs choosing FIPS mode or a custom settings folder ·
-  **Action:** none · **Data status:** none.
-
 - **An upgrade no longer drops the rest of a migration when a column already
   exists.** On SQLite, a migration that adds a column the store already had was
   rolled back whole and still recorded as applied, so its other statements never
@@ -1397,7 +1092,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   present · **Action:** none ·
   **Data status:** none; an index that speeds up entity extraction is re-created
   where it was missing.
-
 - **The chatlog title and embedding backfill scripts find the databases under
   the engine root.** With no `--core-db`/`--chatlog-db` they looked in
   `<checkout>/memory`, so run from elsewhere they found nothing, and from a dev
@@ -1405,7 +1099,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** `m3_chatlog_backfill_title` and `m3_chatlog_backfill_embed` run
   without explicit database arguments · **Action:** none ·
   **Data status:** none; runs that found no database changed nothing.
-
 - **Reads from a named store or `--database` record their access in that
   store.** A search stamped "last accessed" in the store the process first read
   from, so a memory read from another store never had it recorded: grading it
@@ -1414,7 +1107,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs that use `--store`, `--database` or several stores ·
   **Action:** none · **Data status:** access counts for those stores were not
   recorded until now; nothing else changed.
-
 - **The session-start capture check works on a PostgreSQL primary store.** It
   reported "capture status UNKNOWN" at every session start and could leave
   empty SQLite files behind; it now reads when the chatlog last wrote, from the
@@ -1422,30 +1114,15 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** PostgreSQL-primary installs using Claude Code · **Action:**
   none · **Data status:** none; any empty `agent_memory.db` or
   `agent_chatlog.db` it created in the engine root holds no data.
-
 - **The session-handoff server no longer opens the store when it starts.** It
   creates its table on the first save, in the store that run selected.
   **Affected:** users of the `session_handoff` MCP server · **Action:** none ·
   **Data status:** none; existing handoffs are kept.
-
 - **`m3 doctor` checks Cursor and Cline for `M3_EMBED_GGUF`.** The check for an
   embedder path pinned in an MCP server's env block, and its `--fix` scrub,
   skipped those two clients.
   **Affected:** Cursor and Cline users · **Action:** run `m3 doctor` ·
   **Data status:** none.
-
-- **Setup reports a failed write of Claude's settings.** When
-  `~/.claude/settings.json` could not be written, setup still said the hooks were
-  installed.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-
-- **`m3 doctor` and `m3 install` look in `~/.claude.json`.** The places checked
-  for an environment variable (where a disagreeing or deprecated variable is
-  set, and the refusal of a deprecated `PG_URL`) now include Claude Code's
-  `~/.claude.json` server `env` blocks, `m3`'s own `.env` and
-  `.llm_config.json`. A `PG_URL` there was missed.
-  **Affected:** Claude Code users · **Action:** none · **Data status:** none.
-
 - **Scheduled jobs and services use the config root chosen at setup.** With a
   non-default config root, the background jobs (cognitive loop, sync,
   maintenance, the dashboard and others) ran against the default roots while the
@@ -1455,37 +1132,12 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   root chosen in `m3 setup`) · **Action:** run `m3 schedules repair` ·
   **Data status:** jobs may have written to the default store; check it for
   memories and chat logs that belong in your chosen store.
-
-- **Tools refuse a SQLite path on PostgreSQL cleanly.** With PostgreSQL selected
-  and no connection string set, a tool given `--database` stopped with a
-  traceback instead of its error message.
-  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
-
-- **Windows: `m3 schedules add` no longer stops the embed server.** Re-registering
-  any task stopped the Rust `m3-embed-server` and tried to restart it through a
-  task that does not exist on Windows, cutting off embeddings until its own
-  service restarted it, and printing a misleading warning.
-  **Affected:** Windows with the Rust embed server · **Action:** none ·
-  **Data status:** none.
-
-- **Windows: `m3 schedules add/remove/repair` from an admin shell runs directly.**
-  It asked "Run it elevated now?" even when already elevated; with no one at the
-  console (a scheduled or hidden run) it waited for ever. It now runs when
-  elevated, and with no one to answer it stops and says to use an admin shell.
-  **Affected:** Windows · **Action:** none · **Data status:** none.
-
 - **The notification waiter skips agents marked offline.** It kept watching
   retired agents, and when no agent had checked in recently it fell back to every
   agent ever registered without saying so.
   **Affected:** multi-agent setups · **Action:** re-register the waiter
   (`m3 schedules add AgentOS_NotificationWaiter`, admin shell on Windows) ·
   **Data status:** none.
-
-- **`m3 schedules verify` names the right fix.** It said "re-register with
-  `--repair`", which `m3 schedules` does not accept; it now names
-  `m3 schedules add <task>` or `m3 schedules repair`.
-  **Affected:** all · **Action:** none · **Data status:** none.
-
 - **Windows: the hourly sync no longer opens a window, and reports its real
   result.** When a `.venv` directory sat inside the installed package, `pg_sync`
   restarted itself under it: a console window flashed every hour, and the sync
@@ -1495,30 +1147,15 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** Windows installs with a `.venv` inside the package directory ·
   **Action:** none (the stray `.venv` can be deleted) · **Data status:** a sync
   reported as successful may not have run; the next run catches up.
-
 - **The embed server listens on the configured port.** m3 started
   `m3-embed-server` on 8082 whatever `embed.server.port` said in
   `m3_config.toml`, while checking the configured port.
   **Affected:** users who set `embed.server.port` in the config file ·
   **Action:** restart the embed server · **Data status:** none.
-
 - **Text settings in `m3_config.toml` are type-checked.** Thirteen text settings
   (such as `dashboard.host`) accepted a number or a list without an error.
   **Affected:** config files with a wrong-typed text value · **Action:** fix the
   value the error names · **Data status:** none.
-
-- **Installed m3 finds its own scripts from every command.** Several commands
-  looked for m3's `bin/` directory one level too high on a pip-installed copy,
-  and two could put the current directory on Python's import path when it was
-  missing. One resolver now locates it for all of them.
-  **Affected:** pip/pipx installs · **Action:** none · **Data status:** none.
-
-- **`m3_entities_gliner` flags beat the environment.** `--model`, `--threshold`,
-  `--batch-size` and `--device` were overridden by the matching `M3_GLINER_*`
-  variables; a flag given on the command line now wins.
-  **Affected:** users of `m3_entities_gliner` who set `M3_GLINER_*` · **Action:**
-  none · **Data status:** none.
-
 - **Every tool resolves the data roots the same way.** About twenty places
   carried their own copy of the root rules, and several had drifted: the
   notification waiter wrote its log under the engine root's parent and ignored
@@ -1529,7 +1166,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs that set `M3_LOGS_ROOT`, `M3_MEMORY_ROOT` or a
   `~`-relative `M3_CONFIG_ROOT` · **Action:** none · **Data status:** none;
   the notification waiter's new log starts in the logs root.
-
 - **A POSIX-style `M3_MODELS_ROOT` is kept as given on Windows.** Set from Git
   Bash or WSL (`/data/models`), it was turned into `C:\data\models`, as the
   other roots no longer do. The models root now follows the same rule as the
@@ -1537,7 +1173,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** Windows installs that set `M3_MODELS_ROOT` or `M3_MEMORY_ROOT`
   to a POSIX-style path · **Action:** none · **Data status:** none; model files
   found in the old location are found in the new one unless the two differ.
-
 - **Destructive-tool hints name `M3_MCP_PROXY_ALLOW_DESTRUCTIVE`.** The proxy's
   and `m3_call`'s messages still told users to set the deprecated
   `MCP_PROXY_ALLOW_DESTRUCTIVE`, and `measure_tool_tokens.py` set it itself,
@@ -1545,7 +1180,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** users enabling destructive tools through the proxy ·
   **Action:** none; the old name still works until it is removed ·
   **Data status:** none.
-
 - **Re-embedding a long memory no longer flattens it.** `memory_update` with
   `reembed=True` and `re_embed_all.py` wrote one vector over all of a long
   memory's window rows, so the later parts stopped matching searches. Both now
@@ -1556,7 +1190,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Action:** run `m3 embedder backfill` once to repair older memories ·
   **Data status:** memories re-embedded by earlier versions keep their flattened
   vectors until re-embedded again.
-
 - **Warehouse sync no longer skips rows after a failed batch.** When a batch
   failed (for example "database is locked"), sync still moved on as if it had
   succeeded, so those rows were not sent again unless edited, and the run
@@ -1565,7 +1198,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** installs that sync to a PostgreSQL warehouse · **Action:** none ·
   **Data status:** rows skipped this way by earlier versions are not re-sent
   until they change; a full re-sync (clear the `sync_watermarks` rows) sends them.
-
 - **PostgreSQL: features that failed, several of them silently, now work.**
   Memory history diffs, the single-text embedding cache, conversation window
   and gist summaries, conversation search pairing, the bulk embedding cache
@@ -1577,7 +1209,6 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** PostgreSQL installs · **Action:** none ·
   **Data status:** window and gist summaries that earlier versions failed to
   create are not back-filled.
-
 - **PostgreSQL: JSON metadata is read correctly.** `agent_get` failed,
   `memory_inbox` showed every sender as "?", and
   `chatlog_strip_framing_backfill --apply` and the GLiNER conversation
@@ -1586,47 +1217,34 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   **Affected:** PostgreSQL installs · **Action:** a client that read
   `memory_get`'s `metadata_json` as an object on PostgreSQL now receives a JSON
   string · **Data status:** none.
-
 - **Memories written through the MCP server get contradiction detection,
   enrichment and entity extraction.** The MCP default `variant=""` made all
   three skip the memory.
   **Affected:** all installs, writes through MCP · **Action:** none ·
   **Data status:** memories written through MCP by earlier versions are not
   re-processed.
-
-- **`conversation_summarize` works;** every call raised `NameError`.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-
 - **`memory_link` refuses an unknown relationship type,** as well as a link to
   a memory that does not exist, and reports a duplicate as "Link already
   exists". `explain=True` explains exact-match results and results found
   without a query vector, which printed nothing.
   **Affected:** all installs · **Action:** none · **Data status:** links with
   an unlisted relationship type created by earlier versions are kept.
-
 - **`search_mode="keyword"` returns lexical results;** it returned nothing. An
   unknown mode is now an error, and `chatlog_search` refuses `vector` and
   `semantic`, which it accepted and ignored.
   **Affected:** all installs · **Action:** use `hybrid`, `semantic` or
   `keyword` (`chatlog_search`: `keyword`) · **Data status:** none.
-
 - **`memory_search` leaves out scratchpad memories unless
   `include_scratchpad=true`,** as its schema always said; it returned them on
   every search.
   **Affected:** all installs · **Action:** pass `include_scratchpad=true` to
   keep them in results · **Data status:** none.
-
-- **MCP tool calls honour `timeout` and the per-tool time budgets,** as the CLI
-  and `m3_call` already did.
-  **Affected:** MCP clients · **Action:** none · **Data status:** none.
-
 - **LangChain client: a search made just before the process exits records its
   access,** so `memory_grade` accepts feedback for it, and shutdown no longer
   leaves a pending task behind.
   **Affected:** the LangChain integration · **Action:** none ·
   **Data status:** access times that earlier versions dropped at exit are not
   recovered.
-
 - **Tools given an explicit database act on that database.**
   `m3_enrich_assign`, `migrate_entity_vocab` and `m3_chatlog_enrich_backfill`
   with `--db` / `--main-db` acted on the `M3_DATABASE` store when that variable
@@ -1635,79 +1253,268 @@ and secrets into the two files, then restart m3's services; on Windows, also run
   was set · **Action:** if you did, check the `M3_DATABASE` store for those
   changes · **Data status:** changes from such runs are in the `M3_DATABASE`
   store.
-
 - **Calls that pass `database=` read that database.** Chatlog search, promote
   and the cost report read the default store, and files promotion started
   inside a running event loop wrote to the default store.
   **Affected:** those calls with `database=`; files promotion from async code ·
   **Action:** none · **Data status:** files promotions made from async code by
   earlier versions may be in the default store.
-
 - **Legacy vault secrets are readable again** and are re-encrypted on first
   read; they resolved to nothing.
   **Affected:** installs with secrets stored in the older vault format ·
   **Action:** none · **Data status:** legacy secrets are re-encrypted in place
   on first read.
-
 - **The device-salt consistency check runs** on every backend and warns on a
   mismatch; it never ran.
   **Affected:** all installs · **Action:** if m3 warns about a salt mismatch,
   follow the `inspect:` pointer in the message · **Data status:** none.
-
-- **SLM profiles without `api_key_service` work.** `m3_enrich`,
-  `run_observer`, `run_reflector`, `m3_entities` and `m3_enrich_batch` crashed
-  with `TypeError`.
-  **Affected:** SLM profiles that omit `api_key_service` · **Action:** none ·
-  **Data status:** none.
-
-- **Batch work no longer loses items.** A batch result shorter than its input
-  is an error instead of dropping the remainder, `promote_pipeline` reports a
-  short judge reply as that batch's error, a failed bulk embed or write cancels
-  its sibling tasks, and the bulk embed path retries only network errors and
-  HTTP 5xx/413/429. A failed entity-vector commit is no longer reported as rows
-  written.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
-
 - **`enrichment_runs` start and finish times carry seconds.**
   `m3_enrich_batch` and `release_orphan_claims` wrote hours and minutes
   followed by microseconds.
   **Affected:** `m3_enrich_batch` users · **Action:** none ·
   **Data status:** rows written by earlier versions keep the malformed times.
+- **Choosing FIPS mode in setup is saved.** It is written to `m3_config.toml`
+  instead of asking you to add environment variables to your shell profile, and
+  setup asks for an environment variable only when you put your settings folder
+  somewhere other than the default.
+  **Affected:** installs choosing FIPS mode or a custom settings folder ·
+  **Action:** none · **Data status:** none.
 
-- **The notification waiter wakes on every new notification.** On SQLite a
-  write that left the file size unchanged within one clock tick could go
-  unseen, and after a restart a leftover reader could end the new run.
-  **Affected:** agents using `m3_notification_waiter` · **Action:** none ·
-  **Data status:** none.
+- **PostgreSQL and sync**
+  - **Warehouse sync probes the address it connects to.** With `hostaddr` in the
+    DSN, the reachability check resolved the host name instead, which may name only
+    the certificate, and skipped every sync as unreachable. A host list is
+    reachable when any of its hosts answers.
+    *(Affected: warehouse DSNs using
+  `hostaddr` or several hosts.)*
+  - **A warehouse address kept in an environment variable keeps working after an
+    upgrade.** The new version reads no secret from the environment, and an older
+    release's upgrade had no step to move it, so sync found no warehouse while the
+    upgrade reported success. Setup moves it.
+    *(Affected: installs whose warehouse
+  DSN was an environment variable.)*
+  - **Sync's reachability check probes the address it connects to.** A host setting
+    naming another address (one kept after the warehouse moved) could skip a sync
+    that would have worked.
+    *(Affected: installs with `sync.target_ip` or
+  `sync.warehouse_host`.)*
+  - **A failed warehouse-sync pass in the cognitive loop logs a warning.** It was an
+    INFO line, so a sync that failed every hour went unnoticed.
+    *(Affected: installs
+  that sync.)*
+  - **A relationship or embedding whose memory has not arrived yet no longer fails the
+    sync.** One such row failed its whole batch on every run; it now waits for its memory.
+    *(Affected: syncing installs.)*
+  - **Tools refuse a SQLite path on PostgreSQL cleanly.** With PostgreSQL selected
+    and no connection string set, a tool given `--database` stopped with a
+    traceback instead of its error message.
+    *(Affected: PostgreSQL installs.)*
+  - **PostgreSQL warehouse sync falls back correctly** when its fast path cannot
+    be imported; it failed with `UnboundLocalError`.
+    *(Affected: PostgreSQL warehouse sync.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
-- **Configuration and state files are written atomically with a unique
-  temporary file,** so two writers cannot overwrite each other's file, and a
-  failed write of `.migrate_config.json` no longer loses the remembered backup
-  directory. JSON written this way has LF line endings on Windows too.
-  `.log_config.json` is created where the governor config is.
-  **Affected:** all installs · **Action:** none · **Data status:** none.
+- **Chatlog capture**
+  - **Honest health and status.** The dashboard no longer reports "All
+    subsystems nominal" when a probe failed, treats a cloud 5xx or 429 as
+    healthy, or shows an unreadable store as absent; `m3 dashboard` start and
+    `--stop` check the result; destructive chatlog maintenance is refused when
+    the chatlog store cannot be resolved (it ran on the main store). The proxy's
+    `/health` reports a failed tool catalog, and upstream key errors are 502s
+    naming the backend's key.
+    *(Affected: dashboard and proxy users.)*
+  - **Library integrations get no chatlog hook.** For LangChain, `m3 chat init`
+    stored and told you to source a hook script that does not exist.
+    *(Affected: LangChain chatlog users.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
-- **Setup and upgrade:** a home directory containing a quote or ending in a
-  backslash no longer breaks the PostgreSQL schema step, and interpreter checks
-  no longer import m3 from the current directory (a bare venv could be approved
-  for scheduled tasks, and a removed m3 reported as installed).
-  **Affected:** all platforms · **Action:** none · **Data status:** none.
+- **Search and memory**
+  - **Embedding settings changed at runtime take effect**, and the embed sweep
+    says whether a batch failed for want of a vector, a dimension mismatch or a
+    write error.
+    *(Affected: all installs.)*
+  - **With the local LLM's breaker open, the cloud embed tier still runs.** It
+    was skipped. An unset `LM_API_TOKEN` no longer sends a placeholder bearer
+    that an auth-enabled LM Studio rejects.
+    *(Affected: setups using the cloud
+  tier or LM Studio auth.)*
+  - **Semantic search on SQLite considers every memory.** It ranked a fixed set of
+    50 memories, the same for every query, so most of a store could not be found by
+    meaning. Hybrid searches whose keywords matched nothing landed there too. It now
+    ranks every memory in scope.
+    *(Affected: SQLite stores.)*
+  - **Deleting a memory no longer fails after nightly maintenance.** When the
+    maintenance pass compacted a store, the next delete through an already-running
+    m3 could fail with "no such table: memory_items". m3 now refreshes each
+    connection's view of the database before using it.
+    *(Affected: SQLite stores
+  under 500 MB.)*
+  - **`m3_entities_gliner` flags beat the environment.** `--model`, `--threshold`,
+    `--batch-size` and `--device` were overridden by the matching `M3_GLINER_*`
+    variables; a flag given on the command line now wins.
+    *(Affected: users of `m3_entities_gliner` who set `M3_GLINER_*`.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
-- **Library integrations get no chatlog hook.** For LangChain, `m3 chat init`
-  stored and told you to source a hook script that does not exist.
-  **Affected:** LangChain chatlog users · **Action:** none ·
-  **Data status:** none.
+- **m3 install/upgrade UX & correctness**
+  - **Setup never overwrites a file it cannot read.** Uninstall, the settings
+    writers and the Hermes provider refuse a malformed `settings.json` or
+    `m3.json` instead of replacing it; `m3 doctor` exit codes follow its
+    verdict; Windows permission hints name the user.
+    *(Affected: all installs.)*
+  - **Embedder and HTTP failures say what happened.** Tier-2 probes (doctor,
+    `embedder_status`, the shared-embedder check, the watchdog) tell refused,
+    timed out, 401/403, untrusted certificate, bad URL and an unhealthy server
+    apart, each with its fix, and all use the same `embed.fallback_url`. The
+    watchdog no longer restarts a server that answers but refuses. LLM, cloud,
+    proxy and dashboard errors name the endpoint (no query string), status and
+    cause; response bodies in logs are redacted; one log line no longer quotes
+    memory text.
+    *(Affected: all installs.)*
+  - **The embed watchdog guards only a server on this machine.** With
+    `fallback_url` on another machine it restarted the local service whenever that
+    server was unreachable.
+    *(Affected: shared mode with a remote server.)*
+  - **`m3 doctor` and `embedder_status` probe `https://` embed servers.** Both
+    used a plaintext-only HTTP client and now share one probe.
+    *(Affected: `https://` fallback URLs.)*
+  - **A second m3 user on a shared computer gets an embedder and dashboard of its
+    own.** Another account's m3 held the usual ports, so this account had neither,
+    and the fix was to choose ports by hand. Setup now picks free ports (Linux,
+    macOS) and records them; a registered embedder service moves to the new port
+    (its own installer left the port out), clients follow it, and the doctor checks
+    it. A port you chose is never changed.
+    *(Affected: Linux and macOS computers
+  with more than one m3 user.)*
+  - **The embedder service starts when an unsupervised server of yours holds its
+    port.** A repair could leave one running; the service then restarted in a loop,
+    loading the model every few seconds. Setup stops your own unsupervised server
+    first, never another account's.
+    *(Affected: Linux and macOS.)*
+  - **Setup no longer reports "verification passed — m3 is installed and working"
+    before checking the background services**, which then failed.
+    *(Affected: all
+  installs.)*
+  - **An embed server started by an older install's crontab line is replaced by m3's
+    service.** It held the port, so the new service could not start; the job audit
+    also misread `@reboot` lines. Where m3 can run the service, setup removes the line
+    (the crontab is saved first) and stops what it started.
+    *(Affected: Linux and
+  macOS installs that followed older guides.)*
+  - **Windows: an upgrade no longer asks for an administrator over the dashboard
+    task.** `M3_CONFIG_ROOT` set to the default folder counted as a custom one, so
+    every job gained a `--config` argument and setup tried to recreate a boot task.
+    *(Affected: installs with `M3_CONFIG_ROOT` set to the default.)*
+  - **`m3 doctor` reports what is true.** It no longer counts another user's or a
+    container's processes as this user's (a container host reported a cognitive loop
+    that did not exist); it checks the embedder with this install's binary, not an
+    older copy on PATH; it no longer says "no agent is set up" when Claude Code is;
+    it names `m3 setup --cognitive-loop` for a missing loop; and setup reports a
+    dashboard boot task as starting only when it was enabled.
+    *(Affected: all
+  installs.)*
+  - **An agent still naming the moved `~/.m3-memory` root is repointed.** The old
+    folder survives its migration, so the entry passed the existence check while its
+    state went to the old place.
+    *(Affected: installs migrated from `~/.m3-memory`.)*
+  - **Two m3 processes starting on a new store no longer fail its setup.** Each takes a
+    backup before updating the store, and two in the same second chose the same file name;
+    the second refused to overwrite the first and its update failed (`no such table`).
+    *(Affected: fresh stores opened by two processes at once.)*
+  - **`m3 schedules verify` names the agent the notification waiter watches.** With
+    no agent registered it printed "watching every registered agent ... (0 of 0)"
+    while it watched `claude-code`.
+    *(Affected: installs with no registered agents.)*
+  - **An installed m3 carries all of its schema migrations.** The package left out
+    two migration sets, so after an upgrade `m3 doctor --fix` failed with "no
+    migrations found" and the upgrade reported itself incomplete.
+    *(Affected: installs from a built package (pip, pipx, `m3 upgrade`).)*
+  - **On a computer shared by several people, setup no longer touches another
+    user's m3.** It no longer offers to stop another account's background service
+    (or asks for a password to do so). When another account's m3 already uses the
+    embedder or dashboard port, setup and `m3 doctor` say so and name the setting
+    to change, instead of reporting this account's server as running.
+    *(Affected: Linux and macOS computers with more than one m3 user.)*
+  - **A new install starts clean.** A fresh store no longer reports "DEGRADED ·
+    chatlog: unreadable" before its first capture, and no longer gets an automatic
+    weekly report as its first memory (the first one now comes a week after
+    install). Commands no longer print a line per request to the embedder, and
+    pressing Ctrl-D at `m3 secret set` stops cleanly instead of showing an error.
+    *(Affected: new installs; every CLI user.)*
+  - **Setup reports a failed write of Claude's settings.** When
+    `~/.claude/settings.json` could not be written, setup still said the hooks were
+    installed.
+    *(Affected: all installs.)*
+  - **`m3 doctor` and `m3 install` look in `~/.claude.json`.** The places checked
+    for an environment variable (where a disagreeing or deprecated variable is
+    set, and the refusal of a deprecated `PG_URL`) now include Claude Code's
+    `~/.claude.json` server `env` blocks, `m3`'s own `.env` and
+    `.llm_config.json`. A `PG_URL` there was missed.
+    *(Affected: Claude Code users.)*
+  - **Windows: `m3 schedules add` no longer stops the embed server.** Re-registering
+    any task stopped the Rust `m3-embed-server` and tried to restart it through a
+    task that does not exist on Windows, cutting off embeddings until its own
+    service restarted it, and printing a misleading warning.
+    *(Affected: Windows with the Rust embed server.)*
+  - **Windows: `m3 schedules add/remove/repair` from an admin shell runs directly.**
+    It asked "Run it elevated now?" even when already elevated; with no one at the
+    console (a scheduled or hidden run) it waited for ever. It now runs when
+    elevated, and with no one to answer it stops and says to use an admin shell.
+    *(Affected: Windows.)*
+  - **`m3 schedules verify` names the right fix.** It said "re-register with
+    `--repair`", which `m3 schedules` does not accept; it now names
+    `m3 schedules add <task>` or `m3 schedules repair`.
+    *(Affected: all.)*
+  - **Installed m3 finds its own scripts from every command.** Several commands
+    looked for m3's `bin/` directory one level too high on a pip-installed copy,
+    and two could put the current directory on Python's import path when it was
+    missing. One resolver now locates it for all of them.
+    *(Affected: pip/pipx installs.)*
+  - **Setup and upgrade:** a home directory containing a quote or ending in a
+    backslash no longer breaks the PostgreSQL schema step, and interpreter checks
+    no longer import m3 from the current directory (a bare venv could be approved
+    for scheduled tasks, and a removed m3 reported as installed).
+    *(Affected: all platforms.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
-- **Agent client detection skips venv launchers,** including uv-made venvs and
-  the Windows `Scripts\python.exe` redirector, so the agent's own process is
-  reported.
-  **Affected:** venv and pipx installs · **Action:** none ·
-  **Data status:** none.
+- **Configuration and CLI**
+  - **Read-only opt-in tools run from the CLI without `--yes`.** `m3 memory
+    memory_search_routed`, `memory_search_multi_db`, `memory_export` and `gdpr_export`
+    asked for `--yes` and said they "mutate/delete data". They are still opt-in over MCP.
+    *(Affected: CLI users of those four tools.)*
+  - **Batch work no longer loses items.** A batch result shorter than its input
+    is an error instead of dropping the remainder, `promote_pipeline` reports a
+    short judge reply as that batch's error, a failed bulk embed or write cancels
+    its sibling tasks, and the bulk embed path retries only network errors and
+    HTTP 5xx/413/429. A failed entity-vector commit is no longer reported as rows
+    written.
+    *(Affected: all installs.)*
+  - **Configuration and state files are written atomically with a unique
+    temporary file,** so two writers cannot overwrite each other's file, and a
+    failed write of `.migrate_config.json` no longer loses the remembered backup
+    directory. JSON written this way has LF line endings on Windows too.
+    `.log_config.json` is created where the governor config is.
+    *(Affected: all installs.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
-- **PostgreSQL warehouse sync falls back correctly** when its fast path cannot
-  be imported; it failed with `UnboundLocalError`.
-  **Affected:** PostgreSQL warehouse sync · **Action:** none ·
-  **Data status:** none.
+- **Agents and integrations**
+  - **`conversation_summarize` works;** every call raised `NameError`.
+    *(Affected: all installs.)*
+  - **MCP tool calls honour `timeout` and the per-tool time budgets,** as the CLI
+    and `m3_call` already did.
+    *(Affected: MCP clients.)*
+  - **SLM profiles without `api_key_service` work.** `m3_enrich`,
+    `run_observer`, `run_reflector`, `m3_entities` and `m3_enrich_batch` crashed
+    with `TypeError`.
+    *(Affected: SLM profiles that omit `api_key_service`.)*
+  - **The notification waiter wakes on every new notification.** On SQLite a
+    write that left the file size unchanged within one clock tick could go
+    unseen, and after a restart a leftover reader could end the new run.
+    *(Affected: agents using `m3_notification_waiter`.)*
+  - **Agent client detection skips venv launchers,** including uv-made venvs and
+    the Windows `Scripts\python.exe` redirector, so the agent's own process is
+    reported.
+    *(Affected: venv and pipx installs.)*
+  **Affected:** as each item says · **Action:** none · **Data status:** none.
 
 ## [2026.10.7.1] — 2026-10-07 — upgrades that say only what you need to do
 
