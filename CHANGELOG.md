@@ -19,6 +19,8 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+## [2026.10.17.0] — 2026-10-17 — one config file for m3 and its Rust core
+
 ### Security
 
 - **Secrets stay out of environment variables.** The OS installer hands the
