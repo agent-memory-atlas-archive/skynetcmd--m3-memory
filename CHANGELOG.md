@@ -21,6 +21,16 @@ the policy is forward-going only.
 
 ## [2026.10.17.0] — 2026-10-17 — one config file for m3 and its Rust core
 
+**Highlights.** One configuration file, `m3_config.toml`, now holds every setting, and every
+m3 process reads it, background services and the Rust embed server included. Secrets live in a
+user-only secrets file or the OS keyring, never in environment variables, and FIPS mode set in
+the file takes effect everywhere. Also new: named stores, `m3 config get` / `set` / `unset` /
+`import-env`, `m3 batch`, pgvector search on PostgreSQL, a read-access audit log, and sharing the
+embed server with other machines over TLS (`m3 embedder secure`). m3's state moves from
+`~/.m3-memory` to `~/.m3`. **To upgrade:** run `m3 upgrade`, which moves your existing settings
+and secrets into the two files, then restart m3's services; on Windows, also run
+`m3 embedder install` once from an Administrator terminal.
+
 ### Security
 
 - **Secrets stay out of environment variables.** The OS installer hands the

@@ -14,8 +14,8 @@ and it stays with you whatever agent or whatever model you use.
 
 m3 is local-first and cloud-friendly. It runs on your own machine, with no account and no
 API key, and by default nothing leaves it. When you want the cloud, it's there: cloud models
-for enrichment, a shared PostgreSQL server, or cloud AI apps such as claude.ai through a
-remote MCP endpoint.
+for enrichment, a shared PostgreSQL server, or a remote MCP endpoint (`m3 serve`) for any
+client that can send a bearer token.
 
 <p align="center">
   <a href="https://pypi.org/project/m3-memory/"><img alt="PyPI" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/pypi-version.svg"></a>
