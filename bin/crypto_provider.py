@@ -11,6 +11,20 @@ import os
 import threading
 import weakref
 
+# The tier and every [crypto] setting come from crypto_policy, the security
+# seam's rules (it loads no crypto library, so doctor can ask it even when this
+# module fails closed). Re-exported under the names this module always used.
+from crypto_policy import (  # noqa: F401  (re-exported API)
+    FipsTransportError,
+    fips_tier,
+    transport_allowed,
+)
+from crypto_policy import crypto_setting as _crypto_setting  # noqa: F401
+from crypto_policy import crypto_text as _crypto_text
+from crypto_policy import fips_active as _fips_active
+from crypto_policy import fips_mode as _fips_mode
+from crypto_policy import fips_strict as _fips_strict
+from crypto_policy import tls_validated_attested as _tls_validated_attested
 from m3_core.seams import is_macos, is_windows
 
 logger = logging.getLogger("m3-crypto")
@@ -145,34 +159,6 @@ _KAT_AESGCM_CT_TAG_HEX = "014b8648e8ae834fa000d2d8f6aa354c6279c93ba1d84effc8a3ba
 # not freely downloadable; the open-source wolfSSL build is freely buildable but
 # lacks the FIPS symbols. STRICT is the gate for true FIPS 140-3; plain FIPS_MODE
 # is "use wolfCrypt, hardened, fail-closed-if-absent" for everyone else.
-def _crypto_setting(name: str) -> object:
-    """THE reader of every [crypto] setting: the config registry, which also
-    honours each key's legacy env name. Reading the env alone ignored
-    m3_config.toml, so a process given FIPS mode only by the file (a daemon has
-    no shell env) ran on the default backend. No fallback: a setting that cannot
-    be read raises rather than reading as off. m3_core.config ships beside this
-    module in bin/, so it is always importable here."""
-    from m3_core.config import settings as _cfg
-
-    return _cfg.setting(name)
-
-
-def _crypto_text(name: str) -> str:
-    return str(_crypto_setting(name) or "").strip()
-
-
-def _fips_mode() -> bool:
-    return bool(_crypto_setting("crypto.fips_mode"))
-
-
-def _fips_strict() -> bool:
-    # STRICT implies MODE; setting STRICT alone also engages the wolfSSL backend.
-    return bool(_crypto_setting("crypto.fips_strict"))
-
-
-def fips_tier() -> str:
-    """The active tier: "strict", "mode" or "off"."""
-    return "strict" if _fips_strict() else ("mode" if _fips_mode() else "off")
 
 
 # ── Secure wolfSSL discovery (DLL-hijack / search-order hardening) ───────────
@@ -290,7 +276,7 @@ def _resolve_wolfssl_path() -> "str | None":
 # DEFAULT: standard hashlib/cryptography
 # WOLFSSL: wolfCrypt (FIPS-Ready)
 BACKEND = (_crypto_text("crypto.backend") or "DEFAULT").upper()
-if _fips_mode() or _fips_strict():
+if _fips_active():
     BACKEND = "WOLFSSL"
 
 
@@ -351,7 +337,7 @@ class CryptoProvider:
         # Fail-closed lockouts.
         # (a) Any FIPS tier requires the wolfSSL backend to be live — if wolfSSL
         #     is absent/failed, never silently fall back to Python crypto.
-        if (_fips_mode() or _fips_strict()) and (not self._initialized or self.backend != "WOLFSSL"):
+        if _fips_active() and (not self._initialized or self.backend != "WOLFSSL"):
             raise RuntimeError(
                 "FATAL: FIPS mode enabled (crypto.fips_mode / crypto.fips_strict, env M3_FIPS_MODE / M3_FIPS_STRICT) but the "
                 "wolfSSL/wolfCrypt backend failed to initialize. Terminating to "
@@ -386,7 +372,7 @@ class CryptoProvider:
             # the path. See _resolve_wolfssl_path / _trusted_wolfssl_candidates.
             self._lib_path = _resolve_wolfssl_path()
             if self._lib_path is None:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(
                         "FATAL: FIPS mode enabled but no wolfSSL library was found "
                         "in any TRUSTED location (crypto.wolfssl_lib (M3_WOLFSSL_LIB), ~/.m3/lib, or a "
@@ -417,7 +403,7 @@ class CryptoProvider:
                     if init_rc != 0:
                         raise OSError(f"wolfCrypt_Init failed with code {init_rc}")
             except OSError as e:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(
                         f"FATAL: FIPS mode enabled but wolfSSL library cannot be loaded. "
                         f"observed: OSError loading {self._lib_path}: {e}. "
@@ -432,7 +418,7 @@ class CryptoProvider:
             if hasattr(self._libwolf, "wc_AesGcmSetKey"):
                 self._libwolf.wc_AesGcmSetKey.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint]
                 self._libwolf.wc_AesGcmSetKey.restype = ctypes.c_int
-            elif _fips_mode() or _fips_strict():
+            elif _fips_active():
                 raise RuntimeError(
                     "FATAL: wc_AesGcmSetKey symbol not found in loaded wolfSSL library. "
                     "observed: the loaded library does not export wc_AesGcmSetKey. "
@@ -453,7 +439,7 @@ class CryptoProvider:
                     ctypes.c_uint,
                 ]
                 self._libwolf.wc_AesGcmEncrypt.restype = ctypes.c_int
-            elif _fips_mode() or _fips_strict():
+            elif _fips_active():
                 raise RuntimeError(
                     "FATAL: wc_AesGcmEncrypt symbol not found in loaded wolfSSL library. "
                     "observed: the loaded library does not export wc_AesGcmEncrypt. "
@@ -474,7 +460,7 @@ class CryptoProvider:
                     ctypes.c_uint,
                 ]
                 self._libwolf.wc_AesGcmDecrypt.restype = ctypes.c_int
-            elif _fips_mode() or _fips_strict():
+            elif _fips_active():
                 raise RuntimeError(
                     "FATAL: wc_AesGcmDecrypt symbol not found in loaded wolfSSL library. "
                     "observed: the loaded library does not export wc_AesGcmDecrypt. "
@@ -484,7 +470,7 @@ class CryptoProvider:
             if hasattr(self._libwolf, "wc_Sha256Hash"):
                 self._libwolf.wc_Sha256Hash.argtypes = [ctypes.c_char_p, ctypes.c_uint, ctypes.c_char_p]
                 self._libwolf.wc_Sha256Hash.restype = ctypes.c_int
-            elif _fips_mode() or _fips_strict():
+            elif _fips_active():
                 raise RuntimeError(
                     "FATAL: wc_Sha256Hash symbol not found in loaded wolfSSL library. "
                     "observed: the loaded library does not export wc_Sha256Hash. "
@@ -504,7 +490,7 @@ class CryptoProvider:
                     ctypes.c_int,
                 ]
                 self._libwolf.wc_PBKDF2.restype = ctypes.c_int
-            elif _fips_mode() or _fips_strict():
+            elif _fips_active():
                 raise RuntimeError(
                     "FATAL: wc_PBKDF2 symbol not found in loaded wolfSSL library. "
                     "observed: the loaded library does not export wc_PBKDF2. "
@@ -523,12 +509,12 @@ class CryptoProvider:
                 self._libwolf.wc_rng_free.argtypes = [ctypes.c_void_p]
                 self._libwolf.wc_rng_free.restype = None
                 self._wolf_rng = self._libwolf.wc_rng_new(None, 0, None)
-                if not self._wolf_rng and (_fips_mode() or _fips_strict()):
+                if not self._wolf_rng and _fips_active():
                     raise RuntimeError(
                         "FATAL: wc_rng_new returned NULL. observed: wolfCrypt could not instantiate its DRBG. "
                         "inspect: the loaded wolfSSL build and the OS entropy source (docs/FIPS_MODULE_BOUNDARY.md)"
                     )
-            elif _fips_mode() or _fips_strict():
+            elif _fips_active():
                 raise RuntimeError(
                     "FATAL: wolfCrypt RNG symbols (wc_rng_new, wc_RNG_GenerateBlock) not found in loaded wolfSSL "
                     "library. inspect: crypto.wolfssl_lib (M3_WOLFSSL_LIB) names a wolfSSL build with the RNG enabled "
@@ -620,7 +606,7 @@ class CryptoProvider:
             logger.info(f"M3 Crypto: wolfSSL backend initialized ({_tier} wolfCrypt).")
 
         except Exception as e:
-            if _fips_mode() or _fips_strict():
+            if _fips_active():
                 raise RuntimeError(
                     f"FATAL: FIPS 140-3 Compliance Mode Enforced, but FIPS-validated "
                     f"wolfSSL/wolfCrypt backend failed to initialize: {e}. "
@@ -778,7 +764,7 @@ class CryptoProvider:
             try:
                 return self._wolf_pbkdf2_sha256(password, salt, iterations, length)
             except Exception as e:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(
                         f"FIPS PBKDF2 derivation failed: {e}. Raising to prevent unsafe fallback."
                     ) from e
@@ -855,7 +841,7 @@ class CryptoProvider:
         # getattr: an error path must not itself fail on a partly built provider.
         backend = getattr(self, "backend", None)
         initialized = getattr(self, "_initialized", False)
-        if (_fips_mode() or _fips_strict()) and (not initialized or backend != "WOLFSSL"):
+        if _fips_active() and (not initialized or backend != "WOLFSSL"):
             raise RuntimeError(
                 "FIPS boundary violation: FIPS mode is set but wolfCrypt is not serving; "
                 f"observed: backend={backend}, initialized={initialized}. "
@@ -871,7 +857,7 @@ class CryptoProvider:
             try:
                 return self._wolf_sha256(data)
             except Exception as e:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(f"FIPS SHA-256 Hashing Failed: {e}. Raising to prevent unsafe fallback.") from e
                 logger.debug(f"M3 Crypto: wolfSSL SHA-256 hashing failed ({e}), using default fallback.")
 
@@ -883,7 +869,7 @@ class CryptoProvider:
         large to hold at once, on the same backend and with the same FIPS rules
         as sha256()."""
         self._require_fips_backend()
-        if (_fips_mode() or _fips_strict()) and not hasattr(self._libwolf, "wc_InitSha256"):
+        if _fips_active() and not hasattr(self._libwolf, "wc_InitSha256"):
             raise RuntimeError(
                 "FIPS boundary: this wolfSSL build has no streaming SHA-256 "
                 "(wc_InitSha256); observed: the export is missing. "
@@ -898,7 +884,7 @@ class CryptoProvider:
             try:
                 return _WolfSha256Stream(self._libwolf)
             except Exception as e:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(
                         f"FIPS SHA-256 stream init failed: {e}. Raising to prevent unsafe fallback."
                     ) from e
@@ -942,7 +928,7 @@ class CryptoProvider:
             try:
                 return self._wolf_hmac_sha256(key, data)
             except Exception as e:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(f"FIPS HMAC-SHA-256 failed: {e}. Raising to prevent unsafe fallback.") from e
                 logger.debug(f"M3 Crypto: wolfSSL HMAC-SHA-256 failed ({e}), using default fallback.")
         import hmac
@@ -957,7 +943,7 @@ class CryptoProvider:
             try:
                 return self._wolf_aes_gcm_encrypt(data, key)
             except Exception as e:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(f"FIPS AES-GCM Encrypt Failed: {e}. Raising to prevent unsafe leakage.") from e
                 logger.debug(f"M3 Crypto: wolfSSL AES-GCM encrypt failed ({e}), using default fallback.")
 
@@ -977,7 +963,7 @@ class CryptoProvider:
             try:
                 return self._wolf_aes_gcm_decrypt(token, key)
             except Exception as e:
-                if _fips_mode() or _fips_strict():
+                if _fips_active():
                     raise RuntimeError(f"FIPS AES-GCM Decrypt Failed: {e}. Raising to prevent unsafe leakage.") from e
                 logger.debug(f"M3 Crypto: wolfSSL AES-GCM decrypt failed ({e}), using default fallback.")
 
@@ -1118,19 +1104,6 @@ def random_choice(seq):
 #                    never be the OS's validated one, so strict refuses it too.
 
 
-class FipsTransportError(RuntimeError):
-    """A network connection a FIPS tier does not allow, with the remedy."""
-
-
-def _tls_validated_attested() -> bool:
-    try:
-        from m3_core.config import settings as _cfg
-
-        return bool(_cfg.setting("crypto.tls_validated"))
-    except Exception:  # noqa: BLE001 — no readable setting means no attestation
-        return False
-
-
 def _psycopg2_is_binary_wheel() -> bool:
     from importlib import metadata
 
@@ -1170,7 +1143,7 @@ def _install_strict_tls_guard() -> None:
 def require_pg_transport(dsn: str) -> None:
     """Refuse a PostgreSQL connection the active FIPS tier does not allow.
     Called by m3_core.pgconn before every connect; a no-op outside FIPS tiers."""
-    if not (_fips_mode() or _fips_strict()):
+    if not _fips_active():
         return
     from m3_core.dsn import parse_pg_dsn
 

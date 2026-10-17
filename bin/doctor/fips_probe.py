@@ -15,14 +15,13 @@ def _mark(validated) -> str:
 
 
 def _configured_fips_tier() -> str | None:
-    """crypto.fips_strict / crypto.fips_mode from settings (env or config), read
-    without crypto_provider. None when settings cannot be read."""
+    """The configured tier from the security seam's rules (crypto_policy), which
+    load no crypto library, so this works when crypto_provider cannot import.
+    None when the settings cannot be read."""
     try:
-        from m3_core.config import settings as cfg
+        from crypto_policy import fips_tier
 
-        if cfg.setting("crypto.fips_strict"):
-            return "strict"
-        return "mode" if cfg.setting("crypto.fips_mode") else "off"
+        return fips_tier()
     except Exception:  # noqa: BLE001 -- caller treats unknown as a failure
         return None
 

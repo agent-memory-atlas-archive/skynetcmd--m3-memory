@@ -106,13 +106,19 @@ def test_no_postgres_connection_outside_pgconn():
 
 
 @pytest.fixture
-def tier(monkeypatch):
+def tier(monkeypatch, m3_settings):
     cp = _cp()
 
     def set_tier(name, attested=False, binary=False):
-        monkeypatch.setattr(cp, "_fips_mode", lambda: name in ("mode", "strict"))
-        monkeypatch.setattr(cp, "_fips_strict", lambda: name == "strict")
-        monkeypatch.setattr(cp, "_tls_validated_attested", lambda: attested)
+        # Through the config, as a user sets it: the tier and the attestation
+        # come from crypto_policy, which every caller (the report, doctor) asks.
+        m3_settings(
+            {
+                "crypto.fips_mode": name in ("mode", "strict"),
+                "crypto.fips_strict": name == "strict",
+                "crypto.tls_validated": attested,
+            }
+        )
         monkeypatch.setattr(cp, "_psycopg2_is_binary_wheel", lambda: binary)
         return cp
 

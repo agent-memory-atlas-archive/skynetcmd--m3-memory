@@ -1,10 +1,12 @@
-"""Integrity of the three seams and their hierarchy (DESIGN_PHILOSOPHIES §10a).
+"""Integrity of the four seams and their hierarchy (DESIGN_PHILOSOPHIES §10a).
 
-Python version (m3_memory/_pyver.py) < OS (m3_memory/_platform.py) < database
+Python version (m3_memory/_pyver.py) < OS (m3_memory/_platform.py) < security
+(bin/crypto_policy.py rules, bin/crypto_provider.py backend) < database
 (memory/backends) < business logic; imports point DOWN only. These tests check
 the hierarchy (what each seam may import) and each seam's own contract. The
 gates that keep call sites OUT of the seams' business are separate:
-test_python_version_seam.py, test_os_seam_ratchet.py, test_scratchpad_filter.py.
+test_python_version_seam.py, test_os_seam_ratchet.py, test_scratchpad_filter.py,
+test_security_seam.py.
 """
 
 from __future__ import annotations
@@ -269,3 +271,14 @@ def test_the_user_environment_primitives_agree():
     for name, (value, _kind) in list(snap.items())[:5]:
         assert pf.user_env_get(name) == str(value), name
     assert pf.user_env_get("M3_SURELY_UNSET_7F3A") is None
+
+
+def test_the_security_seam_does_not_import_the_database_or_business_logic():
+    """Layer 2 sits below the database: the database layer asks it about
+    transports (m3_core.pgconn -> require_pg_transport), never the reverse."""
+    leaks = []
+    for owner in (_ROOT / "bin" / "crypto_policy.py", _ROOT / "bin" / "crypto_provider.py"):
+        for m in sorted(_imports(owner)):
+            if m == "memory_core" or m.startswith("memory.") or m == "memory":
+                leaks.append(f"{owner.name}: {m}")
+    assert not leaks, "the security seam imports the database layer or business logic: " + ", ".join(leaks)
