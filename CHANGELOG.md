@@ -19,8 +19,18 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+## [2026.10.17.3] — 2026-10-17 — tools that describe themselves, one environment variable
+
 ### Changed
 
+- **Native core 3.10.171.** On Windows, importing the CUDA core and installing
+  the embed service no longer flash a console window. The in-process embedder
+  takes its settings from `m3_config.toml` only (`M3_EMBED_*` variables are no
+  longer read), and `M3_HASH_PROVIDER` is not read.
+  **Affected:** installs with the native core; the window fix on Windows with a
+  CUDA wheel · **Action:** none; `m3 upgrade` installs it. If you set
+  `M3_EMBED_*` for the in-process embedder, `m3 config import-env` moves them ·
+  **Data status:** none.
 - **MCP tools describe themselves to agents.** `tools/list` now carries every
   parameter's description and each tool's annotations (`readOnlyHint`,
   `destructiveHint`); clients previously received bare types. The parameters

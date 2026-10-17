@@ -137,8 +137,8 @@ from m3_memory._pyver import wheel_python_tag
 # signal they are five versions behind. Fixing the publishers does not make
 # PyPI-first correct again; leave the Release first. PyPI publishing is opt-in
 # and off by default in release.yml.
-M3_CORE_RS_VERSION = "3.10.17"
-M3_CORE_RS_GIT_TAG = "v2026.10.17"
+M3_CORE_RS_VERSION = "3.10.171"
+M3_CORE_RS_GIT_TAG = "v2026.10.171"
 # The first core whose m3-embed-server takes `--config <m3_config.toml>` and
 # whose EmbeddedEmbedder takes its settings as parameters. Named in messages
 # only: callers detect the capability itself (embedder_admin, memory.embed).

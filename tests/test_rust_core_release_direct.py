@@ -17,7 +17,7 @@ from m3_memory import rust_core_install as rci
 from m3_memory._pyver import wheel_python_tag
 
 _REPO = "skynetcmd/m3-core-rs"
-_TAG = "v2026.10.17"
+_TAG = rci.M3_CORE_RS_GIT_TAG  # the pin: the installer matches its version
 
 
 class _Resp(io.BytesIO):
@@ -34,7 +34,7 @@ def _choice():
 
 def _wheel_name():
     py = wheel_python_tag()
-    return f"m3_core_rs_linux_cpu-3.10.17-{py}-{py}-manylinux_2_17_x86_64.whl"
+    return f"m3_core_rs_linux_cpu-{rci.M3_CORE_RS_VERSION}-{py}-{py}-manylinux_2_17_x86_64.whl"
 
 
 def test_the_wheels_are_listed_from_sha256sums_without_the_api(monkeypatch):
