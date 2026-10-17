@@ -215,6 +215,9 @@ ONE CVE REMAINS and is ACCEPTED:
     checkpoint; m3 has no conversion path and only runs embedding inference on
     its own configured model.
 
+torch was pinned `>=2.14.0,<3` in the core dependencies until 2026-09-22; see
+the note at the top of this section for why it moved to the `embed-server` extra.
+
 ## Utilities
 
 ### `python-dotenv` (`python-dotenv>=1.2.2,<2`)
@@ -222,15 +225,7 @@ ONE CVE REMAINS and is ACCEPTED:
 The floor is 1.2.2, not the newest release, so m3 installs beside tools that pin
 it (Hermes 0.22 pins 1.2.2). OSV lists no advisory for 1.2.2 (checked 2026-10-17).
 
-torch was pinned `>=2.14.0,<3` here until 2026-09-22; see the note under
-"Embedding Server" above for why it moved to the `embed-server` extra.
-
-⚠ KEEP THE SETUPTOOLS FLOOR BELOW WHERE IT IS. The reason it could be raised
-was torch: 2.11 declared `setuptools<82`, which forced a ceiling here and with
-it CVE-2026-59890; torch 2.14 declares `setuptools>=77.0.3` with no upper
-bound, which is what unblocked the fix. That history is why the floor exists,
-and it does not depend on torch being installed -- do not "simplify" it away
-now that the pin is gone.
+### `pywin32` (removed 2026-09-17)
 
 REMOVED 2026-09-17 (unused, verified):
   pywin32 -- no module imports win32api/win32con/pythoncom/etc. The many
@@ -326,6 +321,13 @@ caps packaging (see "Inherited limits" below).
 
 setuptools>=77 for the SPDX `license = "Apache-2.0"` form.
 (Also pinned in pyproject.toml build-system.requires for isolated builds.)
+
+⚠ KEEP THE SETUPTOOLS FLOOR WHERE IT IS. The reason it could be raised
+was torch: 2.11 declared `setuptools<82`, which forced a ceiling here and with
+it CVE-2026-59890; torch 2.14 declares `setuptools>=77.0.3` with no upper
+bound, which is what unblocked the fix. That history is why the floor exists,
+and it does not depend on torch being installed -- do not "simplify" it away
+now that the pin is gone.
 
 FLOOR RAISED TO 83.0.0 on 2026-09-17, clearing CVE-2026-59890 /
 PYSEC-2026-3447. FileList matched MANIFEST.in exclude/prune globs without

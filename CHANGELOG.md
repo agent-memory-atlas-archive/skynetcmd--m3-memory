@@ -19,6 +19,8 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+## [2026.10.17.1] — 2026-10-17 — dependency floor and clearer FIPS error
+
 ### Changed
 
 - **`python-dotenv` 1.2.2 is accepted again** (the floor was 1.2.3), so m3
