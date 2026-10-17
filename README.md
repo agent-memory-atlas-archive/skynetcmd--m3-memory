@@ -592,7 +592,7 @@ See [NOTICE](NOTICE) for the full third-party attribution list.
   <a href="https://pypi.org/project/m3-memory/"><img alt="PyPI downloads, all-time" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/pypi-downloads.svg"></a>
   <a href="https://github.com/skynetcmd/m3-memory"><img alt="GitHub clones" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/github-clones.svg"></a>
 </p>
-<p align="center"><sub>PyPI downloads, all-time and last 30 days, count every download, mirror and CI-bot traffic included, as most projects' download badges do; the figures without mirrors, closer to real installs, are in <a href="https://github.com/skynetcmd/m3-memory/blob/main/docs/badges/counters.json">counters.json</a>. GitHub clones are unique clones. Badges are regenerated on a schedule by <a href="https://github.com/skynetcmd/m3-memory/blob/main/.github/workflows/star-history.yml">star-history.yml</a>.</sub></p>
+<p align="center"><sub>PyPI downloads, all-time and last 30 days. GitHub clones are unique clones. Badges are regenerated on a schedule by <a href="https://github.com/skynetcmd/m3-memory/blob/main/.github/workflows/star-history.yml">star-history.yml</a>.</sub></p>
 <p align="center"><sub><b>Python:</b> m3 core runs on Python 3.12, 3.13, 3.14 and 3.15. The optional framework extras follow their own caps — <b>PydanticAI</b> is 3.14-native (plain <code>pip install</code>); <b>CrewAI</b> requires 3.12–3.13 with m3 (a 3.14 escape hatch is <a href="https://github.com/skynetcmd/m3-memory/blob/main/m3_memory/integrations/crewai/README.md">documented</a>).</sub></p>
 </br><p></p>
 ---

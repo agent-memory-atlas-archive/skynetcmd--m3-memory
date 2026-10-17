@@ -289,7 +289,7 @@ def main() -> int:
     # The badges show downloads WITH mirrors, labelled "PyPI downloads", as pepy.tech
     # and most projects' badges do, so m3's figure compares
     # like for like. The figures WITHOUT mirrors (closer to real installs) are kept
-    # beside them in counters.json, which the README's note points to.
+    # beside them in counters.json.
     try:
         series = pypi_days(args.package)
         total = _counted("pypi_all", "pypi-all-history.json", series["with_mirrors"], 180, "PyPI (with mirrors)")
