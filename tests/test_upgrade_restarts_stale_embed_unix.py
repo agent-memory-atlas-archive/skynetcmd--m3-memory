@@ -30,9 +30,11 @@ _SPEC.loader.exec_module(m3u)
 _STALE = [{"pid": 4242, "started": 1.0, "installed": 2.0}]
 
 
-def _host(monkeypatch, stale_sequence, *, windows=False, rcs=(0, 0)):
+def _host(monkeypatch, stale_sequence, *, windows=False, rcs=(0, 0), lacks_config=False, serving=True):
     """A host with an embed-server binary whose stale list changes between
-    calls; records the service verbs run and fakes their exit codes."""
+    calls; records the service verbs run and fakes their exit codes. The
+    registration lacks --config when asked, and after the restart the service
+    serves (or not)."""
     monkeypatch.setattr(setup_wizard, "_on_windows", lambda: windows)
     monkeypatch.setattr(embedder_admin, "_is_windows", lambda: windows)
     seq = iter(stale_sequence)
@@ -40,6 +42,13 @@ def _host(monkeypatch, stale_sequence, *, windows=False, rcs=(0, 0)):
     monkeypatch.setattr(embedder_admin, "_server_binary", lambda: pathlib.Path("/opt/core/m3-embed-server"))
     monkeypatch.setattr(embedder_admin, "_ensure_executable", lambda _p: None)
     monkeypatch.setattr(embedder_admin, "_find_bundled_gguf", lambda: None)
+    monkeypatch.setattr(embedder_admin, "_registration_lacks_config", lambda _b: lacks_config)
+    monkeypatch.setattr(embedder_admin, "_prepare_service_config", lambda _g: True)
+    monkeypatch.setattr(embedder_admin, "_server_reads_m3_config", lambda _b: True)
+    monkeypatch.setattr(embedder_admin, "_embed_server_port", lambda: 8082)
+    monkeypatch.setattr(embedder_admin, "_stop_own_stray_server", lambda _p: [])
+    monkeypatch.setattr(embedder_admin, "_wait_serving", lambda *a, **k: serving)
+    monkeypatch.setattr(embedder_admin, "_service_reports_running", lambda *_a: serving)
     calls: list[str] = []
     codes = iter(rcs)
 
@@ -141,6 +150,76 @@ def test_a_declined_prompt_is_reported_as_declined(monkeypatch):
     monkeypatch.setattr(elevate, "ElevationBatch", _FakeBatch)  # run() -> None
     res = embedder_admin.restart_stale_embed_service(allow_elevation=True)
     assert res["outcome"] == "declined"
+
+
+# ── a registration without --config, and a restart that does not serve ──────
+
+
+def test_a_registration_without_config_is_reregistered_on_windows(monkeypatch):
+    """Nothing stale, but the service starts without --config: as LocalSystem it
+    cannot find m3_config.toml and exits at once (SkyPC, 2026-10-17). One prompt
+    stops it, re-registers it with --config, and starts it."""
+    _host(monkeypatch, [[], []], windows=True, lacks_config=True)
+    seen: list = []
+
+    class _Batch(_FakeBatch):
+        def run(self):
+            seen.extend(argv for _l, argv in self.actions)
+            return {label: {"rc": 0, "output": ""} for label, _a in self.actions}
+
+    import m3_memory.elevate as elevate
+
+    monkeypatch.setattr(elevate, "ElevationBatch", _Batch)
+    res = embedder_admin.restart_stale_embed_service(allow_elevation=True)
+    assert [a[-1] for a in seen] == ["stop", "install", "start"]
+    assert all("--config" in a for a in seen)
+    assert res["outcome"] == "restarted"
+
+
+def test_a_registration_without_config_needs_admin_without_a_person(monkeypatch):
+    _host(monkeypatch, [[]], windows=True, lacks_config=True)
+    res = embedder_admin.restart_stale_embed_service(allow_elevation=False)
+    assert res == {"outcome": "needs-admin", "pids": [], "detail": "registered without --config"}
+
+
+def test_a_registration_without_config_is_reregistered_on_unix(monkeypatch):
+    calls = _host(monkeypatch, [[], []], lacks_config=True, rcs=(0, 0, 0))
+    res = embedder_admin.restart_stale_embed_service(allow_elevation=False)
+    assert calls == ["stop", "install", "start"]
+    assert res["outcome"] == "restarted"
+
+
+def test_a_restart_that_does_not_serve_is_not_reported_as_restarted(monkeypatch):
+    """The stale list empties when the server dies on startup too; that used to
+    read as "restarted"."""
+    _host(monkeypatch, [_STALE, []], windows=True, serving=False)
+
+    class _Batch(_FakeBatch):
+        def run(self):
+            return {label: {"rc": 0, "output": ""} for label, _a in self.actions}
+
+    import m3_memory.elevate as elevate
+
+    monkeypatch.setattr(elevate, "ElevationBatch", _Batch)
+    res = embedder_admin.restart_stale_embed_service(allow_elevation=True)
+    assert res["outcome"] == "not-serving"
+    assert "not running and serving on port 8082" in res["detail"]
+    assert "m3 embedder status" in res["detail"]
+
+
+def test_the_stray_server_on_the_port_is_stopped_before_the_service_starts(monkeypatch):
+    calls = _host(monkeypatch, [_STALE, []])
+    order: list = []
+    monkeypatch.setattr(embedder_admin, "_stop_own_stray_server", lambda p: order.append(("stray", p)) or [])
+    real_cmd = embedder_admin._service_cmd_quiet
+
+    def cmd(binary, gguf, verb, *extra):
+        order.append(verb)
+        return real_cmd(binary, gguf, verb, *extra)
+
+    monkeypatch.setattr(embedder_admin, "_service_cmd_quiet", cmd)
+    embedder_admin.restart_stale_embed_service(allow_elevation=False)
+    assert order[0] == ("stray", 8082) and order[1:] == ["stop", "start"] == calls
 
 
 # ── the launcher lookup ───────────────────────────────────────────────────────

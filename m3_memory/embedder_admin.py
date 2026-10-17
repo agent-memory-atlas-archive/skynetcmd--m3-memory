@@ -848,46 +848,81 @@ def _is_windows() -> bool:
 
 
 def restart_stale_embed_service(*, allow_elevation: bool) -> dict:
-    """Restart an embed server still running a replaced core, then re-check.
+    """Restart the embed service when it runs a replaced core or is registered
+    without --config, then check that it serves.
 
-    The Windows service runs elevated: with `allow_elevation` its stop and start
-    share one UAC prompt, without it nothing runs (a scheduled `doctor --fix`
-    must never raise a prompt). Returns {"outcome", "pids", "detail"} where
-    outcome is none | restarted | still-stale | needs-admin | declined.
+    A registration without --config is re-registered (`install`) between the
+    stop and the start: started as before, the new core cannot find
+    m3_config.toml and exits at once (as LocalSystem on Windows it looks under
+    the system profile). The Windows service runs elevated: with
+    `allow_elevation` its steps share one UAC prompt, without it nothing runs (a
+    scheduled `doctor --fix` must never raise a prompt).
+
+    "restarted" means the service reports running AND /health answers; a server
+    that exited on startup is not stale either, so the stale re-check alone once
+    reported a dead service as restarted. Returns {"outcome", "pids", "detail"}
+    where outcome is none | restarted | still-stale | not-serving | needs-admin
+    | declined.
     """
     stale = stale_embed_servers()
     pids = [s["pid"] for s in stale]
-    if not stale:
-        return {"outcome": "none", "pids": [], "detail": ""}
     binary = _server_binary()
+    lacks_config = binary is not None and _registration_lacks_config(binary)
+    if not stale and not lacks_config:
+        return {"outcome": "none", "pids": [], "detail": ""}
     if not binary:
         return {"outcome": "still-stale", "pids": pids, "detail": "embed-server binary not found"}
+    why = "registered without --config" if lacks_config else ""
+    gguf = _find_bundled_gguf() or Path("/")
+    if lacks_config and not _prepare_service_config(gguf):
+        return {
+            "outcome": "not-serving",
+            "pids": pids,
+            "detail": f"{why}; m3_config.toml could not be prepared for it (the reason is printed above)",
+        }
+    verbs = ["stop", "install", "start"] if lacks_config else ["stop", "start"]
     detail = ""
     if _is_windows():
         if not allow_elevation:
-            return {"outcome": "needs-admin", "pids": pids, "detail": ""}
+            return {"outcome": "needs-admin", "pids": pids, "detail": why}
         from m3_memory.elevate import ElevationBatch
 
+        labels = {
+            "stop": "stop the embed service",
+            "install": "re-register the embed service to read m3_config.toml",
+            "start": "start the embed service on the new core",
+        }
         batch = ElevationBatch()
-        batch.add("stop the embed service", _service_verb_argv(binary, "stop"))
-        batch.add("start the embed service on the new core", _service_verb_argv(binary, "start"))
+        for verb in verbs:
+            batch.add(labels[verb], _service_verb_argv(binary, verb))
+        # The port must be free for the service: an unsupervised server a repair
+        # started holds it otherwise. Stopped only once the prompt is about to show.
+        _stop_own_stray_server(_embed_server_port())
         results = batch.run()
         if results is None:
-            return {"outcome": "declined", "pids": pids, "detail": ""}
+            return {"outcome": "declined", "pids": pids, "detail": why}
         detail = "; ".join(f"{label}: exit {r['rc']}" for label, r in results.items() if r["rc"] != 0)
     else:
-        gguf = _find_bundled_gguf() or Path("/")
-        for verb in ("stop", "start"):
+        _stop_own_stray_server(_embed_server_port())
+        for verb in verbs:
             rc = _service_cmd_quiet(binary, gguf, verb)
             if rc != 0:
                 detail = f"`m3-embed-server {verb}` exited {rc}"
                 break
     still = stale_embed_servers()
-    return {
-        "outcome": "still-stale" if still else "restarted",
-        "pids": [s["pid"] for s in still] or pids,
-        "detail": detail,
-    }
+    if still:
+        return {"outcome": "still-stale", "pids": [s["pid"] for s in still], "detail": detail}
+    port = _embed_server_port()
+    if not (_wait_serving(port) and _service_reports_running(binary, gguf)):
+        seen = f"the service is not running and serving on port {port} after the restart"
+        return {
+            "outcome": "not-serving",
+            "pids": pids,
+            "detail": "; ".join(
+                p for p in (why, detail, seen, "inspect: `m3 embedder status` and the service log it names") if p
+            ),
+        }
+    return {"outcome": "restarted", "pids": pids, "detail": detail}
 
 
 _SERVE_WAIT_S = 60.0

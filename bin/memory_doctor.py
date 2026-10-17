@@ -39,10 +39,9 @@ sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 
 
 def _repair_embed_server(args) -> None:
-    """--fix repairs for the embed server: the binary's exec bit and a server
-    still on a replaced core. Called from the --fix branch, which returns
-    before the report section; both repairs used to sit in that section and
-    never ran."""
+    """--fix repairs for the embed server: the binary's exec bit, and a service
+    on a replaced core or registered without --config. Called from the --fix
+    branch before the shared-embedder repair (see there)."""
     # A non-executable binary is m3's OWN file and a packaging defect, not
     # the user's config, so --fix repairs it without the --fix-hooks gate
     # (that gate exists for ~/.claude, which belongs to the user). The
@@ -83,6 +82,8 @@ def _repair_embed_server(args) -> None:
                         f"  [not fixed] embed-server (pid {_p}) still runs the "
                         f"previous core{': ' + _r['detail'] if _r['detail'] else ''}"
                     )
+                case "not-serving":
+                    print(f"  [not fixed] embed-server: {_r['detail']}")
         except Exception as _exc:  # noqa: BLE001 — never break doctor
             print(f"  [skipped] embed-server restart: {_exc}")
 
@@ -218,6 +219,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    fix_rc = 0
     if args.fix:
         import asyncio
 
@@ -257,6 +259,12 @@ def main() -> int:
         # the server, and registers the keep-alive task — actions outside the DB-
         # focused memory_doctor_fix_impl). Run it with fix=True so `m3 doctor --fix`
         # heals shared mode too. Dry-run only reports (no side effects).
+        # The embed service first: the shared-embedder repair below starts an
+        # unsupervised server on the port when nothing serves, which a service
+        # restarted after it could not bind.
+        if not args.skip_embed_server:
+            _repair_embed_server(args)
+
         shared_rc = 0
         if not args.skip_shared_embedder:
             from doctor import shared_embedder_probe
@@ -341,12 +349,14 @@ def main() -> int:
                 # output (m3_upgrade._DOCTOR_HEALTHY / _PLUGIN_UPDATED).
                 print(f"  [{act['status']}] plugin {act['action']}: {act['detail']}")
 
-        if not args.skip_embed_server:
-            _repair_embed_server(args)
-
         if res["summary"] == "failed" or shared_rc != 0:
-            return 1
-        return 0
+            fix_rc = 1
+        # --fix is a superset of the report: repairs above, then every check the
+        # report runs, which also shows whether each repair took. It used to
+        # return here, so checks only the report ran (a service registered
+        # without --config) never showed under --fix.
+        print()
+        print("=== after repair: full report ===")
 
     exit_code = 0
     brief = not args.verbose  # brief is the DEFAULT; --verbose opts into detail
@@ -604,7 +614,7 @@ def main() -> int:
     if brief and exit_code != 0:
         print("\nFor full detail, run:  m3 doctor --verbose")
 
-    return exit_code
+    return max(exit_code, fix_rc)
 
 
 if __name__ == "__main__":

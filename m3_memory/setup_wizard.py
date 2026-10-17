@@ -1414,6 +1414,9 @@ def _restart_stale_embed_server() -> None:
         if res["outcome"] in ("restarted", "none"):
             _ok(f"  embed server restarted on the new native core (was pid {pids})")
             return
+        if res["outcome"] == "not-serving":
+            _warn(f"  the embed server was restarted but does not serve: {res['detail']}")
+            return
         pids = ", ".join(str(p) for p in res["pids"])
         if res["detail"]:
             _say(f"    {res['detail']}")

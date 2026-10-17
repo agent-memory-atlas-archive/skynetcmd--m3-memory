@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_doctor.py
-sha1: 7d0e95fc03b0
-mtime_utc: 2026-10-16T04:15:15.118066+00:00
-generated_utc: 2026-10-16T04:15:31.234399+00:00
+sha1: b7dfab9f9a7d
+mtime_utc: 2026-10-17T11:56:28.279336+00:00
+generated_utc: 2026-10-17T11:56:48.632373+00:00
 private: false
 ---
 
@@ -33,7 +33,7 @@ tested in isolation.
 
 ## Entry points
 
-- `def main()` (line 90)
+- `def main()` (line 91)
 - `if __name__ == "__main__"` guard
 
 ---
