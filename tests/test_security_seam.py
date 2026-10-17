@@ -99,6 +99,26 @@ def test_strict_needs_the_tls_attestation(m3_settings):
     assert pol.transport_allowed("network_tls") == (True, "")
 
 
+_ALIAS_PATCH = re.compile(r"""setattr\([^)\n]*["']_(fips_(mode|strict|active)|tls_validated_attested)["']""")
+
+
+def test_tests_set_the_tier_through_config_not_aliases():
+    """crypto_provider keeps private aliases of the rules (_fips_mode, _fips_active, ...).
+    Patching one succeeds silently and changes neither the others nor any module
+    that asks crypto_policy (pg_fdw_sync's FIPS refusal test patched _fips_mode
+    and stopped testing anything once fips_tier moved there)."""
+    offenders = []
+    for p in sorted((ROOT / "tests").rglob("*.py")):
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        for n, line in enumerate(text.splitlines(), 1):
+            if _ALIAS_PATCH.search(line):
+                offenders.append(f"{p.relative_to(ROOT)}:{n}")
+    assert not offenders, (
+        'set the FIPS tier with m3_settings({"crypto.fips_mode": ...}), not by patching '
+        "a crypto_provider alias:\n  " + "\n  ".join(offenders)
+    )
+
+
 def test_an_unknown_transport_is_refused_not_guessed():
     with pytest.raises(ValueError, match="unknown transport kind"):
         _policy().transport_allowed("carrier_pigeon")

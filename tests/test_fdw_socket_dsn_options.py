@@ -31,12 +31,9 @@ import pg_fdw_sync  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _fips_off(monkeypatch):
+def _fips_off(m3_settings):
     """FIPS tiers refuse the FDW path outright (tested last); the SQL tests run outside them."""
-    import crypto_provider
-
-    monkeypatch.setattr(crypto_provider, "_fips_mode", lambda: False)
-    monkeypatch.setattr(crypto_provider, "_fips_strict", lambda: False)
+    m3_settings({"crypto.fips_mode": False, "crypto.fips_strict": False})
 
 
 class _RecordingCursor:
@@ -137,11 +134,9 @@ def test_the_server_is_rebuilt_so_changed_options_apply():
     assert drop < create
 
 
-def test_fips_tiers_take_the_bridge(monkeypatch):
+def test_fips_tiers_take_the_bridge(m3_settings):
     """postgres_fdw connects from the primary server, where m3's transport check cannot run."""
-    import crypto_provider
-
-    monkeypatch.setattr(crypto_provider, "_fips_mode", lambda: True)
+    m3_settings({"crypto.fips_mode": True})
     cur = _RecordingCursor()
     with pytest.raises(pg_fdw_sync.FdwUnavailable, match="FIPS"):
         pg_fdw_sync._ensure_fdw_wired(cur, "postgresql://u@db.example/w?sslmode=verify-full")
