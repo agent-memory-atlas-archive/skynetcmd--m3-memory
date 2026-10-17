@@ -21,29 +21,23 @@ the policy is forward-going only.
 
 ### Security
 
-- **The shell example no longer exports secrets.** `config/zshenv.example`
-  exported the vault key and API keys into every shell, so every program a
-  shell started inherited them. It now shows `m3 secret set` and
-  `m3 config set`, and the guides set options with `m3 config set` instead of
-  shell profiles. **Affected:** anyone who copied the old `zshenv.example` ·
-  **Action:** run `m3 config import-env`, then delete the secret `export`
-  lines from `~/.zshenv` · **Data status:** none.
+- **Secrets stay out of environment variables.** The OS installer hands the
+  vault key to the step that stores it on stdin, and an unattended install
+  that finds `AGENT_OS_MASTER_KEY` only in the environment names it and stores
+  nothing. The shell example and the guides use `m3 secret set` and
+  `m3 config set` instead of exporting values. **Affected:** unattended
+  installs that set `AGENT_OS_MASTER_KEY`; anyone who copied the old
+  `config/zshenv.example` · **Action:** run `m3 config import-env` (or
+  `m3 secret set AGENT_OS_MASTER_KEY --keyring`), then delete secret `export`
+  lines from shell profiles · **Data status:** none.
 
-- **The vault key no longer travels in a child process's environment.** The OS
-  installer hands `AGENT_OS_MASTER_KEY` to the step that stores it on stdin.
-  An unattended install that finds the key only in the environment names it and
-  stores nothing. **Affected:** unattended installs that set
-  `AGENT_OS_MASTER_KEY` · **Action:** run `m3 secret set AGENT_OS_MASTER_KEY
-  --keyring` (or `m3 config import-env`) · **Data status:** none.
-
-- **FIPS mode set in `m3_config.toml` takes effect.** `[crypto] fips_mode`,
-  `fips_strict`, `backend`, `wolfssl_lib` and `wolfssl_sha256` were read from
-  the environment only, so a process configured by the file, such as a
-  background service, ran on the default crypto backend. Error messages now
-  name the config key with its environment alias. **Affected:** installs that
-  set FIPS or wolfSSL options in `m3_config.toml` · **Action:** upgrade and
-  restart m3's services; a missing wolfSSL now stops them, as FIPS mode requires
-  · **Data status:** none.
+- **FIPS mode set in `m3_config.toml` takes effect everywhere**, including
+  background services and the embed server, and error messages name the
+  config key with its environment alias. A process configured by the file
+  could run outside FIPS mode. **Affected:** installs that set FIPS or wolfSSL
+  options in `m3_config.toml` · **Action:** upgrade, restart m3's services and
+  run `m3 embedder install` (on Windows from an Administrator terminal); a
+  missing wolfSSL now stops them, as FIPS mode requires · **Data status:** none.
 
 - **The mac-agent example no longer resolves vulnerable `httpx2`/`httpcore2`.**
   Its requirements set security floors (`httpx2>=2.12.0`, `httpcore2>=2.10.0`),
@@ -76,27 +70,18 @@ the policy is forward-going only.
 
 ### Added
 
-- **A new `m3_config.toml` lists every setting.** When the config root has no
-  `m3_config.toml`, `m3 setup`, `m3 upgrade` and `m3 config import-env` create
-  it from the shipped `default-m3_config.toml`: every setting with its doc,
-  type and legacy environment names, commented out at its default, so later
-  default changes still apply to settings you leave commented. The shipped
-  file is checked against its SHA-256 first; a mismatch writes nothing and
-  says to reinstall. An existing `m3_config.toml` is never replaced. Values
-  moved in from the environment, and `m3 config set`, now set the key on its
-  commented line; `m3 config unset` comments it out again.
-  **Affected:** installs with no `m3_config.toml` · **Action:** none; to see
-  every setting on an existing install, read `docs/CONFIG_REFERENCE.md` ·
+- **One config file, complete and honoured by every m3 process.** When the
+  config root has no `m3_config.toml`, setup and upgrade create it from the
+  shipped default, checked against its SHA-256, listing every setting with its
+  doc and default, commented out so later default changes still apply; an
+  existing file is never replaced. Settings in it reach background services
+  and the embed server, which no longer has its own `config.toml` (its values
+  move into `m3_config.toml` and the secrets file). `m3 embedder secure` records
+  the listener there. `docs/ENVIRONMENT_VARIABLES.md` lists the variables m3
+  still reads and where each legacy name moved. **Affected:** every install ·
+  **Action:** run `m3 upgrade`, restart m3's services, and on Windows run
+  `m3 embedder install` once from an Administrator terminal ·
   **Data status:** none.
-
-- **`docs/ENVIRONMENT_VARIABLES.md` is generated from the config registry.**
-  It lists the environment variables m3 still reads (locators, switches and
-  other programs' names), each legacy environment name with the
-  `m3_config.toml` key or secret it moved to, and retired names, which have
-  no effect. It replaces the hand-written page, which named retired settings
-  and missed many current ones. **Affected:** anyone configuring m3 through
-  environment variables · **Action:** move settings with
-  `m3 config import-env` · **Data status:** none.
 
 - **Hermes Agent memory provider (Hermes 0.22+).** m3-memory registers a
   `hermes_agent.memory_providers` entry point, so installing it into Hermes'
@@ -117,14 +102,6 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Fixed
-
-- **Settings in `m3_config.toml` reach background services.** The node id,
-  dispatch mode and schema, database pool, LM Studio address and timeout, task
-  logs, GPU probe, context cache and sync warehouse host were read from the
-  environment only, so a service configured by the file ignored them. Legacy
-  environment names still work below the file. **Affected:** services
-  configured through `m3_config.toml` · **Action:** restart m3's services ·
-  **Data status:** none.
 
 - **Chat turns are captured on a fresh split install.** The first turn written
   to a never-used chatlog store spilled instead of being stored; spill files
@@ -856,33 +833,6 @@ the policy is forward-going only.
   **Affected:** Windows · **Action:** none · **Data status:** none.
 
 ### Changed
-
-- **The embed server reads `m3_config.toml` and the secrets file; its own
-  `config.toml` is retired.** m3 starts `m3-embed-server` with
-  `--config <m3_config.toml>` and hands it nothing through the environment.
-  New keys: `[embed.server]` `streams`, `seq_max`, `n_batch`, `n_ubatch`,
-  `coalesce_ms`, `max_batch_tokens`, `remote_listen`, `tls_cert`, `tls_key`,
-  and `[embed]` `streams`, `seq_max`, `n_batch`, `n_ubatch`, `coalesce_ms`,
-  `max_batch_tokens` for the in-process embedder (the legacy `M3_EMBED_*`
-  names set these). `m3 config import-env` (so `m3 upgrade`) and
-  `m3 embedder install` move the old file's values into m3's files and remove
-  it; a value `m3_config.toml` already holds differently is reported and kept.
-  `m3 embedder install` records the model and any server setting held only in
-  the environment before registering the service. Needs m3-core-rs 3.10.16 or
-  later; with an older core `m3 embedder install` and `secure` stop and name the
-  upgrade. **Affected:** installs running the embed server ·
-  **Action:** Windows: re-register the service from an *Administrator*
-  terminal with `m3 embedder install` (`m3 doctor` reports one registered
-  without `--config`); macOS/Linux: `m3 upgrade` re-registers it ·
-  **Data status:** none.
-
-- **`m3 embedder secure` records the listener itself.** The server only
-  checks the settings (`secure --check`); m3 writes
-  `embed.server.remote_listen`, `tls_cert` and `tls_key` to `m3_config.toml`
-  and the token's SHA-256 as the secret `M3_EMBED_SERVER_TOKEN_SHA256`.
-  `--off` unsets them. No elevation needed on Windows. **Affected:** servers
-  shared with other machines · **Action:** none (the old file's values are
-  migrated) · **Data status:** none.
 
 - **`m3 embedder install --concurrency` has no effect and says so.** The
   server never read it; its worker count is `embed.server.streams`.
