@@ -59,7 +59,7 @@ We run `bandit` (static analysis), regex-based secrets scans, and `pip-audit` (d
 
 | Date | Report | Headline |
 |---|---|---|
-| 2026-10-18 | [security-scan-2026-10-18.md](audits/security-scan-2026-10-18.md) | 0 HIGH bandit findings across 134,287 LOC; no known CVEs in the 101 packages a default install brings; the opt-in `[crewai]` extra pulls `chromadb` with 4 unpatched server-side advisories |
+| 2026-10-18 | [security-scan-2026-10-18.md](audits/security-scan-2026-10-18.md) | 0 HIGH bandit findings across 134,287 LOC; no known CVEs in the 101 packages a default install brings; the opt-in `[crewai]` extra pulls `chromadb` with 4 unpatched server-side advisories. **m3 does not use ChromaDB**: it is CrewAI's own dependency, absent from a default install, and reachable only if you start ChromaDB's HTTP server (Dependabot alerts dismissed as not used) |
 | 2026-09-08 | [security-scan-2026-09-08.md](audits/security-scan-2026-09-08.md) | 0 HIGH bandit findings across 95,883 LOC; one core-dep CVE cluster (`mcp`) closed by raising the version floor |
 | 2026-05-01 | [security-scan-2026-05-01.md](audits/security-scan-2026-05-01.md) | Clean shipped library; 14 CVEs all in opt-in / bench-only deps |
 
