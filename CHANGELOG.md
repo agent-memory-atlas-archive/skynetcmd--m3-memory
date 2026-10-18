@@ -140,6 +140,16 @@ the policy is forward-going only.
   **Action:** none · **Data status:** none; turns captured earlier keep the name
   they were stored with.
 
+- **Chat turns saved during a store outage reach the store once it is back.**
+  A spill file that failed `max_drain_attempts` drains in a row was quarantined
+  whatever the cause, so an outage longer than a few passes (a PostgreSQL store
+  unreachable, a SQLite file held by another process) parked healthy turns until
+  someone moved them back. A temporary failure is now retried every pass without
+  counting toward the limit, and is still logged; quarantined files get one more
+  attempt each day and leave quarantine when it succeeds.
+  **Affected:** all installs · **Action:** none · **Data status:** turns already
+  in quarantine are retried by the daily pass after the upgrade.
+
 ### Removed
 
 - **`M3_HOME` is no longer read.** Hooks find m3 from their own location;

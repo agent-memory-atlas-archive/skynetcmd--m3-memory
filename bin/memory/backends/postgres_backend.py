@@ -53,7 +53,7 @@ from .base import (
     embedding_table,
     snapshot_target,
 )
-from .dialect import Dialect, ParamStyle
+from .dialect import Dialect, ParamStyle, error_chain, transient_os_error
 from .registry import register_backend
 
 logger = logging.getLogger("memory.backends.postgres")
@@ -644,6 +644,11 @@ def _archive_row_counts(pg_restore: str, archive: str, schema: str) -> dict[str,
     return counts
 
 
+# SQLSTATEs PostgresDialect.is_transient_error reads as "retry as is" (besides
+# class 08); the method says what each means.
+_PG_TRANSIENT_STATES = frozenset({"57P01", "57P02", "57P03", "53300", "40001", "40P01", "55P03"})
+
+
 # ── PostgreSQL SQL dialect (co-located with the backend it belongs to) ───────
 # Lives HERE, not in dialect.py (DESIGN_PHILOSOPHIES §2: one file per backend).
 @dataclass(frozen=True, slots=True)
@@ -802,6 +807,25 @@ class PostgresDialect(Dialect):
     @override
     def empty_json_default(self) -> str | None:
         return "{}"  # metadata_json is JSONB; '' is rejected, '{}' is the empty obj
+
+    @override
+    def is_transient_error(self, exc: BaseException) -> bool:
+        # By SQLSTATE, so psycopg need not be importable to ask: class 08
+        # (connection exception), 57P01-57P03 (server shutting down / starting),
+        # 53300 (too many connections), 40001 / 40P01 (serialization failure,
+        # deadlock) and 55P03 (lock not available). An OperationalError with no
+        # SQLSTATE never reached the server (refused, DNS, tailnet down), and a
+        # pool that timed out waiting for a connection is the same condition.
+        for e in error_chain(exc):
+            state = getattr(e, "sqlstate", None)
+            if state:
+                if state.startswith("08") or state in _PG_TRANSIENT_STATES:
+                    return True
+                continue
+            name = type(e).__name__
+            if type(e).__module__.startswith("psycopg") and name in ("OperationalError", "PoolTimeout"):
+                return True
+        return transient_os_error(exc)
 
     @override
     def returning_id_clause(self) -> str:

@@ -33,7 +33,7 @@ from .base import (
     embedding_table,
     snapshot_target,
 )
-from .dialect import Dialect, ParamStyle
+from .dialect import Dialect, ParamStyle, error_chain, transient_os_error
 from .registry import register_backend
 
 
@@ -187,6 +187,18 @@ class SqliteDialect(Dialect):
     @override
     def empty_json_default(self) -> str | None:
         return ""  # metadata_json is TEXT on SQLite; '' is fine (historical value)
+
+    @override
+    def is_transient_error(self, exc: BaseException) -> bool:
+        # SQLITE_BUSY (5) and SQLITE_LOCKED (6): another connection holds the
+        # file. The low byte is the primary code under an extended one.
+        # SQLITE_CANTOPEN is not here: a missing directory never heals.
+        import sqlite3
+
+        for e in error_chain(exc):
+            if isinstance(e, sqlite3.Error) and (getattr(e, "sqlite_errorcode", 0) or 0) & 0xFF in (5, 6):
+                return True
+        return transient_os_error(exc)
 
     @override
     def returning_id_clause(self) -> str:

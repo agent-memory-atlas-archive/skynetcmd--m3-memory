@@ -242,7 +242,7 @@ def test_insert_failure_keeps_file_then_quarantines_with_reason(tmp_path, monkey
     monkeypatch.setattr(chatlog_embed_sweeper, "_spill_max_attempts", lambda now=None: 2)
 
     def _refuse(rows, **kw):
-        raise sqlite3.OperationalError("database is locked (simulated)")
+        raise sqlite3.OperationalError("no such table: memory_items (simulated)")
 
     monkeypatch.setattr(chatlog_core, "_executemany_insert", _refuse)
     assert _drain() == 0
@@ -254,7 +254,7 @@ def test_insert_failure_keeps_file_then_quarantines_with_reason(tmp_path, monkey
     inv = chatlog_config.spill_inventory()
     assert inv["quarantine_files"] == 1 and inv["pending_files"] == 0
     reason = next((spill_dir / "quarantine").glob("*.reason.json"))
-    assert "database is locked" in json.loads(reason.read_text(encoding="utf-8"))["reason"]
+    assert "no such table" in json.loads(reason.read_text(encoding="utf-8"))["reason"]
     warnings = chatlog_status._compute_warnings({}, chatlog_config.resolve_config(), {}, 5, 15, spill=inv)
     assert any("quarantined spill" in w and str(spill_dir / "quarantine") in w for w in warnings), warnings
     assert chatlog_config.read_state()["spill"]["quarantine_files"] == 1

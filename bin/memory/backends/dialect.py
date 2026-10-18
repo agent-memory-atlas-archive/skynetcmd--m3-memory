@@ -49,6 +49,24 @@ _BARE_DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
 type ParamStyle = Literal["qmark", "format"]  # sqlite '?'  vs  psycopg '%s'
 
 
+def error_chain(exc: BaseException, depth: int = 4) -> list[BaseException]:
+    """``exc`` and up to ``depth - 1`` of its causes (``__cause__``, else
+    ``__context__``), outermost first."""
+    out: list[BaseException] = []
+    cur: BaseException | None = exc
+    while cur is not None and len(out) < depth:
+        out.append(cur)
+        cur = cur.__cause__ or cur.__context__
+    return out
+
+
+def transient_os_error(exc: BaseException) -> bool:
+    """A timeout or a refused/reset connection anywhere in ``exc``'s cause
+    chain: temporary on every backend (the half of
+    :meth:`Dialect.is_transient_error` the backends share)."""
+    return any(isinstance(e, (TimeoutError, ConnectionError)) for e in error_chain(exc))
+
+
 @dataclass(frozen=True, slots=True)
 class Dialect:
     """A backend's SQL surface. Small, pure, table-free — safe to unit test.
@@ -835,6 +853,19 @@ class Dialect:
         backend, because constructing a backend can require a DSN.
         """
         raise NotImplementedError("subclass must implement store_change_token()")
+
+    # -- errors --------------------------------------------------------------
+    def is_transient_error(self, exc: BaseException) -> bool:
+        """Whether a failed operation is worth retrying as is: the store was
+        briefly unavailable (busy, locked, unreachable, restarting), not wrong.
+        False for anything else, including errors that are unknown here; a
+        caller that retries on True must still report the failure, since a
+        permanent error misread as temporary would otherwise retry unseen.
+
+        Each backend reads its own codes; the timeout and connection errors
+        every backend can raise are answered by :func:`transient_os_error`.
+        The exception's cause chain is consulted, since writers re-raise."""
+        raise NotImplementedError("subclass must implement is_transient_error()")
 
     # -- JSON ----------------------------------------------------------------
     def empty_json_default(self) -> str | None:

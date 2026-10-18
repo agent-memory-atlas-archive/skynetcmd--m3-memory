@@ -110,34 +110,45 @@ def _attempts_path(spill_path: str) -> str:
     return spill_path + ".attempts"
 
 
+def _read_attempts_doc(spill_path: str) -> dict:
+    """The attempts sidecar for this spill file ({} if none/unreadable)."""
+    try:
+        with open(_attempts_path(spill_path), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        return doc if isinstance(doc, dict) else {}
+    except Exception:  # noqa: BLE001 — absent or corrupt both mean "start over"
+        return {}
+
+
 def _read_attempts(spill_path: str) -> int:
     """Consecutive failures recorded for this spill file (0 if none/unreadable)."""
     try:
-        with open(_attempts_path(spill_path), encoding="utf-8") as fh:
-            return int(json.load(fh).get("consecutive_failures", 0))
-    except Exception:  # noqa: BLE001 — absent or corrupt both mean "start over"
+        return int(_read_attempts_doc(spill_path).get("consecutive_failures", 0))
+    except (TypeError, ValueError):
         return 0
 
 
-def _record_attempt(spill_path: str, ok: bool, reason: str = "") -> int:
-    """Bump (or clear) the consecutive-failure count. Returns the new count."""
+def _record_attempt(spill_path: str, ok: bool, reason: str = "", *, counted: bool = True) -> int:
+    """Bump (or clear) the consecutive-failure count. Returns the new count.
+
+    ``counted=False`` records a TEMPORARY failure (the store was busy or
+    unreachable, ``Dialect.is_transient_error``): the error and when temporary
+    failures began are kept, but the count toward quarantine does not move, so
+    an outage longer than the retry budget does not park healthy turns."""
     if ok:
         try:
             os.remove(_attempts_path(spill_path))
         except OSError:
             pass
         return 0
-    n = _read_attempts(spill_path) + 1
+    prior = _read_attempts_doc(spill_path)
+    n = _read_attempts(spill_path) + (1 if counted else 0)
+    doc = {"consecutive_failures": n, "last_error": reason[:500], "last_attempt": utc_iso()}
+    if not counted:
+        doc["transient_since"] = prior.get("transient_since") or doc["last_attempt"]
     try:
         with open(_attempts_path(spill_path), "w", encoding="utf-8") as fh:
-            json.dump(
-                {
-                    "consecutive_failures": n,
-                    "last_error": reason[:500],
-                    "last_attempt": utc_iso(),
-                },
-                fh,
-            )
+            json.dump(doc, fh)
     except OSError as e:
         # Best-effort: a counter we cannot persist just means we retry longer.
         logger.warning("Could not record drain attempt for %s: %s", spill_path, e)
@@ -190,6 +201,74 @@ def _quarantine_spill(spill_path: str, reason: str, attempts: int) -> bool:
     except OSError as e:
         logger.warning("Could not quarantine %s: %s", spill_path, e)
         return False
+
+
+def _store_dialect():
+    """The active backend's dialect, which classifies a failed write
+    (``Dialect.is_transient_error``)."""
+    from memory.backends import dialect
+
+    return dialect()
+
+
+# How often quarantined spill files get another try. Quarantine is for files
+# that failed max_drain_attempts times in a row; once a day each gets ONE more
+# attempt, so turns parked by a cause since fixed (a store migrated, a lock
+# released) reach the store without anyone moving files.
+QUARANTINE_RETRY_S = 24 * 3600
+_RETRY_STAMP = ".last_retry"
+
+
+def _retry_quarantined(spill_dir: str, max_attempts: int, now: float | None = None) -> int:
+    """Move quarantined spill files back for one drain attempt, at most once per
+    QUARANTINE_RETRY_S. Returns how many were moved back.
+
+    Only whole files quarantined by ``_quarantine_spill`` (those with a reason
+    sidecar) return: malformed lines (``.bad``) never parse, and foreign lines
+    were parked on purpose. Each returns with ``max_attempts - 1`` failures
+    recorded, so one failure re-quarantines it with a fresh reason and a
+    success removes it. Never raises: the drain proceeds either way."""
+    qdir = os.path.join(spill_dir, _QUARANTINE_DIRNAME)
+    if not os.path.isdir(qdir):
+        return 0
+    now = time.time() if now is None else now
+    stamp = os.path.join(qdir, _RETRY_STAMP)
+    try:
+        if now - os.stat(stamp).st_mtime < QUARANTINE_RETRY_S:
+            return 0
+    except OSError:
+        pass  # never retried: due now
+    moved = 0
+    suffix = chatlog_config.QUARANTINE_REASON_SUFFIX
+    try:
+        for reason in [f for f in os.listdir(qdir) if f.endswith(suffix)]:
+            name = reason[: -len(suffix)]
+            src = os.path.join(qdir, name)
+            dest = os.path.join(spill_dir, name)
+            if not os.path.isfile(src) or os.path.exists(dest):
+                continue
+            os.replace(src, dest)
+            with open(_attempts_path(dest), "w", encoding="utf-8") as fh:
+                json.dump(
+                    {
+                        "consecutive_failures": max(0, max_attempts - 1),
+                        "last_error": "daily retry from quarantine",
+                        "last_attempt": utc_iso(),
+                    },
+                    fh,
+                )
+            try:
+                os.remove(os.path.join(qdir, reason))
+            except OSError:
+                pass
+            moved += 1
+        with open(stamp, "w", encoding="utf-8") as fh:
+            fh.write(utc_iso())
+    except OSError as e:
+        logger.warning("Daily retry of quarantined spill files in %s did not complete: %s", qdir, e)
+    if moved:
+        logger.warning("Retrying %d quarantined spill file(s) from %s (daily retry)", moved, qdir)
+    return moved
 
 
 def _claim_spill_file(spill_path: str) -> str | None:
@@ -335,6 +414,7 @@ async def _drain_one(spill_path: str, backend_name: str, max_attempts: int) -> i
     landed = 0
     keep: list[str] = []  # lines whose target failed this pass
     last_error = ""
+    permanent = False  # any failure this pass that retrying as is cannot fix
     foreign: dict[str, tuple[str, list[str]]] = {}
     for db_path, entries in per_db.items():
         raws = [r for r, _ in entries]
@@ -357,6 +437,7 @@ async def _drain_one(spill_path: str, backend_name: str, max_attempts: int) -> i
             )
             keep.extend(raws)
             last_error = f"target {db_path} has no chatlog schema"
+            permanent = True
             continue
         # The CANONICAL writer (§10a), with conflicts ignored: a crash between
         # commit and rewrite must not make the next pass fail on the primary key.
@@ -377,6 +458,7 @@ async def _drain_one(spill_path: str, backend_name: str, max_attempts: int) -> i
             )
             keep.extend(raws)
             last_error = f"{type(e).__name__}: {e}"
+            permanent = permanent or not _store_dialect().is_transient_error(e)
 
     # Park malformed and foreign lines BEFORE the source is rewritten or removed;
     # if parking fails they stay in the source file.
@@ -393,6 +475,7 @@ async def _drain_one(spill_path: str, backend_name: str, max_attempts: int) -> i
             logger.error("Could not park %d malformed line(s) from %s: %s; keeping them", len(bad_lines), spill_path, e)
             keep.extend(bad_lines)
             last_error = last_error or f"cannot park malformed lines: {e}"
+            permanent = True
     for target, (why, raws) in foreign.items():
         try:
             dest = _park_lines(f"foreign-{base}", raws, spill_dir)
@@ -412,6 +495,7 @@ async def _drain_one(spill_path: str, backend_name: str, max_attempts: int) -> i
             )
             keep.extend(raws)
             last_error = last_error or f"cannot park foreign lines: {e}"
+            permanent = True
 
     if not keep:
         _record_attempt(spill_path, ok=True)
@@ -433,8 +517,18 @@ async def _drain_one(spill_path: str, backend_name: str, max_attempts: int) -> i
         except OSError as e:
             # Landed groups stay in the file; insert-or-ignore makes the retry safe.
             logger.warning("Could not rewrite %s without its landed lines: %s", spill_path, e)
-    n = _record_attempt(spill_path, ok=False, reason=last_error)
-    if n >= max_attempts:
+    n = _record_attempt(spill_path, ok=False, reason=last_error, counted=permanent)
+    if not permanent:
+        logger.warning(
+            "Spill %s did not drain: the store is temporarily unavailable (%s). %d of %d line(s) kept; "
+            "retried every pass, not counted toward quarantine (temporary failures since %s).",
+            spill_path,
+            last_error or "unknown",
+            len(keep),
+            total_lines,
+            _read_attempts_doc(spill_path).get("transient_since", "now"),
+        )
+    elif n >= max_attempts:
         _quarantine_spill(spill_path, last_error or "repeated drain failure", n)
     else:
         logger.warning(
@@ -477,13 +571,14 @@ async def drain_spill(conn=None) -> int:
     spill_dir = chatlog_config.spill_dir()
     if not os.path.isdir(spill_dir):
         return 0
+    _max_attempts = _spill_max_attempts()
+    _retry_quarantined(spill_dir, _max_attempts)
     spill_files = sorted(glob(os.path.join(spill_dir, "*.jsonl")))
     if not spill_files:
         return 0
 
     backend_name = active_backend().name
     total_drained = 0
-    _max_attempts = _spill_max_attempts()
     for spill_path in spill_files:
         claimed = _claim_spill_file(spill_path)
         if claimed is None:
@@ -497,7 +592,8 @@ async def drain_spill(conn=None) -> int:
         try:
             total_drained += await _drain_one(claimed, backend_name, _max_attempts)
         except Exception as e:  # noqa: BLE001 — one file must not stop the rest
-            n = _record_attempt(claimed, ok=False, reason=f"{type(e).__name__}: {e}")
+            transient = _store_dialect().is_transient_error(e)
+            n = _record_attempt(claimed, ok=False, reason=f"{type(e).__name__}: {e}", counted=not transient)
             logger.error(
                 "Error processing spill file %s (attempt %d/%d; file kept): %s: %s",
                 claimed,
@@ -506,7 +602,7 @@ async def drain_spill(conn=None) -> int:
                 type(e).__name__,
                 e,
             )
-            if n >= _max_attempts:
+            if not transient and n >= _max_attempts:
                 _quarantine_spill(claimed, f"{type(e).__name__}: {e}", n)
 
     try:
