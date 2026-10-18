@@ -128,9 +128,16 @@ def _quote(path: str) -> str:
     return f'"{p}"' if " " in p else p
 
 
+# Python flags for every hook process: ignore PYTHON* variables (-E) and the
+# user site folder (-s), so a project's PYTHONPATH cannot make a hook import that
+# project's code in place of m3's. Not -I: it also drops the script's own folder,
+# which the hooks import from.
+ISOLATE_FLAGS = ("-E", "-s")
+
+
 def command_for(name: str, python: str) -> str:
     """The one line an agent's config holds for hook ``name``."""
-    return f"{_quote(python)} {_quote(str(launcher_path(name)))}"
+    return f"{_quote(python)} {' '.join(ISOLATE_FLAGS)} {_quote(str(launcher_path(name)))}"
 
 
 def is_launcher_command(cmd: object) -> bool:

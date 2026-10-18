@@ -152,6 +152,13 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Hooks ignore a project's `PYTHONPATH`.** A project on `PYTHONPATH` with a
+  folder named like one of m3's packages made the hooks import its code in place
+  of m3's, so capture and the session-start line failed in that project. Hook
+  lines and the processes they start run Python with `-E -s`.
+  **Affected:** users whose agent runs with `PYTHONPATH` set · **Action:** run
+  `m3 setup` (or upgrade) to rewrite the hook lines · **Data status:** turns from
+  affected sessions were not captured; their transcripts remain with the agent.
 - **Gemini CLI capture saves each turn again, not only at session end.** Setup
   wires m3's capture on AfterModel and PreCompress as well as SessionEnd, so a
   Gemini session that is killed keeps the turns it had. Hook lines from an

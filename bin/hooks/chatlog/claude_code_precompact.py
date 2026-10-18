@@ -30,6 +30,10 @@ FORMAT = "claude-code"
 # Console-less child on Windows; 0 (the default) where the flag does not exist.
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _TAIL = 400  # chars of ingest stderr carried into a failure report
+# The ingest child ignores PYTHON* variables and the user site folder: a
+# project's PYTHONPATH must not make it import that project's code in place
+# of m3's (m3_memory.hook_launchers.ISOLATE_FLAGS, which this copy mirrors).
+_ISOLATE = ("-E", "-s")
 
 
 def find_repo_root() -> Path:
@@ -197,7 +201,7 @@ def run_ingest(py: str, ingest: Path, extra_args: list) -> dict:
     }
     try:
         result = subprocess.run(
-            [py, str(ingest), *extra_args], capture_output=True, text=True, timeout=60, creationflags=_NO_WINDOW
+            [py, *_ISOLATE, str(ingest), *extra_args], capture_output=True, text=True, timeout=60, creationflags=_NO_WINDOW
         )
     except subprocess.TimeoutExpired as e:
         err = e.stderr.decode("utf-8", "replace") if isinstance(e.stderr, bytes) else (e.stderr or "")

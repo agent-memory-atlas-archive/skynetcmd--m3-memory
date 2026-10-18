@@ -1,8 +1,8 @@
 ---
 tool: bin/session_recall.py
-sha1: 26cadd4b0ca4
-mtime_utc: 2026-10-18T20:24:40.894411+00:00
-generated_utc: 2026-10-18T20:28:31.263965+00:00
+sha1: dfc8e236575e
+mtime_utc: 2026-10-18T21:33:56.206018+00:00
+generated_utc: 2026-10-18T21:34:39.374780+00:00
 private: false
 ---
 
@@ -73,6 +73,7 @@ _(none detected)_
 - `llm_failover (LLMUnavailable)`
 - `llm_failover (LLMUnavailable, discover_model_async)`
 - `llm_failover (LLMUnavailable, report_available, report_unavailable)`
+- `m3_memory.hook_launchers (ISOLATE_FLAGS)`
 - `m3_sdk (M3Context)`
 - `memory_core`
 - `slm_intent (_call_model)`
@@ -85,7 +86,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `[sys.executable, os.path.abspath(__file__), '--summarize', conversation_id]`` (line 980)
+- `subprocess.Popen()` (line 981)
 
 **http**
 

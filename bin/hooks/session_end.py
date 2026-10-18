@@ -40,8 +40,11 @@ def start_final_capture(agent: str, envelope: dict) -> str | None:
     session_id = str(envelope.get("session_id") or "")
     if not transcript or not session_id:
         return f"{agent} sent no transcript_path or session_id; the session's final capture and summary did not start"
+    from m3_memory.hook_launchers import ISOLATE_FLAGS
+
     argv = [
         sys.executable,
+        *ISOLATE_FLAGS,
         str(_BIN / "chatlog_ingest.py"),
         "--format",
         FORMATS[agent],

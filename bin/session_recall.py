@@ -971,6 +971,7 @@ def start_background_summary(conversation_id: str) -> str | None:
     import sys
 
     from m3_core.seams import detached_spawn_kwargs
+    from m3_memory.hook_launchers import ISOLATE_FLAGS
 
     if not conversation_id:
         return "no conversation id"
@@ -978,7 +979,7 @@ def start_background_summary(conversation_id: str) -> str | None:
         return "recall.enabled is false"
     with background_log() as out:
         subprocess.Popen(  # noqa: S603 -- this interpreter and this file, fixed argv
-            [sys.executable, os.path.abspath(__file__), "--summarize", conversation_id],
+            [sys.executable, *ISOLATE_FLAGS, os.path.abspath(__file__), "--summarize", conversation_id],
             stdin=subprocess.DEVNULL,
             stdout=out,
             stderr=out,
