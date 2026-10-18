@@ -1145,7 +1145,8 @@ def m3_env_settings_section(brief: bool = False) -> int:
     print(
         "  Delete these variables (you or your agent): the export lines in the shell files named, "
         "Windows user variables (`[Environment]::SetEnvironmentVariable('NAME', $null, 'User')`), "
-        "the env entries in MCP configs, and Environment lines in service definitions."
+        "the env entries in MCP configs, Environment lines in service definitions, and the "
+        "entries in the legacy .env / .llm_config.json files named."
     )
     if from_default:
         print("  `m3 config import-env` copies their values into m3_config.toml instead, if you want m3 to use them.")
