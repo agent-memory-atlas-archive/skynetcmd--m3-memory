@@ -971,6 +971,7 @@ def start_background_summary(conversation_id: str) -> str | None:
     import sys
 
     from m3_core.seams import detached_spawn_kwargs
+
     from m3_memory.hook_launchers import ISOLATE_FLAGS
 
     if not conversation_id:
