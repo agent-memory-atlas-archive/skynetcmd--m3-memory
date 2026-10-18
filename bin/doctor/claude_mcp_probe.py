@@ -55,7 +55,7 @@ from m3_core.config.claude_settings import (
 )
 
 # The direct registration names m3 uses/used in ~/.claude.json mcpServers.
-_DIRECT_NAME = "m3_memory"  # current, roots-pinned, mcp__m3_memory__
+_DIRECT_NAME = "m3_memory"  # current, mcp__m3_memory__
 _LEGACY_DIRECT_NAME = "memory"  # pre-rename, roots-less, mcp__memory__
 
 

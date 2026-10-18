@@ -2814,7 +2814,7 @@ def _register_claude_server() -> bool:
         _disable_claude_plugin_server()
         # Loud default: the direct server is active; the plugin's server is kept off.
         print()
-        _ok("  Claude memory server: mcp__m3_memory__ (direct — low-friction, roots-pinned).")
+        _ok("  Claude memory server: mcp__m3_memory__ (direct — low-friction).")
         for k in ("M3_ENGINE_ROOT", "M3_CONFIG_ROOT", "M3_MEMORY_ROOT"):
             if env.get(k):
                 print(f"     {k}={env[k]}")
@@ -3433,7 +3433,7 @@ def _wire_openclaw() -> bool:
     )
     ok = _openclaw_mcp_set(argv)
     if ok:
-        _ok(f"  OpenClaw memory server: mcp__{_OPENCLAW_SERVER_NAME}__ (native MCP, roots-pinned).")
+        _ok(f"  OpenClaw memory server: mcp__{_OPENCLAW_SERVER_NAME}__ (native MCP).")
         if startup:
             print(f"     {len(startup)} startup tools; `m3_call` reaches any other tool by name.")
         print(f"     Verify: openclaw mcp show {_OPENCLAW_SERVER_NAME}")
