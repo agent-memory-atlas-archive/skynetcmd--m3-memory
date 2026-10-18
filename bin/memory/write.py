@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from embedding_utils import (
     infer_change_agent as _infer_change_agent_util,
@@ -776,6 +776,16 @@ async def _embed_windows(item_id: str, embed_text: str) -> list[tuple[str, str, 
         for sub_text, kind_suffix, cvec, m in sub_results:
             windows.append((base_kind + kind_suffix, sub_text, cvec, m))
     return windows
+
+
+def drop_vectors(db: Any, item_id: str) -> None:
+    """Delete a memory's vectors because an edit changed its text: a stale vector
+    keeps matching the old wording. rewindow_memory or the embed backfill (which
+    embeds every memory without a vector) computes fresh ones; until then keyword
+    search still finds the memory. Runs in the caller's transaction."""
+    from memory.backends import dialect
+
+    db.execute(f"DELETE FROM memory_embeddings WHERE memory_id = {dialect().param()}", (item_id,))
 
 
 async def rewindow_memory(item_id: str) -> int:

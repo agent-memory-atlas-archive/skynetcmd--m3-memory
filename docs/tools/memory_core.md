@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_core.py
-sha1: cff70dcd37a5
-mtime_utc: 2026-10-17T18:54:51.865053+00:00
-generated_utc: 2026-10-17T18:56:36.441233+00:00
+sha1: d1d30426e441
+mtime_utc: 2026-10-18T21:42:51.429675+00:00
+generated_utc: 2026-10-18T21:44:31.917839+00:00
 private: false
 ---
 
@@ -119,6 +119,8 @@ _(no subprocess / http / sqlite calls detected)_
 - `memory.textprep (_content_hash)`
 - `memory.util (_POISON_PATTERNS, _check_content_safety)`
 - `memory.write (content_gate_error)`
+- `memory.write (content_gate_error, drop_vectors)`
+- `memory.write (drop_vectors)`
 - `memory.write (rewindow_memory)`
 
 ---

@@ -870,6 +870,7 @@ async def memory_update_impl(
         if old is None:
             # No history row, no "Updated": nothing exists to update.
             return f"Error: memory {id} not found — nothing updated"
+        text_changed = bool(content) and content != old["content"]
         if content:
             _record_history(id, "update", old["content"], content, "content", db=db)
             # content_hash follows content, or memory_verify reports a false
@@ -878,6 +879,10 @@ async def memory_update_impl(
                 f"UPDATE memory_items SET content = {_p}, content_hash = {_p} WHERE id = {_p}",
                 (content, _content_hash(content), id),
             )
+        if text_changed:
+            from memory.write import drop_vectors
+
+            drop_vectors(db, id)  # a stale vector would keep matching the old text
         if title:
             _record_history(id, "update", old["title"], title, "title", db=db)
             db.execute(f"UPDATE memory_items SET title = {_p} WHERE id = {_p}", (title, id))
@@ -916,9 +921,10 @@ async def memory_update_impl(
             _record_history(id, "update", old["conversation_id"], new_val, "conversation_id", db=db)
             db.execute(f"UPDATE memory_items SET conversation_id = {_p} WHERE id = {_p}", (new_val, id))
         db.execute(f"UPDATE memory_items SET updated_at = {_p} WHERE id = {_p}", (now, id))
-    if reembed and content:
-        # Re-window through the write path's own owner: the former blanket
-        # UPDATE wrote one vector over every window row of a long memory.
+    if text_changed or (reembed and content):
+        # A fresh vector now, through the write path's own owner. When the
+        # embedder returns nothing, the memory has no vector and the embed
+        # backfill computes one later; keyword search finds it meanwhile.
         from memory.write import rewindow_memory
 
         await rewindow_memory(id)
@@ -1118,9 +1124,9 @@ def memory_update_bulk_impl(updates):
     """Apply a list of metadata-only updates in one transaction per chunk.
 
     Designed for curation passes that retroactively set retention, importance,
-    or supersession metadata on many rows. Does NOT support re-embedding —
-    re-embed is a separate concern (use `re_embed_all.py` or per-id
-    `memory_update(reembed=True)`).
+    or supersession metadata on many rows. A row whose text changes loses its
+    vectors here and gets fresh ones from the embed backfill (no embedding in
+    this call; `memory_update` re-embeds one row at once).
 
     Each update entry may set any subset of:
         content, title, importance, metadata, refresh_on, refresh_reason,
@@ -1171,7 +1177,7 @@ def memory_update_bulk_impl(updates):
 
     from memory.backends import dialect
     from memory.textprep import _content_hash
-    from memory.write import content_gate_error
+    from memory.write import content_gate_error, drop_vectors
 
     _d = dialect()
     p = _d.param()
@@ -1207,6 +1213,10 @@ def memory_update_bulk_impl(updates):
                         f"UPDATE memory_items SET content = {p}, content_hash = {p} WHERE id = {p}",
                         (content, _content_hash(content), mid),
                     )
+                    if content != old["content"]:
+                        # The embed backfill computes the fresh vector; a stale
+                        # one would keep matching the old text.
+                        drop_vectors(db, mid)
                     changed_any = True
 
                 title = u.get("title", "")

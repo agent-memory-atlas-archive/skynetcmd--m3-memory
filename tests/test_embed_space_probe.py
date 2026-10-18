@@ -58,11 +58,13 @@ def test_empty_tag_is_untagged():
 # ── end-to-end against a temp store ──────────────────────────────────────────
 
 
-def _store(tmp_path, rows):
+def _store(tmp_path, rows, *, deleted: bool = False):
     """Build a minimal agent_memory.db with the given
-    (vector_kind, embed_model, dim, count) rows."""
+    (vector_kind, embed_model, dim, count) rows, each on its own memory (live, or
+    deleted outright when ``deleted``)."""
     db = tmp_path / "agent_memory.db"
     con = sqlite3.connect(db)
+    con.execute("CREATE TABLE memory_items (id TEXT PRIMARY KEY, is_deleted INTEGER DEFAULT 0, valid_to TEXT)")
     con.execute(
         "CREATE TABLE memory_embeddings (id TEXT, memory_id TEXT, embedding BLOB, "
         "embed_model TEXT, dim INTEGER, created_at TEXT, content_hash TEXT, "
@@ -72,6 +74,7 @@ def _store(tmp_path, rows):
     for kind, model, dim, count in rows:
         for _ in range(count):
             n += 1
+            con.execute("INSERT INTO memory_items (id, is_deleted) VALUES (?, ?)", (str(n), 1 if deleted else 0))
             con.execute(
                 "INSERT INTO memory_embeddings (id, memory_id, embed_model, dim, vector_kind) VALUES (?,?,?,?,?)",
                 (str(n), str(n), model, dim, kind),
@@ -172,3 +175,28 @@ def test_missing_table_does_not_crash(_engine, capsys):
     sqlite3.connect(db).close()
     assert probe.run(brief=True) == 0
     assert "unknown" in capsys.readouterr().out.lower()
+
+
+def test_leftover_vectors_of_deleted_memories_are_not_a_mixed_space(_engine, capsys):
+    """A memory deleted outright is searched by nothing, so its leftover vectors
+    from another model cannot rank wrongly. Counting them raised a false MIXED
+    SPACE alarm (seen 2026-10-18: 40 deleted test rows of a probe model)."""
+    db = _store(_engine, [("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 50)])
+    con = sqlite3.connect(db)
+    for i in range(10):
+        con.execute("INSERT INTO memory_items (id, is_deleted) VALUES (?, 1)", (f"gone{i}",))
+        con.execute(
+            "INSERT INTO memory_embeddings (id, memory_id, embed_model, dim, vector_kind) VALUES (?,?,?,?,?)",
+            (f"e-gone{i}", f"gone{i}", "probe-model", 384, "default"),
+        )
+    con.commit()
+    con.close()
+    assert probe.run(brief=True) == 0
+    assert "MIXED" not in capsys.readouterr().out
+
+    con = sqlite3.connect(db)  # superseded (valid_to set) is still reachable by as_of: it counts
+    con.execute("UPDATE memory_items SET valid_to = '2026-10-01T00:00:00Z' WHERE id = 'gone0'")
+    con.commit()
+    con.close()
+    assert probe.run(brief=True) == 0
+    assert "MIXED" in capsys.readouterr().out

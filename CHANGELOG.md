@@ -153,6 +153,21 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Editing a memory's text refreshes its vector.** `memory_update` re-embedded
+  only with `reembed=true`, so semantic search kept matching an edited memory by
+  its old wording. A text edit now computes a fresh vector (or, if the embedder
+  is unavailable, removes the stale one so the background pass replaces it);
+  `memory_update_bulk` text edits are re-embedded by the background pass.
+  Title, tag and importance edits leave the vector alone.
+  **Affected:** all installs · **Action:** none · **Data status:** memories
+  edited before this release are re-embedded by the background embedding pass
+  after the upgrade (`m3 doctor` counts any left).
+- **`m3 doctor` no longer reports a mixed embedding space from deleted
+  memories.** Its check counted vectors left on memories deleted outright, which
+  no search reads, and could warn that rows "rank wrongly" when none could. It
+  now counts the vectors searches reach (current and superseded memories), and
+  it also reports memories edited after their newest vector.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
 - **Hooks ignore a project's `PYTHONPATH`.** A project on `PYTHONPATH` with a
   folder named like one of m3's packages made the hooks import its code in place
   of m3's, so capture and the session-start line failed in that project. Hook

@@ -610,6 +610,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
         )
         if check_core and not args.dry_run:
             await _repair_unfindable(args)
+            await _repair_stale_after_edit(args)
         due = sorted(owed & written)
         if due and not args.dry_run:
             superseded = 0
@@ -648,6 +649,27 @@ async def _repair_unfindable(args: argparse.Namespace) -> None:
         if await rewindow_memory(mid):
             repaired += 1
     _log(f"unfindable memories (embeddings but no 'default' vector): {len(ids)} found, {repaired} re-windowed")
+
+
+async def _repair_stale_after_edit(args: argparse.Namespace) -> None:
+    """Re-embed live memories whose text was edited after their newest vector.
+
+    The predicate is the doctor's own (stale_vector_memories, one owner); the
+    repair is the write path's own (rewindow_memory). A memory the embedder
+    returns nothing for keeps its rows and is tried again on the next pass.
+    """
+    from doctor.embed_space_probe import stale_vector_memories
+    from memory.write import rewindow_memory
+
+    with _bound_db(args.db) as conn:
+        ids = stale_vector_memories(conn, _sql(), limit=100_000)
+    if not ids:
+        return
+    refreshed = 0
+    for mid in ids:
+        if await rewindow_memory(mid):
+            refreshed += 1
+    _log(f"memories edited after their vector: {len(ids)} found, {refreshed} re-embedded")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

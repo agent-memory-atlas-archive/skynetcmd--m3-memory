@@ -98,6 +98,30 @@ def unfindable_memories(conn, dialect, *, limit: int = 10) -> list:
     )
 
 
+def stale_vector_memories(conn, dialect, *, limit: int = 10) -> list[str]:
+    """Ids of live memories whose text was edited after their newest vector was
+    computed, so semantic search still matches the old wording (memory_update
+    re-embedded only on request before 2026.10.18.0). The ONE copy of this
+    predicate: the embed backfill's repair and the tests call it."""
+    p = dialect.param()
+    return [
+        r[0]
+        for r in conn.execute(
+            f"""
+        SELECT mi.id
+        FROM memory_items mi
+        WHERE COALESCE(mi.is_deleted,0)=0
+          AND EXISTS (SELECT 1 FROM memory_history h
+                      WHERE h.memory_id = mi.id AND h.field = 'content' AND h.event = 'update'
+                        AND h.created_at > (SELECT MAX(e.created_at) FROM memory_embeddings e
+                                            WHERE e.memory_id = mi.id))
+        LIMIT {p}
+        """,
+            (limit,),
+        ).fetchall()
+    ]
+
+
 def _report_unfindable() -> None:
     """Report rows that HAVE embeddings but cannot be reached by search.
 
@@ -155,6 +179,31 @@ def _report_unfindable() -> None:
     )
 
 
+def _report_stale_after_edit() -> None:
+    """Report live memories whose text was edited after their newest vector
+    (stale_vector_memories), quiet when there are none."""
+    try:
+        from m3_core.paths import resolve_engine_file
+        from memory.backends import active_backend, dialect
+
+        db_path = resolve_engine_file("agent_memory.db")
+        with active_backend().open_readonly(db_path) as conn:
+            stale = stale_vector_memories(conn, dialect(), limit=1000)
+    except Exception:  # noqa: BLE001 — fresh store / missing table is fine
+        return
+    if not stale:
+        return
+    more = "+" if len(stale) == 1000 else ""
+    print(f"  STALE AFTER EDIT: {len(stale)}{more} memory row(s) were edited after their newest vector.")
+    print("    observed: semantic search still matches their old wording.")
+    print(
+        "    fix: run `m3 embedder backfill` (the background embedding pass does the same); "
+        "it re-embeds them from their current text."
+    )
+    for mid in stale[:5]:
+        print(f"      {mid}")
+
+
 def run(brief: bool = False) -> int:
     """Report whether the store mixes incompatible embedding spaces.
 
@@ -167,7 +216,7 @@ def run(brief: bool = False) -> int:
 
     try:
         from m3_core.paths import resolve_engine_file
-        from memory.backends import active_backend
+        from memory.backends import active_backend, dialect
     except Exception as e:  # noqa: BLE001 — probe must never crash the doctor
         if brief:
             print("embed-space: unknown (storage seam not loadable)")
@@ -182,10 +231,16 @@ def run(brief: bool = False) -> int:
     try:
         db_path = resolve_engine_file("agent_memory.db")
         with active_backend().open_readonly(db_path) as conn:
+            # Only vectors a search can reach: current memories, and superseded
+            # ones that as_of searches read (live_predicate with as_of). A
+            # memory deleted outright is searched by nothing, so its leftover
+            # vectors cannot rank wrongly and must not raise this alarm.
+            reachable = dialect().live_predicate("mi", as_of="reachable")
             cur = conn.execute(
-                "SELECT COALESCE(vector_kind, 'default'), COALESCE(embed_model, ''), "
-                "       COALESCE(dim, 0), COUNT(*) "
-                "FROM memory_embeddings GROUP BY 1, 2, 3"
+                "SELECT COALESCE(e.vector_kind, 'default'), COALESCE(e.embed_model, ''), "
+                "       COALESCE(e.dim, 0), COUNT(*) "
+                "FROM memory_embeddings e JOIN memory_items mi ON mi.id = e.memory_id "
+                f"WHERE {reachable} GROUP BY 1, 2, 3"
             )
             rows = [(str(r[0]), str(r[1]), int(r[2]), int(r[3])) for r in cur.fetchall()]
     except Exception as e:  # noqa: BLE001 — missing table on a fresh store is fine
@@ -276,6 +331,7 @@ def run(brief: bool = False) -> int:
             print(f"  {kind:10} : {fam} — {n:,} vectors{alias}")
         print("  status   : OK — all vectors are cosine-comparable.")
         _report_unfindable()
+        _report_stale_after_edit()
         return 0
 
     for kind, fams in sorted(mixed.items()):

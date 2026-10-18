@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_backfill.py
-sha1: 61d64bc1268b
-mtime_utc: 2026-10-14T03:38:04.492740+00:00
-generated_utc: 2026-10-14T03:38:45.977132+00:00
+sha1: bda96cec5466
+mtime_utc: 2026-10-18T21:45:40.071747+00:00
+generated_utc: 2026-10-18T21:51:48.963157+00:00
 private: false
 ---
 
@@ -60,7 +60,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 ## Entry points
 
-- `def main()` (line 860)
+- `def main()` (line 882)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -122,6 +122,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 ## Notable external imports
 
+- `doctor.embed_space_probe (stale_vector_memories)`
 - `doctor.embed_space_probe (unfindable_memories)`
 - `m3_core.context (pointed_store_connection)`
 - `m3_core.paths (_looks_like_dsn)`
