@@ -6,16 +6,15 @@
 
 # 🧠 m3 Memory
 
-**Your AI agents forget everything between sessions. m3 helps them remember.**
+**Give your AI a memory that lasts.**
 
-Switch from Claude Code to Antigravity, then to Cursor, and you lose nothing. Your agents'
-accumulated memory comes with you, so you never start from scratch. The memory is yours,
-and it stays with you whatever agent or whatever model you use.
+Your AI assistant is helpful until you start a new conversation and it has forgotten
+what you were working on. m3 fixes that.
 
-m3 is local-first and cloud-friendly. It runs on your own machine, with no account and no
-API key, and by default nothing leaves it. When you want the cloud, it's there: cloud models
-for enrichment, a shared PostgreSQL server, or a remote MCP endpoint (`m3 serve`) for any
-client that can send a bearer token.
+Your assistants remember your projects, preferences, decisions and past work, even after
+you close the app, start a new session or switch to a
+[different agent](docs/MCP_CLIENT_INSTALL.md). By default everything stays on your own
+computer: no account, no API key, and it [works offline](docs/SOVEREIGN_DEPLOYMENT.md).
 
 <p align="center">
   <a href="https://pypi.org/project/m3-memory/"><img alt="PyPI" src="https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/badges/pypi-version.svg"></a>
@@ -43,7 +42,57 @@ New here? The [5-minute Getting Started guide](docs/GETTING_STARTED.md) walks yo
 
 ---
 
-## <a id="at-a-glance"></a>⚡ m3 at a glance
+## 📅 A week with m3
+
+> **Monday:** you tell your AI assistant you're building a website and decide on PostgreSQL.
+>
+> **Wednesday:** you open a new session and ask, "Where did we leave off?" Your assistant
+> finds the decision and carries on, without you repeating it.
+>
+> **Friday:** you switch agents, say from Claude Code to Codex. Codex sees the same project
+> memory.
+
+See it for yourself: [a decision saved and recalled](#-see-it-work) on the command line,
+or a [short video](https://github.com/user-attachments/assets/09ab194a-d2a0-4fe5-a7db-69ae8225e39b)
+of one agent saving a decision that another recalls.
+
+## ✨ What m3 does for you
+
+| You want to... | m3... | Under the hood |
+| :--- | :--- | :--- |
+| Stop repeating yourself | remembers what you told it in earlier sessions | persistent memory over [MCP](docs/MCP_TOOLS.md) and a CLI |
+| Pick up where you left off | keeps your conversations and finds them again | [chat-log capture](docs/CHATLOG.md) |
+| Use more than one AI assistant | shares one memory across Claude Code, Cursor, Gemini CLI and [others](docs/MCP_CLIENT_INSTALL.md) | one local store, many clients |
+| Find things in your own words | finds a memory even when you don't recall the exact words | [hybrid search](docs/TECHNICAL_DETAILS.md#ranking-signals): keywords plus meaning |
+| Keep track when things change | updates a decision without losing what came before, and flags facts that disagree | [bitemporal history and contradiction detection](docs/TECHNICAL_DETAILS.md#contradiction-detection) |
+| Keep your information private | stores everything on your computer and works offline | [SQLite by default; air-gap ready](docs/SOVEREIGN_DEPLOYMENT.md) |
+| Let assistants work together | lets several assistants share notes, hand off work and split tasks | [multi-agent scopes and handoffs](docs/MULTI_AGENT.md) |
+| Keep memory tidy | can tidy up in the background: links related facts, merges duplicates, fades stale notes | the optional [cognitive loop](docs/MEMORY_MODEL.md#how-the-memory-maintains-itself) |
+
+Simple to understand, easy to start, powerful when you need it. Every row links to the
+doc that backs it; the [technical summary](#at-a-glance) and [benchmarks](#-benchmarks)
+carry the measurements.
+
+---
+
+## <a id="project-status"></a>📍 Project status
+
+**The core is stable, and so is everything else m3 ships.** One summary line per point, each linked to the doc that owns the detail. The test suite checks these lines against the code and the [ROADMAP](docs/ROADMAP.md).
+
+| Status | What it means | Features |
+| :--- | :--- | :--- |
+| **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync · web dashboard · autonomous cognitive loop · Observer & Reflector stages |
+| **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · HNSW approximate search on PostgreSQL · official Docker image, if users ask for one · server / multi-user deployment guide · stable public SDK with semver guarantees |
+
+*   **Search time by store size** (default hybrid search, exact on both backends): SQLite answers in 0.45 s at 50,000 memories, 0.97 s at 100,000 and 1.55 s at 150,000. PostgreSQL: 0.88 s, 1.70 s and 2.54 s; with the pgvector extension, 0.27 s, 0.35 s and 0.46 s. Real stores hold about two vectors per memory: a real 83,000-memory SQLite store answers in 2.7 s, and a real 90,000-memory PostgreSQL store in 1.6 s, or 0.54 s with pgvector ([measured](docs/PERFORMANCE.md#search-time-by-store-size)).
+*   **Many writers on SQLite:** SQLite takes one write at a time; writes take milliseconds, so concurrent writers wait briefly instead of failing. 16 agents writing at once lost nothing and waited at most half a second ([measured](docs/PERFORMANCE.md#sqlite-many-agents-writing-at-once)). Agents on several machines, or a busier fleet, should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
+*   **Reads are audited:** every `memory_get` and every search hit is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)). Chat-log reads are not audited yet.
+*   **Configuration lives in `m3_config.toml`:** `m3 config show` prints every setting and where it came from, and `m3 config set` changes one ([Config reference](docs/CONFIG_REFERENCE.md)). A new install gets one listing every setting with its doc, commented at its default. Older environment-variable names keep working with a warning for two releases, and `m3 doctor` and `m3 config import-env` name any still in use ([Environment variables](docs/ENVIRONMENT_VARIABLES.md)).
+*   **Versioning:** calendar versions (`YYYY.M.D.N`). A renamed or removed setting, argument or tool keeps working, with a warning, for at least two releases after its replacement ships ([Changelog](CHANGELOG.md)).
+
+---
+
+## <a id="at-a-glance"></a>⚡ How m3 works: the technical summary
 
 <!-- For search engines and AI agents that read only this page: one line per fact, each
      linking to the doc that owns the detail. Keep it the ONE summary; do not restate
@@ -64,23 +113,6 @@ New here? The [5-minute Getting Started guide](docs/GETTING_STARTED.md) walks yo
 - **Tested:** 5,700+ tests on Windows, macOS and Linux × Python 3.12–3.15, plus a PostgreSQL (with pgvector) lane on Linux, with the native (Rust) core that ships with m3; warnings fail the build. Security scans are published in [`docs/audits/`](docs/audits/). ([Testing](docs/TESTING.md))
 - **Status:** stable: the core, the web dashboard, the autonomous cognitive loop and the Observer & Reflector stages. Apache 2.0. ([Project status](#project-status) · [Roadmap](docs/ROADMAP.md))
 - **For AI agents:** [llm-context.md](docs/llm-context.md) lists the real tool names and usage rules, and [features.json](docs/features.json) is the machine-readable summary.
-
----
-
-## <a id="project-status"></a>📍 Project status
-
-**The core is stable, and so is everything else m3 ships.** One summary line per point, each linked to the doc that owns the detail. The test suite checks these lines against the code and the [ROADMAP](docs/ROADMAP.md).
-
-| Status | What it means | Features |
-| :--- | :--- | :--- |
-| **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync · web dashboard · autonomous cognitive loop · Observer & Reflector stages |
-| **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · HNSW approximate search on PostgreSQL · official Docker image, if users ask for one · server / multi-user deployment guide · stable public SDK with semver guarantees |
-
-*   **Search time by store size** (default hybrid search, exact on both backends): SQLite answers in 0.45 s at 50,000 memories, 0.97 s at 100,000 and 1.55 s at 150,000. PostgreSQL: 0.88 s, 1.70 s and 2.54 s; with the pgvector extension, 0.27 s, 0.35 s and 0.46 s. Real stores hold about two vectors per memory: a real 83,000-memory SQLite store answers in 2.7 s, and a real 90,000-memory PostgreSQL store in 1.6 s, or 0.54 s with pgvector ([measured](docs/PERFORMANCE.md#search-time-by-store-size)).
-*   **Many writers on SQLite:** SQLite takes one write at a time; writes take milliseconds, so concurrent writers wait briefly instead of failing. 16 agents writing at once lost nothing and waited at most half a second ([measured](docs/PERFORMANCE.md#sqlite-many-agents-writing-at-once)). Agents on several machines, or a busier fleet, should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
-*   **Reads are audited:** every `memory_get` and every search hit is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)). Chat-log reads are not audited yet.
-*   **Configuration lives in `m3_config.toml`:** `m3 config show` prints every setting and where it came from, and `m3 config set` changes one ([Config reference](docs/CONFIG_REFERENCE.md)). A new install gets one listing every setting with its doc, commented at its default. Older environment-variable names keep working with a warning for two releases, and `m3 doctor` and `m3 config import-env` name any still in use ([Environment variables](docs/ENVIRONMENT_VARIABLES.md)).
-*   **Versioning:** calendar versions (`YYYY.M.D.N`). A renamed or removed setting, argument or tool keeps working, with a warning, for at least two releases after its replacement ships ([Changelog](CHANGELOG.md)).
 
 ---
 

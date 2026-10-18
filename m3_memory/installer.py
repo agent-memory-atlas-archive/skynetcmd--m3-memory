@@ -642,6 +642,78 @@ def _register_cline_mcp() -> str | None:
     return _heal_agent_settings(cfg, create_if_absent=True)
 
 
+def _codex_config_path() -> Path:
+    """Codex's config.toml: ``$CODEX_HOME/config.toml``, else ``~/.codex/config.toml``.
+    Codex CLI, its IDE extension and the Codex in the ChatGPT desktop app read it.
+    ``CODEX_HOME`` is Codex's variable, read through the one scanner of where a
+    variable is set (``env_sources.scan``), as this process sees it."""
+    from m3_memory.install.env_sources import scan
+
+    home = next((f.value for f in scan(["CODEX_HOME"]) if f.kind == "process" and f.value), "")
+    return (Path(home).expanduser() if home else Path.home() / ".codex") / "config.toml"
+
+
+def _register_codex_mcp(*, repair_only: bool = False) -> str | None:
+    """Register/repoint m3's ``memory`` MCP server in Codex's config.toml.
+
+    Codex is a TOML client (``[mcp_servers.memory]`` with command/args/env, its
+    stdio form), so this is not the JSON ``mcpServers`` heal; the entry is the same
+    canonical server, under the same rule: a missing or stale entry is written, a
+    healthy one (even if customised) is left alone. tomlkit keeps the user's other
+    tables and comments, and an existing file is backed up before the rewrite.
+    Only acts when Codex is present (the ``codex`` CLI or its home folder).
+    ``repair_only`` (upgrade and ``doctor --fix``) repoints an existing stale entry
+    and never adds one: those paths repair what already uses m3, they add nothing."""
+    cfg = _codex_config_path()
+    if not (shutil.which("codex") or os.path.isdir(cfg.parent)):
+        return None
+    import tomlkit
+    from tomlkit.exceptions import TOMLKitError
+
+    try:
+        text = cfg.read_text(encoding="utf-8") if os.path.isfile(cfg) else ""
+        doc = tomlkit.parse(text)
+    except (OSError, UnicodeDecodeError, TOMLKitError) as e:
+        return f"[!] {cfg} could not be read ({type(e).__name__}: {e}); Codex was not wired. inspect: that file"
+    servers = doc.get("mcp_servers")
+    if servers is None:
+        servers = tomlkit.table(is_super_table=True)
+        doc["mcp_servers"] = servers
+    elif not isinstance(servers, dict):
+        return f"[!] {cfg}: `mcp_servers` is not a table; Codex was not wired. inspect: that file"
+    existing = servers.get("memory")
+    current = existing.unwrap() if hasattr(existing, "unwrap") else existing
+    if current is None and repair_only:
+        return None
+    if current is not None and not _memory_entry_needs_repoint(current):
+        return None  # healthy: stay quiet
+    canonical = _canonical_memory_server()
+    entry = tomlkit.table()
+    entry["command"] = canonical["command"]
+    if canonical.get("args"):
+        entry["args"] = list(canonical["args"])
+    if canonical.get("env"):
+        env = tomlkit.table()
+        for k, v in canonical["env"].items():
+            env[k] = v
+        entry["env"] = env
+    servers["memory"] = entry
+    new = tomlkit.dumps(doc)
+    try:
+        if os.path.isfile(cfg):
+            _guarded_write(cfg, new, by="m3 setup/doctor (Codex MCP)")
+        else:
+            cfg.parent.mkdir(parents=True, exist_ok=True)
+            _bin.ensure_on_path()
+            from m3_core.atomic_io import atomic_write
+
+            atomic_write(cfg, new)
+    except OSError as e:
+        return f"[X] could not write {cfg} ({e}); it is unchanged or restorable from its .bak"
+    verb = "repointed" if current is not None else "registered"
+    return f"[+] {verb} 'memory' MCP in {cfg}"
+
+
 def _fix_npm_global_path() -> str | None:
     """Append ~/.npm-global/bin to ~/.profile for non-interactive shells.
 
@@ -1507,6 +1579,7 @@ def _post_install(
             _register_antigravity_mcp(),
             _register_cursor_mcp(),
             _register_cline_mcp(),
+            _register_codex_mcp(),
             _sqlite3_cli_hint(),
             _fix_npm_global_path(),
         )
@@ -2094,6 +2167,7 @@ def _known_agent_settings() -> list[tuple[str, Path]]:
         # Not OpenCode: its opencode.json registers servers under `mcp`, not
         # `mcpServers`, so a repair over this list would write an entry OpenCode
         # never reads. setup_wizard._wire_opencode owns that file.
+        # Not Codex either: its config.toml is TOML; _register_codex_mcp owns it.
         ("Aider", home / ".aider" / "settings.json"),
         ("Cursor", _cursor_config_path()),
         ("Cline", _cline_config_path()),
@@ -2539,6 +2613,11 @@ def _heal_all_agents(*, force: bool = False) -> int:
             print(f"  {msg}")
             if msg.lstrip().startswith("[+]"):
                 changed += 1
+    msg = _register_codex_mcp(repair_only=True)  # TOML, so not in the JSON list above
+    if msg:
+        print(f"  {msg}")
+        if msg.lstrip().startswith("[+]"):
+            changed += 1
     # Auto-remove same-client duplicate registrations (the double-launch cause).
     for line in _dedupe_mcp_registration(apply=True):
         print(f"  {line}")

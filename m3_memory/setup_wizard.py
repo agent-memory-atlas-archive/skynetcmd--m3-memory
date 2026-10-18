@@ -140,6 +140,7 @@ class AgentTargets:
     hermes: bool = False
     cursor: bool = False
     cline: bool = False
+    codex: bool = False
 
     def any(self) -> bool:
         return any(
@@ -152,6 +153,7 @@ class AgentTargets:
                 self.hermes,
                 self.cursor,
                 self.cline,
+                self.codex,
             )
         )
 
@@ -208,6 +210,14 @@ def _detect_agents() -> AgentTargets:
         cline = os.path.isdir(_cline_config_path().parent.parent)
     except Exception:
         cline = False
+    # Codex CLI: its CLI on PATH or its home folder (the signal its registrar,
+    # installer._register_codex_mcp, gates on, so detection matches the wiring).
+    try:
+        from m3_memory.installer import _codex_config_path
+
+        codex = bool(shutil.which("codex") or os.path.isdir(_codex_config_path().parent))
+    except Exception:
+        codex = False
     return AgentTargets(
         claude=claude,
         gemini=gemini,
@@ -217,6 +227,7 @@ def _detect_agents() -> AgentTargets:
         hermes=hermes,
         cursor=cursor,
         cline=cline,
+        codex=codex,
     )
 
 
@@ -368,8 +379,16 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     if args.non_interactive:
         # Honor explicit --agent flags; otherwise wire whatever we detected.
         if args.agents:
-            for a in args.agents.split(","):
-                setattr(plan.targets, a.strip().lower(), True)
+            known = set(AgentTargets.__slots__)
+            names = [a.strip().lower() for a in args.agents.split(",") if a.strip()]
+            unknown = [a for a in names if a not in known]
+            if unknown:
+                raise SystemExit(
+                    f"m3 setup: unknown agent(s) {', '.join(unknown)} in --agents. "
+                    f"choose from: {', '.join(sorted(known))}"
+                )
+            for a in names:
+                setattr(plan.targets, a, True)
         else:
             plan.targets = detected
         plan.capture_mode = args.capture_mode or "both"
@@ -443,12 +462,12 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     print()
     _any_agent = any(
         getattr(detected, a, False)
-        for a in ("claude", "gemini", "antigravity", "opencode", "openclaw", "hermes", "cursor", "cline")
+        for a in ("claude", "gemini", "antigravity", "opencode", "openclaw", "hermes", "cursor", "cline", "codex")
     )
     if not _any_agent:
         print("  No AI agents found on this computer yet. m3 installs anyway; once you")
         print("  install one (Claude Code, Gemini CLI, Cursor, ...), connect it with:")
-        print("    m3 setup --agents claude      (or gemini, cursor, cline, opencode, ...)")
+        print("    m3 setup --agents claude      (or codex, gemini, cursor, cline, opencode, ...)")
         print()
     else:  # a list of empty boxes says nothing the line above did not
         print("  Agents found on this computer:")
@@ -460,6 +479,7 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         print(f"    {'[x]' if detected.hermes else '[ ]'} Hermes Agent")
         print(f"    {'[x]' if detected.cursor else '[ ]'} Cursor")
         print(f"    {'[x]' if detected.cline else '[ ]'} Cline")
+        print(f"    {'[x]' if detected.codex else '[ ]'} Codex CLI")
         print()
 
     if detected.claude:
@@ -474,6 +494,8 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         plan.targets.cursor = _ask_yes_no("  Wire m3 into Cursor?", default=True)
     if detected.cline:
         plan.targets.cline = _ask_yes_no("  Wire m3 into Cline?", default=True)
+    if detected.codex:
+        plan.targets.codex = _ask_yes_no("  Wire m3 into Codex CLI?", default=True)
     # Gated on detection like every sibling above. It used to be asked
     # unconditionally, which was harmless when a "yes" only printed proxy
     # instructions; now a yes without OpenClaw installed produces a warning, so
@@ -3261,6 +3283,14 @@ def _wire_cline() -> bool:
     return _report_registration(msg)
 
 
+def _wire_codex() -> bool:
+    """Write the m3 MCP entry into Codex's config.toml ([mcp_servers.memory])."""
+    from m3_memory.installer import _register_codex_mcp
+
+    msg = _register_codex_mcp()
+    return _report_registration(msg)
+
+
 # OpenClaw shipped a NATIVE MCP client in 2026.3.22. Bisected against upstream
 # tags (github.com/openclaw/openclaw, the `repository` of the npm package our
 # sandbox installs): 2026.3.11 has no src/config/mcp-config.ts, 2026.3.22 does.
@@ -3819,6 +3849,8 @@ def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool
         _wire_cursor()
     if plan.targets.cline:
         _wire_cline()
+    if plan.targets.codex:
+        _wire_codex()
     if plan.targets.openclaw:
         _wire_openclaw()
     if plan.targets.hermes:
@@ -3839,6 +3871,7 @@ def _repair_kept_wiring() -> None:
         from m3_memory.installer import (
             _heal_agent_settings,
             _heal_config_bridge_path,
+            _register_codex_mcp,
             _scan_agent_configs,
             claude_uses_m3,
         )
@@ -3850,6 +3883,9 @@ def _repair_kept_wiring() -> None:
                 msg = _heal_agent_settings(path)
                 if msg:
                     print(f"  {msg}")
+        msg = _register_codex_mcp(repair_only=True)  # Codex is TOML: not in the scan above
+        if msg:
+            print(f"  {msg}")
         if not claude_uses_m3():
             return
         _register_claude_server()
@@ -4614,6 +4650,7 @@ def _print_plan(plan) -> None:
             "OpenCode": plan.targets.opencode,
             "Cursor": plan.targets.cursor,
             "Cline": plan.targets.cline,
+            "Codex CLI": plan.targets.codex,
             "OpenClaw": plan.targets.openclaw,
             "Hermes Agent": plan.targets.hermes,
         }.items()
@@ -4846,7 +4883,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "--agents",
         default=None,
         help="Comma-separated list of agents to wire in non-interactive mode "
-        "(any of: claude,gemini,antigravity,opencode,openclaw,cursor,cline,hermes). "
+        "(any of: claude,codex,gemini,antigravity,opencode,openclaw,cursor,cline,hermes). "
         "Default: every agent detected on PATH.",
     )
     parser.add_argument(

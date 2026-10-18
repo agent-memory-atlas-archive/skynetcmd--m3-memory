@@ -92,7 +92,7 @@ def _build_flags(values: dict) -> list[str]:
     # Agents: comma-separated; omit to let the child wire all detected agents.
     agents = [
         a
-        for a in ("claude", "gemini", "antigravity", "opencode", "cursor", "cline", "openclaw")
+        for a in ("claude", "codex", "gemini", "antigravity", "opencode", "cursor", "cline", "openclaw")
         if values.get(f"agent_{a}")
     ]
     if agents:
@@ -411,6 +411,7 @@ def run_gui() -> int:
         ("opencode", "OpenCode"),
         ("cursor", "Cursor"),
         ("cline", "Cline"),
+        ("codex", "Codex CLI"),
         ("openclaw", "OpenClaw"),
     ):
         var = tk.BooleanVar(value=_det(name))
@@ -684,6 +685,7 @@ def run_gui() -> int:
                 ("agent_opencode", "OpenCode"),
                 ("agent_cursor", "Cursor"),
                 ("agent_cline", "Cline"),
+                ("agent_codex", "Codex CLI"),
                 ("agent_openclaw", "OpenClaw"),
             )
             if values.get(key)

@@ -616,6 +616,7 @@ INSTALLER_HOME_WRITERS = (
     "_register_antigravity_mcp",
     "_register_cursor_mcp",
     "_register_cline_mcp",
+    "_register_codex_mcp",
     "_sqlite3_cli_hint",
     "_fix_npm_global_path",
     "_print_backup_reminder",

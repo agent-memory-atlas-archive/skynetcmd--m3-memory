@@ -57,6 +57,8 @@ def _summary(plan, governor_result: dict | None = None, verified: bool = True, b
         restart_lines.append("  • OpenCode                 — restart the CLI")
     if plan.targets.openclaw:
         restart_lines.append("  • OpenClaw                 — restart the CLI/gateway")
+    if getattr(plan.targets, "codex", False):
+        restart_lines.append("  • Codex CLI                — start a new session (`/mcp` lists m3's tools)")
     if restart_lines:
         print("Next step — restart your agent so it picks up the new MCP server:")
         for line in restart_lines:
