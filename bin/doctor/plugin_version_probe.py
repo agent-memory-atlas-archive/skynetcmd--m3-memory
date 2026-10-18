@@ -128,6 +128,9 @@ def _marketplace_age_days() -> float | None:
 # into chasing a network it doesn't have.
 _MARKETPLACE_STALE_DAYS = 14.0
 
+# Each claude CLI call in repair(): both fit inside m3 upgrade's 300 s doctor step.
+_CLAUDE_CLI_TIMEOUT_S = 90
+
 
 def _ver_key(v: str) -> tuple[tuple[int, int | str], ...]:
     """Sort key for dotted numeric versions (2026.7.4.0, 3.7.4, ...)."""
@@ -348,7 +351,30 @@ def repair(dry_run: bool = False) -> dict:
             )
             continue
         try:
-            proc = subprocess.run(argv, capture_output=True, text=True, timeout=300, **_no_window_kwargs())
+            # Bounded well inside `m3 upgrade`'s doctor step (300 s): over SSH the
+            # claude CLI can wait forever (no keychain or login session) and took
+            # the whole upgrade's verification down with it (2026-10-18).
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                timeout=_CLAUDE_CLI_TIMEOUT_S,
+                stdin=subprocess.DEVNULL,
+                **_no_window_kwargs(),
+            )
+        except subprocess.TimeoutExpired:
+            actions.append(
+                {
+                    "action": label,
+                    "status": "failed",
+                    "detail": (
+                        f"observed: `{' '.join(argv)}` did not answer in {_CLAUDE_CLI_TIMEOUT_S}s. "
+                        "possible: no login session for the claude CLI here (e.g. over SSH). "
+                        "fix: run `claude plugin update m3@skynetcmd` in a terminal on this machine"
+                    ),
+                }
+            )
+            break  # the next claude call would wait the same way
         except (OSError, subprocess.SubprocessError) as exc:
             actions.append({"action": label, "status": "failed", "detail": f"{type(exc).__name__}: {exc}"})
             continue

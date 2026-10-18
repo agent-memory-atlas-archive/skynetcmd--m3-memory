@@ -500,7 +500,7 @@ def test_an_upgrade_that_changes_nothing_says_so(tmp_path, monkeypatch, capsys):
     assert m3u.main(["--yes"]) == 0
     out = capsys.readouterr().out
     assert "m3 is still 2026.10.5.0" in out
-    assert "nothing was upgraded" in out
+    assert "no newer one was installed" in out
 
 
 def test_an_upgrade_that_changes_the_version_reports_both(tmp_path, monkeypatch, capsys):
@@ -520,7 +520,7 @@ def test_an_upgrade_that_changes_the_version_reports_both(tmp_path, monkeypatch,
     assert m3u.main(["--yes"]) == 0
     out = capsys.readouterr().out
     assert "m3 2026.10.4.3 -> 2026.10.5.0" in out
-    assert "nothing was upgraded" not in out
+    assert "no newer one was installed" not in out and "nothing was upgraded" not in out
 
 
 def _held_pip_install(tmp_path, monkeypatch, own, others):

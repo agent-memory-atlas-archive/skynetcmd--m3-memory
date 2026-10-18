@@ -847,7 +847,7 @@ def summary_lines(
     """The end-of-run summary: the lines a user needs after the step output
     has scrolled away."""
     if unchanged:
-        version = f"m3 {old}: already installed, nothing was upgraded"
+        version = f"m3 {old}: already this version; no newer one was installed"
     else:
         version = f"m3 {old or '?'} -> {new or '?'}"
     lines = ["", "Upgrade incomplete." if failed_step else "Done.", f"  version : {version}"]
@@ -1325,7 +1325,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(out.rstrip())
     if rc != 0:
-        done = "Nothing was upgraded" if unchanged else "The upgrade completed"
+        done = "No newer version was installed" if unchanged else "The upgrade completed"
         print(
             f"\n`m3 doctor --fix --fix-hooks` reported problems (exit {rc}). {done}\n"
             "and repairs were attempted; read the doctor output above before relying on this install."

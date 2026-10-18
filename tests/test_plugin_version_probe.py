@@ -236,3 +236,26 @@ def test_repair_skips_the_marketplace_when_the_plugin_matches_the_package(monkey
         subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no CLI call for a current plugin"))
     )
     assert P.repair() == {"actions": []}
+
+
+def test_a_claude_cli_that_does_not_answer_is_reported_and_not_retried(monkeypatch):
+    """Over SSH the claude CLI can wait forever; repair must say so, with the fix,
+    and not start the second call (it waited 300 s each and sank `m3 upgrade`'s
+    verification, 2026-10-18). stdin is closed so a prompt cannot wait on it."""
+    import subprocess
+
+    monkeypatch.setattr(P, "_installed_version", lambda: "2026.9.20.1")
+    monkeypatch.setattr(P, "_package_version", lambda: "2026.10.6.0")
+    calls = []
+
+    def hang(argv, **kw):
+        calls.append((argv, kw))
+        raise subprocess.TimeoutExpired(argv, kw["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", hang)
+    res = P.repair(dry_run=False)
+    assert len(calls) == 1, "the second claude call must not start after a timeout"
+    assert calls[0][1]["stdin"] is subprocess.DEVNULL
+    assert calls[0][1]["timeout"] < 150, "both calls must fit m3 upgrade's 300 s doctor step"
+    (act,) = [a for a in res["actions"] if a["action"] == "marketplace"]
+    assert act["status"] == "failed" and "did not answer" in act["detail"] and "claude plugin update" in act["detail"]

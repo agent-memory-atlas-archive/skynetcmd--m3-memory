@@ -21,6 +21,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **`m3 upgrade` no longer stalls on the Claude Code plugin update.** Where the
+  `claude` CLI does not answer (e.g. over SSH with no login session), the plugin
+  update stops after 90 s and says how to finish it by hand; it waited until the
+  whole verification step timed out.
+  **Affected:** upgrades run over SSH or without a Claude Code login, with the
+  m3 plugin installed · **Action:** none · **Data status:** none.
 - **`m3 doctor` no longer reports the loop watchdog's systemd timer as a dangling
   job.** A timer has no command of its own; the service it starts is checked.
   **Affected:** Linux installs with the cognitive-loop watchdog · **Action:**
