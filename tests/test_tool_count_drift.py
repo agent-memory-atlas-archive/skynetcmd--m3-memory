@@ -68,8 +68,8 @@ _DOC_FILES = [
     # reads must follow the same "100+ tools" policy as the rest of the docs.
     os.path.join(_ROOT, "commands", "help.md"),
     os.path.join(_ROOT, "skills", "m3-guide", "SKILL.md"),
-    os.path.join(_ROOT, ".antigravity-plugin", "skills", "m3-help", "SKILL.md"),
-    os.path.join(_ROOT, ".antigravity-plugin", "skills", "m3-guide", "SKILL.md"),
+    os.path.join(_ROOT, "plugins", "antigravity", "skills", "m3-help", "SKILL.md"),
+    os.path.join(_ROOT, "plugins", "antigravity", "skills", "m3-guide", "SKILL.md"),
     os.path.join(_ROOT, "plugins", "codex", "skills", "m3-help", "SKILL.md"),
     os.path.join(_ROOT, "plugins", "codex", "skills", "m3-guide", "SKILL.md"),
     os.path.join(_ROOT, "GEMINI.md"),
@@ -86,7 +86,7 @@ _VERSIONED_MANIFESTS = [
     os.path.join(_ROOT, "server.json"),
     os.path.join(_ROOT, "mcp-server.json"),
     os.path.join(_ROOT, ".claude-plugin", "plugin.json"),
-    os.path.join(_ROOT, ".antigravity-plugin", "plugin.json"),
+    os.path.join(_ROOT, "plugins", "antigravity", "plugin.json"),
     os.path.join(_ROOT, "plugins", "codex", ".codex-plugin", "plugin.json"),
     os.path.join(_ROOT, "gemini-extension.json"),
 ]
@@ -97,8 +97,8 @@ _VERSIONED_MANIFESTS = [
 _PLUGIN_MANIFESTS = [
     os.path.join(_ROOT, ".claude-plugin", "plugin.json"),
     os.path.join(_ROOT, ".claude-plugin", "marketplace.json"),
-    os.path.join(_ROOT, ".antigravity-plugin", "plugin.json"),
-    os.path.join(_ROOT, ".antigravity-plugin", "marketplace.json"),
+    os.path.join(_ROOT, "plugins", "antigravity", "plugin.json"),
+    os.path.join(_ROOT, "plugins", "antigravity", "marketplace.json"),
     os.path.join(_ROOT, "plugins", "codex", ".codex-plugin", "plugin.json"),
     os.path.join(_ROOT, ".agents", "plugins", "marketplace.json"),
     os.path.join(_ROOT, "gemini-extension.json"),
@@ -402,7 +402,7 @@ def test_plugin_manifests_use_no_exact_tool_count():
 # help files were not gated). Pin the copies byte-for-byte so they cannot drift.
 _GUIDE_SKILL_COPIES = [
     os.path.join(_ROOT, "skills", "m3-guide", "SKILL.md"),
-    os.path.join(_ROOT, ".antigravity-plugin", "skills", "m3-guide", "SKILL.md"),
+    os.path.join(_ROOT, "plugins", "antigravity", "skills", "m3-guide", "SKILL.md"),
     os.path.join(_ROOT, "plugins", "codex", "skills", "m3-guide", "SKILL.md"),
 ]
 

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: a50077e27d31
-mtime_utc: 2026-10-18T18:08:38.691243+00:00
-generated_utc: 2026-10-18T18:08:56.760378+00:00
+sha1: 8991edfab026
+mtime_utc: 2026-10-18T19:53:31.220856+00:00
+generated_utc: 2026-10-18T19:58:15.985332+00:00
 private: false
 ---
 
@@ -36,7 +36,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 
 ## Entry points
 
-- `async def main()` (line 1148)
+- `async def main()` (line 1217)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -50,6 +50,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 | `--session-id` | Override conversation_id (defaults to parsed sessionId) | `` | Uses conversation_id parsed from transcript | str | Overrides conversation_id; used if transcript lacks sessionId |
 | `--variant` | Provenance tag (e.g. pre_compact, stop, session_end, test) | None | No variant tag added to rows | str | Tags each ingested row with provided variant value |
 | `--cwd` | The session's working directory (from the hook envelope); stored with each turn with its git root, branch and tree. Default: the directory the transcript records, if any. | `` |  | str |  |
+| `--model-id` | The model the host says wrote the assistant turns (from the hook input); used where the transcript names none. | `` |  | str |  |
 | `--db` | Deprecated: chatlog-only override. Prefer --database. Pins the chatlog store for this process. | None | Deprecated alias for --database / CHATLOG_DB_PATH | str | Deprecated alias for --database / CHATLOG_DB_PATH |
 | `--spill-dir` | Override spill directory for this run (dev smoke tests). Prevents stale spill files from polluting production. | None | Uses configured spill directory | str | Routes spill writes to PATH instead of configured dir (dev smoke tests only) |
 | `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
@@ -76,6 +77,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 - `chatlog_core`
 - `m3_sdk (add_database_arg)`
 - `memory_core`
+- `session_recall`
 - `session_recall (project_fields)`
 
 ---

@@ -1,8 +1,38 @@
 ---
 name: curate-memory
 description: Curate the m3-memory store — clean, dedupe, supersede stale entries, consolidate overlapping notes. Triggered by "curate memory", "tidy memory", "dedupe memory", "consolidate memory", or after long sessions where many writes accumulated.
-tools: Bash, Read, Grep, mcp__memory__memory_search, mcp__memory__memory_dedup, mcp__memory__memory_delete, mcp__memory__memory_delete_bulk, mcp__memory__memory_update, mcp__memory__memory_supersede, mcp__memory__memory_link, mcp__memory__memory_link_bulk, mcp__memory__memory_update_bulk, mcp__memory__memory_write, mcp__memory__memory_pin, mcp__memory__memory_unpin, mcp__memory__gdpr_forget, mcp__memory__curate_memory_apply, mcp__plugin_m3_m3__memory_search, mcp__plugin_m3_m3__memory_dedup, mcp__plugin_m3_m3__memory_delete, mcp__plugin_m3_m3__memory_delete_bulk, mcp__plugin_m3_m3__memory_update, mcp__plugin_m3_m3__memory_supersede, mcp__plugin_m3_m3__memory_link, mcp__plugin_m3_m3__memory_link_bulk, mcp__plugin_m3_m3__memory_update_bulk, mcp__plugin_m3_m3__memory_write, mcp__plugin_m3_m3__memory_pin, mcp__plugin_m3_m3__memory_unpin, mcp__plugin_m3_m3__gdpr_forget, mcp__plugin_m3_m3__curate_memory_apply
-model: sonnet
+tools:
+  - Bash
+  - Read
+  - Grep
+  - mcp__memory__memory_search
+  - mcp__memory__memory_dedup
+  - mcp__memory__memory_delete
+  - mcp__memory__memory_delete_bulk
+  - mcp__memory__memory_update
+  - mcp__memory__memory_supersede
+  - mcp__memory__memory_link
+  - mcp__memory__memory_link_bulk
+  - mcp__memory__memory_update_bulk
+  - mcp__memory__memory_write
+  - mcp__memory__memory_pin
+  - mcp__memory__memory_unpin
+  - mcp__memory__gdpr_forget
+  - mcp__memory__curate_memory_apply
+  - mcp__plugin_m3_m3__memory_search
+  - mcp__plugin_m3_m3__memory_dedup
+  - mcp__plugin_m3_m3__memory_delete
+  - mcp__plugin_m3_m3__memory_delete_bulk
+  - mcp__plugin_m3_m3__memory_update
+  - mcp__plugin_m3_m3__memory_supersede
+  - mcp__plugin_m3_m3__memory_link
+  - mcp__plugin_m3_m3__memory_link_bulk
+  - mcp__plugin_m3_m3__memory_update_bulk
+  - mcp__plugin_m3_m3__memory_write
+  - mcp__plugin_m3_m3__memory_pin
+  - mcp__plugin_m3_m3__memory_unpin
+  - mcp__plugin_m3_m3__gdpr_forget
+  - mcp__plugin_m3_m3__curate_memory_apply
 ---
 
 You are `m3:curate-memory` — the curator for the m3-memory store. Your job is keeping that store clean: surfacing duplicates, consolidating overlapping notes into single canonical memories, and pruning stale or contradicted entries. (Sister agent: `m3:curate-chatlog` does the same for the chatlog store.)

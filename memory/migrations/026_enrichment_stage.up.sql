@@ -13,7 +13,7 @@
 --     against the same indexes that already support attempts ordering.
 --
 -- This does NOT unify the two queue tables into one yet — Option B in
--- the multi-stage architecture review (memory 9f5033b8) is deferred
+-- the multi-stage architecture review is deferred
 -- until we have ≥3 real stages. This migration just removes the
 -- biggest barrier to that future merge.
 --

@@ -106,7 +106,7 @@ def test_unavailable_reason_is_empty_exactly_when_available(hermes):
 def test_sync_turn_writes_through_the_shared_writer(hermes):
     p = _provider(hermes)
     p.sync_turn("hi", "hello", session_id="conv-9")
-    p._sync_thread.join(timeout=10)
+    p.flush(10)
     assert p._client.calls == [
         (
             "write_turns",
@@ -125,7 +125,8 @@ def test_non_primary_contexts_are_recall_only(hermes, context):
     p = _provider(hermes, agent_context=context)
     assert "recall-only" in p.handle_tool_call("m3_conclude", {"conclusion": "x"})
     p.sync_turn("a", "b")
-    assert p._sync_thread is None
+    p.flush(10)
+    assert p._pending == [] and p._writer is None  # nothing was queued
     p.handle_tool_call("m3_search", {"query": "q"})
     assert [c[0] for c in p._client.calls] == ["memory_search_scored"]
 
@@ -153,7 +154,7 @@ def test_status_config_carries_the_unavailable_reason(hermes, monkeypatch, caplo
     get_status_config (shown by `hermes memory status`) and one warning."""
     p = hermes.M3MemoryProvider()
     assert "unavailable" not in p.get_status_config({"user_id": "a"}) or not p.is_available()
-    monkeypatch.setattr(hermes.M3MemoryProvider, "_unavailable_cause", staticmethod(lambda: "broken. fix: x"))
+    monkeypatch.setattr(hermes, "_unavailable_cause", lambda: "broken. fix: x")
     monkeypatch.setattr(hermes, "_warned_unavailable", set())
     assert p.get_status_config({"user_id": "a"}) == {"user_id": "a", "unavailable": "broken. fix: x"}
     with caplog.at_level("WARNING"):

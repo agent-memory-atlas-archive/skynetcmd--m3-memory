@@ -254,7 +254,7 @@ def _download_tarball(tag: str, dest: Path) -> None:
         shutil.move(str(top_level[0]), str(dest))
 
 
-# ───────── post-install helpers (tasks #8–#11 in plan memory 776d3729) ─────────
+# ───────── post-install helpers (install tasks #8–#11) ─────────
 
 
 def _m3_state_root() -> Path:
@@ -569,27 +569,17 @@ def _register_gemini_mcp() -> str | None:
 
 
 def _register_antigravity_mcp() -> str | None:
-    """Register/repoint the ``memory`` MCP entry in Antigravity's settings.json.
+    """Register/repoint the ``memory`` MCP entry in Antigravity's shared MCP config,
+    ``~/.gemini/config/mcp_config.json``, which the CLI and the IDE read (the CLI's
+    own settings.json is not read for MCP servers). Same self-healing behavior as
+    ``_register_gemini_mcp``. Returns None when Antigravity is not installed."""
+    from m3_memory import antigravity
 
-    Same self-healing behavior as ``_register_gemini_mcp``. Returns None when
-    Antigravity CLI / its app-data dir isn't present.
-    """
-    agy_bin = shutil.which("agy")
-    settings_dir = Path.home() / ".gemini" / "antigravity-cli"
-    if not agy_bin:
-        candidate = Path.home() / ".local" / "bin" / "agy"
-        appdata = os.environ.get("LOCALAPPDATA")
-        win_candidate = Path(appdata) / "agy" / "bin" / "agy.exe" if appdata else None
-        if (
-            not os.path.exists(candidate)
-            and not (win_candidate and os.path.exists(win_candidate))
-            and not os.path.isdir(settings_dir)
-        ):
-            return None
-
-    settings_dir.mkdir(parents=True, exist_ok=True)
-    settings_file = settings_dir / "settings.json"
-    return _heal_agent_settings(settings_file, create_if_absent=True)
+    if not antigravity.installed():
+        return None
+    cfg = antigravity.mcp_config_path()
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    return _heal_agent_settings(cfg, create_if_absent=True)
 
 
 def _cursor_config_path() -> Path:
@@ -736,9 +726,10 @@ def _register_codex_mcp(*, repair_only: bool = False) -> str | None:
 def _register_codex_hooks(*, repair_only: bool = False) -> str | None:
     """Wire m3's hooks into Codex's hooks.json, next to its config.toml.
 
-    SessionStart (capture status and version) and Stop (chat capture: Codex fires
-    it after every turn with the rollout path). Not SessionEnd: Codex caps that
-    hook at 3 s, too short for an ingest, and Stop has already captured the turns.
+    SessionStart (capture status and version), Stop (chat capture: Codex fires
+    it after every turn with the rollout path) and SessionEnd (starts the last
+    capture and the session's summary in the background: Codex caps that hook at
+    3 s, too short for an ingest).
     Each entry runs a launcher in m3's hooks folder (m3_memory.hook_launchers);
     the user's other entries are kept, and an existing file is backed up first.
     ``repair_only`` rewrites only a file that already holds m3 entries."""
@@ -782,6 +773,11 @@ def _register_codex_hooks(*, repair_only: bool = False) -> str | None:
         "Stop": {
             "hooks": [{"type": "command", "command": hook_launchers.command_for("codex-capture", py), "timeout": 90}]
         },
+        # Codex caps SessionEnd at 3 s: the hook only starts the last capture and
+        # the session's summary in the background (bin/hooks/session_end.py).
+        "SessionEnd": {
+            "hooks": [{"type": "command", "command": hook_launchers.command_for("codex-session-end", py), "timeout": 3}]
+        },
     }
     changed = False
     for event, entry in wanted.items():
@@ -804,6 +800,71 @@ def _register_codex_hooks(*, repair_only: bool = False) -> str | None:
     except OSError as e:
         return f"[X] could not write {path} ({e}); it is unchanged or restorable from its .bak"
     return f"[+] wired m3 hooks (session start, chat capture) in {path}; approve them once in Codex: /hooks"
+
+
+ANTIGRAVITY_HOOK_BLOCK = "m3"  # m3's named block in ~/.gemini/config/hooks.json
+
+
+def _register_antigravity_hooks(*, repair_only: bool = False) -> str | None:
+    """Wire m3's hooks into Antigravity's ``~/.gemini/config/hooks.json``, which
+    the app, the IDE and the CLI all read.
+
+    The file maps a block name to its events; m3 owns the block named "m3":
+    SessionStart (capture status, version, session recall) and Stop (chat
+    capture; Antigravity fires it when the agent finishes, with the transcript
+    path). Each runs a launcher in m3's hooks folder (m3_memory.hook_launchers).
+    Other blocks are kept and an existing file is backed up first.
+    ``repair_only`` rewrites only a file that already holds the m3 block."""
+    from m3_memory import antigravity, hook_launchers
+
+    if not antigravity.installed():
+        return None
+    if antigravity.m3_plugin_installed():
+        return None  # the plugin carries the same hooks; both would capture every turn twice
+    path = antigravity.hooks_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if os.path.isfile(path) else {}
+    except (OSError, ValueError) as e:
+        return f"[!] {path} could not be read ({type(e).__name__}: {e}); Antigravity hooks were not wired. inspect: that file"
+    if not isinstance(data, dict):
+        return f"[!] {path} is not a JSON object; Antigravity hooks were not wired. inspect: that file"
+    if repair_only and ANTIGRAVITY_HOOK_BLOCK not in data:
+        return None
+    hook_launchers.install_launchers()
+    py = _python_exe(windowless=True)  # pythonw.exe on Windows: no console flash per hook
+    wanted = {
+        "SessionStart": [
+            {"type": "command", "command": hook_launchers.command_for("antigravity-session-start", py), "timeout": 30}
+        ],
+        "Stop": [{"type": "command", "command": hook_launchers.command_for("antigravity-capture", py), "timeout": 90}],
+    }
+    from m3_memory._platform import is_windows
+
+    if is_windows() and any('"' in h["command"] for handlers in wanted.values() for h in handlers):
+        # Measured with agy 1.3.1: on Windows it hands the line to cmd.exe with each
+        # quote escaped, so a quoted path fails ("... is not recognized") and the
+        # hook never runs, while Antigravity reports nothing to the person.
+        return (
+            f"[!] Antigravity hooks were not wired: m3's path has a space ({py}), and Antigravity on "
+            "Windows cannot run a quoted hook command. Chat capture and the session-start line are off "
+            "for Antigravity. inspect: install m3 under a path without spaces"
+        )
+    if data.get(ANTIGRAVITY_HOOK_BLOCK) == wanted:
+        return None
+    data[ANTIGRAVITY_HOOK_BLOCK] = wanted
+    text = json.dumps(data, indent=2) + "\n"
+    try:
+        if os.path.isfile(path):
+            _guarded_write(path, text, by="m3 setup/doctor (Antigravity hooks)")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _bin.ensure_on_path()
+            from m3_core.atomic_io import atomic_write
+
+            atomic_write(path, text)
+    except OSError as e:
+        return f"[X] could not write {path} ({e}); it is unchanged or restorable from its .bak"
+    return f"[+] wired m3 hooks (session start, chat capture) in {path}; restart Antigravity to load them"
 
 
 def _fix_npm_global_path() -> str | None:
@@ -1669,6 +1730,7 @@ def _post_install(
             _run_main_migrations(bridge, _primary_backend),
             _register_gemini_mcp(),
             _register_antigravity_mcp(),
+            _register_antigravity_hooks(),
             _register_cursor_mcp(),
             _register_cline_mcp(),
             _register_codex_mcp(),
@@ -2252,11 +2314,13 @@ def _known_agent_settings() -> list[tuple[str, Path]]:
     Only files that exist are worth scanning; callers filter. Kept in one place
     so doctor's scan and ``--fix`` heal cover the same set of hosts.
     """
+    from m3_memory import antigravity
+
     home = Path.home()
     return [
         ("Claude Code", home / ".claude" / "settings.json"),
         ("Gemini CLI", home / ".gemini" / "settings.json"),
-        ("Antigravity", home / ".gemini" / "antigravity-cli" / "settings.json"),
+        ("Antigravity", antigravity.mcp_config_path()),
         # Not OpenCode: its opencode.json registers servers under `mcp`, not
         # `mcpServers`, so a repair over this list would write an entry OpenCode
         # never reads. setup_wizard._wire_opencode owns that file.
@@ -2324,6 +2388,8 @@ def _client_config_sources() -> dict[str, list[Path]]:
     Claude Code reads BOTH its global ~/.claude/settings.json AND a project-local
     .mcp.json (cwd / repo root) — that pair is the axis that double-launched the
     memory bridge (2026-07-02). Other clients read a single settings.json each."""
+    from m3_memory import antigravity
+
     home = Path.home()
     claude_sources = [home / ".claude" / "settings.json"]
     for d in (Path.cwd(), default_repo_path().parent):
@@ -2333,7 +2399,7 @@ def _client_config_sources() -> dict[str, list[Path]]:
     return {
         "Claude Code": claude_sources,
         "Gemini CLI": [home / ".gemini" / "settings.json"],
-        "Antigravity": [home / ".gemini" / "antigravity-cli" / "settings.json"],
+        "Antigravity": [antigravity.mcp_config_path()],
         # OpenCode config is opencode.json under XDG ~/.config (or %APPDATA% on
         # Windows), not ~/.opencode/settings.json — the old path matched nothing.
         "OpenCode": _opencode_source_paths(),
@@ -2711,11 +2777,11 @@ def _heal_all_agents(*, force: bool = False) -> int:
         print(f"  {msg}")
         if msg.lstrip().startswith("[+]"):
             changed += 1
-    msg = _register_codex_hooks(repair_only=True)
-    if msg:
-        print(f"  {msg}")
-        if msg.lstrip().startswith("[+]"):
-            changed += 1
+    for msg in (_register_codex_hooks(repair_only=True), _register_antigravity_hooks(repair_only=True)):
+        if msg:
+            print(f"  {msg}")
+            if msg.lstrip().startswith("[+]"):
+                changed += 1
     # Auto-remove same-client duplicate registrations (the double-launch cause).
     for line in _dedupe_mcp_registration(apply=True):
         print(f"  {line}")

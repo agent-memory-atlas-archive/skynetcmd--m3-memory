@@ -171,7 +171,9 @@ def test_codex_hooks_are_launcher_lines_and_keep_the_users_entries(codex):
     stop = data["hooks"]["Stop"]
     assert hook_launchers.is_launcher_command(start) and start.endswith("codex-session-start.py")
     assert stop[0] == mine and stop[-1]["hooks"][0]["command"].endswith("codex-capture.py")
-    assert "SessionEnd" not in data["hooks"], "Codex caps SessionEnd at 3 s: too short for an ingest"
+    (end,) = data["hooks"]["SessionEnd"][0]["hooks"]
+    # Codex caps SessionEnd at 3 s: the hook only starts the last capture and summary in the background.
+    assert end["command"].endswith("codex-session-end.py") and end["timeout"] <= 3
     assert inst._register_codex_hooks() is None, "a current file is left alone"
 
 

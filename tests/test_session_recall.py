@@ -618,3 +618,21 @@ async def test_the_loop_registers_and_runs_the_pass(monkeypatch):
 
     src = Path(loop.__file__).read_text(encoding="utf-8")
     assert '"name": "summarize_sessions"' in src and "--skip-summarize-sessions" in src
+
+
+def test_latest_compaction_is_found_anywhere_in_the_session(each_backend, tag):
+    """A long session's newest compaction summary feeds its summary even when it
+    lies outside the last turns: a turn flagged compact_summary, or one that opens
+    the way Claude Code's summary does (turns captured before the flag)."""
+    sr = _sr()
+    cid = f"{tag}-long"
+    _turn(each_backend, cid, NOW - timedelta(hours=5), content=f"{sr.COMPACTION_OPENING}. Older summary.")
+    _turn(each_backend, cid, NOW - timedelta(hours=3), content="the newer summary", compact_summary=True)
+    for i in range(sr.TAIL_TURNS + 5):  # more turns than the tail holds
+        _turn(each_backend, cid, NOW - timedelta(minutes=100 - i), content=f"turn {i}")
+    got = sr._latest_compaction(cid)
+    assert got is not None and got.content == "the newer summary", f"observed {got} on {each_backend.name}"
+    assert sr._latest_compaction(f"{tag}-none") is None
+    only_opening = f"{tag}-old"
+    _turn(each_backend, only_opening, NOW - timedelta(hours=1), content=f"{sr.COMPACTION_OPENING}: the arc.")
+    assert sr._latest_compaction(only_opening).content.endswith("the arc.")

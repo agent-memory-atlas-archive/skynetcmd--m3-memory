@@ -1,10 +1,10 @@
-"""The Antigravity plugin hooks (.antigravity-plugin/hooks.json) and the
-`chatlog hook-path` they call (as did the Claude plugin's hooks/hooks.json before
-2026.10.18.0; it now runs `m3 hook`, tested in test_agent_plugins.py).
+"""Plugin capture hooks and `chatlog hook-path`, the old capture command an
+older m3 still answers.
 
-They run `/bin/sh "<hook-path output>"` on every OS. Two defects lived here:
-`|| true` plus a `/dev/null` fallback swallowed every failure (exit 0, nothing
-said), and on Windows hook-path printed the .ps1, which /bin/sh cannot run.
+The Claude plugin's line runs `m3 hook` and falls back to `/bin/sh "<hook-path
+output>"` on an m3 without it. The Antigravity plugin runs `m3 hook` in
+Antigravity's own hooks.json shape. hook-path must never swallow a failure
+(`|| true`, a `/dev/null` fallback) and must print the .sh launcher on every OS.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ import pytest
 from conftest import simulate_os, skip_reason
 
 ROOT = Path(__file__).resolve().parents[1]
-HOOK_FILES = [ROOT / ".antigravity-plugin" / "hooks.json"]
 
 
 def _capture_commands(path: Path) -> list[str]:
@@ -35,21 +34,20 @@ def _capture_commands(path: Path) -> list[str]:
     return cmds
 
 
-@pytest.mark.parametrize("path", HOOK_FILES, ids=lambda p: p.parent.name)
-def test_capture_hooks_do_not_swallow_failure(path):
-    for cmd in _capture_commands(path):
-        assert "|| true" not in cmd, f"{path}: `|| true` hides every capture failure"
-        assert "/dev/null)" not in cmd and "echo /dev/null" not in cmd, f"{path}: /dev/null fallback runs nothing"
-        assert "hook-path" in cmd and 'exec /bin/sh "$hook"' in cmd
+def test_antigravity_plugin_runs_m3_hooks_in_antigravitys_shape():
+    """Antigravity reads named blocks whose SessionStart and Stop take handlers
+    directly (https://antigravity.google/docs/hooks/); each runs a hook that
+    `m3 hook` knows."""
+    from m3_memory.hook_launchers import HOOKS
 
-
-def _fake_bin(tmp_path: Path, hook_path_body: str) -> Path:
-    b = tmp_path / "fakebin"
-    b.mkdir()
-    exe = b / "mcp-memory"
-    exe.write_bytes(f"#!/bin/sh\n{hook_path_body}\n".encode())
-    exe.chmod(0o755)
-    return b
+    data = json.loads((ROOT / "plugins" / "antigravity" / "hooks.json").read_text(encoding="utf-8"))
+    assert set(data) == {"m3"}
+    block = data["m3"]
+    assert set(block) == {"SessionStart", "Stop"}
+    for event, name in (("SessionStart", "antigravity-session-start"), ("Stop", "antigravity-capture")):
+        (handler,) = block[event]
+        assert "hooks" not in handler and "matcher" not in handler
+        assert handler["command"] == f"m3 hook {name}" and name in HOOKS
 
 
 def _run(cmd: str, path_dirs: list[Path], tmp_path: Path) -> subprocess.CompletedProcess:
@@ -117,32 +115,6 @@ def test_claude_plugin_capture_falls_back_on_an_older_m3(tmp_path):
     empty.mkdir()
     r = _run(cmd, [empty], tmp_path)
     assert r.returncode == 1 and "NOT captured" in r.stderr
-
-
-@needs_sh
-@pytest.mark.parametrize("path", HOOK_FILES, ids=lambda p: p.parent.name)
-def test_hook_command_exit_codes(path, tmp_path):
-    cmd = _capture_commands(path)[0]
-
-    # 1. CLI absent -> non-zero and says capture did not happen.
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    r = _run(cmd, [empty], tmp_path)
-    assert r.returncode == 1 and "NOT captured" in r.stderr, (r.returncode, r.stderr)
-
-    # 2. hook-path fails -> non-zero, not a silent `/bin/sh /dev/null`.
-    fail = tmp_path / "f"
-    fail.mkdir()
-    r = _run(cmd, [_fake_bin(fail, "echo 'no payload' >&2; exit 1")], tmp_path)
-    assert r.returncode == 1 and "hook-path" in r.stderr and "no payload" in r.stderr, r.stderr
-
-    # 3. The hook's own exit code reaches the host.
-    ok = tmp_path / "o"
-    ok.mkdir()
-    script = ok / "hook.sh"
-    script.write_bytes(b"cat >/dev/null\necho hook-ran >&2\nexit 7\n")
-    r = _run(cmd, [_fake_bin(ok, f"echo '{script.as_posix()}'")], tmp_path)
-    assert r.returncode == 7 and "hook-ran" in r.stderr, (r.returncode, r.stderr)
 
 
 def _hook_path(monkeypatch, tmp_path, capsys, os_name):

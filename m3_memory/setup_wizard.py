@@ -178,12 +178,10 @@ def _detect_agents() -> AgentTargets:
     claude = bool(shutil.which("claude"))
     # Gemini may be installed via npm-global and not on PATH yet.
     gemini = bool(shutil.which("gemini") or os.path.exists(Path.home() / ".npm-global" / "bin" / "gemini"))
-    # Antigravity CLI (agy)
-    antigravity = bool(
-        shutil.which("agy")
-        or os.path.exists(Path.home() / ".local" / "bin" / "agy")
-        or os.path.isdir(Path.home() / ".gemini" / "antigravity-cli")
-    )
+    # Antigravity: the app, the IDE or the CLI (agy)
+    from m3_memory import antigravity as _agy
+
+    antigravity = _agy.installed()
     opencode = bool(shutil.which("opencode"))
     # OpenClaw speaks MCP natively since 2026.3.22, so detection drives DIRECT
     # wiring (`openclaw mcp set`) — see _wire_openclaw. Signals: openclaw CLI on
@@ -3311,11 +3309,12 @@ def _prune_opencode_mcpservers(cfg_path: Path, data: dict) -> None:
 
 
 def _wire_antigravity() -> bool:
-    """Write the m3 MCP entry into ~/.gemini/antigravity-cli/settings.json."""
-    from m3_memory.installer import _register_antigravity_mcp
+    """Write the m3 MCP entry into Antigravity's shared mcp_config.json and m3's
+    hooks into its hooks.json (m3_memory.antigravity owns both locations)."""
+    from m3_memory.installer import _register_antigravity_hooks, _register_antigravity_mcp
 
-    msg = _register_antigravity_mcp()
-    return _report_registration(msg)
+    ok = _report_registration(_register_antigravity_mcp())
+    return _report_registration(_register_antigravity_hooks()) and ok
 
 
 def _wire_cursor() -> bool:
@@ -3922,6 +3921,7 @@ def _repair_kept_wiring() -> None:
         from m3_memory.installer import (
             _heal_agent_settings,
             _heal_config_bridge_path,
+            _register_antigravity_hooks,
             _register_codex_hooks,
             _register_codex_mcp,
             _scan_agent_configs,
@@ -3935,8 +3935,12 @@ def _repair_kept_wiring() -> None:
                 msg = _heal_agent_settings(path)
                 if msg:
                     print(f"  {msg}")
-        for msg in (_register_codex_mcp(repair_only=True), _register_codex_hooks(repair_only=True)):
-            if msg:  # Codex is TOML + its own hooks.json: not in the scan above
+        for msg in (
+            _register_codex_mcp(repair_only=True),
+            _register_codex_hooks(repair_only=True),
+            _register_antigravity_hooks(repair_only=True),
+        ):
+            if msg:  # TOML and hooks files: not in the JSON MCP scan above
                 print(f"  {msg}")
         if not claude_uses_m3():
             return
@@ -3962,7 +3966,7 @@ def _step_import_env() -> None:
     and has precedence, so those variables are listed (not read) with the advice
     to delete them (user decision 2026-10-17). Secrets the chain lacks are stored
     either way: m3 never reads them from the environment, so a warehouse DSN left
-    there would stop sync after an upgrade. Non-interactive (m3 7200dbed): a
+    there would stop sync after an upgrade. Non-interactive: a
     disagreement is listed with its fix, never decided here. Never raises."""
     try:
         from m3_memory.install import import_env

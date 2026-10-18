@@ -221,6 +221,7 @@ def test_detect_agents_none_found(monkeypatch, tmp_path):
 
     monkeypatch.setattr(shutil, "which", lambda name: None)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr("m3_memory._platform.local_app_data", lambda: None)  # agy's Windows install folder
     monkeypatch.setattr(setup_wizard, "_find_hermes_plugins_dir", lambda: None)
 
     targets = setup_wizard._detect_agents()

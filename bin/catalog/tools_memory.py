@@ -762,7 +762,7 @@ TOOLS: list[ToolSpec] = [
                 "host_agent": {
                     "type": "string",
                     "description": "Your client as capture names it: claude-code, codex, gemini-cli, "
-                    "antigravity-cli, opencode, openclaw, aider, hermes.",
+                    "antigravity, opencode, openclaw, aider, hermes.",
                 },
                 "user_id": {
                     "type": "string",

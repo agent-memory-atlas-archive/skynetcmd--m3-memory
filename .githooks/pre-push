@@ -14,9 +14,10 @@
 #
 # Local exclusions: a file of extra pathspecs (one per line) exempts them from
 # the leakage scan — for machine/user-specific paths (a developer's own username
-# dirs) that must NOT be hardcoded in this tracked hook. Source: $M3_PREPUSH_EXCLUDES
-# if set, else ~/.m3-private/m3_PrePush_Excludes.txt. The mechanism is public;
-# your exclusion list stays local. See gate 3.
+# dirs) that must NOT be hardcoded in this tracked hook. Source: $M3_PREPUSH_EXCLUDES,
+# else `git config m3.prepushExcludes` (local repo config, never pushed), else
+# ~/.m3/prepush/excludes.txt. The mechanism is public; your list stays local.
+# See gate 3.
 #
 # Performance: the expensive half is the drift gate, which spawns Python to
 # regenerate artifacts + run pytest. That work is only meaningful when the
@@ -294,14 +295,15 @@ EXCLUDES=(
 # appended as ':(exclude)<path>'. This keeps MACHINE/USER-specific exclusions —
 # a developer's own username paths, a local scratch dir — OUT of the tracked
 # repo: the mechanism is generic and public, the list is private and local.
-# Source, in order: $M3_PREPUSH_EXCLUDES if set, else the conventional default
-# ~/.m3-private/m3_PrePush_Excludes.txt (a private tree, never the public repo).
+# Source, in order: $M3_PREPUSH_EXCLUDES, else `git config m3.prepushExcludes`
+# (this clone's own config, which is never pushed), else ~/.m3/prepush/excludes.txt.
 # Blank lines and '#' comments are ignored. The file is OPTIONAL and read
 # defensively: it is used only if it exists AND is a regular readable file, and
 # a read error never aborts the push — the tracked excludes above always apply,
 # so a missing / empty / unreadable / not-a-file local list degrades to "tracked
 # excludes only", never to a hook failure.
-LOCAL_EXCLUDES="${M3_PREPUSH_EXCLUDES:-${HOME}/.m3-private/m3_PrePush_Excludes.txt}"
+LOCAL_EXCLUDES="${M3_PREPUSH_EXCLUDES:-$(git config --get m3.prepushExcludes 2>/dev/null || true)}"
+LOCAL_EXCLUDES="${LOCAL_EXCLUDES:-${HOME}/.m3/prepush/excludes.txt}"
 if [ -n "$LOCAL_EXCLUDES" ] && [ -f "$LOCAL_EXCLUDES" ] && [ -r "$LOCAL_EXCLUDES" ]; then
   _n_local=0
   # `|| true` on the redirect: a mid-read I/O error must not exit the hook.
@@ -341,12 +343,15 @@ SCANNER_SELFTEST=':(exclude)tests/test_prepush_placeholder_whitelist.py'
 # hook enumerating our bench tokens, internal subnets and codenames tells a
 # reader exactly what we treat as sensitive and what to grep history for. The
 # MECHANISM stays here in the tracked hook; the LIST lives outside it.
-# Companion: m3_PrePush_Excludes.txt says WHERE not to look.
+# Companion: the local excludes list (above) says WHERE not to look.
 #
 # FAIL-CLOSED: a missing or unreadable file falls back to the built-in set below
 # and says so out loud. An absent policy file must never read as "nothing is
 # prohibited" — that is the silent-success shape this whole hook exists to stop.
-PROHIBITED_FILE="${M3_PREPUSH_PROHIBITED:-${HOME}/.m3-private/m3_PrePush_Prohibited.txt}"
+# Source, in order: $M3_PREPUSH_PROHIBITED, else `git config m3.prepushProhibited`
+# (this clone's own config, never pushed), else ~/.m3/prepush/prohibited.txt.
+PROHIBITED_FILE="${M3_PREPUSH_PROHIBITED:-$(git config --get m3.prepushProhibited 2>/dev/null || true)}"
+PROHIBITED_FILE="${PROHIBITED_FILE:-${HOME}/.m3/prepush/prohibited.txt}"
 # Conservative fallback: credentials and personal identifiers only. Bench tokens
 # are deliberately absent — they are the private half, and a fallback that
 # silently enforced them would defeat the point of moving the list out.

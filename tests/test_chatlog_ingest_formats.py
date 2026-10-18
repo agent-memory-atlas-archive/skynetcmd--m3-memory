@@ -291,19 +291,63 @@ async def test_ingest_gemini_from_file_writes_real_rows(ingest_env):
     assert result["session_id"] == "fix-gemini-0001"
 
 
+def test_parse_antigravity_keeps_the_conversation_and_skips_tool_steps():
+    """Antigravity's transcript (one step per line): the person's USER_INPUT
+    (inside <USER_REQUEST>, without the metadata block) and the agent's
+    PLANNER_RESPONSE text are turns; tool steps, tool-call-only responses,
+    system messages, blank text and a malformed line are not."""
+    import chatlog_ingest
+
+    with open(os.path.join(FIXTURES, "antigravity_transcript_sample.jsonl"), encoding="utf-8") as f:
+        raw = f.read()
+    items, session = chatlog_ingest._parse_antigravity(raw)
+    assert session is None  # the file does not name its conversation; the caller passes it
+    assert [(i["role"], i["content"]) for i in items] == [
+        ("user", "Add a retry to the fetch helper."),
+        ("assistant", "I added three retries with backoff to fetch()."),
+        ("user", "Now run the tests."),
+        ("assistant", "All 12 tests pass."),
+    ]
+    assert all(i["provider"] == "google" for i in items)
+    again, _ = chatlog_ingest._parse_antigravity(raw)
+    assert [i["uuid"] for i in again] == [i["uuid"] for i in items]  # Stop re-reads: same ids
+    assert len({i["uuid"] for i in items}) == 4
+
+
 @pytest.mark.asyncio
 async def test_ingest_antigravity_from_file_writes_real_rows(ingest_env):
     import chatlog_core
     import chatlog_ingest
 
-    fixture = os.path.join(FIXTURES, "gemini_session_sample.json")
+    fixture = os.path.join(FIXTURES, "antigravity_transcript_sample.jsonl")
 
-    result = await chatlog_ingest._ingest("antigravity-cli", fixture, session_override="", variant="test")
+    result = await chatlog_ingest._ingest("antigravity", fixture, session_override="agy-conv-0001", variant="test")
     await chatlog_core._flush_once()
-
     assert result["failed"] == 0
-    assert result["written"] == 3
-    assert result["session_id"] == "fix-gemini-0001"
+    assert result["written"] == 4
+    assert result["session_id"] == "agy-conv-0001"
+
+    again = await chatlog_ingest._ingest("antigravity", fixture, session_override="agy-conv-0001", variant="test")
+    assert again["written"] == 0 and again["skipped"] == 4
+
+
+@pytest.mark.asyncio
+async def test_antigravity_hook_model_names_the_assistant_turns(ingest_env, monkeypatch):
+    """Antigravity's hook input carries modelName and its transcript does not;
+    the model fills the assistant turns only."""
+    import chatlog_ingest
+
+    seen = {}
+
+    async def capture(items, session_id, *a, **k):
+        seen["items"] = items
+        return {"written": len(items), "skipped": 0, "failed": 0, "session_id": session_id}
+
+    monkeypatch.setattr(chatlog_ingest, "_ingest_locked", capture)
+    fixture = os.path.join(FIXTURES, "antigravity_transcript_sample.jsonl")
+    await chatlog_ingest._ingest("antigravity", fixture, "agy-conv-0002", "test", model_id="gemini-3.6-flash-medium")
+    models = {(i["role"], i["model_id"]) for i in seen["items"]}
+    assert models == {("user", "unknown"), ("assistant", "gemini-3.6-flash-medium")}
 
 
 @pytest.mark.asyncio

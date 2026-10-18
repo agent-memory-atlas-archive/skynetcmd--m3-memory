@@ -12,7 +12,7 @@ The count gate stays GREEN when a change doesn't move the tool count — but a
 tool's description or argument schema can change (or a new tool can replace an
 old one) without changing the count, leaving the committed manifest silently
 stale. That is the exact failure mode behind the 2026-05-30 inventory drift
-(memory 2b7eb301): tools were added/edited and the generators were never
+Measured: tools were added/edited and the generators were never
 re-run. This test makes "forgot to regenerate" a red build, not a silent rot.
 
 Determinism

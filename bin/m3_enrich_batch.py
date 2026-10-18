@@ -439,7 +439,7 @@ async def _ingest_one_group(
     idx_to_id = {t[3]: t[0] for t in turns} if precise else {}
     # Lift source session_id from the first turn's metadata so observations
     # can be traced back to the LongMemEval session. Required for SHR scoring
-    # (memory 914843f8, 2026-05-05); mirrors run_observer.process_conversation.
+    # (2026-05-05); mirrors run_observer.process_conversation.
     source_session_id, _ = observer.session_identity(turns)
     sem = asyncio.Semaphore(8)
 

@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_manifest_versions.py
-sha1: a0ef0a25ae3a
-mtime_utc: 2026-10-18T17:43:10.888736+00:00
-generated_utc: 2026-10-18T17:56:37.445645+00:00
+sha1: b6a3fa0ae0a7
+mtime_utc: 2026-10-18T20:04:38.469145+00:00
+generated_utc: 2026-10-18T20:28:31.298393+00:00
 private: false
 ---
 

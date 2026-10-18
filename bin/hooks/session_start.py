@@ -3,17 +3,17 @@
 
 One line in each agent's own config runs it, so the config holds no logic:
 
-    <m3 python> <payload>/bin/hooks/session_start.py --agent claude|codex|gemini
+    <m3 python> <payload>/bin/hooks/session_start.py --agent claude|codex|gemini|antigravity
 
 Claude Code, Codex and Gemini CLI read the same output, one JSON object whose
-``systemMessage`` is shown to the person:
+``systemMessage`` is shown to the person (Antigravity reads ``injectSteps``
+instead; ``render`` writes each agent's shape):
 
 - chat capture (bin/hooks/chatlog/session_start_capture_check.py);
 - the running version against the newest (m3_core.version_check reads a record
   refreshed at most daily; this hook never waits on the network).
 
-This is also where the approved session-recall menu (m3 ``5a448be5``, plan
-2026.10.12-SESSION_RECALL_DESIGN.md part C) is delivered, as
+This is also where the approved session-recall menu (session_recall.recall_menu_text) is delivered, as
 ``hookSpecificOutput.additionalContext`` on a fresh start only.
 
 Never raises and always prints valid JSON (Gemini rejects any other stdout): a
@@ -32,7 +32,7 @@ for _p in (str(_BIN), str(_BIN / "hooks" / "chatlog")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-AGENTS = ("claude", "codex", "gemini")
+AGENTS = ("claude", "codex", "gemini", "antigravity")
 
 
 def _capture_line() -> str:
@@ -67,17 +67,52 @@ def _recall_menu(agent: str, cwd: str) -> str:
         return f"m3 recall unavailable: {type(e).__name__}: {e}; inspect: `m3 doctor`"
 
 
+def _unsummarized_line() -> str:
+    try:
+        from session_recall import unsummarized_line
+
+        return unsummarized_line()
+    except Exception as e:  # noqa: BLE001 -- one part failing must not hide the others
+        return f"m3 recall could not check for unsummarized sessions ({type(e).__name__}: {e}). inspect: m3 doctor"
+
+
+def _cwd(envelope: dict) -> str:
+    # Antigravity names its workspaces (``workspacePaths``) instead of a cwd.
+    paths = envelope.get("workspacePaths")
+    if isinstance(paths, list) and paths:
+        return str(paths[0])
+    return str(envelope.get("cwd") or "")
+
+
 def build(agent: str, envelope: dict) -> dict:
     """The hook's output for ``agent`` given the host's stdin ``envelope``."""
     status = [_capture_line(), _version_line()]
-    out: dict = {}
-    if str(envelope.get("source") or "") in RECALL_SOURCES:
-        menu = _recall_menu(agent, str(envelope.get("cwd") or ""))
+    menu = ""
+    # Antigravity's SessionStart carries no source; it fires once per new conversation.
+    if agent == "antigravity" or str(envelope.get("source") or "") in RECALL_SOURCES:
+        menu = _recall_menu(agent, _cwd(envelope))
         if menu.startswith("m3 recall unavailable"):
             status.append(menu)  # the person sees why there is no menu
-        elif menu:
-            out["hookSpecificOutput"] = {"hookEventName": "SessionStart", "additionalContext": menu}
-    out["systemMessage"] = "\n".join(status)
+            menu = ""
+        elif not menu:
+            late = _unsummarized_line()
+            if late:
+                status.append(late)  # sessions exist but have no summary yet
+    return render(agent, "\n".join(status), menu)
+
+
+def render(agent: str, status: str, menu: str) -> dict:
+    """``status`` (for the person) and the recall ``menu`` (for the agent; may be
+    empty) in the shape ``agent`` reads."""
+    if agent == "antigravity":
+        # https://antigravity.google/docs/hooks/ : SessionStart output is injectSteps.
+        steps = [{"systemMessage": {"systemMessage": status}}]
+        if menu:
+            steps.append({"systemMessage": {"systemMessage": menu}})
+        return {"injectSteps": steps}
+    out: dict = {"systemMessage": status}
+    if menu:
+        out["hookSpecificOutput"] = {"hookEventName": "SessionStart", "additionalContext": menu}
     return out
 
 

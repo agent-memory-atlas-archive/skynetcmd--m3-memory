@@ -242,8 +242,6 @@ doc before starting.
 - `docs/MEMORY_CORE_MODULARIZATION_LESSONS.md` — transferable rules
 - `docs/MCP_TOOL_PERF_LESSONS.md` — diagnose-the-tool-shape (orthogonal,
   but the same author-discipline applies)
-- Memory `9f47dceb` — modularization session lessons (searchable form)
-- Memory `e098dd28` — full 2026-05-17 session summary
 - Commit `b8c447d` — Phase 0–5 closing commit (the line numbers in this
   plan are relative to this commit; will need re-verification at Phase
   6 kickoff)

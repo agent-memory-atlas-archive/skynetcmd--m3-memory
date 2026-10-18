@@ -5,7 +5,7 @@ how some peer plugin happens to be structured), run each host's authoritative
 validator against m3's plugin dir:
 
   * Claude Code:  `claude plugin validate .`      (validates .claude-plugin/)
-  * Antigravity:  `agy plugin validate .antigravity-plugin`
+  * Antigravity:  `agy plugin validate plugins/antigravity`
   * Gemini CLI:   `gemini extensions validate .`  (gemini-extension.json)
 
 Both are skipped when the binary isn't on PATH (CI images may lack them), so this
@@ -85,12 +85,21 @@ def test_claude_plugin_validates():
     shutil.which("agy") is None, reason=skip_reason("env", "agy binary not on PATH — Antigravity validator unavailable")
 )
 def test_antigravity_plugin_validates():
-    """`agy plugin validate .antigravity-plugin` must report [ok] with no error."""
-    plugin_dir = _ROOT / ".antigravity-plugin"
-    assert plugin_dir.is_dir(), f"missing {plugin_dir}"
-    out = _run(["agy", "plugin", "validate", str(plugin_dir)], _ROOT)
-    assert "[error]" not in out and "Error:" not in out, f"agy plugin validate reported an error:\n{out}"
-    assert "[ok]" in out, f"agy plugin validate did not confirm [ok]:\n{out}"
+    """The Antigravity plugin (plugins/antigravity, installed with
+    `agy plugin install <that folder>`) must validate AND load m3's parts. agy
+    reads them from the plugin root only and reports others "never loaded", so a
+    passing verdict alone proves nothing: the component counts are the check."""
+    import json
+
+    out = _run(["agy", "plugin", "validate", str(_ROOT / "plugins" / "antigravity"), "--json"], _ROOT)
+    report = json.loads(out[out.index("{") : out.rindex("}") + 1])
+    errors = [f for f in report["findings"] if f["severity"] == "error"]
+    unloaded = [f["file"] for f in report["findings"] if "never loaded" in f["message"]]
+    assert not errors, f"agy plugin validate reported errors: {errors}"
+    c = report["components"]
+    assert c["hooks"] >= 1 and c["mcpServers"] >= 1 and c["agents"] >= 2 and c["skills"] >= 16, (
+        f"the installed plugin would load only {c}; parts agy does not read: {unloaded}"
+    )
 
 
 @pytest.mark.skipif(

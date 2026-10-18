@@ -89,6 +89,14 @@ def vscode_user_dir() -> str:
     return os.path.join(home, ".config", "Code", "User")
 
 
+def local_app_data() -> str | None:
+    """Windows' per-user local application folder (``%LOCALAPPDATA%``, where
+    per-user installers such as agy's put programs); None on other OSes."""
+    if not is_windows():
+        return None
+    return os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
+
+
 @dataclass(frozen=True, slots=True)
 class VolumeEncryption:
     """Whether the disk holding a path is encrypted: True / False, or None when

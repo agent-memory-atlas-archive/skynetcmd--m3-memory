@@ -10,8 +10,7 @@ Resume Phase 4.B sub-6+7 of the `memory_core` modularization. This is the deferr
 
 1. `docs/MEMORY_CORE_MODULARIZATION.md` — live plan + per-phase log
 2. `docs/MEMORY_CORE_MODULARIZATION_LESSONS.md` — 8 transferable lessons from the 9-commit run that got us here
-3. Recall memory `a5b5c8ca` — the retrieval-quality regression test that gates this work
-4. Recall memory `9f47dceb` — the broader session lessons
+3. `tests/capture_retrieval_baseline.py` — the retrieval-quality regression test that gates this work
 
 ## What to extract
 

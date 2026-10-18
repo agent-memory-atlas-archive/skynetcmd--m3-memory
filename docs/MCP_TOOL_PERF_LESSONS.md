@@ -196,6 +196,4 @@ measure between commits so the attribution is sound.
 - Agent:
   - `agents/curate-memory.md` — updated PLAN / APPLY scripts and tool-call caps
 - Commits: `249b4b2` (bulk delete), `92ab623` (structured dedup + agent caps)
-- Memory `4090f663-b3ca-4298-a80e-9f86b22233ef` — same lessons as a
-  searchable reference memory
 - `docs/MEMORY_CORE_MODULARIZATION_LESSONS.md` — sister doc for refactor-side discipline

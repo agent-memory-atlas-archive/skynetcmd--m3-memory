@@ -119,8 +119,8 @@ def _selftest(patterns_path: str | None) -> int:
         print(
             "[selftest] FAIL no --patterns given: there is no policy to prove alive.\n"
             "           Run: python bin/prepush/scan_diff.py --selftest --patterns "
-            "<policy file>  (the hook reads M3_PREPUSH_PROHIBITED, default "
-            "~/.m3-private/m3_PrePush_Prohibited.txt)",
+            "<policy file>  (the hook reads M3_PREPUSH_PROHIBITED, else `git config "
+            "m3.prepushProhibited`, else ~/.m3/prepush/prohibited.txt)",
             file=sys.stderr,
         )
         return 2

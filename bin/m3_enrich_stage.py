@@ -17,7 +17,7 @@ arrives, it should:
 The existing observer/reflector drainers keep their inline SQL for
 now — they predate this module and rewriting them adds no value
 until we actually have a third stage. When stage 3 lands and we
-collapse the queues into one (Option B in memory 9f5033b8), the
+collapse the queues into one (Option B), the
 inline blocks fold into this module's helpers in one diff.
 
 Public API:

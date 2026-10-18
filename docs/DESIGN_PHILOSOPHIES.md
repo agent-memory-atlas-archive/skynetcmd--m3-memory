@@ -23,6 +23,10 @@ the checklist the pre-push hook echoes.
 8. **Performance**
 9. **GDPR / compliance hygiene.**
 10. **Database hygiene** 
+    - **10a. Seam discipline.** Business logic states intent; one owner per
+      dimension that varies (Python version, OS, security tier, database)
+      renders the specific answer. A missing primitive is added to its seam,
+      never inlined at a call site.
 11. **Regression discipline**
 12. **Clean code**
 

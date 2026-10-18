@@ -104,6 +104,34 @@ def _retryable_status(code: int) -> bool:
     return code >= 500 or code in (408, 429)
 
 
+def circuit_allows(service: str) -> bool:
+    """m3's circuit breaker: False while ``service``'s circuit is open (after
+    _CB_THRESHOLD failures in a row, for the cooldown), else True."""
+    state = _CIRCUITS.get(service)
+    if isinstance(state, dict) and state and state["open_until"] > time.time():
+        logger.error(f"Circuit for {service} is OPEN. Failing fast.")
+        return False
+    return True
+
+
+def circuit_succeeded(service: str) -> None:
+    """A call to ``service`` worked: its failure count starts over."""
+    _CIRCUITS.pop(service, None)
+
+
+def circuit_failed(service: str, custom_cooldown: float | None = None) -> None:
+    """A call to ``service`` failed; the circuit opens at _CB_THRESHOLD in a row."""
+    state = _CIRCUITS.get(service)
+    if state is None or not isinstance(state, dict):
+        state = {"failures": 0, "open_until": 0}
+    state["failures"] += 1
+    cooldown = custom_cooldown or _CB_COOLDOWN
+    if state["failures"] >= _CB_THRESHOLD:
+        state["open_until"] = time.time() + cooldown
+        logger.warning(f"Circuit for {service} OPENED for {cooldown}s.")
+    _CIRCUITS[service] = state
+
+
 def _circuit_open_until(service: str) -> float:
     state = _CIRCUITS.get(service)
     if isinstance(state, dict):
@@ -328,30 +356,14 @@ class M3Context:
             verify_salt_cohesion(conn, f"the SQLite store {self.db_path}")
 
     def _check_circuit(self, service: str) -> bool:
-        """Checks if the circuit for a specific service is open."""
-        state = _CIRCUITS.get(service)
-        if state is None or isinstance(state, dict):
-            if not state:
-                return True
-            if state["open_until"] > time.time():
-                logger.error(f"Circuit for {service} is OPEN. Failing fast.")
-                return False
-            return True
-        return True
+        """Whether a call to ``service`` may go out (the breaker: circuit_allows)."""
+        return circuit_allows(service)
 
     def _record_success(self, service: str):
-        _CIRCUITS.pop(service, None)
+        circuit_succeeded(service)
 
     def _record_failure(self, service: str, custom_cooldown: float | None = None):
-        state = _CIRCUITS.get(service)
-        if state is None or not isinstance(state, dict):
-            state = {"failures": 0, "open_until": 0}
-        state["failures"] += 1
-        cooldown = custom_cooldown or _CB_COOLDOWN
-        if state["failures"] >= _CB_THRESHOLD:
-            state["open_until"] = time.time() + cooldown
-            logger.warning(f"Circuit for {service} OPENED for {cooldown}s.")
-        _CIRCUITS[service] = state
+        circuit_failed(service, custom_cooldown)
 
     def get_async_client(self) -> httpx.AsyncClient:
         """Returns a shared httpx.AsyncClient, recreating if the event loop has changed."""

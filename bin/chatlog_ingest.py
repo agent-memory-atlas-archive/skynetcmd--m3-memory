@@ -932,7 +932,10 @@ def _parse_codex(raw: str) -> tuple[list[dict], str | None]:
         stamp = str(obj.get("timestamp") or "")
         # Stop re-reads the whole rollout every turn: the id must be the same on
         # each read, so it is the line's own id or one built from its stamp.
-        uid = payload.get("id") or f"{stamp}:{role}:{hashlib.sha256(text.encode('utf-8'), usedforsecurity=False).hexdigest()[:16]}"
+        uid = (
+            payload.get("id")
+            or f"{stamp}:{role}:{hashlib.sha256(text.encode('utf-8'), usedforsecurity=False).hexdigest()[:16]}"
+        )
         items.append(
             {
                 "content": text,
@@ -952,11 +955,66 @@ def _parse_codex(raw: str) -> tuple[list[dict], str | None]:
     return items, session_id
 
 
+_AGY_REQUEST = re.compile(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.DOTALL)
+
+
+def _parse_antigravity(raw: str) -> tuple[list[dict], str | None]:
+    """Parse an Antigravity transcript
+    (``<app dir>/brain/<conversationId>/.system_generated/logs/transcript.jsonl``).
+
+    One JSON object per step: ``{"step_index", "source", "type", "status",
+    "created_at", "content"?, "tool_calls"?}``. A chat turn is a ``USER_INPUT``
+    step (the person; the text inside ``<USER_REQUEST>``, without the metadata
+    block Antigravity appends) or a ``PLANNER_RESPONSE`` step with content (the
+    agent). Tool steps, tool-call-only responses and system messages are skipped.
+    The file does not name its conversation: the caller passes it (the hook's
+    ``conversationId``, or the brain folder's name).
+    """
+    items: list[dict] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            step = json.loads(line)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Malformed Antigravity transcript line, skipping: {e}")
+            continue
+        if not isinstance(step, dict):
+            continue
+        kind = step.get("type")
+        text = str(step.get("content") or "")
+        if kind == "USER_INPUT":
+            m = _AGY_REQUEST.search(text)
+            text, role = (m.group(1) if m else text).strip(), "user"
+        elif kind == "PLANNER_RESPONSE":
+            text, role = text.strip(), "assistant"
+        else:
+            continue
+        if not text:
+            continue
+        stamp = str(step.get("created_at") or "")
+        # Stop re-reads the whole transcript on every fire: the id is the step's
+        # own index, the same on each read.
+        items.append(
+            {
+                "content": text,
+                "role": role,
+                "model_id": "unknown",
+                "conversation_id": "",
+                "provider": "google",
+                "timestamp": stamp,
+                "uuid": f"step:{step.get('step_index')}:{stamp}",
+            }
+        )
+    return items, None
+
+
 PARSERS = {
     "claude-code": _parse_claude_code,
     "codex": _parse_codex,
     "gemini-cli": _parse_gemini_cli,
-    "antigravity-cli": _parse_gemini_cli,
+    "antigravity": _parse_antigravity,
     "openclaw": _parse_openclaw,
     "opencode": _parse_opencode,
     "aider": _parse_aider,
@@ -969,7 +1027,12 @@ _PATH_PARSERS = frozenset({"opencode"})
 
 
 async def _ingest(
-    format_name: str, transcript_path: str, session_override: str, variant: str | None, cwd: str = ""
+    format_name: str,
+    transcript_path: str,
+    session_override: str,
+    variant: str | None,
+    cwd: str = "",
+    model_id: str = "",
 ) -> dict:
     parser = PARSERS.get(format_name)
     if parser is None:
@@ -1009,6 +1072,12 @@ async def _ingest(
             parsed_session,
         )
     session_id = parsed_session or session_override or ""
+    if model_id:
+        # The host named the model (Antigravity's hook input carries it; its
+        # transcript does not): it fills assistant turns the transcript left unnamed.
+        for item in items:
+            if item.get("role") == "assistant" and item.get("model_id") in ("", "unknown", None):
+                item["model_id"] = model_id
 
     if not items:
         logger.info(f"No parseable items in {transcript_path}")
@@ -1164,6 +1233,12 @@ async def main() -> int:
         "root, branch and tree. Default: the directory the transcript records, if any.",
     )
     parser.add_argument(
+        "--model-id",
+        default="",
+        help="The model the host says wrote the assistant turns (from the hook input); "
+        "used where the transcript names none.",
+    )
+    parser.add_argument(
         "--db",
         default=None,
         help="Deprecated: chatlog-only override. Prefer --database. Pins the chatlog store for this process.",
@@ -1197,7 +1272,7 @@ async def main() -> int:
             logger.info("Overriding spill dir: %s", args.spill_dir)
         chatlog_config.invalidate_cache()
 
-    result = await _ingest(args.format, args.transcript_path, args.session_id, args.variant, args.cwd)
+    result = await _ingest(args.format, args.transcript_path, args.session_id, args.variant, args.cwd, args.model_id)
 
     # Phase E1: Auto-enqueue this conversation for Mastra Observer enrichment
     # if chatlog.auto_enrich is on. The drainer (m3_enrich --drain-queue) consumes
@@ -1231,6 +1306,28 @@ async def main() -> int:
                 logger.info(f"M3_AUTO_ENRICH: {enqueue_result} for {sid[:12]} ({written} new turns)")
             except Exception as e:
                 logger.warning(f"M3_AUTO_ENRICH enqueue failed (non-fatal): {type(e).__name__}: {e}")
+
+    # Session recall: a session-end capture starts that session's summary in the
+    # background (the turns are usually stored already, by Stop), so the next
+    # session's menu does not wait on the cognitive loop. Capture's result and
+    # exit code never depend on it.
+    sid = result.get("session_id") or args.session_id
+    if sid and not result.get("error"):
+        try:
+            import session_recall
+
+            why_not = session_recall.start_background_summary(sid) if session_recall.ended_variant(args.variant) else ""
+            if why_not:
+                logger.debug("session recall: no background summary for %s: %s", sid[:12], why_not)
+        except Exception as e:  # noqa: BLE001 -- recall must never fail a capture
+            logger.warning(
+                "observed: could not start the background session summary for %s (%s: %s); the session "
+                "stays out of the recall menu until a summary pass reaches it (the cognitive loop's, when "
+                "it runs). inspect: m3 doctor",
+                sid[:12],
+                type(e).__name__,
+                e,
+            )
 
     # The queue was drained inside _ingest before the cursor moved; nothing is
     # in flight here, so the result below reports only checked outcomes.

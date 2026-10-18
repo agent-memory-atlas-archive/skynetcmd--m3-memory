@@ -1,7 +1,7 @@
 """Regression tests for memory_link_bulk and memory_update_bulk.
 
 Both were introduced to give curation agents the same single→bulk speedup
-that memory_delete_bulk delivers (memory 4090f663). Without these, an agent
+that memory_delete_bulk delivers. Without these, an agent
 that wants to add 50 LINK edges or update retention on 178 rows has to loop
 the single-id variant, which adds ~2 sec of LLM round-trip latency per call.
 """

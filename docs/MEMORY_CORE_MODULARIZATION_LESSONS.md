@@ -156,7 +156,7 @@ that sit between `_scored_impl` and `_routed_impl` — they're top-level
 the assumed end-line would have caught this; AST-walking would have
 caught this. The 1,074 number in the prior session's lessons doc came
 from line-arithmetic on a misread of the function boundary, and that
-inflated number propagated to a memory record (`9f47dceb`) before
+inflated number propagated to a recorded note before
 verification.
 
 **Rule:** for any function-extraction phase, the FIRST step is an AST
@@ -264,9 +264,5 @@ on the globals-binding approach.
 - `docs/MEMORY_CORE_MODULARIZATION.md` — the plan + live progress log
 - Commit range: `9344407..b6efe8e` on `main` (10 phase commits)
 - Sub-6+7 final commit: `b6efe8e` — extract the four retrieval impls
-- Memory `a774353c` — m3-memory ↔ m3-core-rs release loop (not affected
-  by this migration)
-- Memory `1718c40f` — embedding pipeline anchor (still authoritative;
-  `embed.py` is now its concrete home)
-- Memory `a5b5c8ca` — retrieval-quality regression baseline
-  (`tests/capture_retrieval_baseline.py`) that gated sub-6+7
+- `tests/capture_retrieval_baseline.py` — the retrieval-quality regression
+  baseline that gated sub-6+7

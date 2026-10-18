@@ -4,7 +4,7 @@ paths:
   - "server.json"
   - "mcp-server.json"
   - ".claude-plugin/plugin.json"
-  - ".antigravity-plugin/plugin.json"
+  - "plugins/antigravity/plugin.json"
   - "docs/badges/pypi-version.svg"
   - "docs/SECURITY.md"
 ---
@@ -19,7 +19,7 @@ To cut a release:
 1. bump `pyproject.toml`
 2. run `python bin/sync_manifest_versions.py` — it writes the new version into
    every derived manifest (`server.json`, `mcp-server.json`,
-   `.claude-plugin/plugin.json`, `.antigravity-plugin/plugin.json`), plus the
+   `.claude-plugin/plugin.json`, `plugins/antigravity/plugin.json`), plus the
    README's PyPI badge and `docs/SECURITY.md`'s "Supported Versions" row
 3. commit all of it together
 

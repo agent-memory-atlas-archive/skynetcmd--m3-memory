@@ -1,0 +1,18 @@
+{
+  "m3": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "m3 hook antigravity-session-start",
+        "timeout": 30
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "m3 hook antigravity-capture",
+        "timeout": 90
+      }
+    ]
+  }
+}

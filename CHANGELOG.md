@@ -30,6 +30,17 @@ the policy is forward-going only.
   With the m3 Codex plugin installed, setup leaves these files alone.
   **Affected:** Codex users · **Action:** run `m3 setup`, then approve the hooks
   once in Codex with `/hooks` · **Data status:** none.
+- **Google Antigravity: chat capture, memory tools and the session-start line,
+  for the app, the IDE and the CLI.** `m3 setup` registers m3 in
+  `~/.gemini/config/mcp_config.json` and adds m3's hooks to
+  `~/.gemini/config/hooks.json`; each conversation's turns are saved when the
+  agent finishes, with the model that wrote them. Until now Antigravity had
+  neither m3's tools nor chat capture. On Windows, a hook path containing a space
+  is refused with a message, since Antigravity cannot run it.
+  **Affected:** Antigravity users · **Action:** run `m3 setup`, then restart
+  Antigravity · **Data status:** earlier conversations were not captured; their
+  transcripts stay in `~/.gemini/antigravity*/brain/`, and Antigravity rebuilds a
+  conversation's transcript when it is resumed.
 - **One session-start hook for Claude Code, Codex and Gemini CLI.** It shows
   whether chat capture is working and which m3 is running against the newest
   release, and offers the session-recall menu on a fresh start. Gemini CLI gains
@@ -84,11 +95,17 @@ the policy is forward-going only.
   one-line summaries: this agent's recent sessions first, then each other
   agent's latest, sessions from the current git tree first, each with local time,
   tree and branch. The server instructions ask agents to show it once; a chosen
-  line loads with `memory_get`. The cognitive loop's new `summarize_sessions`
-  pass writes one `session_summary` memory per session once it is quiet
-  (`recall.quiet_minutes`) or compacted/ended, from the agent's own
+  line loads with `memory_get`. A session's summary is written when the session
+  ends, in the background, by a SessionEnd hook (Claude Code, Codex, Gemini CLI,
+  OpenCode, OpenClaw), so the menu does not wait on the cognitive loop; the loop's
+  new `summarize_sessions` pass covers sessions that end without that event
+  (Antigravity, a closed window) once quiet (`recall.quiet_minutes`). Each
+  summary comes from the agent's own
   `session_note`, Claude Code's compaction summary, or the local
-  `session_summary` model profile, and supersedes it when the session grows.
+  `session_summary` model profile, which reads the session's latest compaction
+  summary and its last turns and names the session by its main work; a summary
+  is superseded when the session grows. When recent sessions have waited over an
+  hour with no summary, the session-start line says so.
   Captured turns now record `cwd`, `git_root`, `git_branch` and `tree`; earlier
   turns show as "(no project)". Settings live under `[recall]`;
   `recall.summary_profile` other than `local` sends the session's tail to that
@@ -124,8 +141,8 @@ the policy is forward-going only.
   as "1 jan" followed by a long run of spaces took seconds of CPU per search.
   **Affected:** all installs · **Action:** none · **Data status:** none.
 - **A cloud LLM provider is recognised by its host, not by a substring of the
-  URL.** The dashboard chose the API key header from a substring match, so a URL
-  that merely contained a provider's name was treated as that provider.
+  URL.** A URL that merely contains a provider's name no longer gets that
+  provider's API key header.
   **Affected:** dashboard LLM health checks · **Action:** none ·
   **Data status:** none.
 - **Setup masks the PostgreSQL DSN in every reachability error.** One refusal
@@ -135,6 +152,13 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Gemini CLI capture saves each turn again, not only at session end.** Setup
+  wires m3's capture on AfterModel and PreCompress as well as SessionEnd, so a
+  Gemini session that is killed keeps the turns it had. Hook lines from an
+  earlier setup are replaced; your own hooks are kept.
+  **Affected:** Gemini CLI users · **Action:** run `m3 setup` ·
+  **Data status:** turns of sessions that ended without SessionEnd were not
+  captured; their transcripts remain in Gemini's chat folder.
 - **Semantic search works on installs without the native core.** With no Rust
   core loaded, m3 treated the embed server as unavailable: writes skipped their
   vectors and searches dropped to keyword-only, so a semantic search returned

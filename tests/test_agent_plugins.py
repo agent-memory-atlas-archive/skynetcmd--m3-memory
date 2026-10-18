@@ -116,14 +116,17 @@ def test_the_claude_plugin_hooks_are_one_line_each():
     assert [_hook_named(x["command"]) for _m, x in h["SessionStart"]] == ["claude-session-start"]
     assert [(m, _hook_named(x["command"])) for m, x in h["PreCompact"]] == [("auto", "claude-capture")]
     assert [_hook_named(x["command"]) for _m, x in h["Stop"]] == ["claude-capture"]
-    assert set(h) == {"SessionStart", "PreCompact", "Stop"}
+    assert [_hook_named(x["command"]) for _m, x in h["SessionEnd"]] == ["claude-session-end"]
+    assert set(h) == {"SessionStart", "PreCompact", "Stop", "SessionEnd"}
 
 
 def test_the_codex_plugin_hooks_are_one_line_each():
     h = _handlers(CODEX_HOOKS)
-    assert set(h) == {"SessionStart", "Stop"}
+    assert set(h) == {"SessionStart", "Stop", "SessionEnd"}
     assert [(m, _hook_named(x["command"])) for m, x in h["SessionStart"]] == [("startup|resume", "codex-session-start")]
     assert [_hook_named(x["command"]) for _m, x in h["Stop"]] == ["codex-capture"]
+    assert [_hook_named(x["command"]) for _m, x in h["SessionEnd"]] == ["codex-session-end"]
+    assert h["SessionEnd"][0][1]["timeout"] <= 3, "Codex caps SessionEnd at 3 s"
     for handlers in h.values():
         for _m, x in handlers:
             assert _hook_named(x["commandWindows"]) == _hook_named(x["command"])

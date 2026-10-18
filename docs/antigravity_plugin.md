@@ -32,12 +32,13 @@ agy plugin install https://github.com/skynetcmd/m3-memory   # re-install → upg
 
 ## What it does on first run
 
-The plugin's `SessionStart` hook checks for the `m3` (or `mcp-memory`) CLI on PATH. If missing, it prints a one-line install hint:
+The plugin's hooks run `m3 hook <name>`, so the `m3` CLI must be on PATH. If it is
+not, the hook fails and Antigravity notes it only in its own log, so install m3
+first:
 
 ```
-[m3-memory] m3 CLI not on PATH. Run:
-  pipx install m3-memory && pipx ensurepath
-  m3 setup
+pipx install m3-memory && pipx ensurepath
+m3 setup
 ```
 
 ---
@@ -81,18 +82,16 @@ Both use a two-spawn execution model: the first invocation surveys and proposes 
 
 ## Hooks installed by the plugin
 
-- `SessionStart` — checks `m3` is on PATH (advisory only)
-- `PreCompact` — fires the chatlog ingest before context compaction
-- `Stop` — fires the chatlog ingest at the end of every assistant turn
+- `SessionStart` (`m3 hook antigravity-session-start`): chat-capture status, the
+  m3 version, and the session-recall menu, given to the agent as context
+- `Stop` (`m3 hook antigravity-capture`): saves the conversation's new turns each
+  time the agent finishes
 
-These run alongside any hooks you have in `~/.gemini/antigravity-cli/settings.json`.
+Antigravity has no compaction hook; Stop already captures every turn. These run
+alongside your own blocks in `~/.gemini/config/hooks.json`.
 
 ---
 
 ## Configuration
 
-The plugin exposes one `userConfig` knob that Google Antigravity prompts for at enable time:
-
-- **`capture_mode`** — chatlog capture policy. `both` / `stop` / `precompact` / `none`. Default `both`.
-
-Every other setting lives in `m3_config.toml`: the enrichment chat model (`m3 config set llm.endpoints <url>`) and the embedder (the `[embed]` keys). The former `endpoint`, `embed_fallback_url` and `embed_gguf` knobs set environment variables m3 no longer reads, so they were removed.
+The plugin has no settings of its own. Every setting lives in `m3_config.toml`: the enrichment chat model (`m3 config set llm.endpoints <url>`) and the embedder (the `[embed]` keys). The former `endpoint`, `embed_fallback_url` and `embed_gguf` knobs set environment variables m3 no longer reads, so they were removed.

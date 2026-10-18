@@ -36,10 +36,14 @@ class Hook:
 HOOKS: dict[str, Hook] = {
     "claude-session-start": Hook("hooks/session_start.py", ("--agent", "claude")),
     "claude-capture": Hook("hooks/chatlog/claude_code_precompact.py"),  # Stop and PreCompact
+    "claude-session-end": Hook("hooks/session_end.py", ("--agent", "claude")),
     "codex-session-start": Hook("hooks/session_start.py", ("--agent", "codex")),
-    "codex-capture": Hook("hooks/chatlog/codex_stop.py"),  # Stop and SessionEnd
+    "codex-capture": Hook("hooks/chatlog/codex_stop.py"),  # Stop
+    "codex-session-end": Hook("hooks/session_end.py", ("--agent", "codex")),
     "gemini-session-start": Hook("hooks/session_start.py", ("--agent", "gemini")),
     "gemini-capture": Hook("hooks/chatlog/gemini_cli_onexit.py"),  # AfterModel, PreCompress, SessionEnd
+    "antigravity-session-start": Hook("hooks/session_start.py", ("--agent", "antigravity")),
+    "antigravity-capture": Hook("hooks/chatlog/antigravity_stop.py"),  # Stop
     "opencode-capture": Hook("hooks/chatlog/opencode_session_end.py"),
     "openclaw-capture": Hook("hooks/chatlog/openclaw_session_end.py"),
 }

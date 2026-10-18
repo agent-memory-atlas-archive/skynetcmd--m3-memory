@@ -261,7 +261,7 @@ Patterns at `_TEMPORAL_ROUTER_PATTERNS` (`search.py:543-552`): `when`,
 `days/weeks/months/years ago`, `first/last/recent/earliest/latest`,
 ordering questions, weekday names, common holidays.
 
-Compiled once as `_TEMPORAL_ROUTER_RE`. From memory `2d1d5812`: 100%
+Compiled once as `_TEMPORAL_ROUTER_RE`. Measured: 100%
 recall on LongMemEval temporal-reasoning, low FPR on others.
 
 ### `_maybe_route_query` (`search.py:213-238`)
@@ -392,8 +392,7 @@ extraction changed retrieval order or score, not just structure.
 The baseline harness was the prereq for Phase 4.B sub-6+7 — built
 **before** the extraction, per Lesson 6 in
 `MEMORY_CORE_MODULARIZATION_LESSONS.md` ("Parity test catches
-symbol/signature drift, NOT behavior drift"). Cross-ref memory
-`a5b5c8ca`.
+symbol/signature drift, NOT behavior drift").
 
 ---
 
@@ -412,5 +411,5 @@ symbol/signature drift, NOT behavior drift"). Cross-ref memory
 - Rust hot paths: `m3_core_rs.hybrid_score_batch`,
   `m3_core_rs.cosine_batch_packed`, `m3_core_rs.mmr_rerank_scored`,
   `m3_core_rs.enforce_displacement_guard` (sibling repo `m3-core-rs`)
-- Decision memories: `2d1d5812` (temporal-router regex), `a5b5c8ca`
-  (retrieval baseline prereq), `9f47dceb` (sub-6+7 line-count audit)
+- Decisions: the temporal-router regex (above); the retrieval baseline is a
+  prerequisite for any search refactor

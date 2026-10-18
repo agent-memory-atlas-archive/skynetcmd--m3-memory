@@ -270,7 +270,7 @@ async def test_ingest_cli_hands_cwd_to_the_run(monkeypatch, capsys):
 
     seen = {}
 
-    async def _fake(fmt, path, sid, variant, cwd=""):
+    async def _fake(fmt, path, sid, variant, cwd="", model_id=""):
         seen.update(fmt=fmt, cwd=cwd)
         return {"written": 0, "skipped": 0, "failed": 0}
 

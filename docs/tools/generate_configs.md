@@ -1,8 +1,8 @@
 ---
 tool: bin/generate_configs.py
-sha1: 226c4184328a
-mtime_utc: 2026-10-18T17:54:44.746499+00:00
-generated_utc: 2026-10-18T17:54:57.393070+00:00
+sha1: b1aa455b22f2
+mtime_utc: 2026-10-18T19:48:04.290570+00:00
+generated_utc: 2026-10-18T19:48:24.951796+00:00
 private: false
 ---
 

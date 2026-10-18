@@ -94,12 +94,14 @@ def _known_agent_settings() -> list[tuple[str, str]]:
     lists together (it once lacked Cursor and Cline)."""
     from m3_core.seams import vscode_user_dir
 
+    from m3_memory import antigravity  # stdlib-only owner, importable once m3_core.seams ran
+
     home = os.path.expanduser("~")
     j = os.path.join
     return [
         ("Claude Code", j(home, ".claude", "settings.json")),
         ("Gemini CLI", j(home, ".gemini", "settings.json")),
-        ("Antigravity", j(home, ".gemini", "antigravity-cli", "settings.json")),
+        ("Antigravity", str(antigravity.mcp_config_path())),
         ("Aider", j(home, ".aider", "settings.json")),
         ("Cursor", j(home, ".cursor", "mcp.json")),
         (

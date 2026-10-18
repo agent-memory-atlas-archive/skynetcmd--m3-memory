@@ -260,7 +260,7 @@ reports `UNREACHABLE` if that ever happens.
 Override via `M3_EMBED_GGUF_MODEL_TAG` env var if your deployment uses a
 non-default GGUF.
 
-The hard rule from memory `042fd2a3` still applies: **never mix embeddings
+The hard rule still applies: **never mix embeddings
 from different models or quants in the same database.** Cosine across
 spaces is meaningless. If the model changes, all ~24k+ existing rows must
 be re-embedded — a one-time cost the operator pays explicitly, not a
@@ -304,6 +304,5 @@ Qwen3/E5/GTE GGUFs out of the box.
   `_embed`/`_embed_many` (2110/2230), model-tag override (113-115)
 - `crates/m3-embed-llamacpp/src/lib.rs` — pooling/BOS/FA hardcodes
   (706-708, 725, 822)
-- Decision memories: `042fd2a3` (embedding consistency rule),
-  `3827aaff` (variant selection — heuristic_c1c4 is production default),
-  `1718c40f` (pooling/caller-audit refactor intentionally deferred)
+- Decisions: one embedding model per database (above); heuristic_c1c4 is the
+  production variant; the pooling/caller-audit refactor is deliberately deferred

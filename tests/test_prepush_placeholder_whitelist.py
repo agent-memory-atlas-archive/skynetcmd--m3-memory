@@ -122,7 +122,7 @@ def test_prohibited_patterns_are_not_hardcoded_in_the_public_hook():
 
     A public hook enumerating bench tokens, internal subnets and codenames tells
     a reader exactly what we treat as sensitive and what to grep history for. The
-    MECHANISM stays tracked here; the LIST lives in ~/.m3-private.
+    MECHANISM stays tracked here; the LIST lives outside the repo.
     """
     src = _HOOK.read_text(encoding="utf-8")
     assert "PROHIBITED_FILE=" in src, "the hook must read an external pattern file"

@@ -261,8 +261,7 @@ sibling repo `m3-core-rs`):
 
 The first three are intentionally hardcoded for now; surfacing them as
 `M3_EMBED_POOLING` / `M3_EMBED_ADD_BOS` env vars is the model-swap
-project. See memory `1718c40f` (pooling/caller-audit refactor
-intentionally deferred) and `EMBED_INPUT_RECIPE.md` for the full
+project, deliberately deferred; see `EMBED_INPUT_RECIPE.md` for the full
 Qwen3-Embedding swap table.
 
 A swap is **not** in-place — change the GGUF, change all three params,
@@ -285,7 +284,7 @@ share cache entries:
 | Qwen3-Embedding (bench-only, different model) | `qwen3-embedding` (different vector space — **never mix**) |
 
 Canonical tag: `bge-m3-GGUF-Q4_K_M.gguf`. Override via
-`M3_EMBED_GGUF_MODEL_TAG`. The hard rule from memory `042fd2a3`: never
+`M3_EMBED_GGUF_MODEL_TAG`. The hard rule: never
 mix embeddings from different models or quants in the same database.
 Cosine across spaces is meaningless. Model change → re-embed the entire
 corpus.
@@ -357,5 +356,5 @@ and `get_embed_backend_stats()` for the in-process / fallback story.
   [`docs/MEMORY_CORE_MODULARIZATION_LESSONS.md`](../MEMORY_CORE_MODULARIZATION_LESSONS.md)
 - Pooling/BOS hardcodes: `crates/m3-embed-llamacpp/src/lib.rs:706-708`
   (sibling repo `m3-core-rs`)
-- Decision memories: `042fd2a3` (consistency rule), `1718c40f`
-  (pooling refactor deferred), `3827aaff` (variant default)
+- Decisions: one embedding model per database; the pooling refactor is
+  deferred; heuristic_c1c4 is the default variant

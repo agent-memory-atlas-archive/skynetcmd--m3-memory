@@ -203,7 +203,7 @@ runtime, and it can run entirely on your own hardware.
 | Context efficiency | Built in | 100+ tools in 9 domains; only 6 load at startup (about 3,200 tokens, 1.6% of a 200K window), the rest on demand. ([Domain gating](#domain-gating)) |
 | Agent integrations | Supported integrations | Claude Code, Codex, Gemini CLI and Antigravity (plugins and extension); Cursor, Cline, OpenCode and OpenClaw (wired by `m3 setup`); Hermes (memory provider); Aider (through a proxy). ([Integrations](#integrations)) |
 | Framework integrations | Supported integrations | LangChain and LangGraph, CrewAI, PydanticAI. ([Integrations](#integrations)) |
-| Chat capture | Built in | Conversation turns saved as they happen, before an agent compacts its context: Claude Code, Codex, Gemini CLI, Antigravity CLI, OpenCode, OpenClaw and Aider. ([Chat log](docs/CHATLOG.md)) |
+| Chat capture | Built in | Conversation turns saved as they happen, before an agent compacts its context: Claude Code, Codex, Gemini CLI, Antigravity (app, IDE and CLI), OpenCode, OpenClaw and Aider. ([Chat log](docs/CHATLOG.md)) |
 | Files memory | Built in | A 25-tool domain ingests and chunks whole directories. ([Files memory](docs/FILES_MEMORY.md)) |
 | Dashboard and wiki | Built in | A local web dashboard (graph, browser, audit log, health); `m3 wiki generate` writes Markdown, HTML or an Obsidian vault. ([Dashboard](docs/DASHBOARD.md) · [Wiki](docs/WIKI.md)) |
 | GDPR | Built in | Export (Art. 20) and erasure (Art. 17); every memory read and search hit is logged for 90 days. Chat-log reads are not audited yet. ([GDPR](docs/GDPR_COMPLIANCE.md)) |

@@ -7,7 +7,7 @@
 #
 # Why qwen/qwen3-8b instead of the original 2b proposal:
 #   - Phase D risk #5: 2B SLMs hallucinate dates more than 8B+. Replay
-#     evidence (memory bdb6e7c2) shows 8B on the same fact-extraction
+#     evidence shows 8B on the same fact-extraction
 #     battery does NOT hallucinate (gemma-4-e4b-obliterated did, qwen3-8b
 #     did not).
 #   - Synthesis ability: A1 failure-replay showed qwen3-8b is the only

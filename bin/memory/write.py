@@ -1427,7 +1427,7 @@ async def memory_write_bulk_impl(
         # for retrieval debugging — those are valid when stamped under a
         # bench variant, but historically leaked into core memory via
         # bulk writes that didn't pass --variant. 644 such rows had to be
-        # cleaned manually on 2026-04-28 (memory 372f49b0).
+        # cleaned manually on 2026-04-28.
         # See task #189, decision b5abb7cc.
         if item_type == "summary" and isinstance(title, str) and title.startswith("window:") and eff_variant is None:
             logger.warning(

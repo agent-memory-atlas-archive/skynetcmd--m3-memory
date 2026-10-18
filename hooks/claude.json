@@ -35,6 +35,16 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v m3 >/dev/null 2>&1 || { echo '[m3-memory] session summary NOT started: m3 CLI not on PATH. Run: pipx install m3-memory && pipx ensurepath' >&2; exit 1; }; exec m3 hook claude-session-end"
+          }
+        ]
+      }
     ]
   }
 }

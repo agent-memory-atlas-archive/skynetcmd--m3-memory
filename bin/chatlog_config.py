@@ -258,7 +258,7 @@ VALID_HOST_AGENTS: frozenset[str] = frozenset(
         "claude-code",
         "codex",
         "gemini-cli",
-        "antigravity-cli",
+        "antigravity",
         "opencode",
         "openclaw",
         "aider",

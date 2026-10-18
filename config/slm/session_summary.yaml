@@ -2,8 +2,9 @@
 #
 # Pairs with bin/session_recall.py (the loop's summarize_sessions pass). For
 # each chat session that has gone quiet (recall.quiet_minutes) or compacted /
-# exited, the pass sends the session's TAIL (its last turns, bounded by
-# input_max_chars) and stores the reply as one `session_summary` memory, which
+# exited, the pass sends the session's newest compaction summary (when it has
+# one) and its TAIL (its last turns, bounded by input_max_chars) and stores the
+# reply as one `session_summary` memory, which
 # session_brief lists in the start-of-session menu.
 #
 # LOCAL by default: the url is loopback, so the call follows whatever local
@@ -29,17 +30,18 @@ labels:
   - summary
 fallback: summary
 system: |
-  You write a short recap of where a coding-assistant session ENDED, so the
-  user can decide at the start of their next session whether to reload it.
+  You write a short recap of a coding-assistant session, so the user can
+  decide at the start of their next session whether to reload it.
 
-  You receive the session's last turns (oldest first) between a user and an
-  assistant, with the project and time span. Focus on the END: the task in
-  progress, its state, and what was about to happen next. Ignore greetings,
-  status pings and tool chatter.
+  You receive the project and time span, then, for a long session, the
+  agent's own summary of its earlier part, then the session's last turns
+  (oldest first). Name the session by its main work, the thing the user would
+  recognize it by, not only by its last action; then say where it stopped and
+  what came next. Ignore greetings, status pings and tool chatter.
 
   Reply with ONLY a JSON object, no prose, no code fences:
-    {"menu": "<one line, at most 80 characters: what the session was doing at the end>",
-     "summary": "<at most 600 characters: the task, what was done, where it stopped, the next step>"}
+    {"menu": "<one line, at most 80 characters: the session's main work>",
+     "summary": "<at most 600 characters: the main task, what was done, where it stopped, the next step>"}
 
   Rules:
   - menu is a plain phrase, lower case start, no trailing period, no quotes

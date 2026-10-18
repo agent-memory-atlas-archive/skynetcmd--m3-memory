@@ -58,15 +58,23 @@ SUMMARY_IMPORTANCE = 0.4
 MENU_MAX = 80
 SUMMARY_MAX = 600
 TAIL_TURNS = 40
+# How much of the session's newest compaction summary goes ahead of the tail in
+# the model prompt, so a long session is summarized by its whole arc.
+EARLIER_MAX = 3000
 TURN_CHARS = 2000
 NO_PROJECT = "(no project)"
 # Failed attempts on one unchanged session before the pass stops retrying it in
 # this process (a gate that refuses the text will refuse it again; each retry
 # would cost a model call per sweep). A session that grows is tried afresh.
 MAX_ATTEMPTS = 3
+# A ready session may wait this long for its summary before m3 says the summary
+# pass is behind (a session-end summary takes about a minute; the loop's pass runs
+# every few minutes and is paced on a busy host). Doctor and the session-start
+# line both use it.
+BEHIND_MINUTES = 60
 
 # The hook's --agent value -> the host_agent capture stamps on each turn.
-HOOK_AGENTS = {"claude": "claude-code", "codex": "codex", "gemini": "gemini-cli"}
+HOOK_AGENTS = {"claude": "claude-code", "codex": "codex", "gemini": "gemini-cli", "antigravity": "antigravity"}
 
 # How the menu names each capture host. Display only; the allowlist itself is
 # chatlog_config.VALID_HOST_AGENTS (tests pin that every member has a name).
@@ -74,7 +82,7 @@ AGENT_NAMES = {
     "claude-code": "Claude Code",
     "codex": "Codex",
     "gemini-cli": "Gemini CLI",
-    "antigravity-cli": "Antigravity",
+    "antigravity": "Antigravity",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
     "aider": "Aider",
@@ -121,13 +129,40 @@ def recall_settings() -> dict[str, Any]:
     return {name: _m3cfg.setting(f"recall.{name}") for name in _SETTING_NAMES}
 
 
+def unsummarized_line(now: datetime | None = None) -> str:
+    """One status line when sessions ready for a summary have waited longer than
+    BEHIND_MINUTES without one, so the recall menu leaves them out; "" otherwise
+    (quiet with recall off, with no sessions, and while a summary is on its way)."""
+    s = recall_settings()
+    if not s["enabled"]:
+        return ""
+    now = now or datetime.now(UTC)
+    late = [
+        p for p in find_backlog(now=now, settings=s).pending if now - p.ready_at > timedelta(minutes=BEHIND_MINUTES)
+    ]
+    if not late:
+        return ""
+    oldest = min(p.ready_at for p in late)
+    hours = max(1, int((now - oldest).total_seconds() // 3600))
+    plural = "s" if len(late) != 1 else ""
+    return (
+        f"m3 recall: {len(late)} recent session{plural} not in the menu: no summary written "
+        f"(oldest ready {hours} h ago). Summaries are written when a session ends, or by the "
+        "cognitive loop. inspect: m3 doctor"
+    )
+
+
+def ended_variant(variant: str | None) -> bool:
+    """Whether a capture under ``variant`` came from a session end (``session_end``,
+    Gemini's ``session_end_<reason>``); capture then starts the session's summary."""
+    return (variant or "").startswith("session_end")
+
+
 def ready_variant(variant: str | None) -> bool:
     """Whether a turn captured under ``variant`` marks its session ready to
     summarize: a compaction (Claude Code ``pre_compact``, Gemini CLI
-    ``pre_compress``) or a session end (``session_end``, Gemini's
-    ``session_end_<reason>``)."""
-    v = variant or ""
-    return v in ("pre_compact", "pre_compress") or v.startswith("session_end")
+    ``pre_compress``) or a session end (``ended_variant``)."""
+    return (variant or "") in ("pre_compact", "pre_compress") or ended_variant(variant)
 
 
 def agent_name(host_agent: str) -> str:
@@ -294,6 +329,21 @@ def _recent_sessions(since: datetime) -> list[Session]:
     return out
 
 
+_TURN_COLUMNS = "id, content, metadata_json, created_at, variant, user_id, agent_id"
+
+
+def _turn(r: Any) -> Turn:
+    return Turn(
+        id=str(r["id"]),
+        content=r["content"] or "",
+        meta=_meta(r["metadata_json"]),
+        created_at=_parse_ts(r["created_at"]),
+        variant=r["variant"],
+        user_id=r["user_id"] or "",
+        agent_id=r["agent_id"] or "",
+    )
+
+
 def _session_tail(conversation_id: str, limit: int = TAIL_TURNS) -> list[Turn]:
     """The session's newest ``limit`` turns, newest first."""
     from memory.backends import chatlog_table, dialect
@@ -302,24 +352,39 @@ def _session_tail(conversation_id: str, limit: int = TAIL_TURNS) -> list[Turn]:
     p = d.param()
     table = chatlog_table("items")
     sql = (
-        f"SELECT id, content, metadata_json, created_at, variant, user_id, agent_id FROM {table} "
+        f"SELECT {_TURN_COLUMNS} FROM {table} "
         f"WHERE type='chat_log' AND is_deleted=0 AND conversation_id={p} "
         f"ORDER BY created_at DESC LIMIT {p}"
     )
     with _chatlog_conn() as conn:
         rows = conn.execute(sql, (conversation_id, int(limit))).fetchall()
-    return [
-        Turn(
-            id=str(r["id"]),
-            content=r["content"] or "",
-            meta=_meta(r["metadata_json"]),
-            created_at=_parse_ts(r["created_at"]),
-            variant=r["variant"],
-            user_id=r["user_id"] or "",
-            agent_id=r["agent_id"] or "",
-        )
-        for r in rows
-    ]
+    return [_turn(r) for r in rows]
+
+
+# How Claude Code opens the summary it writes when it compacts a session. Turns
+# captured before capture flagged ``compact_summary`` are recognized by it.
+COMPACTION_OPENING = "This session is being continued from a previous conversation"
+
+
+def _latest_compaction(conversation_id: str) -> Turn | None:
+    """The session's newest compaction summary, wherever it falls in the
+    session: a turn capture flagged ``compact_summary`` (tested for presence,
+    since backends render a JSON true differently) or one that opens with
+    COMPACTION_OPENING. None when the session has none."""
+    from memory.backends import chatlog_table, dialect
+
+    d = dialect()
+    p = d.param()
+    flag = d.json_extract_text("metadata_json", "compact_summary")
+    sql = (
+        f"SELECT {_TURN_COLUMNS} FROM {chatlog_table('items')} "
+        f"WHERE type='chat_log' AND is_deleted=0 AND conversation_id={p} "
+        f"AND ({flag} IS NOT NULL OR content LIKE {p}) "
+        "ORDER BY created_at DESC LIMIT 1"
+    )
+    with _chatlog_conn() as conn:
+        row = conn.execute(sql, (conversation_id, COMPACTION_OPENING + "%")).fetchone()
+    return _turn(row) if row is not None else None
 
 
 def _session_span(conversation_id: str) -> tuple[datetime | None, int]:
@@ -722,6 +787,13 @@ async def summarize_session(pending: Pending, choice: str) -> str:
             f"project: {_where(project)}\n"
             f"session: {_iso(first_at) if first_at else '?'} to {_iso(sess.last_at)} (UTC)\n\n"
         )
+        earlier = _latest_compaction(cid)
+        if earlier is not None and earlier.content.strip():
+            header += (
+                "Earlier in this session, the agent's own summary:\n"
+                f"{_clamp(' '.join(earlier.content.split()), EARLIER_MAX)}\n\n"
+                "The latest turns:\n"
+            )
         result = await _model_summary(tail, header, choice)
         if result is None:
             return "skipped:the model's reply held no summary"
@@ -864,6 +936,101 @@ async def run_summary_pass(
             report_available(logger, "session summaries")
         out["summarized"] += 1
     return out
+
+
+# ── Background summary, started when a session ends ──────────────────────────
+# chatlog_ingest calls start_background_summary when it captures a session end
+# (ended_variant), so the session's summary exists without the cognitive loop.
+# Agents with no usable session-end event (Codex caps SessionEnd at 3 s;
+# Antigravity has none) are summarized by the loop's pass once quiet.
+
+BACKGROUND_LOG = "session_recall.log"
+
+
+def background_log() -> Any:
+    """The background log, opened for appending in the logs root and rolled aside
+    first when past the size cap (_task_runtime owns rotation). Every detached
+    recall child (this module's, bin/hooks/session_end.py's) writes here."""
+    from pathlib import Path
+
+    from _task_runtime import _rotate_if_oversized
+    from m3_core.paths import get_m3_logs_root
+
+    logs = get_m3_logs_root()
+    os.makedirs(logs, exist_ok=True)
+    path = Path(logs) / BACKGROUND_LOG
+    _rotate_if_oversized(path)
+    return open(path, "a", encoding="utf-8")  # noqa: SIM115 -- handed to Popen; the caller closes it
+
+
+def start_background_summary(conversation_id: str) -> str | None:
+    """Start a detached process that summarizes ``conversation_id`` now. Returns
+    None when started, else why not. Its output goes to the logs root's
+    session_recall.log; it never blocks or fails the caller's capture."""
+    import subprocess
+    import sys
+
+    from m3_core.seams import detached_spawn_kwargs
+
+    if not conversation_id:
+        return "no conversation id"
+    if not recall_settings()["enabled"]:
+        return "recall.enabled is false"
+    with background_log() as out:
+        subprocess.Popen(  # noqa: S603 -- this interpreter and this file, fixed argv
+            [sys.executable, os.path.abspath(__file__), "--summarize", conversation_id],
+            stdin=subprocess.DEVNULL,
+            stdout=out,
+            stderr=out,
+            **detached_spawn_kwargs(),
+        )
+    return None
+
+
+async def summarize_conversation(conversation_id: str, now: datetime | None = None) -> str:
+    """Summarize one conversation now, without waiting for it to go quiet.
+    Returns summarize_session's outcome, or "skipped:<why>"."""
+    s = recall_settings()
+    if not s["enabled"]:
+        return "skipped:recall.enabled is false"
+    tail = _session_tail(conversation_id, limit=1)
+    if not tail or tail[0].created_at is None:
+        return "skipped:no turns"
+    last = tail[0].created_at
+    now = now or datetime.now(UTC)
+    if last < now - timedelta(days=int(s["window_days"])):
+        return "skipped:older than recall.window_days"
+    old = _rows_by_conversation(SUMMARY_TYPE, [conversation_id]).get(conversation_id)
+    covered = old.last_turn_at if old is not None else None
+    if covered is not None and covered >= last:
+        return "skipped:the summary already covers the latest turn"
+    pending = Pending(Session(conversation_id, last), "stop", old.id if old is not None else None, last)
+    return await summarize_session(pending, s["summary_profile"])
+
+
+def _background_main(argv: list[str] | None = None) -> int:
+    import argparse
+    import asyncio
+
+    ap = argparse.ArgumentParser(description="Summarize one chat session now (started by capture).")
+    ap.add_argument("--summarize", required=True, metavar="CONVERSATION_ID")
+    args = ap.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    try:
+        outcome = asyncio.run(summarize_conversation(args.summarize))
+    except Exception as e:  # noqa: BLE001 -- a detached worker reports to its log and exits
+        logger.error(
+            "observed: background summary of conversation %s failed (%s: %s). The session stays "
+            "out of the recall menu until a summary pass reaches it (the cognitive loop's, when it "
+            "runs). inspect: m3 doctor",
+            args.summarize,
+            type(e).__name__,
+            e,
+            exc_info=True,
+        )
+        return 1
+    logger.info("background summary of conversation %s: %s", args.summarize, outcome)
+    return 0
 
 
 def gpu_profile_name() -> str:
@@ -1087,3 +1254,7 @@ def recall_menu_text(host_agent: str, cwd: str = "", user_id: str = "") -> str:
         return ""
     ids = "\n".join(f"  {ln['n']} = {ln['id']}" for ln in brief["lines"])
     return f"{RECALL_FRAME}\n\n{brief['menu']}\n\nids for memory_get (do not show these to the user):\n{ids}"
+
+
+if __name__ == "__main__":
+    raise SystemExit(_background_main())

@@ -124,7 +124,7 @@ def get_hook_path_for_agent(agent: str) -> tuple[str, str, str]:
         "claude-code": ("claude_code_precompact", "claude-code pre-compaction hook"),
         "codex": ("codex_stop", "Codex CLI stop hook"),
         "gemini-cli": ("gemini_cli_onexit", "Gemini CLI session exit hook"),
-        "antigravity-cli": ("gemini_cli_onexit", "Antigravity CLI session exit hook"),
+        "antigravity": ("antigravity_stop", "Antigravity stop hook (app, IDE and CLI)"),
         "opencode": ("opencode_session_end", "OpenCode session end hook"),
         "openclaw": ("openclaw_session_end", "OpenClaw session end hook"),
         "aider": ("aider_chat_watcher", "Aider chat watcher hook"),
@@ -148,11 +148,10 @@ def show_hook_wiring_instructions(agent: str, hook_spec: HookSpec) -> None:
         print("    - Nothing to wire: call m3's chatlog write API from your application.")
     elif agent == "claude-code":
         print("    - Follow the 'Claude Code Settings' section below to add hooks to ~/.claude/settings.json")
-    elif agent in ("gemini-cli", "antigravity-cli"):
-        config_file = (
-            "~/.gemini/antigravity-cli/settings.json" if agent == "antigravity-cli" else "~/.gemini/settings.json"
-        )
-        print(f"    - Register the hook in {config_file} (see docs/CHATLOG.md for snippet)")
+    elif agent == "antigravity":
+        print("    - `m3 setup` writes it to ~/.gemini/config/hooks.json (Stop and SessionStart)")
+    elif agent == "gemini-cli":
+        print("    - Register the hook in ~/.gemini/settings.json (see docs/CHATLOG.md for snippet)")
         if on_windows:
             print(f"    - Command: powershell -NoProfile -ExecutionPolicy Bypass -File {ps1_path}")
         else:
@@ -486,9 +485,17 @@ def apply_gemini_settings() -> tuple[bool, str]:
             if isinstance(h, dict)
         )
 
-    # SessionStart: capture status and version ("*": Gemini matches lifecycle
-    # events by exact string, and only "" or "*" match every source).
-    for event, cmd, matcher in (("SessionEnd", hook_cmd, None), ("SessionStart", start_cmd, "*")):
+    # Capture runs on AfterModel (each turn, so a killed session keeps what it
+    # said), PreCompress and SessionEnd; SessionStart shows capture status and
+    # version ("*": Gemini matches lifecycle events by exact string, and only ""
+    # or "*" match every source). An older m3 line on any of them is replaced by
+    # the launcher line, whose path survives upgrades.
+    for event, cmd, matcher in (
+        ("AfterModel", hook_cmd, None),
+        ("PreCompress", hook_cmd, None),
+        ("SessionEnd", hook_cmd, None),
+        ("SessionStart", start_cmd, "*"),
+    ):
         current = hooks.get(event) or []
         entry: dict = {"hooks": [{"type": "command", "command": cmd}]}
         if matcher:

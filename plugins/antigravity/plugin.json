@@ -21,13 +21,5 @@
   },
   "homepage": "https://github.com/skynetcmd/m3-memory",
   "repository": "https://github.com/skynetcmd/m3-memory",
-  "license": "Apache-2.0",
-  "userConfig": {
-    "capture_mode": {
-      "type": "string",
-      "title": "Chatlog capture mode",
-      "description": "Which hooks fire chatlog ingest. One of: both | stop | precompact | none. 'both' = Stop + PreCompact (recommended). Validated by mcp-memory at runtime; invalid values fall back to 'both'.",
-      "default": "both"
-    }
-  }
+  "license": "Apache-2.0"
 }

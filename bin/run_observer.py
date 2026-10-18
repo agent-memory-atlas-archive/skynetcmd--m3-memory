@@ -546,7 +546,7 @@ async def process_conversation(
     # can be traced back to the LongMemEval session (or any upstream session
     # identifier) without a separate DB lookup. Bench SHR scoring requires
     # metadata.session_id on observation rows; without it observation hits are
-    # invisible to the metric (memory 914843f8, 2026-05-05).
+    # invisible to the metric (2026-05-05).
     source_session_id, session_date = session_identity(turns)
     if session_date == "unknown" and turns:
         # last-resort: use created_at first 10 chars (ISO date prefix)

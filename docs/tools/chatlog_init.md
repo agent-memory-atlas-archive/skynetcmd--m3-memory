@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_init.py
-sha1: 33e18bf5b84e
-mtime_utc: 2026-10-18T17:31:21.869176+00:00
-generated_utc: 2026-10-18T17:53:16.501733+00:00
+sha1: 3fd34d35bfe5
+mtime_utc: 2026-10-18T19:24:30.704990+00:00
+generated_utc: 2026-10-18T19:37:14.462017+00:00
 private: false
 ---
 
@@ -29,7 +29,7 @@ path equality.
 
 ## Entry points
 
-- `def main()` (line 623)
+- `def main()` (line 630)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -71,9 +71,9 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 302)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 279)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 757)
+- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 301)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 278)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 764)
 
 
 ---
@@ -94,8 +94,6 @@ _(none detected)_
 - ` section below to add hooks to ~/.claude/settings.json`
 - `claude_code_precompact.sh`
 - `settings.json`
-- `~/.gemini/antigravity-cli/settings.json`
-- `~/.gemini/settings.json`
 
 ---
 

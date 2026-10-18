@@ -1,7 +1,6 @@
 # Memory_core modularization plan and progress
 
 > Status: 2026-05-16. Authoritative plan + live progress log.
-> Source plan: drafted in conversation, see chatlog conversation `0687c056`.
 > Target: extract `embed` and `search` from the 7,725-line `bin/memory_core.py`.
 
 ## Why this exists
@@ -333,8 +332,6 @@ Plan designed so that any phase end leaves codebase strictly better:
 - `docs/EMBED_INPUT_RECIPE.md` — input-side embed pipeline doc.
 - `docs/EMBED_DEPLOYMENT.md` — runtime architecture.
 - `docs/ARCHITECTURE.md` — to be updated in Phase 5.
-- Memory `a774353c` — m3-memory ↔ m3-core-rs release loop.
-- Memory `1718c40f` — embedding pipeline anchor.
 
 ## Pre-flight hard rules
 

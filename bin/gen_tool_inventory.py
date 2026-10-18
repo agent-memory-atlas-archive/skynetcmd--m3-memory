@@ -69,7 +69,7 @@ PRIVATE = {
 # Path-prefix-based privacy. Any tracked source whose path-relative-to-repo
 # starts with one of these prefixes is marked private regardless of basename.
 # This keeps benchmark and bench-harness internals from leaking into a publish
-# unless someone explicitly removes the prefix here. Per memory `22c5aa8b`:
+# unless someone explicitly removes the prefix here. The rule:
 # bench-only fixes should never land on origin/main.
 PRIVATE_PATH_PREFIXES = (
     "benchmarks/longmemeval/",

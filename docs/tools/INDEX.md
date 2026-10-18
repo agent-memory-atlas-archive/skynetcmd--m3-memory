@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-18T17:56:58.681801+00:00._
+_Generated 2026-10-18T19:48:25.520212+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -119,6 +119,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/search_differential.py](search_differential.md) | Differential search check: does this tree still answer like a known-good m3? |  |
 | [bin/secret_rotator.py](secret_rotator.md) | (no docstring) |  |
 | [bin/session_handoff.py](session_handoff.md) | (no docstring) |  |
+| [bin/session_recall.py](session_recall.md) | Session recall: summaries of recent chat sessions, offered as a menu. |  |
 | [bin/setup_hooks.py](setup_hooks.md) | Enable the repo's shared git hooks for this clone. |  |
 | [bin/setup_secret.py](setup_secret.md) | Interactive CLI for adding API keys to the m3-memory encrypted vault. |  |
 | [bin/setup_test_db.py](setup_test_db.md) | Seed a fresh SQLite DB with the full m3-memory schema for test isolation. |  |

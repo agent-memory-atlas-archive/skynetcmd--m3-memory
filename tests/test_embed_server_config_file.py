@@ -1,4 +1,4 @@
-"""m3-embed-server reads m3_config.toml and the secrets file (m3 9655f30a):
+"""m3-embed-server reads m3_config.toml and the secrets file:
 the registry owns its keys, m3 hands it `--config <file>` and nothing through
 env, records what a service needs before `install`, records `secure`'s settings
 itself, migrates the retired per-server config.toml, and detects an older

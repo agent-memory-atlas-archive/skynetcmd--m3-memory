@@ -372,9 +372,13 @@ def generate_configs(write: bool = True):
         stop_enabled = bool(_cc.stop_hook) if _cc is not None else True
     except Exception:  # noqa: BLE001 — config unreadable: keep the recommended default
         stop_enabled = True
+    # SessionEnd starts the session's last capture and its summary in the
+    # background (Claude Code gives SessionEnd hooks 1.5 s; bin/hooks/session_end.py).
+    session_end_cmd = f"{_root_pins}{hook_launchers.command_for('claude-session-end', python_cmd)}"
     claude_hooks = {
         "SessionStart": session_start_entry,
         "PreCompact": hook_entry,
+        "SessionEnd": [{"hooks": [{"type": "command", "command": session_end_cmd}]}],
     }
     if stop_enabled:
         claude_hooks["Stop"] = hook_entry

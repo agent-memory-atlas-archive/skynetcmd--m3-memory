@@ -10,7 +10,7 @@ pass would summarize next.
 
 Report-only and exit-code neutral (like the cognitive-loop probe): whether to
 run the loop is the user's choice. It warns only on a measured backlog (a ready
-session waiting longer than BEHIND_WARN_MIN), never on an empty store.
+session waiting longer than session_recall.BEHIND_MINUTES), never on an empty store.
 """
 
 from __future__ import annotations
@@ -18,10 +18,6 @@ from __future__ import annotations
 import os
 import sys
 from datetime import UTC, datetime, timedelta
-
-# A ready session may wait this long for the pass (one loop interval is 5 min
-# by default, and a busy host is paced) before the probe calls it behind.
-BEHIND_WARN_MIN = 60
 
 
 def _ago(delta: timedelta) -> str:
@@ -89,7 +85,9 @@ def run(brief: bool = False, now: datetime | None = None) -> int:
     backlog, newest, coverage = g["backlog"], g["newest"], g["coverage"]
     oldest = backlog.oldest_ready_at
     behind: timedelta = (now - oldest) if oldest is not None else timedelta(0)
-    lagging = behind > timedelta(minutes=BEHIND_WARN_MIN)
+    import session_recall  # importable: _gather put bin/ on the path
+
+    lagging = behind > timedelta(minutes=session_recall.BEHIND_MINUTES)
     newest_txt = f"newest summary {_ago(now - newest)} ago" if newest else "no summary written yet"
     note = _project_note(coverage)
     window = f"last {int(s['window_days'])} d"

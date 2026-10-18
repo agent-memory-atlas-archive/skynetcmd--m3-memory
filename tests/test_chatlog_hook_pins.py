@@ -168,6 +168,34 @@ def test_apply_gemini_settings_upgrades_stale_onexit_hook(monkeypatch, tmp_path)
     assert "env" in d["mcpServers"]["memory"]  # memory entry has roots
 
 
+def test_apply_gemini_settings_captures_every_turn_through_the_launcher(monkeypatch, tmp_path):
+    """Capture runs on AfterModel, PreCompress and SessionEnd. An m3 line naming a
+    payload path (which an upgrade moves) is replaced by the launcher line, once
+    per event, and a user's own entry on the same event is kept."""
+    monkeypatch.setattr(ci.Path, "home", classmethod(lambda cls: tmp_path))
+    import m3_memory.installer as inst
+
+    monkeypatch.setattr(inst, "_canonical_memory_server", lambda: {"command": "mcp-memory"})
+    monkeypatch.setattr(inst, "_fix_npm_global_path", lambda: "")
+    gdir = tmp_path / ".gemini"
+    gdir.mkdir()
+    old = {"type": "command", "command": "python /venv/m3_memory/bin/hooks/chatlog/gemini_cli_onexit.py"}
+    user = {"type": "command", "command": "/usr/bin/user_hook"}
+    (gdir / "settings.json").write_text(
+        json.dumps({"hooks": {"AfterModel": [{"hooks": [old]}], "PreCompress": [{"hooks": [old]}, {"hooks": [user]}]}})
+    )
+
+    changed, _msg = ci.apply_gemini_settings()
+    hooks = json.loads((gdir / "settings.json").read_text())["hooks"]
+    assert changed is True
+    for event in ("AfterModel", "PreCompress", "SessionEnd"):
+        cmds = [h["command"] for e in hooks[event] for h in e["hooks"]]
+        assert sum(c.endswith("gemini-capture.py") for c in cmds) == 1, (event, cmds)
+        assert not any("/venv/m3_memory" in c for c in cmds), (event, cmds)  # the payload path is gone
+    assert {"hooks": [user]} in hooks["PreCompress"]
+    assert ci.apply_gemini_settings()[0] is False  # converged
+
+
 def test_apply_gemini_settings_idempotent_when_current(monkeypatch, tmp_path):
     """A second run with the config already correct reports no change."""
     monkeypatch.setattr(ci.Path, "home", classmethod(lambda cls: tmp_path))

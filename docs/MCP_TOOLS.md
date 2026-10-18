@@ -737,7 +737,7 @@ Recent-sessions menu for the start of a session: numbered one-line summaries of 
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `host_agent` | `string` | Yes | Your client as capture names it: claude-code, codex, gemini-cli, antigravity-cli, opencode, openclaw, aider, hermes. | `-` |
+| `host_agent` | `string` | Yes | Your client as capture names it: claude-code, codex, gemini-cli, antigravity, opencode, openclaw, aider, hermes. | `-` |
 | `user_id` | `string` | No | Whose sessions. Default: the user capture records (the OS login). | `` |
 | `cwd` | `string` | No | Your working directory; sessions from its git tree are listed first. | `` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |

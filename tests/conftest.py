@@ -555,6 +555,8 @@ def _real_agent_configs() -> list[Path]:
         home / ".claude" / "settings.json",
         home / ".gemini" / "settings.json",
         home / ".gemini" / "antigravity-cli" / "settings.json",
+        home / ".gemini" / "config" / "mcp_config.json",
+        home / ".gemini" / "config" / "hooks.json",
         home / ".cursor" / "mcp.json",
         home / ".config" / "opencode" / "opencode.json",
         home / ".codeium" / "windsurf" / "mcp_config.json",

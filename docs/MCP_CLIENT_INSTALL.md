@@ -113,18 +113,27 @@ gemini extensions install https://github.com/skynetcmd/m3-memory
 
 See [gemini_extension.md](gemini_extension.md).
 
-### Google Antigravity (CLI & Desktop)
+### Google Antigravity (app, IDE and CLI)
 
-**Native plugin** — easiest path.
+`m3 setup` wires all three: the memory server in `~/.gemini/config/mcp_config.json`
+(which `agy mcp list` reads) and m3's session-start and chat-capture hooks in
+`~/.gemini/config/hooks.json`, under a block named `m3`. Restart Antigravity
+afterwards. Or install the plugin instead:
 
 ```bash
 # In the Antigravity CLI:
 agy plugin install https://github.com/skynetcmd/m3-memory
 ```
 
-This registers the `m3` memory MCP server in `~/.gemini/antigravity-cli/settings.json`, wires the chatlog Stop + PreCompact hooks, and loads all 15 `/m3:*` slash commands as native agent Skills.
+The plugin registers the memory server, runs the same two hooks (`m3 hook
+antigravity-session-start`, `m3 hook antigravity-capture`, so `m3` must be on
+PATH), and loads the `/m3:*` slash commands as Skills. When the plugin is
+installed, `m3 setup` does not add its own hooks, so turns are not captured twice.
 
-**Manual config** — edit `~/.gemini/antigravity-cli/settings.json`:
+On Windows, Antigravity cannot run a hook command whose path contains a space;
+`m3 setup` says so and leaves the hooks off rather than write a line that never runs.
+
+**Manual config** — edit `~/.gemini/config/mcp_config.json`:
 
 ```json
 {
@@ -144,7 +153,7 @@ Use the server key `memory` — the one `m3 setup` writes — so a later `m3 set
 repoints this entry instead of adding a second server. In-process (tier-1)
 embedding is opt-in: it needs `embed.inproc = true` (`m3 config set embed.inproc true`), not just `M3_EMBED_GGUF`.
 
-Restart the Antigravity CLI or Desktop app.
+Restart Antigravity.
 
 ### Codex
 
@@ -438,6 +447,5 @@ detected issue.
 - `docs/ENVIRONMENT_VARIABLES.md` — the few M3_* env names m3 reads, and
   the `m3_config.toml` key each former one moved to
 - `bin/memory/doctor.py` — the diagnostic impl
-- Memory `a18d6a67` — MCP Proxy Integration Architecture (the Aider path; its
-  OpenClaw sections are superseded — OpenClaw is a native MCP client since
-  `2026.3.22`)
+- The Aider path runs through m3's MCP proxy (`bin/mcp_proxy.py`); OpenClaw is a
+  native MCP client since `2026.3.22`

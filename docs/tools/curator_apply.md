@@ -1,8 +1,8 @@
 ---
 tool: bin/curator_apply.py
-sha1: efe41ed8d799
-mtime_utc: 2026-10-13T00:31:44.128041+00:00
-generated_utc: 2026-10-13T00:36:58.879304+00:00
+sha1: 5d23ff6ab90d
+mtime_utc: 2026-10-18T20:00:33.530654+00:00
+generated_utc: 2026-10-18T20:01:01.415465+00:00
 private: false
 ---
 
@@ -22,7 +22,7 @@ failed twice (2026-05-17) with two distinct failure modes:
      replacement agent instead invented a Bash-file-writes-the-ids strategy
      and ran past its budget reasoning about Windows path mapping.
 
-This module is the structural fix per memory `4090f663` (the diagnose-the-
+This module is the structural fix (the diagnose-the-
 tool-shape rule, generalized): make the wrong path *impossible* by replacing
 the agent-driven apply procedure with one deterministic function. The
 agent's job becomes "emit a plan, call apply, read the report" — one MCP

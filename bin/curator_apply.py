@@ -10,7 +10,7 @@ failed twice (2026-05-17) with two distinct failure modes:
      replacement agent instead invented a Bash-file-writes-the-ids strategy
      and ran past its budget reasoning about Windows path mapping.
 
-This module is the structural fix per memory `4090f663` (the diagnose-the-
+This module is the structural fix (the diagnose-the-
 tool-shape rule, generalized): make the wrong path *impossible* by replacing
 the agent-driven apply procedure with one deterministic function. The
 agent's job becomes "emit a plan, call apply, read the report" — one MCP

@@ -366,7 +366,7 @@ def _apply_rerank(
 # ──────────────────────────────────────────────────────────────────────────────
 # Query routing (auto-route layer + temporal classification)
 # ──────────────────────────────────────────────────────────────────────────────
-# Module-level temporal regex — same patterns memory `2d1d5812` documented;
+# Module-level temporal regex — the measured pattern set;
 # 100% recall on LongMemEval temporal-reasoning, low FPR on others.
 _TEMPORAL_ROUTER_PATTERNS = (
     r"\bwhen\b",
