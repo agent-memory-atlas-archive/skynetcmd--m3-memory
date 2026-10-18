@@ -6,15 +6,11 @@
 #     "cwd": "...", "hook_event_name": "SessionEnd", "timestamp": "...",
 #     "reason": "exit" | "clear" | "logout" | "prompt_input_exit" | "other" }
 
-# Resolve repo root: $M3_HOME wins, else script-relative (../../..).
-if [ -n "$M3_HOME" ]; then
-    BASE="$M3_HOME"
-else
-    BASE="$(cd "$(dirname "$0")/../../.." && pwd)"
-fi
+# The repo root is script-relative (../../..): the hook lives in the payload.
+BASE="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 if [ ! -f "$BASE/bin/chatlog_ingest.py" ]; then
-    echo "gemini_cli_onexit: could not find bin/chatlog_ingest.py under '$BASE'. Set M3_HOME to the m3-memory repo root." >&2
+    echo "gemini_cli_onexit: could not find bin/chatlog_ingest.py under '$BASE'; the m3 install is incomplete. repair: m3 reinstall" >&2
     exit 1
 fi
 

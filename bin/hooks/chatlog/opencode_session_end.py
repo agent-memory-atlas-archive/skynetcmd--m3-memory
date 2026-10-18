@@ -33,9 +33,8 @@ _TAIL = 400  # chars of ingest stderr carried into a failure report
 
 
 def find_repo_root() -> Path:
-    m3_home = os.environ.get("M3_HOME")
-    if m3_home:
-        return Path(m3_home)
+    # The hook lives in the m3 payload (bin/hooks/chatlog/), so its own path
+    # locates it. (M3_HOME, which could point elsewhere, was retired 2026.10.18.0.)
     return Path(__file__).resolve().parents[3]
 
 
@@ -306,7 +305,7 @@ def main() -> int:
     repo = find_repo_root()
     ingest = repo / "bin" / "chatlog_ingest.py"
     if not os.path.exists(ingest):
-        reason = f"chatlog_ingest.py not found under {repo} (set M3_HOME to the m3-memory payload root)"
+        reason = f"chatlog_ingest.py not found under {repo} (the m3 install is incomplete; repair: m3 reinstall)"
         report_failure(reason, None, sys.executable, ingest, transcript, session_id, event_name, variant)
         return 1
 

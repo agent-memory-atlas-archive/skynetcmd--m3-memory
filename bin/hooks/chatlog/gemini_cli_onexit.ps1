@@ -11,12 +11,12 @@
 
 $ErrorActionPreference = "Stop"
 
-# Resolve repo root: $M3_HOME wins, else script-relative (..\..\..).
-$base = if ($env:M3_HOME) { $env:M3_HOME } else { Resolve-Path (Join-Path $PSScriptRoot "..\..\..") }
+# The repo root is script-relative (..\..\..): the hook lives in the payload.
+$base = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 
 $hook = Join-Path $base "bin\hooks\chatlog\gemini_cli_onexit.py"
 if (-not (Test-Path $hook)) {
-    Write-Error "gemini_cli_onexit: hook script missing at '$hook'. Set M3_HOME to the m3-memory payload root, or reinstall."
+    Write-Error "gemini_cli_onexit: hook script missing at '$hook'; the m3 install is incomplete. repair: m3 reinstall"
     exit 1
 }
 

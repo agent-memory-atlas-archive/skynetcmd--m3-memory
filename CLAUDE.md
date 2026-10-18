@@ -29,8 +29,9 @@ located from the environment; every other root comes from `[paths]` in
   reinstall wipes it.
 
 `M3_ENGINE_ROOT`, `M3_LOGS_ROOT` and `M3_MEMORY_ROOT` are **not read** (nor any
-other setting's env name); `m3 doctor` names any still set. `M3_HOME` /
-`M3_LIB_DIR` only help locate the payload's `bin/`.
+other setting's env name); `m3 doctor` names any still set. `M3_HOME` is
+retired (2026.10.18.0): hooks locate the payload from their own path.
+`M3_LIB_DIR` locates the wolfSSL library (`[paths] lib_dir` is the setting).
 
 ### Migration
 `bin/homecoming.py` relocates legacy state (repo-relative `memory/*` or the old

@@ -13,12 +13,12 @@
 
 $ErrorActionPreference = "Stop"
 
-# Resolve repo root: $M3_HOME wins, else script-relative (..\..\..).
-$base = if ($env:M3_HOME) { $env:M3_HOME } else { Resolve-Path (Join-Path $PSScriptRoot "..\..\..") }
+# The repo root is script-relative (..\..\..): the hook lives in the payload.
+$base = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 $hook = Join-Path $base "bin\hooks\chatlog\claude_code_precompact.py"
 
 if (-not (Test-Path $hook)) {
-    Write-Error "claude_code_precompact: hook script missing at '$hook'. Set M3_HOME to the m3-memory payload root, or reinstall."
+    Write-Error "claude_code_precompact: hook script missing at '$hook'; the m3 install is incomplete. repair: m3 reinstall"
     exit 1
 }
 

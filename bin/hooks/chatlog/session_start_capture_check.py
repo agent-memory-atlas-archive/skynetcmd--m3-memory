@@ -26,9 +26,9 @@ WINDOW_MIN = 15
 
 
 def _bin_on_path() -> Path:
-    """Put the payload's bin/ first on sys.path (once); return the repo root.
-    M3_HOME, if set, only LOCATES bin/; it never decides the DB."""
-    repo = Path(os.environ.get("M3_HOME") or Path(__file__).resolve().parents[3])
+    """Put the payload's bin/ first on sys.path (once); return the repo root,
+    located from this file's own place in the payload."""
+    repo = Path(__file__).resolve().parents[3]
     b = str(repo / "bin")
     if b not in sys.path:
         sys.path.insert(0, b)
@@ -45,12 +45,12 @@ def _resolve_db() -> str:
 
     The canonical resolver is tried first AND its engine-root default is used
     for the fallback, so this hook checks the SAME DB the running MCP server
-    writes to. The old fallback resolved the DB from M3_HOME/engine, which
+    writes to. An old fallback resolved the DB from the code checkout, which
     diverges from the server's M3_ENGINE_ROOT — the split-brain that produced a
     false "chatlog NOT writing" alarm against a stale pre-Homecoming copy.
     """
-    # bin/hooks/chatlog/this_file.py -> repo root is parents[3]. M3_HOME (if set)
-    # only helps LOCATE the bin/ dir to import m3_sdk; it does NOT decide the DB.
+    # bin/hooks/chatlog/this_file.py -> repo root is parents[3]: it locates bin/
+    # to import m3_sdk; it does NOT decide the DB.
     repo = _bin_on_path()
     engine_root_fn: Callable[[], str] | None = None
     try:

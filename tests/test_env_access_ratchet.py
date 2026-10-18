@@ -21,11 +21,9 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 # was never scanned (check_env_access.ROOT_FILES). Not new readers.
 # 2026-10-16: 51 after the readers of registry keys moved to the registry, the
 # retired knobs became literals, and the crypto readers moved (separate change).
-# 2026-10-18: 43 = 42 + the M3_HOME payload-locator read in codex_stop.py, the new
-# Codex capture hook. It is the capture hooks' byte-identical shared core (stdlib
-# only, so it runs when the package is broken; test_chatlog_hooks_success_criterion
-# enforces the copy), so each hook carries this same one read. Not a new reader.
-_BUDGET = 43
+# 2026-10-18: 37. M3_HOME retired: the five capture hooks and the session-start
+# capture check locate the payload from their own path (6 reads gone).
+_BUDGET = 37
 # Sites marked `# env-owner: <why>`: reading env is
 # their job (root locators, the legacy-name shim, the doctor/import-env scanners).
 # 2026-10-16: 60 = 41 + 19 reviewed: payload/root locators (install_os, installer,

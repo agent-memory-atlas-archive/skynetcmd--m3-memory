@@ -290,6 +290,7 @@ RETIRED: dict[str, str] = {
     "M3_ENTITY_COALESCE_MAX_PAIRS": "every caller passes 1000 (files_memory/entity_coalesce.py:69)",
     "CHATLOG_MODE": "only its presence is checked, to warn (chatlog_config.py:257)",
     "M3_ROUTE_SHADOW_MODE": "route shadow mode was retired in 2026.10.17.3: the native router is used when present",
+    "M3_HOME": "retired in 2026.10.18.0: each hook finds m3 from its own location",
 }
 
 NOT_SETTINGS: dict[str, str] = {
@@ -303,9 +304,6 @@ NOT_SETTINGS: dict[str, str] = {
     "M3_INSTALL_OXIDATION": "install_os.py's unattended answer to the native-core prompt",
     # It decides WHICH m3_config.toml is read, so it cannot be a key in that file.
     "M3_CONFIG_ROOT": "the config locator: it picks which m3_config.toml is read",
-    # The chatlog hooks (Python and shell) read it to
-    # find bin/ before any m3 code runs, so it cannot come from the config file.
-    "M3_HOME": "the hooks' bootstrap locator for the code checkout",
     # A diagnostic switch, read before config loads.
     "M3_DEBUG": "the diagnostic switch, read before config loads",
     # Retired as a user setting, no env read and no TOML key; one
