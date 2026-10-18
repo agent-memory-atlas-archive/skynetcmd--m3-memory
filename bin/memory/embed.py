@@ -250,7 +250,12 @@ def fast_embedder_available() -> bool:
     # state(), never allow_request(): allow_request() claims the single
     # half-open probe, and a predictor holding it leaves the real call refused
     # with no outcome recorded, so tier 2 would never recover.
-    if _CPU_FALLBACK_BREAKER is not None and _CPU_FALLBACK_BREAKER.state() != "open":
+    # NO breaker (the Rust core is not loaded, or its threshold is 0) means the
+    # pre-breaker behaviour _maybe_make_breaker documents: try the service. Only
+    # an OPEN breaker skips it. Treating None as "unavailable" made every write
+    # on a pure-Python install defer its vector and every search drop its query
+    # vector, with a healthy embed server running (found 2026-10-18).
+    if _CPU_FALLBACK_BREAKER is None or _CPU_FALLBACK_BREAKER.state() != "open":
         # Only meaningful if a fallback URL is actually configured; otherwise
         # tier-2 is a no-op and we'd still cascade.
         return bool(getattr(config, "EMBED_FALLBACK_URL", "") or _EMBED_FALLBACK_URL)
@@ -1917,16 +1922,26 @@ async def embed_for_search(text: str, *, embed_fn=None, gate: bool = True) -> tu
     """
     _fn = embed_fn if embed_fn is not None else _embed
     if gate and not fast_embedder_available():
-        breakers = get_embed_breaker_state()
+        state = get_embed_breaker_state().get("cpu_fallback")
+        url = getattr(config, "EMBED_FALLBACK_URL", "") or _EMBED_FALLBACK_URL
+        # One message per cause: an open breaker and a missing URL are different
+        # faults with different fixes.
+        if not url:
+            why = "no embed server is configured (embed.fallback_url is empty)"
+            fix = "set one: `m3 config set embed.fallback_url http://127.0.0.1:8082`, or run `m3 setup`"
+        else:
+            why = (
+                f"the tier-2 breaker for {url} is {state} after repeated failures (logged above as EmbedFallbackError)"
+            )
+            fix = "inspect: `m3 doctor`; it closes on its own once the server answers"
         _say_on_change(
             "search-gate",
-            f"skip:{breakers.get('cpu_fallback')}",
+            f"skip:{state}:{bool(url)}",
             logging.WARNING,
-            "search embed skipped: tier 1 is not loaded in this process and the tier-2 breaker for %s is %s "
-            "(it opened after repeated failures, logged above as EmbedFallbackError) — degrading to "
-            "FTS-only results until it closes. Said once per state. inspect: `m3 doctor`",
-            _EMBED_FALLBACK_URL,
-            breakers.get("cpu_fallback"),
+            "search embed skipped: tier 1 is not loaded in this process and %s — degrading to keyword-only "
+            "results (a semantic-only search returns nothing). Said once per state. %s",
+            why,
+            fix,
         )
         return None, config.EMBED_MODEL
     if _LAST_SAID.get("search-gate", "").startswith("skip"):

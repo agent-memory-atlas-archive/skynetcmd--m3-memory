@@ -617,6 +617,7 @@ INSTALLER_HOME_WRITERS = (
     "_register_cursor_mcp",
     "_register_cline_mcp",
     "_register_codex_mcp",
+    "_register_codex_hooks",
     "_sqlite3_cli_hint",
     "_fix_npm_global_path",
     "_print_backup_reminder",
@@ -1078,6 +1079,21 @@ def _real_spill_offenders(before: dict[str, int]) -> list[str]:
             if n:
                 offenders.append(f"{path} (+{n} line(s) aimed at a temp-dir store)")
     return offenders
+
+
+@pytest.fixture(autouse=True)
+def _hooks_folder_sandboxed(tmp_path_factory, monkeypatch):
+    """Re-point m3's hooks folder (m3_memory.hook_launchers.hooks_dir) per test.
+
+    It derives from the config root's PARENT, so a test that fakes a root such as
+    ``/data/.m3/config`` installed launchers at ``C:/data/.m3/hooks`` on the real
+    disk (2026-10-18). A computed path is re-pointed per test, not trusted to the
+    environment half of the sandbox."""
+    import importlib
+
+    hl = importlib.import_module("m3_memory.hook_launchers")
+    folder = tmp_path_factory.mktemp("m3-hooks")
+    monkeypatch.setattr(hl, "hooks_dir", lambda: folder)
 
 
 @pytest.fixture(autouse=True)

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_init.py
-sha1: 2ad8a7a1dbe6
-mtime_utc: 2026-10-18T16:57:11.200455+00:00
-generated_utc: 2026-10-18T17:01:58.245446+00:00
+sha1: 33e18bf5b84e
+mtime_utc: 2026-10-18T17:31:21.869176+00:00
+generated_utc: 2026-10-18T17:53:16.501733+00:00
 private: false
 ---
 
@@ -29,7 +29,7 @@ path equality.
 
 ## Entry points
 
-- `def main()` (line 603)
+- `def main()` (line 623)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -60,6 +60,8 @@ _(none detected)_
 - `chatlog_config (CONFIG_PATH, DEFAULT_DB_PATH, LIBRARY_HOST_AGENTS, MAIN_DB_PATH, VALID_HOST_AGENTS, ChatlogConfig, CostTrackingSpec, EmbedSweeperSpec, HookSpec, RedactionSpec, resolve_config, save_config)`
 - `generate_configs`
 - `generate_configs (_hook_env_prefix)`
+- `generate_configs (_resolve_python_cmd)`
+- `m3_memory (hook_launchers)`
 - `m3_memory.installer (_canonical_memory_server)`
 - `m3_memory.installer (_fix_npm_global_path)`
 
@@ -71,7 +73,7 @@ _(none detected)_
 
 - `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 302)
 - `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 279)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 737)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 757)
 
 
 ---
@@ -91,7 +93,6 @@ _(none detected)_
 
 - ` section below to add hooks to ~/.claude/settings.json`
 - `claude_code_precompact.sh`
-- `gemini_cli_onexit.sh`
 - `settings.json`
 - `~/.gemini/antigravity-cli/settings.json`
 - `~/.gemini/settings.json`

@@ -307,11 +307,14 @@ def test_bin_scripts_root_at_payload_bindir_not_the_clone(monkeypatch):
     settings = g.generate_configs._last_claude
     fp = str(fake_payload).replace("\\", "/")
 
-    # Every MCP bridge script arg + every hook + the statusline must live under the
-    # payload bin, and NONE may reference a /repo/ clone path.
+    # Every MCP bridge script arg + the statusline must live under the payload bin,
+    # and NONE may reference a /repo/ clone path. Hooks run m3's launchers (in the
+    # hooks folder, m3_memory.hook_launchers), which find the payload themselves.
+    from m3_memory import hook_launchers
+
     session = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
     statusline = settings["statusLine"]["command"]
-    assert fp in session, f"hook not rooted at payload: {session!r}"
+    assert hook_launchers.is_launcher_command(session) and session.endswith("claude-session-start.py"), session
     assert fp in statusline, f"statusline not rooted at payload: {statusline!r}"
     for name, srv in settings["mcpServers"].items():
         script = srv["args"][0]
@@ -342,7 +345,7 @@ def test_session_start_hook_present(monkeypatch, os_name):
     settings, _ = _build_settings(monkeypatch, os_name)
     assert "SessionStart" in settings["hooks"]
     inner = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-    assert "session_start_capture_check.py" in inner
+    assert inner.endswith("claude-session-start.py")  # m3's launcher (m3_memory.hook_launchers)
 
 
 def test_posix_has_no_windows_interpreter_leak(monkeypatch):

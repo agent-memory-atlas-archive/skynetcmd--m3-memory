@@ -3285,10 +3285,10 @@ def _wire_cline() -> bool:
 
 def _wire_codex() -> bool:
     """Write the m3 MCP entry into Codex's config.toml ([mcp_servers.memory])."""
-    from m3_memory.installer import _register_codex_mcp
+    from m3_memory.installer import _register_codex_hooks, _register_codex_mcp
 
-    msg = _register_codex_mcp()
-    return _report_registration(msg)
+    ok = _report_registration(_register_codex_mcp())
+    return _report_registration(_register_codex_hooks()) and ok
 
 
 # OpenClaw shipped a NATIVE MCP client in 2026.3.22. Bisected against upstream
@@ -3871,6 +3871,7 @@ def _repair_kept_wiring() -> None:
         from m3_memory.installer import (
             _heal_agent_settings,
             _heal_config_bridge_path,
+            _register_codex_hooks,
             _register_codex_mcp,
             _scan_agent_configs,
             claude_uses_m3,
@@ -3883,9 +3884,9 @@ def _repair_kept_wiring() -> None:
                 msg = _heal_agent_settings(path)
                 if msg:
                     print(f"  {msg}")
-        msg = _register_codex_mcp(repair_only=True)  # Codex is TOML: not in the scan above
-        if msg:
-            print(f"  {msg}")
+        for msg in (_register_codex_mcp(repair_only=True), _register_codex_hooks(repair_only=True)):
+            if msg:  # Codex is TOML + its own hooks.json: not in the scan above
+                print(f"  {msg}")
         if not claude_uses_m3():
             return
         _register_claude_server()

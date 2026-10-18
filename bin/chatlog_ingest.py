@@ -897,7 +897,7 @@ def _parse_codex(raw: str) -> tuple[list[dict], str | None]:
         stamp = str(obj.get("timestamp") or "")
         # Stop re-reads the whole rollout every turn: the id must be the same on
         # each read, so it is the line's own id or one built from its stamp.
-        uid = payload.get("id") or f"{stamp}:{role}:{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}"
+        uid = payload.get("id") or f"{stamp}:{role}:{hashlib.sha256(text.encode('utf-8'), usedforsecurity=False).hexdigest()[:16]}"
         items.append(
             {
                 "content": text,

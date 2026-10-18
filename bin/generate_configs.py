@@ -302,11 +302,18 @@ def generate_configs(write: bool = True):
     # does not exist under cmd.exe. The .py is the cross-platform entry point.
     # Paths are quoted only when they need it (a space in the home directory),
     # so existing commands stay byte-identical and idempotent.
-    _py = _quote_cmd_path(python_cmd)
-    hook_cmd = f"{_root_pins}{_py} {_quote_cmd_path(repo('bin/hooks/chatlog/claude_code_precompact.py'))}"
+    # Each line runs a launcher in m3's hooks folder (m3_memory.hook_launchers):
+    # m3 rewrites the launchers on every upgrade, so a fix never edits this file
+    # again, and the line survives the package moving (a new Python under pipx).
+    from m3_core.seams import roots as _roots_seam  # noqa: F401 -- makes m3_memory importable from a checkout
+
+    from m3_memory import hook_launchers
+
+    _py = _quote_cmd_path(python_cmd)  # the status line below
+    hook_cmd = f"{_root_pins}{hook_launchers.command_for('claude-capture', python_cmd)}"
     hook_entry = [{"hooks": [{"type": "command", "command": hook_cmd}]}]
 
-    session_start_cmd = f"{_root_pins}{_py} {_quote_cmd_path(repo('bin/hooks/chatlog/session_start_capture_check.py'))}"
+    session_start_cmd = f"{_root_pins}{hook_launchers.command_for('claude-session-start', python_cmd)}"
     session_start_entry = [
         {
             "hooks": [
@@ -314,7 +321,7 @@ def generate_configs(write: bool = True):
                     "type": "command",
                     "command": session_start_cmd,
                     "timeout": 15,
-                    "statusMessage": "Checking m3 chatlog capture...",
+                    "statusMessage": "m3: checking capture and version...",
                 }
             ]
         }
@@ -509,7 +516,11 @@ def _is_m3_command(cmd, repo_root_fwd):
         "session_start_capture_check",
         "claude_code_precompact",
     )
-    return any(m and m in cmd for m in markers)
+    if any(m and m in cmd for m in markers):
+        return True
+    from m3_memory import hook_launchers  # a launcher line in m3's hooks folder
+
+    return hook_launchers.is_launcher_command(cmd)
 
 
 def _strip_m3_hook_entries(hook_list, repo_root_fwd):
@@ -563,6 +574,13 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
     # except on a dry run).
     generate_configs(write=not dry_run)
     m3 = getattr(generate_configs, "_last_claude", None)
+    if not dry_run:
+        # The lines below point at launchers in m3's hooks folder: write them
+        # first (the generator itself stays pure, it only computes the lines).
+        from m3_memory import hook_launchers
+
+        for change in hook_launchers.install_launchers():
+            print(f"  hooks: {change}")
     if not m3:
         raise RuntimeError("generate_configs did not produce claude settings")
 

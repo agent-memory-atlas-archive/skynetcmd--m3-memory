@@ -154,10 +154,16 @@ def test_apply_gemini_settings_upgrades_stale_onexit_hook(monkeypatch, tmp_path)
     assert changed is True
     d = json.loads((gdir / "settings.json").read_text())
     se = d["hooks"]["SessionEnd"]
-    m3 = [e for e in se if "chatlog" in json.dumps(e).lower()][0]["hooks"][0]["command"]
+    from m3_memory import hook_launchers
+
+    ours = [e for e in se if any(hook_launchers.is_launcher_command(h["command"]) for h in e["hooks"])]
+    assert len(ours) == 1, se  # the stale chatlog line was replaced, not kept beside the new one
+    m3 = ours[0]["hooks"][0]["command"]
+    assert m3.endswith("gemini-capture.py")  # runs m3's launcher (m3_memory.hook_launchers)
     assert "M3_CONFIG_ROOT=" in m3  # the non-default config root is pinned
     assert "M3_ENGINE_ROOT" not in m3  # m3 does not read it
-    assert "/old/repo" not in m3  # upgraded, not stale
+    assert all("/old/repo" not in json.dumps(e) for e in se)  # upgraded, not stale
+    assert d["hooks"]["SessionStart"][-1]["hooks"][0]["command"].endswith("gemini-session-start.py")
     assert any("user_hook" in json.dumps(e) for e in se)  # user hook preserved
     assert "env" in d["mcpServers"]["memory"]  # memory entry has roots
 

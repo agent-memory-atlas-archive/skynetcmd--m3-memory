@@ -412,17 +412,22 @@ def apply_gemini_settings() -> tuple[bool, str]:
         except json.JSONDecodeError as e:
             return False, f"refused to edit {settings_path}: unparseable JSON ({e})"
 
-    sh = os.path.join(BASE_DIR, "bin", "hooks", "chatlog", "gemini_cli_onexit.sh").replace("\\", "/")
-    ps1 = os.path.join(BASE_DIR, "bin", "hooks", "chatlog", "gemini_cli_onexit.ps1").replace("\\", "/")
-    # Same split-brain pin as the Claude hook: the onExit hook inherits Gemini's
-    # process env, not the MCP server env block.
+    # Same split-brain pin as the Claude hook: the hooks inherit Gemini's process
+    # env, not the MCP server env block.
     prefix = _root_env_prefix()
-    if is_windows():
-        hook_cmd = f"{prefix}powershell -NoProfile -ExecutionPolicy Bypass -File {ps1}"
-    else:
-        hook_cmd = f"{prefix}/bin/sh {sh}"
+    # Each line runs a launcher in m3's hooks folder (m3_memory.hook_launchers),
+    # which m3 rewrites on every upgrade; the interpreter is the one Claude's
+    # lines use (windowless on Windows).
+    from generate_configs import _resolve_python_cmd
+
+    from m3_memory import hook_launchers
 
     actions: list[str] = []
+    if hook_launchers.install_launchers():
+        actions.append("hook launchers")
+    hook_py = _resolve_python_cmd(BASE_DIR)
+    hook_cmd = f"{prefix}{hook_launchers.command_for('gemini-capture', hook_py)}"
+    start_cmd = f"{prefix}{hook_launchers.command_for('gemini-session-start', hook_py)}"
 
     # 0. Try to ensure ~/.npm-global/bin is on the non-login shell PATH.
     #    Idempotent and safe even if already done by install-m3 (which
@@ -471,12 +476,27 @@ def apply_gemini_settings() -> tuple[bool, str]:
     #    whenever an entry was already present and so could never fix one. User
     #    entries in SessionEnd are preserved.
     hooks = existing.setdefault("hooks", {})
-    current_se = hooks.get("SessionEnd") or []
-    user_se = [e for e in current_se if "chatlog" not in json.dumps(e).lower()]
-    desired_se = [*user_se, {"hooks": [{"type": "command", "command": hook_cmd}]}]
-    if current_se != desired_se:
-        hooks["SessionEnd"] = desired_se
-        actions.append("SessionEnd hook")
+
+    def _ours(entry: object) -> bool:
+        # An older m3 line names its chatlog script; a current one runs a launcher.
+        text = json.dumps(entry)
+        return "chatlog" in text.lower() or any(
+            hook_launchers.is_launcher_command(h.get("command"))
+            for h in (entry.get("hooks") or [] if isinstance(entry, dict) else [])
+            if isinstance(h, dict)
+        )
+
+    # SessionStart: capture status and version ("*": Gemini matches lifecycle
+    # events by exact string, and only "" or "*" match every source).
+    for event, cmd, matcher in (("SessionEnd", hook_cmd, None), ("SessionStart", start_cmd, "*")):
+        current = hooks.get(event) or []
+        entry: dict = {"hooks": [{"type": "command", "command": cmd}]}
+        if matcher:
+            entry["matcher"] = matcher
+        desired = [*[e for e in current if not _ours(e)], entry]
+        if current != desired:
+            hooks[event] = desired
+            actions.append(f"{event} hook")
 
     if not actions:
         return False, f"no change — Gemini already wired for m3-memory in {settings_path}"

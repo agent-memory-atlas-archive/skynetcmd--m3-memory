@@ -715,6 +715,77 @@ def _register_codex_mcp(*, repair_only: bool = False) -> str | None:
     return f"[+] {verb} 'memory' MCP in {cfg}"
 
 
+def _register_codex_hooks(*, repair_only: bool = False) -> str | None:
+    """Wire m3's hooks into Codex's hooks.json, next to its config.toml.
+
+    SessionStart (capture status and version) and Stop (chat capture: Codex fires
+    it after every turn with the rollout path). Not SessionEnd: Codex caps that
+    hook at 3 s, too short for an ingest, and Stop has already captured the turns.
+    Each entry runs a launcher in m3's hooks folder (m3_memory.hook_launchers);
+    the user's other entries are kept, and an existing file is backed up first.
+    ``repair_only`` rewrites only a file that already holds m3 entries."""
+    from m3_memory import hook_launchers
+
+    cfg = _codex_config_path()
+    if not (shutil.which("codex") or os.path.isdir(cfg.parent)):
+        return None
+    path = cfg.parent / "hooks.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if os.path.isfile(path) else {}
+    except (OSError, ValueError) as e:
+        return f"[!] {path} could not be read ({type(e).__name__}: {e}); Codex hooks were not wired. inspect: that file"
+    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+        return f"[!] {path}: `hooks` is not an object; Codex hooks were not wired. inspect: that file"
+    hooks = data.setdefault("hooks", {})
+
+    def ours(entry: object) -> bool:
+        inner = entry.get("hooks") if isinstance(entry, dict) else None
+        return any(hook_launchers.is_launcher_command(h.get("command")) for h in inner or [] if isinstance(h, dict))
+
+    has_ours = any(ours(e) for v in hooks.values() if isinstance(v, list) for e in v)
+    if repair_only and not has_ours:
+        return None
+    hook_launchers.install_launchers()
+    py = _python_exe(windowless=True)  # pythonw.exe on Windows: no console flash per hook
+    wanted = {
+        "SessionStart": {
+            "matcher": "startup|resume|clear",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": hook_launchers.command_for("codex-session-start", py),
+                    "timeout": 30,
+                    "statusMessage": "m3: checking capture and version",
+                }
+            ],
+        },
+        "Stop": {
+            "hooks": [{"type": "command", "command": hook_launchers.command_for("codex-capture", py), "timeout": 90}]
+        },
+    }
+    changed = False
+    for event, entry in wanted.items():
+        current = hooks.get(event) if isinstance(hooks.get(event), list) else []
+        desired = [*[e for e in current if not ours(e)], entry]
+        if current != desired:
+            hooks[event] = desired
+            changed = True
+    if not changed:
+        return None
+    text = json.dumps(data, indent=2) + "\n"
+    try:
+        if os.path.isfile(path):
+            _guarded_write(path, text, by="m3 setup/doctor (Codex hooks)")
+        else:
+            _bin.ensure_on_path()
+            from m3_core.atomic_io import atomic_write
+
+            atomic_write(path, text)
+    except OSError as e:
+        return f"[X] could not write {path} ({e}); it is unchanged or restorable from its .bak"
+    return f"[+] wired m3 hooks (session start, chat capture) in {path}; approve them once in Codex: /hooks"
+
+
 def _fix_npm_global_path() -> str | None:
     """Append ~/.npm-global/bin to ~/.profile for non-interactive shells.
 
@@ -1581,6 +1652,7 @@ def _post_install(
             _register_cursor_mcp(),
             _register_cline_mcp(),
             _register_codex_mcp(),
+            _register_codex_hooks(),
             _sqlite3_cli_hint(),
             _fix_npm_global_path(),
         )
@@ -2615,6 +2687,11 @@ def _heal_all_agents(*, force: bool = False) -> int:
             if msg.lstrip().startswith("[+]"):
                 changed += 1
     msg = _register_codex_mcp(repair_only=True)  # TOML, so not in the JSON list above
+    if msg:
+        print(f"  {msg}")
+        if msg.lstrip().startswith("[+]"):
+            changed += 1
+    msg = _register_codex_hooks(repair_only=True)
     if msg:
         print(f"  {msg}")
         if msg.lstrip().startswith("[+]"):

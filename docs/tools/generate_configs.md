@@ -1,8 +1,8 @@
 ---
 tool: bin/generate_configs.py
-sha1: 76cd7978519f
-mtime_utc: 2026-10-18T01:56:35.883791+00:00
-generated_utc: 2026-10-18T01:57:35.980155+00:00
+sha1: 226c4184328a
+mtime_utc: 2026-10-18T17:54:44.746499+00:00
+generated_utc: 2026-10-18T17:54:57.393070+00:00
 private: false
 ---
 
@@ -41,6 +41,7 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `chatlog_config`
+- `m3_memory (hook_launchers)`
 - `m3_memory.embedder_admin (seed_shared_config)`
 - `m3_memory.installer (bin_dir)`
 

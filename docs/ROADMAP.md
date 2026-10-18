@@ -203,7 +203,7 @@ Deprecated in v2026.10.17.0 (see the [CHANGELOG](../CHANGELOG.md)). Each still w
 
 ## 📦 Planned — Distribution & Deployment
 
-> **Order after the next release:** health and Prometheus metrics endpoint, HNSW approximate search, official Docker image (on demand), server / multi-user deployment guide, stable public SDK, search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
+> **Order after the next release:** health and Prometheus metrics endpoint, HNSW approximate search, official Docker image (on demand), server / multi-user deployment guide, public Python API (`M3Client`), search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
 
 - [ ] **HNSW approximate search on the PostgreSQL primary backend** — exact search already scores in the database when the server has pgvector (migration `pg_066` keeps a `vector` copy of each embedding; older rows are filled in the background after the upgrade). An HNSW index would trade exactness for speed on stores far larger than 50,000 memories.
 - [ ] **Docker image** — built on community demand: today's users run m3 directly (`pip install` and `m3 setup`) and have not asked for one. Shape if built: `docker run -v ~/.m3:/data ghcr.io/skynetcmd/m3-memory:latest`
@@ -237,7 +237,7 @@ Deprecated in v2026.10.17.0 (see the [CHANGELOG](../CHANGELOG.md)). Each still w
 
 - [ ] **Public benchmark suite** — MRR, Hit@5, latency vs. Mem0 / LangMem / raw ChromaDB on standard datasets (LongMemEval-S already published — see Shipped above)
 - [ ] **Formal accuracy regression CI** — block merges that degrade retrieval quality (today: behavior baseline at `tests/capture_retrieval_baseline.py` is the local gate)
-- [ ] **Stable public API** — `m3_memory.sdk` Python API with semver guarantees
+- [ ] **Publish `M3Client` as the public Python API** — the in-process client that m3's LangChain/LangGraph, CrewAI, PydanticAI and Hermes integrations already use (`m3_memory/integrations/_client.py`) becomes a documented import (`from m3_memory import M3Client`). Python programs then call m3 directly, in milliseconds per call instead of a CLI process each time, and get structured results back.
 - [ ] **Full documentation site** — MkDocs or Docusaurus with API reference, tutorials, architecture deep-dives
 - [ ] **Plugin system** — register custom memory types, custom embedders, custom sync backends
 

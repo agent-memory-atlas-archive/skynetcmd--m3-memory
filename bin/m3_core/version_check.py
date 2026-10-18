@@ -52,13 +52,14 @@ def is_newer(candidate: str | None, installed: str | None) -> bool:
 
 
 def installed_version() -> str | None:
-    """The m3-memory version this interpreter imports (package metadata)."""
-    from importlib.metadata import PackageNotFoundError, version
+    """The running m3's version, from its one owner, ``m3_memory.__version__``."""
+    from m3_core import seams  # noqa: F401 -- makes m3_memory importable from a checkout
 
     try:
-        return version("m3-memory")
-    except PackageNotFoundError:
+        import m3_memory
+    except ImportError:
         return None
+    return str(getattr(m3_memory, "__version__", "") or "") or None
 
 
 def fetch_latest(timeout: float = 2.0) -> str:

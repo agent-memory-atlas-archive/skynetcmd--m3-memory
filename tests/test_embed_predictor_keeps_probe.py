@@ -28,6 +28,33 @@ class _HalfOpenBreaker:
         return True
 
 
+class _OpenBreaker:
+    def state(self):
+        return "open"
+
+
+def _predictor(monkeypatch, breaker, url):
+    embed = importlib.import_module("memory.embed")
+    monkeypatch.setattr(embed, "_CPU_FALLBACK_BREAKER", breaker)
+    monkeypatch.setattr(embed, "_get_embedded_embedder", lambda: None)
+    monkeypatch.setattr(embed, "_EMBED_FALLBACK_URL", url)
+    monkeypatch.setattr(embed.config, "EMBED_FALLBACK_URL", url, raising=False)
+    return embed.fast_embedder_available()
+
+
+def test_no_breaker_means_try_the_embed_server(monkeypatch):
+    """No breaker (the Rust core is not loaded) is the pre-breaker behaviour:
+    try the server. It used to read as "unavailable", so a pure-Python install
+    deferred every vector and dropped every query vector with a healthy server
+    (found 2026-10-18: a second m3 without the core was first on PATH)."""
+    assert _predictor(monkeypatch, None, "http://127.0.0.1:8082") is True
+
+
+def test_an_open_breaker_or_no_server_skips_tier_2(monkeypatch):
+    assert _predictor(monkeypatch, _OpenBreaker(), "http://127.0.0.1:8082") is False
+    assert _predictor(monkeypatch, None, "") is False
+
+
 def test_predictor_leaves_the_probe_for_the_real_call(monkeypatch):
     embed = importlib.import_module("memory.embed")
     breaker = _HalfOpenBreaker()
