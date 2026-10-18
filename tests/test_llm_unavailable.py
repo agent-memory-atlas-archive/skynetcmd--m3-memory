@@ -144,7 +144,7 @@ def test_raise_for_status_with_body_is_silent_on_success():
 # ── _call_model: reactive, and free on the healthy path ─────────────────────
 
 
-def _profile(tmp_path, monkeypatch):
+def _profile(tmp_path, m3_settings):
     import slm_intent
     import yaml
 
@@ -162,13 +162,13 @@ def _profile(tmp_path, monkeypatch):
         ),
         encoding="utf-8",
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     return slm_intent, slm_intent.load_profile("p")
 
 
-def test_no_model_loaded_becomes_llm_unavailable(tmp_path, monkeypatch):
-    slm_intent, prof = _profile(tmp_path, monkeypatch)
+def test_no_model_loaded_becomes_llm_unavailable(tmp_path, monkeypatch, m3_settings):
+    slm_intent, prof = _profile(tmp_path, m3_settings)
 
     def handler(r):
         if r.url.path.endswith("/models"):
@@ -185,10 +185,10 @@ def test_no_model_loaded_becomes_llm_unavailable(tmp_path, monkeypatch):
     assert "No models loaded" in str(ei.value.__cause__), "the original failure is chained"
 
 
-def test_a_request_failure_on_a_usable_server_stays_a_request_failure(tmp_path, monkeypatch):
+def test_a_request_failure_on_a_usable_server_stays_a_request_failure(tmp_path, monkeypatch, m3_settings):
     """Not every 400 is an outage: with a model listed, the original error is
     re-raised (with its body), not converted to LLMUnavailable."""
-    slm_intent, prof = _profile(tmp_path, monkeypatch)
+    slm_intent, prof = _profile(tmp_path, m3_settings)
 
     def handler(r):
         if r.url.path.endswith("/models"):
@@ -205,8 +205,8 @@ def test_a_request_failure_on_a_usable_server_stays_a_request_failure(tmp_path, 
     assert "bad request shape" in str(ei.value)
 
 
-def test_healthy_path_makes_no_extra_request(tmp_path, monkeypatch):
-    slm_intent, prof = _profile(tmp_path, monkeypatch)
+def test_healthy_path_makes_no_extra_request(tmp_path, monkeypatch, m3_settings):
+    slm_intent, prof = _profile(tmp_path, m3_settings)
     paths = []
 
     def handler(r):
@@ -221,8 +221,8 @@ def test_healthy_path_makes_no_extra_request(tmp_path, monkeypatch):
     assert paths == ["/v1/chat/completions"], f"healthy call must not probe /models: {paths}"
 
 
-def test_a_known_outage_skips_the_post(tmp_path, monkeypatch):
-    slm_intent, prof = _profile(tmp_path, monkeypatch)
+def test_a_known_outage_skips_the_post(tmp_path, monkeypatch, m3_settings):
+    slm_intent, prof = _profile(tmp_path, m3_settings)
     llm_failover._USABILITY_CACHE[EP] = (llm_failover.time.monotonic(), False, "none loaded")
     paths = []
 

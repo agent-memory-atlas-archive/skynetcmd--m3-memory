@@ -7,7 +7,7 @@ machine and a central PostgreSQL warehouse. This lets you switch machines
 This page covers the **default sync** — a SQLite local store (`agent_memory.db`)
 to a PostgreSQL warehouse. Bench result databases are **not** synced and are not
 auto-detected; if you run benchmarks (most users don't) and want their DBs
-included, add them to `M3_SYNC_DBS` and supply your own warehouse schema — see
+included, pass them with `--db PATH` and supply your own warehouse schema — see
 [What does NOT sync by default](#what-does-not-sync-by-default) below.
 
 > **If your local store is PostgreSQL**, this page's row-by-row bridge does not
@@ -32,7 +32,7 @@ in `m3_config.toml` overrides):
 
 That's it. The repo does not ship sync support for bench result DBs or other
 custom databases. If you self-host a more complex layout (e.g., separate
-DBs for benchmarking), use `M3_SYNC_DBS` to add them — see the *Advanced*
+DBs for benchmarking), pass them with `--db PATH` — see the *Advanced*
 section at the bottom — but the repo will not auto-detect them and there
 is no shipped warehouse migration for non-default DBs.
 
@@ -173,7 +173,7 @@ the newer one wins. This means:
 
 - **Bench result DBs** — out of scope for the repo. If you run benchmarks
   and want their results synced across machines, that's self-host territory:
-  add the DBs to `M3_SYNC_DBS` and provide your own warehouse schema migration.
+  pass the DBs with `--db PATH` and provide your own warehouse schema migration.
 - **`memory/local_*` rows** — anything tagged `scope='local'` is per-machine
   by design.
 - **`/tmp` scratch and `.scratch/`** — these are workspace, not memory.
@@ -196,10 +196,10 @@ failed. Check:
 - Is your warehouse running, and is the network path (VPN/tailnet) up?
 
 **Only `['main']` is synced, no chatlog** → the chat log resolved to the main
-store, usually because the job pins the main DB with `--database` (or the
-legacy `M3_DATABASE`) and nothing pins the chat log's path. Run `m3 setup` once (it pins
-the chat log's own path in the chatlog config); the legacy `M3_CHATLOG_DB_PATH` also
-works, through release N+3.
+store, usually because the job pins the main DB with `--database` and nothing pins
+the chat log's path. Run `m3 setup` once (it pins the chat log's own path in the
+chatlog config). The former `M3_DATABASE` /
+`M3_CHATLOG_DB_PATH` variables are not read; `m3 doctor` names any still set.
 
 **"pg_sync SKIPPED … (EX_TEMPFAIL)"** → the run could not take the sync lock
 and replicated nothing; the next scheduled run retries. The lock is a row in the
@@ -325,20 +325,20 @@ chase that independently of whether the MCP tools work.
 
 ---
 
-## Advanced: M3_SYNC_DBS
+## Advanced: --db
 
-If you want to override the default DB list (e.g., to sync a custom
-named DB) for one run. The override **replaces** the default list rather than
-adding to it. It is a legacy store locator, read through release N+3:
+To override the default DB list (e.g., to sync a custom named DB) for one run,
+pass `--db PATH`, once per store. The list **replaces** the default rather than
+adding to it. (The former `M3_SYNC_DBS` variable is not read.)
 
 ```bash
 # Sync only agent_memory.db
-M3_SYNC_DBS=$HOME/.m3/engine/agent_memory.db python bin/sync_all.py
+python bin/sync_all.py --db $HOME/.m3/engine/agent_memory.db
 
 # Sync a custom set
-M3_SYNC_DBS=$HOME/.m3/engine/agent_memory.db,/data/custom/extra.db python bin/sync_all.py
+python bin/sync_all.py --db $HOME/.m3/engine/agent_memory.db --db /data/custom/extra.db
 ```
 
-Separate paths with commas or the OS path separator (`:` on POSIX, `;` on Windows). Use absolute paths (your engine root,
+Use absolute paths (your engine root,
 `~/.m3/engine` by default): a relative path resolves against the installed
 payload, not your engine root.

@@ -88,9 +88,8 @@ python -m pytest tests/test_slm_intent.py -v
 # Exclude the two slow tests
 python -m pytest tests/ -m "not slow"
 
-# Against an isolated DB (see bin/setup_test_db.py)
-python bin/setup_test_db.py --database memory/_test.db --force
-M3_DATABASE=memory/_test.db python -m pytest tests/   # legacy env name (read through N+3, warned)
+# Isolation is automatic: conftest.m3_sandbox gives every test its own
+# config root, m3_config.toml and engine root under pytest's temp area.
 ```
 
 ---
@@ -101,18 +100,20 @@ These are self-contained scripts that print a `✅/❌` summary. They exist
 for scenarios that need a real live DB, a running MCP server, or LM Studio
 on localhost — things pytest would have to mock extensively.
 
-They define no `--database` flag; point them at a scratch DB with the legacy
-`M3_DATABASE` env var (read through release N+3, with a one-time warning):
+They define no `--database` flag; point them at a scratch config root whose
+`m3_config.toml` names a scratch engine root (`M3_DATABASE` is not read):
 
 ```bash
-python bin/setup_test_db.py --database memory/_test.db --force
-M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
+mkdir -p /tmp/m3-test/config
+printf 'schema_version = 1\n[paths]\nengine_root = "/tmp/m3-test/engine"\n' > /tmp/m3-test/config/m3_config.toml
+python bin/setup_test_db.py --database /tmp/m3-test/engine/agent_memory.db --force
+M3_CONFIG_ROOT=/tmp/m3-test/config python bin/test_memory_bridge.py
 ```
 
 | File | Invocation | Count | Requires | Covers |
 |---|---|---|---|---|
-| `test_memory_bridge.py` | `python bin/test_memory_bridge.py` | 193 checks across 47 scenarios | LM Studio (skips embedding tests if offline); DB via legacy `M3_DATABASE` | All 38+ MCP tools: memory write/get/search/update/delete, conversations, tasks, handoffs, inbox, agent registry, notifications, GDPR, sync |
-| `test_debug_agent.py` | `python bin/test_debug_agent.py` | ~25 checks | LM Studio (graceful skip); DB via legacy `M3_DATABASE` | Debug agent bridge: thermal, LLM routing, debug_analyze / bisect / trace / correlate / history / report |
+| `test_memory_bridge.py` | `python bin/test_memory_bridge.py` | 193 checks across 47 scenarios | LM Studio (skips embedding tests if offline); DB via the config root's engine root | All 38+ MCP tools: memory write/get/search/update/delete, conversations, tasks, handoffs, inbox, agent registry, notifications, GDPR, sync |
+| `test_debug_agent.py` | `python bin/test_debug_agent.py` | ~25 checks | LM Studio (graceful skip); DB via the config root's engine root | Debug agent bridge: thermal, LLM routing, debug_analyze / bisect / trace / correlate / history / report |
 | `test_mcp_proxy.py` | `python bin/test_mcp_proxy.py` | 4 scenarios, ~10 checks | MCP proxy running on :9000, `ANTHROPIC_API_KEY`, DB | Proxy end-to-end: `/health`, Claude + Gemini routing, aider subprocess, activity_logs delta |
 | `test_mcp_proxy_unit.py` (now in `tests/`) | `pytest tests/test_mcp_proxy_unit.py` | 12 tests | none | Proxy internals: tool-list merging, destructive-tool gating, `inject_agent_id` enforcement |
 | `test_bulk_parity.py` | `python bin/test_bulk_parity.py` | ~15 checks | SQLite (mocked schema) | Bulk vs single write parity: enrichment, variant isolation, contradiction detection |
@@ -126,13 +127,15 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 The three harnesses that take over the live DB (`test_memory_bridge.py`,
 `test_debug_agent.py`, `test_mcp_proxy.py`) resolve `DB_PATH` at import
 time via `m3_sdk.resolve_db_path(None)` and define no `--database` flag, so
-setting the legacy `M3_DATABASE` before invocation isolates them (read through
-release N+3, warned). Typical flow:
+a scratch `M3_CONFIG_ROOT` (whose `m3_config.toml` sets `[paths] engine_root`)
+isolates them. Typical flow:
 
 ```bash
-python bin/setup_test_db.py --database memory/_test.db --force
-M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
-M3_DATABASE=memory/_test.db python bin/test_debug_agent.py
+mkdir -p /tmp/m3-test/config
+printf 'schema_version = 1\n[paths]\nengine_root = "/tmp/m3-test/engine"\n' > /tmp/m3-test/config/m3_config.toml
+python bin/setup_test_db.py --database /tmp/m3-test/engine/agent_memory.db --force
+M3_CONFIG_ROOT=/tmp/m3-test/config python bin/test_memory_bridge.py
+M3_CONFIG_ROOT=/tmp/m3-test/config python bin/test_debug_agent.py
 ```
 
 See [CLI_REFERENCE.md](CLI_REFERENCE.md#running-tests-against-an-isolated-db)
@@ -160,9 +163,11 @@ mypy bin/ --ignore-missing-imports
 python -m pytest tests/
 
 # 2. Bridge + subsystem e2e (needs LM Studio + live DB)
-python bin/setup_test_db.py --database memory/_test.db --force
-M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
-M3_DATABASE=memory/_test.db python bin/test_debug_agent.py
+mkdir -p /tmp/m3-test/config
+printf 'schema_version = 1\n[paths]\nengine_root = "/tmp/m3-test/engine"\n' > /tmp/m3-test/config/m3_config.toml
+python bin/setup_test_db.py --database /tmp/m3-test/engine/agent_memory.db --force
+M3_CONFIG_ROOT=/tmp/m3-test/config python bin/test_memory_bridge.py
+M3_CONFIG_ROOT=/tmp/m3-test/config python bin/test_debug_agent.py
 
 # 3. Benchmark smoke — internal harness, see published LME-S report
 ```

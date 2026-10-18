@@ -20,15 +20,19 @@ import chatlog_init as ci  # noqa: E402
 from conftest import simulate_os
 
 
-def test_root_env_prefix_contains_both_pins(monkeypatch):
-    """POSIX: both roots inline-pinned, trailing space so it prefixes directly."""
+def test_root_env_prefix_pins_only_a_non_default_config_root(monkeypatch):
+    """POSIX: the Gemini hook gets generate_configs' prefix: M3_CONFIG_ROOT for a
+    non-default config root (the sandbox's is), never M3_ENGINE_ROOT, which m3
+    does not read; trailing space so it prefixes the command directly."""
+    import generate_configs
+
+    from m3_memory import _roots
+
     simulate_os(monkeypatch, "Linux")
-    monkeypatch.setenv("M3_MEMORY_ROOT", "/data/.m3")
-    monkeypatch.setenv("M3_ENGINE_ROOT", "/data/.m3/engine")
-    monkeypatch.setenv("M3_CONFIG_ROOT", "/data/.m3/config")
     p = ci._root_env_prefix()
-    assert "M3_ENGINE_ROOT=" in p and "M3_CONFIG_ROOT=" in p
-    assert p.endswith(" ")  # prefixes the command directly
+    assert p.startswith("M3_CONFIG_ROOT=") and p.endswith(" ")
+    assert "M3_ENGINE_ROOT" not in p
+    assert p == generate_configs._hook_env_prefix(str(_roots.engine_root()), str(_roots.config_root()))
 
 
 def test_root_env_prefix_is_empty_on_windows(monkeypatch):
@@ -55,7 +59,7 @@ def test_generate_configs_hook_prefix_is_os_aware(monkeypatch):
     """
     import generate_configs as gc
 
-    monkeypatch.setattr(gc.os, "name", "posix")
+    simulate_os(monkeypatch, "Linux")
     # One variable, M3_CONFIG_ROOT, and only for a non-default config root
     # (user decision 2026-10-17); never M3_ENGINE_ROOT.
     posix = gc._hook_env_prefix("/data/.m3/engine", "/data/.m3/config")
@@ -64,7 +68,7 @@ def test_generate_configs_hook_prefix_is_os_aware(monkeypatch):
 
     assert gc._hook_env_prefix("/x/engine", _roots.default_config_root()) == ""
 
-    monkeypatch.setattr(gc.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     assert gc._hook_env_prefix("C:/data/.m3/engine", "C:/data/.m3/config") == ""
 
 
@@ -151,7 +155,8 @@ def test_apply_gemini_settings_upgrades_stale_onexit_hook(monkeypatch, tmp_path)
     d = json.loads((gdir / "settings.json").read_text())
     se = d["hooks"]["SessionEnd"]
     m3 = [e for e in se if "chatlog" in json.dumps(e).lower()][0]["hooks"][0]["command"]
-    assert "M3_ENGINE_ROOT=" in m3 and "M3_CONFIG_ROOT=" in m3  # now pinned
+    assert "M3_CONFIG_ROOT=" in m3  # the non-default config root is pinned
+    assert "M3_ENGINE_ROOT" not in m3  # m3 does not read it
     assert "/old/repo" not in m3  # upgraded, not stale
     assert any("user_hook" in json.dumps(e) for e in se)  # user hook preserved
     assert "env" in d["mcpServers"]["memory"]  # memory entry has roots

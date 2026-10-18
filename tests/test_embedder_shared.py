@@ -25,10 +25,15 @@ def test_config_path_honors_config_root(monkeypatch, tmp_path):
     assert os.path.normpath(EA._embed_config_path()) == str(tmp_path / ".embed_config.json")
 
 
-def test_config_path_falls_back_to_memory_root(monkeypatch, tmp_path):
+def test_config_path_falls_back_to_the_default_root_not_memory_root(monkeypatch, tmp_path):
+    """Without M3_CONFIG_ROOT the config root is ~/.m3/config; the legacy
+    M3_MEMORY_ROOT is not read (it used to derive <root>/config)."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.delenv("M3_CONFIG_ROOT", raising=False)
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
-    assert os.path.normpath(EA._embed_config_path()) == str(tmp_path / "config" / ".embed_config.json")
+    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path / "legacy"))
+    assert os.path.normpath(EA._embed_config_path()) == str(home / ".m3" / "config" / ".embed_config.json")
 
 
 def test_shared_writes_config(monkeypatch, tmp_path):

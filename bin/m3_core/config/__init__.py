@@ -1,8 +1,8 @@
 """m3's configuration: the registry, the m3_config.toml loader, the resolver.
 
-Only
-this package reads m3-owned environment variables once the cutover lands (after N+3);
-until then legacy readers keep working beside it (2D converts them).
+Settings come from m3_config.toml (or a --set flag) and the default; no
+setting is read from the environment. The few m3 variables still read are
+locators and bootstrap switches (config.keys NOT_SETTINGS, M3_CONFIG_ROOT).
 """
 
 from __future__ import annotations

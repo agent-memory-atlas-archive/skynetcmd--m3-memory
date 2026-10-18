@@ -29,16 +29,21 @@ except ImportError:  # pragma: no cover
 def client(tmp_path, monkeypatch):
     """A dashboard TestClient whose engine root is an isolated tmp dir, so the
     wiki's presence/absence is fully controlled by the test."""
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path))
+    # The engine root is the sandbox's ([paths] engine_root in its m3_config.toml,
+    # under tmp_path); m3 reads no env name for it.
+    from m3_memory import _roots
+
+    root = Path(_roots.engine_root())
+    root.mkdir(parents=True, exist_ok=True)
     # Point the DB at a throwaway sqlite so app startup doesn't touch real data.
-    db = tmp_path / "agent_memory.db"
+    db = root / "agent_memory.db"
     import sqlite3
 
     sqlite3.connect(str(db)).close()
     pin_database(str(db))
     import dashboard_server
 
-    return TestClient(dashboard_server.app), tmp_path
+    return TestClient(dashboard_server.app), root
 
 
 def test_wiki_absent_shows_install_instructions(client):

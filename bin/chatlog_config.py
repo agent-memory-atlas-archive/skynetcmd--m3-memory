@@ -10,8 +10,8 @@ across (what used to be called "hybrid" is just copy=True, which is the
 default).
 
 Resolution order for the chatlog DB path:
-    1. the configured chatlog store: a script's --chatlog-db pin, else a legacy
-       chatlog env name through N+3 (m3_core.paths.configured_chatlog_db)
+    1. the configured chatlog store: a script's --chatlog-db pin
+       (m3_core.paths.configured_chatlog_db); no env name is read
     2. active_database() ContextVar (per-call override set by the MCP tool
        dispatcher when a caller passes `database` on a chatlog_* tool)
     3. .chatlog_config.json db_path field, when it pins one
@@ -389,8 +389,8 @@ def save_config(cfg: ChatlogConfig) -> None:
 
 # ── Resolver ──────────────────────────────────────────────────────────────────
 def _path_from_env() -> str | None:
-    """The configured chatlog store: the --chatlog-db pin, else a legacy chatlog env
-    name (m3_core.paths.configured_chatlog_db, the one reader)."""
+    """The configured chatlog store: the --chatlog-db pin for this process, or None
+    (m3_core.paths.configured_chatlog_db, the one reader). No env name is read."""
     from m3_core.paths import configured_chatlog_db
 
     return configured_chatlog_db()
@@ -420,8 +420,8 @@ def _unified_fallback(file_data: dict) -> str | None:
 def pin_split_path() -> str | None:
     """Write the default (separate) chatlog path into .chatlog_config.json when
     nothing pins one, so a later --database cannot collapse this install onto
-    the main store. Leaves alone an explicit CHATLOG_DB_PATH, a configured main
-    DB in this process, and a file that already pins a path.
+    the main store. Leaves alone a --chatlog-db or --database pin in this
+    process, and a file that already pins a path.
     Returns the path written, or None."""
     if _path_from_env() is not None or _main_path_from_env() is not None:
         return None
@@ -438,8 +438,8 @@ def pin_split_path() -> str | None:
 
 
 def _main_path_from_env() -> str | None:
-    """The configured main DB (--database pin, else legacy M3_DATABASE): on a
-    unified install chatlog shares it unless CHATLOG_DB_PATH says otherwise."""
+    """The configured main DB (the --database pin for this process, or None): on a
+    unified install chatlog shares it unless a --chatlog-db pin says otherwise."""
     v = configured_main_db()
     if v is None:
         return None

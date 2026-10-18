@@ -1,8 +1,8 @@
 ---
 tool: bin/homecoming.py
-sha1: 42af369541e4
-mtime_utc: 2026-10-16T17:38:53.876096+00:00
-generated_utc: 2026-10-16T19:03:59.297753+00:00
+sha1: b9671769d87d
+mtime_utc: 2026-10-18T01:45:45.217647+00:00
+generated_utc: 2026-10-18T01:45:45.865118+00:00
 private: false
 ---
 
@@ -57,6 +57,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.seams (root_migration)`
+- `m3_core.seams (roots)`
 
 ---
 

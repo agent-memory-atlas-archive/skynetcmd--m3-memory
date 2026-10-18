@@ -85,13 +85,12 @@ dev box.
 
 As root, register the MCP server with `claude mcp add` (Claude Code does not
 read MCP servers from `~/.claude/settings.json` — only `~/.claude.json`,
-`.mcp.json` and plugins). The key is setting `HOME` and pinning bob's roots so
-m3 resolves every path to bob's store, not `/root`:
+`.mcp.json` and plugins). The key is setting `HOME` and pinning bob's config root so
+m3 reads bob's `m3_config.toml` (and through its `[paths]`, bob's store), not `/root`'s:
 
 ```bash
 claude mcp add --scope user \
   --env HOME=<bob_home> \
-  --env M3_ENGINE_ROOT=<bob_home>/.m3/engine \
   --env M3_CONFIG_ROOT=<bob_home>/.m3/config \
   -- m3_memory <bob_home>/.local/bin/m3
 ```
@@ -122,9 +121,8 @@ Copy those `Stop` and `PreCompact` entries into `/root/.claude/settings.json`
 **verbatim** — each is an absolute `<pipx venv python> …/m3_memory/bin/hooks/chatlog/claude_code_precompact.py`
 command pointing at bob's install. The hook inherits root's *process* env, not
 the MCP server's `env`, so make sure each command is prefixed with the same
-pins as Step 4 (`HOME=<bob_home> M3_ENGINE_ROOT=<bob_home>/.m3/engine
-M3_CONFIG_ROOT=<bob_home>/.m3/config …`); otherwise the hook writes turns to a
-different store than the server reads.
+pins as Step 4 (`HOME=<bob_home> M3_CONFIG_ROOT=<bob_home>/.m3/config …`);
+otherwise the hook writes turns to a different store than the server reads.
 
 ---
 
@@ -158,7 +156,7 @@ Root's Claude picks up the upgrade automatically on the next session start
 | `Permission denied` on DB files | Missing write permission | Re-run Step 3 |
 | Memory writes succeed but chatlog missing | Hooks not wired for root | Re-do Step 5 |
 | Embed server not reachable | Bob not logged in + no linger | `loginctl enable-linger bob` (Step 2) |
-| Wrong memory store (empty) | `HOME` / roots not overridden | Re-register with `--env HOME=<bob_home>` + the `M3_ENGINE_ROOT` / `M3_CONFIG_ROOT` pins (Step 4) |
+| Wrong memory store (empty) | `HOME` / roots not overridden | Re-register with `--env HOME=<bob_home>` + the `M3_CONFIG_ROOT` pin (Step 4) |
 
 ---
 

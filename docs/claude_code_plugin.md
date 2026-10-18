@@ -147,25 +147,21 @@ hook scripts are idempotent.
 
 ## Configuration
 
-The plugin exposes six `userConfig` knobs that Claude Code prompts for at
+The plugin exposes two `userConfig` knobs that Claude Code prompts for at
 enable time (you can re-edit later):
 
-- **`endpoint`** — the address of the small chat model used
-  by enrichment. The embedder itself is BGE-M3 on the shared embed server
-  (`127.0.0.1:8082`) installed by `m3 setup` — this knob is only for
-  *generation*. Empty = probe local OpenAI-compatible servers (LM Studio
-  `:1234`, Ollama `:11434`).
 - **`capture_mode`** — chatlog capture policy. `both` / `stop` /
   `precompact` / `none`. Default `both`.
-- **`embed_fallback_url`** — the shared embed server URL
-  (`M3_EMBED_FALLBACK_URL`). Default `http://127.0.0.1:8082`.
-- **`embed_gguf`** — path to a BGE-M3 GGUF (`M3_EMBED_GGUF`). Optional;
-  in-process embedding still needs `embed.inproc = true` (`m3 config set embed.inproc true`) (or an
-  `.embed_config.json` that permits it). Default empty.
-- **`engine_root`** / **`config_root`** — advanced overrides for
-  `M3_ENGINE_ROOT` / `M3_CONFIG_ROOT`. Leave empty for the defaults
-  (`~/.m3/engine`, `~/.m3/config`); if set, they must match every other m3
-  process or the server and the chatlog hooks read different databases.
+- **`config_root`** — advanced override for `M3_CONFIG_ROOT`. Leave empty for
+  the default (`~/.m3/config`); if set, it must match every other m3 process or
+  the server and the chatlog hooks read different config files (and stores).
+
+Every other setting lives in `m3_config.toml`: the chat model for enrichment
+(`m3 config set llm.endpoints <url>`), the embed server URL and GGUF path (the
+`[embed]` keys), the roots (`[paths]`). Earlier plugin versions also offered
+`endpoint`, `embed_fallback_url`, `embed_gguf` and `engine_root`; m3 no longer
+reads the environment variables those set, so they were removed. Set the
+equivalent keys with `m3 config set`.
 
 ---
 

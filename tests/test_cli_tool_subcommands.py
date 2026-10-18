@@ -45,9 +45,9 @@ def files_db(tmp_path, monkeypatch) -> Path:
 
     These tests used the developer-machine artifact memory/files_database.db
     (gitignored), so they skipped in every lane. files tools resolve their store
-    from M3_FILES_DB_PATH on every call (files_memory.db), so pinning it routes
-    both the CLI child, which inherits this environment, and the in-process
-    call. `database` is refused on files tools (catalog.dispatch._pop_database)
+    as <engine root>/files_database.db (no env name is read), and the sandbox's
+    m3_config.toml names the engine root, so building it there routes both the
+    CLI child, which inherits M3_CONFIG_ROOT, and the in-process call. `database` is refused on files tools (catalog.dispatch._pop_database)
     and is not a way in. The build is a SQLite file, so the backend is pinned
     to sqlite."""
     import importlib
@@ -59,14 +59,16 @@ def files_db(tmp_path, monkeypatch) -> Path:
     importlib.import_module("memory.backends.selector")._reset_for_tests()
     from files_memory.migrate import run_pending
 
-    path = tmp_path / "files_database.db"
+    from m3_memory import _roots
+
+    path = Path(_roots.engine_root()) / "files_database.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     try:
         assert run_pending(conn), "no files migrations applied to a fresh DB"
         conn.commit()
     finally:
         conn.close()
-    monkeypatch.setenv("M3_FILES_DB_PATH", str(path))
     return path
 
 
@@ -157,7 +159,7 @@ def test_files_tools_read_the_pinned_files_store(files_db):
     assert proc.returncode == 0, f"stderr={proc.stderr}\nstdout={proc.stdout}"
     result = json.loads(proc.stdout)
     assert result and result.get("corpus_id") == "routing-probe", (
-        f"files_corpus_get did not read M3_FILES_DB_PATH: {result}"
+        f"files_corpus_get did not read the engine root's files store: {result}"
     )
 
 

@@ -629,14 +629,23 @@ class EmbedServerConflict(RuntimeError):
 
 
 def pin_embed_port(port: int) -> bool:
-    """Write ``port`` into the Rust embed service's definition. Its own installer
-    (m3-core-rs 3.10.7) writes only M3_EMBED_GGUF and drops the port it was
-    given, so a service on any port but 8082 could not be registered. A bridge:
-    the core records the port in its config.toml itself from the release after
-    3.10.14 (m3-core-rs `config::merge_env_into_file`); remove this once
-    M3_CORE_RS_VERSION is that release. True when the definition carries ``port``."""
+    """Make the registered Rust embed service take its port from m3_config.toml.
+
+    The server reads its settings only from that file (``--config``) and
+    ``--set``; it has no port flag and reads no environment name (3.10.172). A
+    definition registered without ``--config`` (an older installer) therefore
+    cannot be moved to another port, and the ``M3_EMBED_SERVER_PORT`` line this
+    used to write was never read: the check that followed read the same line
+    back and reported success. Now: insert ``--config <m3_config.toml>`` right
+    after the binary (where the server parses it) and drop any such env entry;
+    the port is then ``embed.server.port`` in that file, read at each start.
+    True when the definition names the file; ``port`` is what the caller expects
+    the file to hold (it is read from the same setting)."""
     import plistlib
 
+    from m3_core.config import locate
+
+    cfg = str(locate().file).replace("\\", "/")
     osn = _os_name()
     if osn == "Linux":
         base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
@@ -644,14 +653,18 @@ def pin_embed_port(port: int) -> bool:
         try:
             with open(unit, encoding="utf-8") as f:
                 lines = [ln for ln in f.read().splitlines() if "M3_EMBED_SERVER_PORT" not in ln]
-            at = next(i for i, ln in enumerate(lines) if ln.strip() == "[Service]") + 1
+            at = next(i for i, ln in enumerate(lines) if ln.strip().startswith("ExecStart="))
         except (OSError, StopIteration):
             return False
-        lines.insert(at, f'Environment="M3_EMBED_SERVER_PORT={port}"')
+        prefix, _, command = lines[at].partition("=")
+        parts = command.strip().split(None, 1)
+        rest = parts[1] if len(parts) > 1 else ""
+        rest = re.sub(r"--config(?:=|\s+)(\"[^\"]*\"|\S+)\s*", "", rest).strip()
+        lines[at] = f'{prefix}={parts[0]} --config "{cfg}"' + (f" {rest}" if rest else "")
         with open(unit, "w", encoding="utf-8", newline="\n") as f:
             f.write("\n".join(lines) + "\n")
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=60)
-        return registered_embed_port() == port
+        return _definition_names_config(cfg)
     if osn == "Darwin":
         path = os.path.expanduser(f"~/Library/LaunchAgents/{_RUST_EMBED_LABEL}.plist")
         try:
@@ -659,11 +672,33 @@ def pin_embed_port(port: int) -> bool:
                 data = plistlib.load(f)
         except (OSError, plistlib.InvalidFileException):
             return False
-        data.setdefault("EnvironmentVariables", {})["M3_EMBED_SERVER_PORT"] = str(port)
+        args = [str(a) for a in data.get("ProgramArguments") or []]
+        if not args:
+            return False
+        rest, skip = [], False
+        for a in args[1:]:
+            if skip:
+                skip = False
+                continue
+            if a == "--config":
+                skip = True
+                continue
+            if not a.startswith("--config="):
+                rest.append(a)
+        data["ProgramArguments"] = [args[0], "--config", cfg, *rest]
+        env = data.get("EnvironmentVariables")
+        if isinstance(env, dict):
+            env.pop("M3_EMBED_SERVER_PORT", None)
         with open(path, "wb") as f:
             plistlib.dump(data, f)
-        return registered_embed_port() == port
+        return _definition_names_config(cfg)
     return False
+
+
+def _definition_names_config(cfg: str) -> bool:
+    """Whether the registered embed service's command line passes ``--config cfg``."""
+    line = (registered_embed_command_line() or "").replace("\\", "/")
+    return "--config" in line and cfg in line
 
 
 def registered_embed_command_line() -> "str | None":
@@ -697,9 +732,11 @@ def registered_embed_command_line() -> "str | None":
 
 def registered_embed_port() -> "int | None":
     """The port the registered embed service listens on, read from its definition
-    (systemd unit or launchd plist, either server): `--port N`, else
-    M3_EMBED_SERVER_PORT, else the server's default. None when there is no
-    definition here (Windows: one machine-wide service) or it cannot be read.
+    (systemd unit or launchd plist, either server): `--port N` (the Python
+    server), else the server's default; None with `--config` (the port is that
+    file's) or when there is no definition here (Windows: one machine-wide
+    service) or it cannot be read. An `M3_EMBED_SERVER_PORT` line is not counted:
+    the server does not read it.
 
     An existing registration is never rewritten by `install`, so a port chosen
     later (m3_config.toml) never reached it and the service kept the old port."""
@@ -720,10 +757,9 @@ def registered_embed_port() -> "int | None":
         # Started with --config <m3_config.toml>: the port is that file's
         # embed.server.port, read at each start, not part of the definition.
         return None
-    for pattern in (r"--port(?:\s*=\s*|\s+|</string>\s*<string>)(\d{2,5})", r"M3_EMBED_SERVER_PORT\D{0,40}?(\d{2,5})"):
-        m = re.search(pattern, text)
-        if m:
-            return int(m.group(1))
+    m = re.search(r"--port(?:\s*=\s*|\s+|</string>\s*<string>)(\d{2,5})", text)
+    if m:
+        return int(m.group(1))
     from m3_core.config.keys import REGISTRY
 
     return REGISTRY.int_default("embed.server.port")

@@ -23,7 +23,7 @@ from memory.backends import (
 )
 from memory.backends import selector as _selector
 
-from conftest import use_backend
+from conftest import select_backend, use_backend
 
 
 @pytest.fixture(autouse=True)
@@ -56,11 +56,19 @@ def test_legacy_alias_resolves(monkeypatch):
     assert resolve_backend_name() == "sqlite"
 
 
-def test_invalid_backend_raises_not_silent(monkeypatch):
-    """A typo must fail loud (§3), never silently run the default."""
-    monkeypatch.setenv("M3_DB_BACKEND", "postgre")  # typo
-    with pytest.raises(ValueError, match=r"M3_DB_BACKEND='postgre'.*not one of"):
+def test_invalid_backend_raises_not_silent():
+    """A typo must fail loud (§3), never silently run the default: the config
+    file refuses it at load, naming the key and the allowed values."""
+    from m3_core.config import locate
+    from m3_core.config import settings as st
+    from m3_core.config.loader import ConfigFileError
+
+    with open(locate().file, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write('\n[db]\nbackend = "postgre"\n')  # typo
+    st._reset_for_tests()
+    with pytest.raises(ConfigFileError) as e:
         resolve_backend_name()
+    assert any("'postgre' is not one of" in str(x) for x in e.value.exceptions)
 
 
 def test_postgres_selection_builds_backend(monkeypatch):
@@ -82,7 +90,7 @@ def test_postgres_selection_builds_backend(monkeypatch):
 
 def test_postgres_selection_no_dsn_fails_loud(monkeypatch):
     """postgres backend with NO DSN anywhere raises, never silently uses SQLite."""
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    select_backend("postgres")
     # Clear EVERY DSN source, highest-precedence first: M3_PRIMARY_PG_URL >
     # M3_PG_URL > PG_URL. Omitting M3_PRIMARY_PG_URL made this "no DSN anywhere"
     # test non-hermetic — it failed on a PG-primary dev box / dual-backend run
@@ -136,7 +144,7 @@ def test_require_sqlite_backend_noop_on_sqlite(monkeypatch):
 
 def test_require_sqlite_backend_fails_loud_on_postgres(monkeypatch):
     """A SQLite-only tool must REFUSE (not silently run) under postgres."""
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    select_backend("postgres")
     with pytest.raises(RuntimeError, match=r"SQLite-only|stale SQLite"):
         require_sqlite_backend("backfill_content_hash")
 

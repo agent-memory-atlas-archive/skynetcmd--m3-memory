@@ -7,9 +7,10 @@ this script is the *trigger and policy* around it. Beliefs link back to their
 sources via `consolidates` edges and the sources are soft-deleted (never purged),
 so a belief is always reversible and its provenance reconstructable.
 
-Gated by M3_CONSOLIDATION_AUTO (default off): when the flag is unset, this runs in
+Gated by autonomy.consolidation_auto (default off): when it is off, this runs in
 DRY-RUN regardless of --apply, so a scheduled invocation is a safe no-op until the
-operator opts in. Pass --apply AND set M3_CONSOLIDATION_AUTO=1 to actually write.
+operator opts in. Pass --apply AND `m3 config set autonomy.consolidation_auto true`
+to actually write.
 
 Scheduled weekly (see install_schedules.py). Protected types
 (preference/user_fact/task/plan) are never consolidated — inherited from
@@ -112,7 +113,9 @@ async def _run(apply: bool, threshold: int, stale_days: int, source_type: str) -
 def main() -> int:
     parser = argparse.ArgumentParser(description="Autonomous episodic->semantic belief consolidation.")
     parser.add_argument(
-        "--apply", action="store_true", help="Write beliefs (requires M3_CONSOLIDATION_AUTO=1); else dry-run."
+        "--apply",
+        action="store_true",
+        help="Write beliefs (requires autonomy.consolidation_auto = true); else dry-run.",
     )
     parser.add_argument(
         "--threshold",

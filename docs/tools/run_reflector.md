@@ -1,8 +1,8 @@
 ---
 tool: bin/run_reflector.py
-sha1: eff6e8f18847
-mtime_utc: 2026-10-16T17:46:25.903008+00:00
-generated_utc: 2026-10-16T19:03:59.721809+00:00
+sha1: 1ffd4ad60743
+mtime_utc: 2026-10-18T00:43:17.402491+00:00
+generated_utc: 2026-10-18T00:50:17.641407+00:00
 private: false
 ---
 
@@ -83,6 +83,7 @@ _(none detected)_
 - `importlib`
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
+- `m3_core.secret_store (missing_secret_message)`
 - `memory.backends (dialect)`
 
 ---

@@ -40,13 +40,14 @@ def test_m3_config_beats_the_file(autonomy, m3_settings):
     assert autonomy.autonomy_flag("consolidation_auto") is False
 
 
-def test_the_legacy_env_name_reaches_it_through_the_registry(autonomy, monkeypatch):
+def test_the_legacy_env_name_is_not_read(autonomy, monkeypatch):
+    """M3_CHATLOG_PRUNE_AUTO is a former name: setting it changes nothing."""
     from m3_core.config import settings as st
 
     monkeypatch.setenv("M3_CHATLOG_PRUNE_AUTO", "1")
     st._reset_for_tests()
     try:
-        assert autonomy.autonomy_flag("chatlog_prune_auto") is True
+        assert autonomy.autonomy_flag("chatlog_prune_auto") is False
     finally:
         st._reset_for_tests()
 

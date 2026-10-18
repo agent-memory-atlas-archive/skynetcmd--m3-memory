@@ -1,7 +1,8 @@
-"""LLM endpoint switches reach daemons that never read the shell rc."""
+"""LLM endpoint switches reach daemons that never read the shell rc: setup and
+install record them in m3_config.toml [llm], read back through the registry.
+.llm_config.json is no longer a value source (its parse is kept for import-env)."""
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -42,9 +43,8 @@ def test_file_is_used_when_the_environment_is_bare(config_root):
     assert _ollama_on() is True
 
 
-def test_environment_outranks_the_file(config_root, monkeypatch):
-    llm_config.write_llm_setting("M3_ENABLE_OLLAMA_FAILOVER", "1")
-    monkeypatch.setenv("M3_ENABLE_OLLAMA_FAILOVER", "0")
+def test_the_environment_is_not_read(config_root, monkeypatch):
+    monkeypatch.setenv("M3_ENABLE_OLLAMA_FAILOVER", "1")
     assert _ollama_on() is False
 
 
@@ -66,39 +66,51 @@ def _probe(monkeypatch, reachable_port):
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
 
 
-def _recorded(config_root):
-    return json.loads((config_root / llm_config.LLM_CONFIG_NAME).read_text(encoding="utf-8"))
+def _setting(name):
+    """What a freshly started daemon reads (the [llm] switches are not reloadable:
+    a running process keeps its startup value until restart, by design)."""
+    from m3_core.config import settings as st
+
+    st._reset_for_tests()
+    return st.setting(name)
 
 
 def test_setup_records_ollama_even_when_the_shell_already_has_it(config_root, monkeypatch):
-    # The repair path for an existing install: the shell already exports the
-    # switch, and setup must still write the copy a daemon can see.
+    # The repair path for an existing install: the shell exports the switch, which
+    # m3 does not read, so setup must still record it where a daemon reads it.
     monkeypatch.setenv("M3_ENABLE_OLLAMA_FAILOVER", "1")
     _probe(monkeypatch, "11434")
-    assert _recorded(config_root) == {
-        "M3_ENABLE_LMSTUDIO_FAILOVER": "0",
-        "M3_ENABLE_OLLAMA_FAILOVER": "1",
-    }
+    assert _setting("llm.ollama_failover") is True
+    assert _setting("llm.lmstudio_failover") is False
+    assert not (config_root / llm_config.LLM_CONFIG_NAME).exists(), "nothing goes to the legacy file"
 
 
 def test_setup_records_a_fresh_ollama_enable(config_root, monkeypatch):
     _probe(monkeypatch, "11434")
-    assert _recorded(config_root)["M3_ENABLE_OLLAMA_FAILOVER"] == "1"
+    assert _setting("llm.ollama_failover") is True
+    text = (config_root / "m3_config.toml").read_text(encoding="utf-8")
+    assert "ollama_failover = true" in text
     # The file only: setup no longer writes env, the registry, rc or HKCU.
     assert "M3_ENABLE_OLLAMA_FAILOVER" not in os.environ
 
 
-def test_setup_records_a_custom_server_url(config_root, monkeypatch):
-    monkeypatch.setenv("M3_LLM_URL", "http://localhost:8080/v1")
+def test_setup_keeps_a_custom_server_url_from_the_file(config_root, monkeypatch, capsys):
+    llm_config.write_llm_setting("M3_LLM_URL", "http://localhost:8080/v1")
+    before = (config_root / "m3_config.toml").read_bytes()
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: True)
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
-    assert _recorded(config_root) == {"M3_LLM_URL": "http://localhost:8080/v1"}
+    assert "llm.url set (http://localhost:8080/v1)" in capsys.readouterr().out
+    assert (config_root / "m3_config.toml").read_bytes() == before, "a pinned URL is confirmed, not rewritten"
 
-    monkeypatch.delenv("M3_LLM_URL")
-    from m3_core.config import settings as st
 
-    st._reset_for_tests()
-    assert st.setting("llm.url") == "http://localhost:8080/v1"
+def test_an_env_only_custom_url_is_not_read(config_root, monkeypatch):
+    monkeypatch.setenv("M3_LLM_URL", "http://localhost:8080/v1")
+    assert not _setting("llm.url")
+
+
+def test_an_unknown_name_is_refused(config_root):
+    with pytest.raises(ValueError, match="not the former name"):
+        llm_config.write_llm_setting("M3_NOT_A_SETTING", "1")
 
 
 def test_setup_writes_nothing_when_only_the_default_is_reachable(config_root, monkeypatch):

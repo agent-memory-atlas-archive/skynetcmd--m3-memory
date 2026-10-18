@@ -46,14 +46,25 @@ import sys
 # Locate the m3 payload's bin/ so the seam imports resolve. When this file
 # lives IN the repo (bin/chatlog_timing.py) its own directory is the answer;
 # when it is parked elsewhere, fall back to the
-# installed payload, then to $M3_PATH_BIN. Without this the seam imports fail
+# installed payload ([paths] bin first). Without this the seam imports fail
 # with ModuleNotFoundError: m3_core the moment the file is moved.
+def _configured_bin() -> str:
+    """The payload bin/ the installed package resolves (``[paths] bin`` first, via
+    its stdlib-only owner m3_memory._bin), or "" without the package."""
+    try:
+        from m3_memory._bin import bin_dir
+
+        found = bin_dir()
+        return str(found) if found else ""
+    except ImportError:
+        return ""
+
+
 def _find_bin() -> str | None:
     here = os.path.dirname(os.path.abspath(__file__))
     cands = [
         here,
-        # env-owner: the payload locator: it finds bin/ before m3_core (and the registry) can import
-        os.environ.get("M3_PATH_BIN") or "",
+        _configured_bin(),
         os.path.expanduser("~/.m3-dev/m3-memory/bin"),
         os.path.expanduser("~/pipx/venvs/m3-memory/Lib/site-packages/m3_memory/bin"),
     ]
@@ -69,7 +80,7 @@ if _BIN and _BIN not in sys.path:
 elif not _BIN:
     raise SystemExit(
         "[X] cannot locate the m3 payload bin/ (looked next to this file, "
-        "$M3_PATH_BIN, ~/.m3-dev/m3-memory/bin, and the pipx payload)."
+        "[paths] bin, ~/.m3-dev/m3-memory/bin, and the pipx payload)."
     )
 
 

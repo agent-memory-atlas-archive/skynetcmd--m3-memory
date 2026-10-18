@@ -26,7 +26,6 @@ from typing import override
 from m3_core.paths import (
     CONFIG_FILE_NAME,
     CONFIG_ROOT_ARG,
-    CONFIG_ROOT_LEGACY,
     StoreRef,
     config_root_with_tier,
     pinned_config_file,
@@ -60,23 +59,8 @@ def locate(explicit: str | os.PathLike[str] | None = None) -> Location:
         f = Path(explicit).expanduser().absolute()
         return Location(file=f, root=f.parent, tier=CONFIG_ARG_TIER)
     root, tier = config_root_with_tier()
-    if tier == CONFIG_ROOT_LEGACY:
-        _warn_legacy_once(root)
     r = Path(root)
     return Location(file=r / CONFIG_FILE_NAME, root=r, tier=tier)
-
-
-_LEGACY_WARNED: set[str] = set()
-
-
-def _warn_legacy_once(root: str) -> None:
-    if root not in _LEGACY_WARNED:
-        _LEGACY_WARNED.add(root)
-        logger.warning(
-            "The m3 config root comes from the legacy M3_MEMORY_ROOT/config tier (%s), which is "
-            "removed after N+3. Set M3_CONFIG_ROOT, or pass --config <file>.",
-            root,
-        )
 
 
 # ── Errors ───────────────────────────────────────────────────────────────────

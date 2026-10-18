@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: 6257e4461657
-mtime_utc: 2026-10-17T12:41:34.676169+00:00
-generated_utc: 2026-10-17T12:41:35.096327+00:00
+sha1: 4a4c30880587
+mtime_utc: 2026-10-18T00:51:27.802950+00:00
+generated_utc: 2026-10-18T00:55:12.271150+00:00
 private: false
 ---
 
@@ -36,7 +36,7 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 
 ## Entry points
 
-- `def main()` (line 248)
+- `def main()` (line 234)
 - `if __name__ == "__main__"` guard
 
 ---

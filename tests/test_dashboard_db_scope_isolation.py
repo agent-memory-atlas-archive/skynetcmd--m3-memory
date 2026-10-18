@@ -67,16 +67,17 @@ def test_process_global_write_cross_contaminates_concurrent_tasks(monkeypatch, t
     """The defect itself, reproduced: this is what the old code did.
 
     Kept as a live test rather than prose so the failure mode stays visible. It
-    asserts that an ENV-VAR approach leaks -- if this ever stops leaking, the
+    asserts that a PROCESS-GLOBAL pin leaks across concurrent tasks (the old code
+    wrote M3_DATABASE into os.environ; m3 no longer reads that, and pin_database
+    is today's process-global equivalent) -- if this ever stops leaking, the
     resolution order changed and this whole design should be revisited.
     """
     main = str(tmp_path / "main.db")
     chat = str(tmp_path / "chat.db")
-    monkeypatch.delenv("M3_DATABASE", raising=False)
     seen: dict[str, str] = {}
 
     async def handler(name: str, path: str, delay: float) -> None:
-        os.environ["M3_DATABASE"] = path  # what set_active_db_env used to do
+        pin_database(path)  # process-global, like the env write it replaced
         await asyncio.sleep(delay)
         seen[name] = resolve_db_path(None)
 
@@ -92,7 +93,7 @@ def test_process_global_write_cross_contaminates_concurrent_tasks(monkeypatch, t
             "expected the documented cross-contamination; if A saw its own store, the mechanism changed"
         )
     finally:
-        os.environ.pop("M3_DATABASE", None)
+        pin_database(None)
 
 
 def test_contextvar_isolates_concurrent_tasks(monkeypatch, tmp_path):

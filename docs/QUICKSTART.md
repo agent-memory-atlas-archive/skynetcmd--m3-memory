@@ -438,7 +438,7 @@ If the memory you wrote comes back, everything is working.
 | "Embedding failed" or "Connection refused" | Sovereign CPU embedder not running | `m3 embedder status`; if not running: `m3 embedder install-gpu` (installs binary), then `m3 embedder install` (registers service), or just `m3 embedder start` if already installed |
 | "m3: command not found" | Package not on PATH | `pip install m3-memory` and check `which m3` (`mcp-memory` is the backwards-compatible alias) |
 | Memory tools don't appear in agent | Config not loaded | Check JSON syntax, ensure `"mcpServers"` key, restart agent fully |
-| Search returns nothing in new session | Server and hooks reading different engine roots | Run `m3 doctor`; keep `M3_ENGINE_ROOT` / `M3_CONFIG_ROOT` the same everywhere (default `~/.m3/engine`, `~/.m3/config`) |
+| Search returns nothing in new session | Server and hooks reading different config files | Run `m3 doctor` (it names the config file in use and any place that points elsewhere); with a non-default config root, set the same `M3_CONFIG_ROOT` everywhere (default `~/.m3/config`) |
 
 ---
 
@@ -472,4 +472,4 @@ state); without it m3 scores every vector itself.
 - [AGENT_INSTRUCTIONS.md](./AGENT_INSTRUCTIONS.md) — all MCP tools and agent behavioral rules
 - [TECHNICAL_DETAILS.md](./TECHNICAL_DETAILS.md) — search internals, schema, sync, security
 - [CONFIG_REFERENCE.md](./CONFIG_REFERENCE.md) — every setting in `m3_config.toml`, and secrets
-- [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) — the environment names m3 still reads, and where each legacy one moved
+- [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) — the few environment names m3 reads, and the config key each former one moved to

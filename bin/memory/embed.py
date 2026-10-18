@@ -419,14 +419,14 @@ else:
         # A GGUF path is set but no config file resolved — the exact footgun.
         # Default to shared and say so loudly (never silent, §3).
         logger.warning(
-            "M3_EMBED_GGUF is set but no .embed_config.json was found at the "
+            "embed.gguf is set but no .embed_config.json was found at the "
             "config root — defaulting to the SHARED embedder (inproc OFF) to avoid "
-            "a per-process GPU context (CUDA/Metal/Vulkan) or a heavy CPU load. Set "
-            "M3_EMBED_INPROC=1 to force inproc, or seed .embed_config.json "
+            "a per-process GPU context (CUDA/Metal/Vulkan) or a heavy CPU load. "
+            "`m3 config set embed.inproc true` forces inproc, or seed .embed_config.json "
             "(run `m3 doctor --fix`)."
         )
 
-# When M3_EMBED_GGUF is unset, search the canonical model dirs for a bge-m3 GGUF
+# When embed.gguf is unset, search the canonical model dirs for a bge-m3 GGUF
 # so tier-1 (the ~10-85x faster in-process embedder) activates automatically —
 # but ONLY when inproc is allowed (safe-default above). The walk is depth- and
 # time-bounded so a pathological models directory can never stall cold start.
@@ -763,7 +763,7 @@ def new_embedded_embedder(core, gguf: str):
         if not params or "keyword" not in str(e):
             raise
         # An env-set value still reaches such a core: it reads M3_EMBED_* itself.
-        dropped = sorted(n for n in params if not _m3cfg.origin_of(f"embed.{n}").startswith(("default", "env-legacy:")))
+        dropped = sorted(n for n in params if _m3cfg.origin_of(f"embed.{n}") != "default")
         if not _OLD_CORE_SAID:
             _OLD_CORE_SAID = True
             try:  # the version-coupling owner; absent only on a bin/-only checkout

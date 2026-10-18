@@ -28,25 +28,25 @@
   install's own Python), then `m3 setup`.
 
 ### m3 doctor lists `M3_*` variables as deprecated
-- **What it means**: m3 now reads one environment variable, `M3_CONFIG_ROOT`,
-  and only when your config root is not the default `~/.m3/config`. Every other
-  setting lives in `m3_config.toml`. The last section of `m3 doctor` lists each
-  `M3_*` variable still set, where it is set, whether m3 still uses it ("in use")
-  or the config file already overrides it ("ignored"), and the command that
-  replaces it.
-- **Why it matters**: a variable set in one place and not another (your shell
-  profile but not an agent's MCP server entry, or the reverse) makes m3 read
-  different settings in different processes. With roots, that can split the
-  store.
+- **What it means**: m3 reads one environment variable, `M3_CONFIG_ROOT`, and
+  only when your config root is not the default `~/.m3/config`. Every setting
+  lives in `m3_config.toml`; the other `M3_*` names are **not read**. `m3 doctor`,
+  `m3 setup` and `m3 upgrade` list each one still set, where it is set, and what
+  m3 uses instead (the file's value, or the default when the file does not set
+  the key). Nothing warns per tool call.
+- **Why it matters**: a leftover variable looks like it controls m3 and does
+  not. If you relied on one, its value is no longer in effect.
 - **Fix**:
-  1. For each line, run the `fix:` command doctor prints, e.g.
-     `m3 config set paths.engine_root ~/.m3/engine`. Or move them all at once:
-     `m3 config import-env` (it shows what it will write and asks first).
-  2. Remove the variable where doctor says it is set: the `export` line in
+  1. To keep a value, put it in the file: `m3 config set KEY VALUE` (doctor names
+     the key). `m3 config import-env` copies them all on request (it shows what it
+     will write and asks first); setup does this by itself only when no
+     `m3_config.toml` exists yet — an existing file is never overwritten.
+  2. Delete the variable where doctor says it is set: the `export` line in
      `~/.zshenv`, `~/.zshrc`, `~/.bashrc` or `~/.profile`; a Windows user
      variable (`setx NAME ""`, or System Properties → Environment Variables);
-     or an `env` entry in an agent's MCP config. `m3 doctor --fix` removes the
-     pins m3 itself wrote into agent configs and hooks.
+     an `env` entry in an agent's MCP config; or an `Environment=` line in an m3
+     systemd unit / `EnvironmentVariables` in a launchd plist. `m3 doctor --fix`
+     removes the pins m3 itself wrote into agent configs and hooks.
   3. Open a new terminal (on macOS, log out and back in if the variable came from
      `launchctl`), restart the agent, and run `m3 doctor` again.
 - A `M3_CONFIG_ROOT` that equals the default is flagged as redundant: remove it.
@@ -84,8 +84,7 @@
 ## FIPS Crypto Issues
 
 FIPS settings live in `m3_config.toml` (`[crypto]`). The older variables
-(`M3_FIPS_MODE`, `M3_FIPS_STRICT`, `M3_WOLFSSL_SHA256`) still work but are
-deprecated; see [m3 doctor lists `M3_*` variables](#m3-doctor-lists-m3_-variables-as-deprecated).
+(`M3_FIPS_MODE`, `M3_FIPS_STRICT`, `M3_WOLFSSL_SHA256`) are not read; see [m3 doctor lists `M3_*` variables](#m3-doctor-lists-m3_-variables-as-deprecated).
 
 ### Crash / RuntimeError: "FIPS mode enabled but … wolfSSL … could not be loaded"
 - **Cause**: `crypto.fips_mode` (or `crypto.fips_strict`) is on, but the wolfSSL
@@ -244,10 +243,11 @@ references, and why we deliberately did not switch the default transport.
 - Memories live under the **engine root**: `~/.m3/engine/agent_memory.db` by
   default, or `paths.engine_root` in `m3_config.toml`. Ask m3 rather than
   guessing: `m3 chatlog status --json` reports the resolved backend and roots,
-  and `m3 config show` says where each setting came from. A leftover
-  `M3_ENGINE_ROOT` or `M3_MEMORY_ROOT` in one place (a shell profile, an agent's
-  MCP `env` block) and not another can split the store; `m3 doctor` lists any
-  that is set.
+  and `m3 config show` says where each setting came from. `M3_ENGINE_ROOT` and
+  `M3_MEMORY_ROOT` are not read; what can split the store is a non-default
+  `M3_CONFIG_ROOT` set in one place (a shell profile, an agent's MCP `env` block)
+  and not another. `m3 doctor` names the config file in use and every place that
+  points elsewhere.
 - ⚠ `~/.m3-memory/` is the legacy memory root. It holds no live database — a DB
   found there is a leftover from the old unified layout, not your live store.
   `m3 doctor --fix` migrates its state into `~/.m3` and leaves a `MOVED.txt`.

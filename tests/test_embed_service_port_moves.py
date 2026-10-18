@@ -23,7 +23,8 @@ ExecStart=/v/bin/m3-embed-inproc /p/bin/embed_server_inproc.py --port {port}
     "text, port",
     [
         (_RUST_UNIT.format(env=""), 8082),
-        (_RUST_UNIT.format(env='Environment="M3_EMBED_SERVER_PORT=8083"'), 8083),
+        # the server does not read this name, so it is not the port
+        (_RUST_UNIT.format(env='Environment="M3_EMBED_SERVER_PORT=8083"'), 8082),
         (_PY_UNIT.format(port=8091), 8091),
     ],
 )
@@ -38,7 +39,8 @@ def test_the_registered_port_is_read_from_the_unit(monkeypatch, tmp_path, text, 
     assert sched.registered_embed_port() == port
 
 
-def test_a_plist_port_is_read(monkeypatch, tmp_path):
+def test_a_plist_env_port_is_not_the_port(monkeypatch, tmp_path):
+    """M3_EMBED_SERVER_PORT in a plist is not read by the server: the default."""
     import install_schedules as sched
 
     simulate_os(monkeypatch, "Darwin")
@@ -49,7 +51,7 @@ def test_a_plist_port_is_read(monkeypatch, tmp_path):
         "<dict><key>EnvironmentVariables</key><dict><key>M3_EMBED_SERVER_PORT</key><string>8084</string></dict></dict>",
         encoding="utf-8",
     )
-    assert sched.registered_embed_port() == 8084
+    assert sched.registered_embed_port() == 8082
 
 
 def test_no_definition_is_none(monkeypatch, tmp_path):
@@ -89,7 +91,15 @@ def test_the_doctor_checks_the_configured_port(m3_settings):
     assert shared_embedder_probe._default_url() == "http://127.0.0.1:8083"
 
 
-def test_the_port_is_written_into_a_rust_unit_that_left_it_out(monkeypatch, tmp_path):
+def _config_file() -> str:
+    from m3_core.config import locate
+
+    return str(locate().file).replace("\\", "/")
+
+
+def test_a_rust_unit_is_pointed_at_m3_config(monkeypatch, tmp_path):
+    """The server takes its port only from m3_config.toml (--config); a unit
+    without it is given --config, and a stale env port line is dropped."""
     import install_schedules as sched
 
     simulate_os(monkeypatch, "Linux")
@@ -97,15 +107,17 @@ def test_the_port_is_written_into_a_rust_unit_that_left_it_out(monkeypatch, tmp_
     monkeypatch.setattr(sched, "_run", lambda *a, **k: None)
     unit = tmp_path / "systemd" / "user" / "m3-embed-server.service"
     unit.parent.mkdir(parents=True)
-    unit.write_text(_RUST_UNIT.format(env=""), encoding="utf-8")
-    assert sched.registered_embed_port() == 8082
+    unit.write_text(_RUST_UNIT.format(env='Environment="M3_EMBED_SERVER_PORT=8083"'), encoding="utf-8")
     assert sched.pin_embed_port(8083) is True
-    assert sched.registered_embed_port() == 8083
-    assert sched.pin_embed_port(8085) and sched.registered_embed_port() == 8085, "a second move replaces it"
-    assert unit.read_text(encoding="utf-8").count("M3_EMBED_SERVER_PORT") == 1
+    text = unit.read_text(encoding="utf-8")
+    assert f'ExecStart=/v/m3_core_rs/m3-embed-server --config "{_config_file()}"' in text
+    assert "M3_EMBED_SERVER_PORT" not in text
+    assert sched.registered_embed_port() is None, "the port is the file's now"
+    assert sched.pin_embed_port(8085) is True
+    assert unit.read_text(encoding="utf-8").count("--config") == 1, "a second run does not stack flags"
 
 
-def test_the_port_is_written_into_a_plist(monkeypatch, tmp_path):
+def test_a_plist_is_pointed_at_m3_config(monkeypatch, tmp_path):
     import plistlib
 
     import install_schedules as sched
@@ -115,9 +127,18 @@ def test_the_port_is_written_into_a_plist(monkeypatch, tmp_path):
     plist = tmp_path / "Library" / "LaunchAgents" / "com.skynetcmd.m3-embed-server.plist"
     plist.parent.mkdir(parents=True)
     plist.write_bytes(
-        plistlib.dumps({"Label": "com.skynetcmd.m3-embed-server", "ProgramArguments": ["/b/m3-embed-server"]})
+        plistlib.dumps(
+            {
+                "Label": "com.skynetcmd.m3-embed-server",
+                "ProgramArguments": ["/b/m3-embed-server", "run"],
+                "EnvironmentVariables": {"M3_EMBED_SERVER_PORT": "8084"},
+            }
+        )
     )
-    assert sched.pin_embed_port(8083) and sched.registered_embed_port() == 8083
+    assert sched.pin_embed_port(8083) is True
+    data = plistlib.loads(plist.read_bytes())
+    assert data["ProgramArguments"] == ["/b/m3-embed-server", "--config", _config_file(), "run"]
+    assert "M3_EMBED_SERVER_PORT" not in data["EnvironmentVariables"]
 
 
 def test_only_this_accounts_inproc_server_on_that_port_is_stopped(monkeypatch):

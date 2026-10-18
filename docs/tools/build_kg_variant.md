@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: af4690e84b66
-mtime_utc: 2026-10-14T03:17:25.052296+00:00
-generated_utc: 2026-10-14T03:18:55.982716+00:00
+sha1: aa96befcbe4f
+mtime_utc: 2026-10-18T00:52:31.312021+00:00
+generated_utc: 2026-10-18T00:55:12.072876+00:00
 private: false
 ---
 
@@ -55,7 +55,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (add_database_arg, getenv_compat)`
+- `m3_sdk (add_database_arg)`
 
 ---
 

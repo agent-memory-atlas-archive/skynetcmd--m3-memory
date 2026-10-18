@@ -9,7 +9,7 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast, overload, override
+from typing import TYPE_CHECKING, Literal, cast, override
 
 if TYPE_CHECKING:
     from memory.backends.base import BackendName
@@ -19,35 +19,24 @@ from m3_core.seams import roots as _roots
 
 logger = logging.getLogger("M3_SDK")
 
-# ── Deprecated env-var compatibility shim ─────────────────────────────────────
-# m3-specific config vars are being namespaced under M3_*. Old un-namespaced
-# names (PG_URL, tuning knobs, ...) are collision-prone with
-# other tools. getenv_compat reads the new name, falls back to the old one with
-# a ONE-TIME deprecation warning, and records the hit so `m3 doctor` can report
-# which deprecated vars are still in use (fail loud + observable, §3).
-#
-# DEPRECATED_ENV_RENAMES is the STATIC, authoritative old_name -> new_name map
-# for the M3_* namespacing migration. It is the source of truth for the on-disk
-# env-migration helper (`m3 doctor` scans config files for these OLD names and
-# `--fix` rewrites them), which cannot rely on _DEPRECATED_ENV_SEEN (that only
-# records names READ this process — a var sitting unread in a settings.json env
-# block would never appear). Every getenv_compat(new, old) call site MUST have a
-# matching entry here; tests/test_env_rename_map_drift.py enforces that so the map
-# can't silently fall out of sync with the call sites. Aliases of config-registry
-# keys live in the registry instead (registry_env_renames()).
+# ── Old (un-namespaced) env names ─────────────────────────────────────────────
+# m3 reads none of these. They are listed so `m3 doctor` and setup can name each
+# one still set (a shell file, a settings.json env block, a .env line, the Windows
+# registry) and advise deleting it. DEPRECATED_ENV_RENAMES holds the pure M3_*
+# namespacing pairs (new == "M3_" + old); aliases of config-registry keys live in
+# the registry instead (registry_env_renames()).
 DEPRECATED_ENV_RENAMES: dict[str, str] = {
     "AGENT_DB": "M3_AGENT_DB",
     # CHATLOG_DB / CHATLOG_DB_PATH are NOT here: renaming them to another env name
     # is not the fix (chatlog design, 2026-10-13). configured_chatlog_db() warns
     # with the real one, and doctor / import-env name where they are set.
     # CHROMA_BASE_URL is NOT here: the ChromaDB feature was retired, so there is
-    # no live getenv_compat call site for it. It moved to RETIRED_ENV_RENAMES so
-    # `m3 doctor` still cleans a stale CHROMA_BASE_URL out of on-disk config. See
-    # below.
+    # nothing to rename it to. It is in RETIRED_ENV_RENAMES so `m3 doctor` still
+    # names a stale CHROMA_BASE_URL. See below.
     "ORIGIN_DEVICE": "M3_ORIGIN_DEVICE",
     # PG_URL is NOT here: it was split by role (primary vs warehouse), so it lives
-    # in ROLE_SPLIT_ENV_RENAMES (-> M3_CDW_PG_URL) and is resolved by the
-    # role-specific resolvers, not getenv_compat. See below.
+    # in ROLE_SPLIT_ENV_RENAMES (-> M3_CDW_PG_URL); a DSN is a secret, read from
+    # the secrets chain only. See below.
 }
 
 # ROLE_SPLIT_ENV_RENAMES: deprecations that are NOT pure M3_ namespacing because
@@ -55,7 +44,7 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
 # separate from DEPRECATED_ENV_RENAMES so the "new == M3_ + old" invariant on that
 # map (test_env_rename_map_drift.test_rename_map_is_pure_namespacing) still holds.
 # `m3 doctor` scans BOTH maps when reporting/rewriting on-disk config (via
-# all_env_renames()); getenv_compat only consults the pure-namespacing map.
+# all_env_renames()).
 #
 # PG_URL was overloaded (primary store vs data-warehouse). The doctor-fix target
 # is the WAREHOUSE name, since that is what a legacy PG_URL almost always meant
@@ -66,14 +55,11 @@ ROLE_SPLIT_ENV_RENAMES: dict[str, str] = {
     "PG_URL": "M3_CDW_PG_URL",
 }
 
-# RETIRED_ENV_RENAMES: vars for FEATURES THAT NO LONGER EXIST. There is no live
-# getenv_compat call site (the reading code is gone), so these are deliberately
-# NOT in DEPRECATED_ENV_RENAMES — the drift test asserts that map has a call site
-# for every entry. But `m3 doctor` should still scrub a stale old name out of a
-# user's on-disk config (a settings.json env block, a dotenv line), so they are
-# reported/rewritten via all_env_renames(). The rename is cosmetic: nothing reads
-# either name anymore. Kept separate from ROLE_SPLIT so the "new == M3_ + old"
-# invariant on THAT map is not muddied.
+# RETIRED_ENV_RENAMES: vars for FEATURES THAT NO LONGER EXIST. Nothing reads
+# either name. `m3 doctor` still names a stale old name in a user's on-disk
+# config (a settings.json env block, a dotenv line) via all_env_renames(). Kept
+# separate from ROLE_SPLIT so the "new == M3_ + old" invariant on THAT map is
+# not muddied.
 #
 #   * CHROMA_BASE_URL — ChromaDB (optional L3 sync backend) was retired. Nothing
 #     reads it; doctor renames M3_-consistently so the old name stops lingering.
@@ -85,11 +71,8 @@ RETIRED_ENV_RENAMES: dict[str, str] = {
 def all_env_renames() -> dict[str, str]:
     """Union of the pure-namespacing, role-split, and retired deprecation maps.
 
-    The single source of truth for `m3 doctor`'s on-disk config scan/rewrite:
-    every old env-var KEY that should be reported and renamed, mapped to its new
-    name. getenv_compat does NOT use this (it only does pure namespacing); the
-    role-split names have dedicated resolvers (resolve_cdw_pg_dsn, etc.), and the
-    retired names have no reader at all — doctor just scrubs stale config.
+    The single source of truth for `m3 doctor`'s scan: every old env-var name
+    to report, mapped to its newer spelling. m3 reads neither spelling.
     """
     merged = dict(DEPRECATED_ENV_RENAMES)
     merged.update(ROLE_SPLIT_ENV_RENAMES)
@@ -99,76 +82,11 @@ def all_env_renames() -> dict[str, str]:
 
 
 def registry_env_renames() -> dict[str, str]:
-    """{legacy alias: canonical name} for every config-registry key. Keys read
-    through the registry resolve their aliases there, not via
-    getenv_compat, so their pairs are not in DEPRECATED_ENV_RENAMES (whose drift
-    test pins it to getenv_compat call sites); the registry is their one owner."""
+    """{legacy alias: canonical name} for every config-registry key; the
+    registry is their one owner. m3 reads neither name: m3_config.toml has them."""
     from m3_core.config import REGISTRY
 
     return {alias: key.env_names[0] for key in REGISTRY for alias in key.env_names[1:]}
-
-
-# _DEPRECATED_ENV_SEEN maps old_name -> new_name for every deprecated var that
-# was actually read from the environment this process. Doctor reads it via
-# deprecated_env_in_use().
-_DEPRECATED_ENV_SEEN: dict[str, str] = {}
-_DEPRECATED_ENV_WARNED: set[str] = set()
-
-
-@overload
-def getenv_compat(new_name: str, old_name: str, default: str) -> str: ...
-@overload
-def getenv_compat(new_name: str, old_name: str, default: None = None) -> str | None: ...
-def getenv_compat(new_name: str, old_name: str, default: str | None = None) -> str | None:
-    """Resolve an env var during the M3_* namespacing migration.
-
-    Precedence: new_name > old_name > default. If only the old (deprecated)
-    name is set, warn once and record it in _DEPRECATED_ENV_SEEN so `m3 doctor`
-    can surface it. The new name always wins, so users can migrate incrementally.
-    """
-    val = os.environ.get(new_name)  # env-owner: the legacy env-name shim
-    if val is not None:
-        return val
-    old_val = os.environ.get(old_name)  # env-owner: the legacy env-name shim
-    if old_val is not None:
-        _DEPRECATED_ENV_SEEN[old_name] = new_name
-        if old_name not in _DEPRECATED_ENV_WARNED:
-            _DEPRECATED_ENV_WARNED.add(old_name)
-            logger.warning(
-                "Deprecated env var %s is set; use %s instead. The old name still "
-                "works for now but will be removed. (`m3 doctor` lists all in use.)",
-                old_name,
-                new_name,
-            )
-        return old_val
-    return default
-
-
-def deprecated_env_in_use() -> dict[str, str]:
-    """Return {old_name: new_name} for every deprecated env var read so far this
-    process (via getenv_compat OR the role-specific PG resolvers). Used by
-    `m3 doctor` to report migration TODOs. Only reflects names actually READ — a
-    var set but never consulted won't show.
-
-    Keys read through the config registry resolve their legacy
-    aliases there, not through getenv_compat, so their half comes from the
-    config snapshot. A config file that does not load is reported by doctor's
-    own config check; here it only means the registry half is unknown, and the
-    log says so rather than the report quietly shrinking (§3).
-    """
-    seen = dict(_DEPRECATED_ENV_SEEN)
-    try:
-        from m3_core.config import settings as _settings
-
-        seen.update(_settings.current().deprecated_aliases_in_use())
-    except Exception as e:  # noqa: BLE001 -- see docstring
-        logger.warning(
-            "deprecated env report: the config registry's legacy aliases are not "
-            "included (observed: %s: %s). inspect: `m3 config show`",
-            type(e).__name__,
-            e,
-        )
-    return seen
 
 
 # ── PostgreSQL DSN resolution: two ROLES, deliberately separated ──────────────
@@ -241,8 +159,6 @@ _active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar("m3_acti
 # above that pin and silently move a split install's chatlog onto the main DB.
 _pinned_db: str | None = None
 _pinned_chatlog: str | None = None
-_LEGACY_DB_WARNED = False
-_LEGACY_CHATLOG_WARNED = False
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -391,7 +307,6 @@ def get_m3_config_root() -> str:
 
 # Which tier of the config-root precedence answered.
 CONFIG_ROOT_ENV = _roots.CONFIG_ROOT_ENV
-CONFIG_ROOT_LEGACY = _roots.CONFIG_ROOT_LEGACY
 CONFIG_ROOT_DEFAULT = _roots.CONFIG_ROOT_DEFAULT
 CONFIG_ROOT_ARG = _roots.CONFIG_ROOT_ARG
 CONFIG_FILE_NAME = _roots.CONFIG_FILE_NAME
@@ -579,9 +494,6 @@ def resolve_dispatch_db() -> str:
     two is a real bug the chatlog already hit, which left its store
     unbootstrappable because ``<engine>/chatlog_migrations`` is never populated.
     """
-    explicit = os.environ.get("M3_DISPATCH_DB")
-    if explicit:
-        return explicit
     if dispatch_store_mode() == "integrated":
         return configured_main_db() or resolve_engine_file("agent_memory.db")
     return resolve_engine_file("agent_dispatch.db")
@@ -749,7 +661,7 @@ def _default_db_path() -> str:
         return os.path.join(get_m3_engine_root(), "agent_memory.db")
 
     engine_db = os.path.join(get_m3_engine_root(), "agent_memory.db")
-    mem_root = _roots.pinned(_roots.MEMORY_ROOT_ENV)  # env-owner: the approved root locators
+    mem_root = _roots.memory_root_pin()
     if mem_root:
         if _db_is_populated(engine_db):
             return engine_db
@@ -762,9 +674,9 @@ def _default_db_path() -> str:
         )
         if _db_is_populated(legacy_under_root):
             logger.warning(
-                "M3_MEMORY_ROOT engine DB (%s) is missing or unmigrated; using the "
-                "populated legacy store at %s. Run bin/homecoming.py to migrate, or "
-                "set M3_ENGINE_ROOT explicitly to silence this.",
+                "the engine DB under [paths] memory_root (%s) is missing or unmigrated; "
+                "using the populated legacy store at %s. Run bin/homecoming.py to migrate, "
+                "or set [paths] engine_root in m3_config.toml to silence this.",
                 engine_db,
                 legacy_under_root,
             )
@@ -867,7 +779,7 @@ def resolve_db_path(explicit: str | None = None) -> str:
             f"empty database while the configured store goes untouched. "
             f"inspect: db.backend selects a non-SQLite backend (its DSN is a "
             f"stored secret, e.g. M3_PRIMARY_PG_URL); "
-            f"M3_DATABASE must be unset or point at a SQLite file."
+            f"a --database PATH must name a SQLite file."
         )
     return os.path.abspath(candidate)
 
@@ -882,32 +794,17 @@ def pin_database(path: "str | os.PathLike[str] | None") -> str | None:
 
 
 def configured_main_db() -> str | None:
-    """This process's main database as configured, or None for the default: the
-    ``--database`` pin, else the legacy ``M3_DATABASE`` env var (warned once per
-    process; honoured through N+3). THE reader for every caller that used to read
-    ``os.environ.get("M3_DATABASE")``."""
-    global _LEGACY_DB_WARNED
-    if _pinned_db:
-        return _pinned_db
-    # env-owner: the legacy-name shim for M3_DATABASE (warned; through N+3, M3_DATABASE design Q1)
-    legacy = (os.environ.get("M3_DATABASE") or "").strip()
-    if not legacy:
-        return None
-    if not _LEGACY_DB_WARNED:
-        _LEGACY_DB_WARNED = True
-        logger.warning(
-            "observed: the database comes from the environment variable M3_DATABASE, which m3 "
-            "reads only through release N+3. fix: pass --database PATH to the command, or name a "
-            "store in m3_config.toml ([stores.<name>]) and pass --store NAME; then remove M3_DATABASE."
-        )
-    return legacy
+    """This process's main database as configured (the ``--database`` pin), or
+    None for the default. The legacy ``M3_DATABASE`` variable is not read (its N+3
+    window has passed); setup and doctor list it if it is still set."""
+    return _pinned_db or None
 
 
 def configured_files_db() -> str | None:
-    """The files store's SQLite path from the legacy ``M3_FILES_DB_PATH``, or None.
-    A store locator, not a registry key (config.stores.LEGACY_LOCATORS: its home is
-    a store's files part); THE reader, so the files resolvers cannot disagree."""
-    return (os.environ.get("M3_FILES_DB_PATH") or "").strip() or None
+    """The files store's path as configured, or None for the default (under the
+    engine root). The legacy ``M3_FILES_DB_PATH`` variable is not read; a store's
+    files part in m3_config.toml ([stores.<name>]) is the way to move it."""
+    return None
 
 
 def pin_chatlog_db(path: "str | os.PathLike[str] | None") -> str | None:
@@ -921,41 +818,10 @@ def pin_chatlog_db(path: "str | os.PathLike[str] | None") -> str | None:
 
 
 def configured_chatlog_db() -> str | None:
-    """This process's chatlog store as configured, or None: the ``--chatlog-db``
-    pin, else the legacy chatlog env names, read in ONE place (M3_CHATLOG_DB_PATH /
-    CHATLOG_DB_PATH, then M3_CHATLOG_DB / CHATLOG_DB, then M3_CHATLOG_DATABASE;
-    honoured through N+3, warned once per process). THE reader for every caller that
-    read one of them."""
-    global _LEGACY_CHATLOG_WARNED
-    if _pinned_chatlog:
-        return _pinned_chatlog
-    # Literal calls, not a loop: the locator drift test finds the legacy names by
-    # their call sites.
-    found = (
-        # env-owner: chatlog legacy-name shim
-        ("M3_CHATLOG_DB_PATH", os.environ.get("M3_CHATLOG_DB_PATH")),
-        # env-owner: chatlog legacy-name shim
-        ("CHATLOG_DB_PATH", os.environ.get("CHATLOG_DB_PATH")),
-        # env-owner: chatlog legacy-name shim
-        ("M3_CHATLOG_DB", os.environ.get("M3_CHATLOG_DB")),
-        # env-owner: chatlog legacy-name shim
-        ("CHATLOG_DB", os.environ.get("CHATLOG_DB")),
-        # env-owner: chatlog legacy-name shim
-        ("M3_CHATLOG_DATABASE", os.environ.get("M3_CHATLOG_DATABASE")),
-    )
-    name, value = next(((n, v.strip()) for n, v in found if v and v.strip()), (None, None))
-    if not value:
-        return None
-    if not _LEGACY_CHATLOG_WARNED:
-        _LEGACY_CHATLOG_WARNED = True
-        logger.warning(
-            "observed: the chatlog store comes from the environment variable %s, which m3 reads "
-            "only through release N+3. fix: pass --chatlog-db PATH to the command, or set db_path in "
-            ".chatlog_config.json; then remove %s.",
-            name,
-            name,
-        )
-    return value
+    """This process's chatlog store as configured (the ``--chatlog-db`` pin), or
+    None. The legacy chatlog variables (M3_CHATLOG_DB_PATH and its aliases) are not
+    read; ``db_path`` in .chatlog_config.json is the persistent setting."""
+    return _pinned_chatlog or None
 
 
 def resolve_role_db(arg_path: str | None, role: str, default_name: str) -> Path | None:
@@ -1115,7 +981,9 @@ def resolve_cli_store(explicit: str | None, flag: str = "--db", default: str | N
     if store_is_a_file():
         path = resolve_db_path(explicit or default)
         if not os.path.exists(path):
-            raise ValueError(f"observed: no SQLite DB at {path}. inspect: {flag}, M3_DATABASE, or M3_ENGINE_ROOT")
+            raise ValueError(
+                f"observed: no SQLite DB at {path}. inspect: {flag}, or [paths] engine_root in m3_config.toml"
+            )
         return path
     if explicit:
         raise ValueError(
@@ -1163,9 +1031,9 @@ def resolve_backend_name() -> str:
     """The configured backend name: registry key ``db.backend``.
 
     THE single owner of this predicate; ``memory.backends.selector`` re-exports
-    it. An ordinary registry key: a ``--set`` flag, then ``[db] backend`` in m3_config.toml, then the
-    legacy env names ``M3_DB_BACKEND`` / ``DB_BACKEND`` (below the file, warned
-    once per process, through N+3), then ``sqlite``. An unrecognised value raises —
+    it. An ordinary registry key: a ``--set`` flag, then ``[db] backend`` in
+    m3_config.toml, then ``sqlite``; the former env names are not read. An
+    unrecognised value raises —
     a typo like ``postgre`` must not silently run SQLite.
 
     Never memoised: a module-global memo lives per module instance, and two
@@ -1186,35 +1054,7 @@ def resolve_backend_name() -> str:
         # The selector's contract is ValueError (callers degrade on it); the
         # registry reports every bad env value at once, as a group.
         raise ValueError(f"{e.message}: " + "; ".join(str(x) for x in e.exceptions)) from e
-    _warn_backend_from_legacy_env(name)
     return name
-
-
-_BACKEND_ENV_WARNED: set[str] = set()
-
-
-def _warn_backend_from_legacy_env(name: str) -> None:
-    """Once per process: the backend came from M3_DB_BACKEND / DB_BACKEND, which
-    m3 honours for it only through N+3. A daemon that runs on PostgreSQL because
-    of a variable nobody sees must say so (§3)."""
-    from m3_core.config.settings import current
-
-    origin = current().resolved["db.backend"].origin
-    if not origin.startswith("env-legacy:"):
-        return
-    var = origin.removeprefix("env-legacy:")
-    if var in _BACKEND_ENV_WARNED:
-        return
-    _BACKEND_ENV_WARNED.add(var)
-    logger.warning(
-        "observed: the storage backend (%s) comes from the environment variable %s, which m3 "
-        "reads for it only through release N+3. fix: `m3 config set db.backend %s` (or "
-        "`m3 config import-env`), then remove %s where it is set.",
-        name,
-        var,
-        name,
-        var,
-    )
 
 
 def require_sqlite_backend(tool: str) -> None:

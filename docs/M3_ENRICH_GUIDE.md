@@ -13,13 +13,14 @@ that are searchable via `mcp__m3_memory__memory_search`.
 > ```
 
 > ⚠️ **How retrieval picks up the results:** the entity graph
-> (`M3_ENABLE_ENTITY_GRAPH`) is **on by default**, and the two
-> observation gates (`M3_PREFER_OBSERVATIONS`, `M3_TWO_STAGE_OBSERVATIONS`)
+> (`memory.entity_graph`) is **on by default**, and the two
+> observation gates (`search.prefer_observations`, `search.two_stage_observations`)
 > **auto-activate** once the store holds `>=100` observation rows (checked
 > about every 5 minutes per process). Below that threshold — or with
-> `M3_DISABLE_AUTO_ACTIVATION=1` — set them explicitly and **restart your
-> MCP host** (Claude Code: `/mcp` and reconnect `m3_memory`, or reopen the
-> session) so the env reaches the running memory server. Jump to
+> `memory.disable_auto_activation = true` — set them in `m3_config.toml`
+> (`m3 config set KEY true`) and **restart your MCP host** (Claude Code: `/mcp`
+> and reconnect `m3_memory`, or reopen the session) so the running memory
+> server reads them. Jump to
 > [Activate enrichment-aware retrieval](#activate-enrichment-aware-retrieval-required-after-enrichment).
 
 ---
@@ -183,8 +184,8 @@ your own observations).
    error if not.
 2. **DB backup** — copies each target DB to `<engine root>/backups/enrich/`
    with a timestamp suffix (`~/.m3/engine/backups/enrich/` by default).
-   Backups are database state, so they follow the engine root and
-   `M3_ENGINE_ROOT` — see [Homecoming Architecture](../CLAUDE.md).
+   Backups are database state, so they follow the engine root
+   (`[paths] engine_root` in `m3_config.toml`).
 3. **Migration 025** — applies the observation_queue / reflector_queue
    migration if missing (auto-runs the SQL directly; no migrate-script
    dependency).
@@ -217,11 +218,10 @@ Observations are written under variant `m3-observations-YYYYMMDD` (or
 whatever you pass with `--target-variant`).
 
 **Important:** the default `memory_search` does NOT rank observations
-above raw turns unless you set the activation env vars. See the
+above raw turns unless you set the activation settings. See the
 [Activate enrichment-aware retrieval](#activate-enrichment-aware-retrieval-required-after-enrichment)
-section below for the required env vars (`M3_PREFER_OBSERVATIONS`,
-`M3_TWO_STAGE_OBSERVATIONS`, `M3_ENABLE_ENTITY_GRAPH`) and where to set
-them per deployment shape (MCP / shell / cron).
+section below for the settings (`search.prefer_observations`,
+`search.two_stage_observations`, `memory.entity_graph`) and how to set them.
 
 Internal benchmark harnesses pass an equivalent variant flag to activate
 this automatically; see the published LME-S report for details.
@@ -237,7 +237,7 @@ Your endpoint isn't reachable. Check:
 - `curl http://127.0.0.1:1234/v1/models` — does it respond?
 - Profile YAML's `url` field matches your server
 
-### "ERROR: env var X is empty"
+### "ERROR: API key not found. observed: no X in the secrets file…"
 
 The profile's key (its `api_key_service`) is not stored. Store it — m3 reads it
 from the secrets file / keyring, not the environment:
@@ -502,94 +502,43 @@ set them explicitly.
 
 > ⚡ **Phase L auto-activation (since 2026-04-28):** the three gates below
 > auto-flip ON when the underlying tables have meaningful population —
-> `>=100` observation rows for `M3_PREFER_OBSERVATIONS` /
-> `M3_TWO_STAGE_OBSERVATIONS`, and `>0` rows in `entities` for
-> `M3_ENABLE_ENTITY_GRAPH`. Counts are checked once per ~5 minutes per
-> process (cached). You still SHOULD set the env vars explicitly for
+> `>=100` observation rows for `search.prefer_observations` /
+> `search.two_stage_observations`, and `>0` rows in `entities` for
+> `memory.entity_graph`. Counts are checked once per ~5 minutes per
+> process (cached). You still SHOULD set the settings explicitly for
 > ingest paths and for clarity, but a working enriched DB will start
 > serving observation- and entity-aware retrieval without a config edit
-> + restart. **Escape hatch:** set `M3_DISABLE_AUTO_ACTIVATION=1` to
-> require the explicit env vars — recommended for benchmark
+> + restart. **Escape hatch:** `m3 config set memory.disable_auto_activation true`
+> requires the explicit settings — recommended for benchmark
 > reproducibility, ablation studies, and any scenario where you want
 > retrieval behavior to depend only on declared config.
 
-### The three env vars
+### The three settings
 
-| Variable | What it does | Default |
+| Setting (`m3_config.toml`) | What it does | Default |
 |---|---|---|
-| `M3_PREFER_OBSERVATIONS` | Post-rank observations (`type='observation'`) above raw chat turns. The atomic facts you extracted now lead the result list. | off; auto-on at `>=100` observations |
-| `M3_TWO_STAGE_OBSERVATIONS` | Expand observation hits with their source turns (~3 per hit). Gives the answerer the surrounding context, not just the distilled fact. | off; auto-on at `>=100` observations |
-| `M3_ENABLE_ENTITY_GRAPH` | Allow entity-graph traversal during retrieval — the `entities` + `entity_relationships` tables become consultable. Required for `memory_search_routed`'s entity branch to fire. Set `0` to disable. | **on** (`1`) |
+| `search.prefer_observations` | Post-rank observations (`type='observation'`) above raw chat turns. The atomic facts you extracted now lead the result list. | off; auto-on at `>=100` observations |
+| `search.two_stage_observations` | Expand observation hits with their source turns (~3 per hit). Gives the answerer the surrounding context, not just the distilled fact. | off; auto-on at `>=100` observations |
+| `memory.entity_graph` | Allow entity-graph traversal during retrieval — the `entities` + `entity_relationships` tables become consultable. Required for `memory_search_routed`'s entity branch to fire. Set `false` to disable. | **on** |
 
-Set them to `1` (or `true` / `yes`) to activate explicitly — useful below
-the auto-activation threshold or with `M3_DISABLE_AUTO_ACTIVATION=1`.
-
-### Where to set them — three options, pick the one that matches how you run m3-memory
-
-#### A. MCP server (Claude Code / agents using m3 via MCP)
-
-Claude Code does not read MCP servers from `~/.claude/settings.json`;
-m3's server is registered with `claude mcp add` (this is what `m3 setup`
-runs). Re-register it with the extra env vars, keeping your root pins:
-
-```bash
-claude mcp remove --scope user m3_memory
-claude mcp add --scope user \
-  --env M3_ENGINE_ROOT=<engine root> --env M3_CONFIG_ROOT=<config root> \
-  --env M3_PREFER_OBSERVATIONS=1 --env M3_TWO_STAGE_OBSERVATIONS=1 \
-  -- m3_memory m3
-```
-
-For other MCP hosts (Gemini, Cursor, Cline, …), add the same vars to the
-`env` block of the m3 server entry in that host's own config file; the
-server command is `m3`.
-
-> 🔁 **Restart your MCP host so the new env reaches the memory server**
-> — MCP servers read their `env` block once at spawn time, so config
-> changes do NOT take effect until a restart. Pick the recipe matching
-> your host:
->
-> | Host | Restart command |
-> |---|---|
-> | **Claude Code** (terminal) | Close and reopen the terminal session, OR run `/mcp` and reconnect `m3_memory` from the picker |
-> | **Claude Desktop** | Quit fully (tray icon → Quit, not just close window) and reopen |
-> | **OpenCode / Aider / custom MCP host** | Whatever your host's "reload tool servers" / "restart" command is — most expose it as `/mcp` or `/restart-tools` |
-> | **No GUI host (CI / headless)** | Kill and re-launch the process that owns the MCP child |
->
-> Verification that the restart took: in a fresh tool call, run any
-> `mcp__m3_memory__memory_search` and check that observation rows appear
-> in the results. If they don't, the env didn't propagate — see the
-> [Verify it's active](#verify-its-active) section below.
-
-#### B. m3_config.toml (CLI users, services, bench harnesses, scripts)
+Set them explicitly — useful below the auto-activation threshold or with
+`memory.disable_auto_activation = true`:
 
 ```bash
 m3 config set search.prefer_observations true
 m3 config set search.two_stage_observations true
 ```
 
-> These go into `m3_config.toml`, so every m3 process sees them, including
-> background services that never read your shell profile. Restart m3's
-> services to apply. The old `M3_PREFER_OBSERVATIONS` /
-> `M3_TWO_STAGE_OBSERVATIONS` environment names still work, below the file.
+They go into `m3_config.toml`, so every m3 process sees them: the MCP server,
+the CLI, cron jobs and background services. The former environment names
+(`M3_PREFER_OBSERVATIONS`, `M3_TWO_STAGE_OBSERVATIONS`, `M3_ENABLE_ENTITY_GRAPH`,
+`M3_DISABLE_AUTO_ACTIVATION`) are not read — in a shell, an MCP `env` block or a
+cron line they do nothing, and `m3 doctor` names any still set.
 
-#### C. Scheduled tasks / cron (auto-enrich drain jobs)
-
-Wrap the cron command:
-
-```bash
-M3_PREFER_OBSERVATIONS=1 M3_TWO_STAGE_OBSERVATIONS=1 \
-    python bin/m3_enrich.py --drain-queue --drain-batch 50
-```
-
-(The drain itself doesn't need these — but keeping the env consistent
-across all m3 invocations avoids "works in cron, doesn't work in shell"
-surprises.)
-
-> 🔁 **No restart needed for cron / Task Scheduler** — each invocation
-> is a fresh process and reads the env from the wrapper line at launch.
-> Just edit the cron entry / Task Scheduler action and the next firing
-> picks it up.
+> 🔁 **Restart long-running m3 processes to apply** — these keys are read when
+> a process starts (Claude Code: `/mcp` and reconnect `m3_memory`; other hosts:
+> their restart / reload-tools command; services: restart them). Cron and Task Scheduler
+> jobs start a fresh process each run and need nothing.
 
 ### Verify it's active
 
@@ -617,9 +566,8 @@ SELECT COUNT(*) FROM entity_relationships;
 -- Both > 0 after `bin/m3_entities.py`.
 ```
 
-> 🔁 **If you set the env vars but observations still don't show up
-> in results**, the restart didn't take. The MCP `m3_memory` server is
-> still running with the OLD env. Symptoms:
+> 🔁 **If you set the settings but observations still don't show up
+> in results**, the server is still running with the old values. Symptoms:
 >
 > - Recent search results contain only `type='message'` / `type='note'`
 >   etc., zero `type='observation'` — even though SQL confirms many
@@ -627,17 +575,16 @@ SELECT COUNT(*) FROM entity_relationships;
 > - Entity-graph queries return empty results despite a populated
 >   `entities` table.
 >
-> Fix: re-run the restart step from the recipe matching your host
-> above. If unsure whether the restart took, in Claude Code run
+> Fix: restart the MCP host or service (see the restart note above). If unsure whether the restart took, in Claude Code run
 > `/mcp` and check that the `m3_memory` server status line reflects a
 > recent start time.
 
 ### Cost / risk
 
-- `M3_PREFER_OBSERVATIONS` and `M3_TWO_STAGE_OBSERVATIONS` cost a few
+- `search.prefer_observations` and `search.two_stage_observations` cost a few
   ms per search and ~500-2000 extra tokens of context (the observation
   rows + their source turns). Worth it.
-- `M3_ENABLE_ENTITY_GRAPH` adds an extra graph-traversal SQL query when
+- `memory.entity_graph` adds an extra graph-traversal SQL query when
   the query has named entities. Negligible on a populated graph; no-op
   otherwise.
 - The observation gates stay off on a store with few or no
@@ -649,8 +596,8 @@ SELECT COUNT(*) FROM entity_relationships;
 The gates auto-flip on data presence (see the Phase L note above), so
 retrieval semantics can change once enrichment populates the tables. If
 you need retrieval to depend only on declared config — benchmarks,
-ablations — set `M3_DISABLE_AUTO_ACTIVATION=1` and set each gate
-explicitly. Set `M3_ENABLE_ENTITY_GRAPH=0` to turn the entity graph off.
+ablations — set `memory.disable_auto_activation = true` and set each gate
+explicitly. `m3 config set memory.entity_graph false` turns the entity graph off.
 
 ---
 
@@ -658,7 +605,7 @@ explicitly. Set `M3_ENABLE_ENTITY_GRAPH=0` to turn the entity graph off.
 
 Once your chatlog hooks are wired (Claude Code PreCompact/Stop, Gemini
 SessionEnd, OpenCode session_end), every closed conversation runs through
-`bin/chatlog_ingest.py`. With `M3_AUTO_ENRICH=1`, that ingest path also
+`bin/chatlog_ingest.py`. With `chatlog.auto_enrich = true`, that ingest path also
 **enqueues the conversation** for the Observer pipeline. A periodic
 `m3_enrich --drain-queue` then turns those queue rows into observations.
 
@@ -760,14 +707,17 @@ Register-ScheduledTask -TaskName "m3 Enrich Drain" `
 
 ### Config knobs
 
-| env var | default | purpose |
+Set these in `m3_config.toml` (`m3 config set KEY VALUE`); the former `M3_*`
+environment names are not read.
+
+| setting | default | purpose |
 |---|---|---|
-| `M3_AUTO_ENRICH` | `0` (off) | Enable enqueue at chatlog ingest |
-| `M3_AUTO_ENRICH_MIN_TURNS` | `10` | Skip enqueue if ingest wrote fewer turns |
-| `M3_REFLECTOR_THRESHOLD` | `50` | Observation count before Reflector fires |
-| `M3_PREFER_OBSERVATIONS` | `0` (off; auto-on at `>=100` observations) | Prefer observation rows in retrieval |
-| `M3_TWO_STAGE_OBSERVATIONS` | `0` (off; auto-on at `>=100` observations) | Expand top-k obs into source turns |
-| `M3_OBSERVATION_BUDGET_TOKENS` | `4000` | Token budget for obs-only retrieval |
+| `chatlog.auto_enrich` | `false` | Enable enqueue at chatlog ingest |
+| `chatlog.auto_enrich_min_turns` | `10` | Skip enqueue if ingest wrote fewer turns |
+| `--reflector-threshold` (flag on `m3_enrich.py`) | `50` | Observation count before Reflector fires |
+| `search.prefer_observations` | `false` (auto-on at `>=100` observations) | Prefer observation rows in retrieval |
+| `search.two_stage_observations` | `false` (auto-on at `>=100` observations) | Expand top-k obs into source turns |
+| `search.observation_budget_tokens` | `4000` | Token budget for obs-only retrieval |
 
 ### Operational notes
 
@@ -806,26 +756,14 @@ sqlite3 ~/.m3/engine/agent_memory.db \
 
 **Auto-enqueue isn't firing**
 
-Verify the env var is set in the *same shell* that runs `chatlog_ingest`:
+Check that the setting is on where every m3 process reads it:
 ```bash
-env | grep M3_AUTO_ENRICH
+m3 config show --origin | grep auto_enrich
 ```
 
-If your chatlog ingest is invoked from a host-agent hook (Claude Code,
-Gemini), the env var must be exported in that hook's environment. Edit
-the hook command in `~/.claude/settings.json` or `~/.gemini/settings.json`
-to include `M3_AUTO_ENRICH=1` as a prefix:
-
-```json
-"hooks": {
-  "PreCompact": [{
-    "hooks": [{
-      "type": "command",
-      "command": "M3_AUTO_ENRICH=1 python /path/to/bin/chatlog_ingest.py ..."
-    }]
-  }]
-}
-```
+If it is off, `m3 config set chatlog.auto_enrich true`. Host-agent hooks
+(Claude Code, Gemini) read `m3_config.toml` like every other m3 process; an
+`M3_AUTO_ENRICH=1` prefix on the hook command is not read.
 
 ---
 
@@ -839,9 +777,9 @@ returned `{observations: [...]}` JSON, and writes each observation as a
 `type='observation'` row with three-date metadata. The Reflector stage
 then runs over groups exceeding the threshold to detect cross-conv
 supersedes/merges, writing supersedes edges into `memory_relationships`.
-Both stages are env-gated for retrieval (`M3_PREFER_OBSERVATIONS`,
-`M3_TWO_STAGE_OBSERVATIONS`); production behavior is unchanged unless
-those flags are set.
+Both stages are gated for retrieval (`search.prefer_observations`,
+`search.two_stage_observations`); production behavior is unchanged unless
+those settings are on or auto-activation turns them on.
 
 For deeper detail, see `docs/MASTRA_DESIGN.md`.
 

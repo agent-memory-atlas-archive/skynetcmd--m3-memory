@@ -1,8 +1,8 @@
 ---
 tool: bin/auto_route.py
-sha1: b164cf030141
-mtime_utc: 2026-10-10T21:05:16.668434+00:00
-generated_utc: 2026-10-10T21:05:29.278458+00:00
+sha1: 82024acbe31e
+mtime_utc: 2026-10-18T00:39:23.017104+00:00
+generated_utc: 2026-10-18T00:50:16.882527+00:00
 private: false
 ---
 
@@ -52,7 +52,6 @@ _(no argparse arguments detected)_
 ## Environment variables read
 
 - `M3_CORE_RS_DISABLE`
-- `M3_ROUTE_SHADOW_MODE`
 
 ---
 

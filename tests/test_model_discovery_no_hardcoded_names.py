@@ -203,31 +203,30 @@ class TestDiscoverModelSync:
 class TestCallersDoNotHardcodeNames:
     """The regression: no caller may name a model as its FALLBACK."""
 
-    def test_summary_model_prefers_explicit_override(self, monkeypatch):
+    def test_summary_model_prefers_explicit_override(self, m3_settings):
         from files_memory import summarize
 
-        monkeypatch.setenv("M3_FILES_SUMMARY_URL", "http://x/v1")
-        monkeypatch.setenv("M3_FILES_SUMMARY_MODEL", "pinned-x")
+        m3_settings({"files.summary_url": "http://x/v1", "files.summary_model": "pinned-x"})
         assert summarize._summary_model() == "pinned-x"
 
-    def test_summary_model_falls_back_to_discovery(self, monkeypatch):
+    def test_summary_model_falls_back_to_discovery(self, monkeypatch, m3_settings):
         from files_memory import summarize
 
-        monkeypatch.setenv("M3_FILES_SUMMARY_URL", "http://x/v1")
+        m3_settings({"files.summary_url": "http://x/v1"})
         _fake_httpx(monkeypatch, {"data": [{"id": "discovered-model"}]})
         assert summarize._summary_model() == "discovered-model"
 
-    def test_summary_model_returns_none_when_discovery_fails(self, monkeypatch):
+    def test_summary_model_returns_none_when_discovery_fails(self, monkeypatch, m3_settings):
         from files_memory import summarize
 
-        monkeypatch.setenv("M3_FILES_SUMMARY_URL", "http://x/v1")
+        m3_settings({"files.summary_url": "http://x/v1"})
         _fake_httpx(monkeypatch, {"data": []})
         assert summarize._summary_model() is None, "must not guess a model name"
 
-    def test_extract_model_returns_none_when_discovery_fails(self, monkeypatch):
+    def test_extract_model_returns_none_when_discovery_fails(self, monkeypatch, m3_settings):
         from files_memory import extract
 
-        monkeypatch.setenv("M3_FILES_SUMMARY_URL", "http://x/v1")
+        m3_settings({"files.summary_url": "http://x/v1"})
         _fake_httpx(monkeypatch, {"data": []})
         assert extract._llm_model() is None, "must not guess a model name"
 
@@ -358,23 +357,24 @@ class TestPrewarm:
     prewarm() 12.67s -> 1 loaded -> first real call 0.34s.
     """
 
+    @pytest.fixture(autouse=True)
+    def _settings(self, m3_settings):
+        self._use = m3_settings
+
     def _env(self, monkeypatch):
-        monkeypatch.setenv("M3_FILES_SUMMARY_URL", "http://x")
-        monkeypatch.setenv("M3_FILES_SUMMARY_MODEL", "m")
+        self._use({"files.summary_url": "http://x", "files.summary_model": "m"})
 
     def test_returns_false_without_an_endpoint(self, monkeypatch):
         from files_memory import summarize
 
-        monkeypatch.delenv("M3_FILES_SUMMARY_URL", raising=False)
-        monkeypatch.delenv("M3_LMSTUDIO_URL", raising=False)
+        self._use({})  # no files.summary_url, no llm.lmstudio_url
         assert summarize.prewarm() is False
 
     def test_returns_false_when_no_model_resolves(self, monkeypatch):
         """No model => nothing to warm. Must not POST {"model": null}."""
         from files_memory import summarize
 
-        monkeypatch.setenv("M3_FILES_SUMMARY_URL", "http://x")
-        monkeypatch.delenv("M3_FILES_SUMMARY_MODEL", raising=False)
+        self._use({"files.summary_url": "http://x"})  # no files.summary_model
         _fake_httpx(monkeypatch, {"data": []})  # discovery finds nothing
         assert summarize.prewarm() is False
 

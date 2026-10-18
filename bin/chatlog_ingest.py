@@ -1069,7 +1069,7 @@ async def main() -> int:
     result = await _ingest(args.format, args.transcript_path, args.session_id, args.variant)
 
     # Phase E1: Auto-enqueue this conversation for Mastra Observer enrichment
-    # if M3_AUTO_ENRICH=1. The drainer (m3_enrich --drain-queue) consumes
+    # if chatlog.auto_enrich is on. The drainer (m3_enrich --drain-queue) consumes
     # observation_queue rows independently — this hook just signals "this
     # conversation has new content, consider enriching it."
     #

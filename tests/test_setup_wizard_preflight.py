@@ -607,17 +607,18 @@ def test_endpoint_reachable_false_on_dead_port():
     assert setup_wizard._endpoint_reachable("http://localhost:1", timeout=0.3) is False
 
 
-def test_probe_honors_explicit_csv(monkeypatch, capsys):
-    monkeypatch.setenv("LLM_ENDPOINTS_CSV", "http://x:9/v1")
+def test_probe_honors_explicit_csv(m3_settings, capsys):
+    m3_settings({"llm.endpoints": ["http://x:9/v1"]})
     setup_wizard._probe_llm_endpoints(object(), _probe_args())
-    assert "LLM_ENDPOINTS_CSV" in capsys.readouterr().out
+    assert "LLM endpoints pinned (http://x:9/v1)" in capsys.readouterr().out
 
 
-def test_probe_honors_custom_url(monkeypatch, capsys):
-    monkeypatch.setenv("M3_LLM_URL", "http://localhost:8080/v1")
+def test_probe_honors_custom_url(monkeypatch, m3_settings, capsys):
+    m3_settings({"llm.url": "http://localhost:8080/v1"})
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda u, **k: False)
     setup_wizard._probe_llm_endpoints(object(), _probe_args())
-    assert "M3_LLM_URL set" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "(http://localhost:8080/v1)" in out and "NOT reachable yet" in out
 
 
 def test_probe_enables_ollama_when_only_ollama_reachable(monkeypatch):

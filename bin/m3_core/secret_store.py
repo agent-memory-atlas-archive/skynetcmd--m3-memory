@@ -452,6 +452,17 @@ _DSN_ENV_NAMES: dict[PgRole, tuple[str, ...]] = {
 }
 
 
+def missing_secret_message(name: str) -> str:
+    """What to tell a person when a required secret resolves to nothing: where m3
+    looked and the one fix. The one wording, so no caller suggests an environment
+    variable (m3 never reads secrets from the environment)."""
+    return (
+        f"observed: no {name} in the secrets file, the OS keyring or the vault. "
+        f"fix: `m3 secret set {name}` (prompts for the value; add --keyring to keep it in the "
+        "OS keyring). m3 never reads secrets from the environment."
+    )
+
+
 def pg_secret_name(role: PgRole) -> str:
     """The secret name a role's DSN is stored under (`m3 secret set <name>`)."""
     return _STORE_KEYS[role][0]

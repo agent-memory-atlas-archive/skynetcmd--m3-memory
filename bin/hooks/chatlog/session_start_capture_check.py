@@ -38,10 +38,10 @@ def _bin_on_path() -> Path:
 def _resolve_db() -> str:
     """Resolve the m3 agent-memory DB path portably (no hardcoded user path).
 
-    Order: m3_sdk.resolve_db_path (canonical, honors M3_DATABASE / M3_ENGINE_ROOT
-    / M3_MEMORY_ROOT exactly as the server does) -> M3_DB_PATH env (legacy) ->
-    canonical engine root (<M3_ENGINE_ROOT|~/.m3/engine>/agent_memory.db) ->
-    repo-root/engine/agent_memory.db (last-resort dev-clone guess).
+    Order: m3_sdk.resolve_db_path (canonical: the engine root from
+    m3_config.toml [paths], exactly as the server resolves it) -> that engine
+    root's agent_memory.db -> the stdlib roots owner (m3_memory._roots, the same
+    file-then-default rule) when m3_sdk does not import.
 
     The canonical resolver is tried first AND its engine-root default is used
     for the fallback, so this hook checks the SAME DB the running MCP server
@@ -62,9 +62,6 @@ def _resolve_db() -> str:
             return os.path.abspath(p)
     except Exception:  # noqa: BLE001 — fall back to path heuristics
         engine_root_fn = None
-    env = os.environ.get("M3_DB_PATH")
-    if env:
-        return os.path.abspath(env)
     # Prefer the canonical engine root (matches the server) over the repo-relative
     # guess, which is a frozen pre-Homecoming copy on migrated installs.
     if engine_root_fn is not None:
@@ -73,7 +70,7 @@ def _resolve_db() -> str:
         except Exception:  # noqa: BLE001
             pass
     # m3_sdk did not import: the stdlib-only roots owner still does (it applies
-    # M3_ENGINE_ROOT > M3_MEMORY_ROOT/engine > ~/.m3/engine). The guess this used
+    # m3_config.toml [paths] engine_root > ~/.m3/engine). The guess this used
     # to end on, <repo>/engine, is a pre-Homecoming location: on a migrated
     # install it named the wrong DB and raised a false "NOT writing" alarm.
     try:

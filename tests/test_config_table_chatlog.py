@@ -28,29 +28,22 @@ def test_defaults_are_what_todays_readers_produce():
     assert not wrong, f"registry default != today's reader (registry, today): {wrong}"
 
 
-def test_statusline_zero_now_reads_as_off(tmp_path, caplog):
-    """Today only the exact string "off" hid it; "0" and "false" kept it on."""
-    import logging
+def test_statusline_zero_now_reads_as_off():
+    """The old reader hid it only for the exact string "off"; "0" and "false" kept
+    it on. `m3 config import-env` copies a leftover value with the registry's
+    reading (coerce_env_value), so "0" lands as false."""
+    from m3_core.config import REGISTRY
 
-    from m3_core.config import REGISTRY, Location
-    from m3_core.config import resolve as r
-    from m3_core.config.settings import build
-
-    r._LEGACY_NOTED.discard(("M3_CHATLOG_STATUSLINE", "0"))
-    with caplog.at_level(logging.WARNING):
-        s = build(
-            Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"), environ={"M3_CHATLOG_STATUSLINE": "0"}
-        )
-    assert s[REGISTRY.get("chatlog.statusline")] is False and "now reads as False" in caplog.text
+    key = REGISTRY.get("chatlog.statusline")
+    assert key.coerce_env_value("0") is False and key.coerce_env_value("false") is False
 
 
-def test_slm_profile_dirs_split_on_the_os_separator(tmp_path):
-    from m3_core.config import REGISTRY, Location
-    from m3_core.config.settings import build
+def test_slm_profile_dirs_split_on_the_os_separator():
+    """import-env's reading of a leftover M3_SLM_PROFILES_DIR: split on os.pathsep."""
+    from m3_core.config import REGISTRY
 
     raw = os.pathsep.join(["/a", " ", "/b "])
-    s = build(Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"), environ={"M3_SLM_PROFILES_DIR": raw})
-    assert s[REGISTRY.get("slm.profile_dirs")] == ["/a", "/b"]
+    assert REGISTRY.get("slm.profile_dirs").coerce_env_value(raw) == ["/a", "/b"]
 
 
 def test_decided_names():

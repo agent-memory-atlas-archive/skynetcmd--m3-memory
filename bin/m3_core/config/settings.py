@@ -54,30 +54,9 @@ class Settings:
     def origin(self, key: Key) -> str:
         return self.resolved[key.name].origin
 
-    def legacy_env_in_use(self) -> list[str]:
-        """Env names honoured only by the N..N+2 window: what to migrate."""
-        return sorted(
-            r.origin.removeprefix("env-legacy:") for r in self.resolved.values() if r.origin.startswith("env-legacy:")
-        )
-
-    def llm_file_in_use(self) -> list[str]:
-        """Names whose value in use comes from the legacy .llm_config.json: what
-        import-env moves into [llm] (fold plan 2026.10.12, step 3)."""
-        return sorted(r.env_name for r in self.resolved.values() if r.origin.startswith("llmfile:") and r.env_name)
-
-    def deprecated_aliases_in_use(self) -> dict[str, str]:
-        """{old name: canonical name} for every key whose value came from a
-        legacy ALIAS spelling (env or .env), the registry's half of
-        m3_core.paths.deprecated_env_in_use (`m3 doctor`'s migration list)."""
-        out: dict[str, str] = {}
-        for name, r in self.resolved.items():
-            key = REGISTRY.get(name)
-            if key is not None and r.env_name is not None and r.env_name != key.env_names[0]:
-                out[r.env_name] = key.env_names[0]
-        return out
-
     def shadowed_env(self) -> list[str]:
-        """Env names set but outranked by m3_config.toml: ignored, and said so."""
+        """Legacy names set (env, .env, .llm_config.json) that m3 does not read:
+        the value in use is m3_config.toml's or the default. Reported, never read."""
         return sorted({n for r in self.resolved.values() for n in r.shadowed})
 
 
@@ -123,24 +102,6 @@ def override(settings: Settings, values: Mapping[Key, ConfigValue]) -> Settings:
     return dataclasses.replace(settings, resolved=MappingProxyType(resolved))
 
 
-_ALIAS_WARNED: set[str] = set()
-
-
-def _warn_deprecated_aliases(settings: Settings) -> None:
-    """Once per process per name, as getenv_compat did for the keys it served
-    before they moved to the registry."""
-    for old, new in sorted(settings.deprecated_aliases_in_use().items()):
-        if old not in _ALIAS_WARNED:
-            _ALIAS_WARNED.add(old)
-            logger.warning(
-                "Deprecated env var %s is set; use %s instead (or m3_config.toml). The "
-                "old name still works for now but will be removed. (`m3 doctor` lists "
-                "all in use.)",
-                old,
-                new,
-            )
-
-
 class _Cache:
     """The process snapshot. One per process; guarded for threaded MCP tools."""
 
@@ -180,7 +141,6 @@ class _Cache:
             if self._settings is None:
                 self._settings = self._with_cli(build())  # startup: a bad file raises (§3)
                 self._checked_at = now
-                _warn_deprecated_aliases(self._settings)
                 return self._settings
             if now - self._checked_at < self.ttl_s:
                 return self._settings
@@ -213,6 +173,12 @@ class _Cache:
 
     def last_error(self) -> str | None:
         return self._last_error
+
+    def mark_stale(self) -> None:
+        """The next read re-checks the file's identity (keeping --set values): a
+        writer in this process must read back what it wrote, not wait out the TTL."""
+        with self._lock:
+            self._checked_at = 0.0
 
     def reset(self) -> None:
         with self._lock:
@@ -533,8 +499,8 @@ def with_flags(settings: Settings) -> Settings:
 
 
 def origin_of(name: str) -> str:
-    """Where key ``name``'s value came from: ``default``, ``env:<NAME>``,
-    ``env-legacy:<NAME>`` or the config file. The reporting path for diagnostics
+    """Where key ``name``'s value came from: ``default``, ``env:<NAME>``, ``cli``
+    or the config file. The reporting path for diagnostics
     that ask "is this pinned in the process environment?" (ignored-env
     reporting): they read the origin, not os.environ."""
     key = REGISTRY.get(name)
@@ -558,16 +524,6 @@ def file_value(name: str) -> ConfigValue | None:
     return snap[key] if origin.startswith("file:") or origin in ("cli", "override") else None
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class EnvDisagreement:
-    """An environment variable whose value contradicts m3_config.toml."""
-
-    key: str
-    env_name: str
-    env_value: ConfigValue | str  # the raw text when it does not even parse
-    file_value: ConfigValue | None  # what m3 uses: the file always wins
-
-
 def env_contradicting(key: Key, value: ConfigValue | None) -> list[tuple[str, ConfigValue | str]]:
     """Each of ``key``'s env names set in the LIVE environment to something other
     than ``value``, with what it reads as. A matching value is not listed: the
@@ -584,26 +540,6 @@ def env_contradicting(key: Key, value: ConfigValue | None) -> list[tuple[str, Co
             seen = raw
         if seen != value:
             out.append((name, seen))
-    return out
-
-
-def env_disagreements() -> list[EnvDisagreement]:
-    """Every env var that contradicts a value SET in m3_config.toml (the file
-    wins). The transition report ``m3 doctor`` and setup print until the user
-    retires it. A key with no value in
-    the file, or one a flag set for this run, has nothing to disagree with."""
-    snap = current()
-    out: list[EnvDisagreement] = []
-    for key in REGISTRY:
-        if key.klass is not KeyClass.CONFIG or key.name not in snap.resolved:
-            continue
-        r = snap.resolved[key.name]
-        if not r.origin.startswith("file:"):
-            continue
-        out.extend(
-            EnvDisagreement(key=key.name, env_name=n, env_value=v, file_value=r.value)
-            for n, v in env_contradicting(key, r.value)
-        )
     return out
 
 

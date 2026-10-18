@@ -98,8 +98,6 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
                 "file_exists": settings.identity is not None,
                 "settings": rows,
                 "secrets": secrets,
-                "legacy_env_in_use": settings.legacy_env_in_use(),
-                "llm_file_in_use": settings.llm_file_in_use(),
                 "ignored_env": settings.shadowed_env(),
                 "retired_env_set": list(settings.retired_env),
                 "warnings": list(settings.warnings),
@@ -114,7 +112,7 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
         if origin:
             line += f"    # {r['origin']}"
             if r["shadowed"]:
-                line += f"; ignored env: {', '.join(r['shadowed'])}"
+                line += f"; not read: {', '.join(r['shadowed'])}"
         lines.append(line)
     from m3_core.secret_store import SecretsFileError, secrets_file_path
 
@@ -129,22 +127,10 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
         if not s["set"] and s["errors"]:
             state += f" ({'; '.join(s['errors'])})"
         lines.append(f"{s['name']:<{swidth}}  {state}" + ("    # bootstrap" if s["bootstrap"] and origin else ""))
-    if settings.legacy_env_in_use():
-        lines += [
-            "",
-            "# honoured from legacy environment names through N+3; move them into the file:",
-            *(f"#   {n}" for n in settings.legacy_env_in_use()),
-        ]
-    if settings.llm_file_in_use():
-        lines += [
-            "",
-            "# honoured from the legacy .llm_config.json; move them into [llm]:",
-            *(f"#   {n}" for n in settings.llm_file_in_use()),
-        ]
     if settings.shadowed_env():
         lines += [
             "",
-            "# ignored environment names (the file sets these keys):",
+            "# legacy names set and not read (m3 uses the file's value or the default); delete them:",
             *(f"#   {n}" for n in settings.shadowed_env()),
         ]
     if settings.retired_env:

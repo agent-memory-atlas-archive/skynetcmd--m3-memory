@@ -346,3 +346,58 @@ def test_concurrent_close_loses_race_and_rolls_back_orphan(isolated_db, monkeypa
         conn.close()
     assert edges == 0, "a lost race must not write a supersedes edge"
     assert active == 0, "orphaned replacement must be rolled back (soft-deleted)"
+
+
+def _own(db_path, mem_id, *, agent_id="", user_id=""):
+    conn = _connect(db_path)
+    try:
+        conn.execute("UPDATE memory_items SET agent_id = ?, user_id = ? WHERE id = ?", (agent_id, user_id, mem_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_another_agents_memory_is_not_superseded(isolated_db):
+    """A caller naming a different agent_id than the memory's owner is refused,
+    and the old memory stays active (cooperating agents, not authentication)."""
+    from memory_core import memory_supersede_impl
+
+    old_id = _seed_memory(isolated_db)
+    _own(isolated_db, old_id, agent_id="alice")
+    result = asyncio.run(memory_supersede_impl(old_id=old_id, content="v2", agent_id="bob", embed=False))
+    assert result.startswith("Error:") and "agent_id='alice'" in result
+    assert _row(isolated_db, old_id)["is_deleted"] == 0
+
+
+def test_another_tenants_memory_is_not_superseded(isolated_db):
+    from memory_core import memory_supersede_impl
+
+    old_id = _seed_memory(isolated_db)
+    _own(isolated_db, old_id, user_id="tenant-a")
+    result = asyncio.run(memory_supersede_impl(old_id=old_id, content="v2", user_id="tenant-b", embed=False))
+    assert result.startswith("Error:") and "user_id='tenant-a'" in result
+    assert _row(isolated_db, old_id)["is_deleted"] == 0
+
+
+def test_the_owner_and_an_unnamed_caller_may_supersede(isolated_db):
+    """Empty agent_id means inherit, so it is not refused; the owner is allowed."""
+    from memory_core import memory_supersede_impl
+
+    for caller in ("alice", ""):
+        old_id = _seed_memory(isolated_db)
+        _own(isolated_db, old_id, agent_id="alice")
+        result = asyncio.run(memory_supersede_impl(old_id=old_id, content="v2", agent_id=caller, embed=False))
+        assert result.startswith("Superseded "), result
+        assert _row(isolated_db, _new_id_from_result(result))["agent_id"] == "alice"
+
+
+def test_retiring_into_another_owners_memory_is_refused(isolated_db):
+    from memory_core import memory_supersede_impl
+
+    old_id = _seed_memory(isolated_db)
+    rep_id = _seed_memory(isolated_db, title="other")
+    _own(isolated_db, old_id, agent_id="alice")
+    _own(isolated_db, rep_id, agent_id="bob")
+    result = asyncio.run(memory_supersede_impl(old_id=old_id, replacement_id=rep_id))
+    assert result.startswith("Error:") and "across owners" in result
+    assert _row(isolated_db, old_id)["is_deleted"] == 0

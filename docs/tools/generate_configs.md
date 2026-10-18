@@ -1,8 +1,8 @@
 ---
 tool: bin/generate_configs.py
-sha1: a7ae1f0124c8
-mtime_utc: 2026-10-17T15:45:08.422765+00:00
-generated_utc: 2026-10-17T15:45:09.362271+00:00
+sha1: 76cd7978519f
+mtime_utc: 2026-10-18T01:56:35.883791+00:00
+generated_utc: 2026-10-18T01:57:35.980155+00:00
 private: false
 ---
 
@@ -61,6 +61,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.config.claude_settings (PLUGIN_SERVER_IDS)`
 - `m3_core.config.claude_settings (read_json_object)`
 - `m3_core.paths (get_m3_models_root)`
+- `m3_core.seams (is_windows)`
 - `m3_core.seams (roots)`
 - `ntpath`
 - `posixpath`

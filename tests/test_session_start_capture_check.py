@@ -56,15 +56,22 @@ def test_resolve_db_never_returns_repo_stale_when_engine_root_set(monkeypatch, t
     assert db != repo_relative, "resolved the stale repo copy instead of engine root"
 
 
-def test_resolve_db_honors_m3_database_override(monkeypatch, tmp_path):
-    """An explicit M3_DATABASE wins (canonical resolver precedence)."""
-    explicit = tmp_path / "explicit.db"
-    monkeypatch.setenv("M3_DATABASE", str(explicit))
+def test_resolve_db_follows_the_configured_engine_root(monkeypatch, tmp_path):
+    """The hook checks the store the server writes: [paths] engine_root in
+    m3_config.toml. M3_DATABASE is a former name and is not read."""
+    import re
+
+    engine = tmp_path / "chosen-engine"
+    engine.mkdir()
+    cfg = tmp_path / "config" / "m3_config.toml"
+    text = re.sub(r"(?m)^engine_root = .*$", f'engine_root = "{engine.as_posix()}"', cfg.read_text(encoding="utf-8"))
+    cfg.write_text(text, encoding="utf-8", newline="\n")
+    monkeypatch.setenv("M3_DATABASE", str(tmp_path / "ignored.db"))
 
     mod = _load_hook()
     db = Path(mod._resolve_db()).resolve()
 
-    assert db == explicit.resolve(), db
+    assert db == (engine / "agent_memory.db").resolve(), db
 
 
 # ── The verdict comes from the writer's state file, not a database file ──────

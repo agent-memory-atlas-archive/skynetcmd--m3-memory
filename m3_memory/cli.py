@@ -147,7 +147,7 @@ def _auto_install(interactive: bool) -> "Path | None":
     else:
         print(
             "[m3-memory] system payload not found; auto-fetching from GitHub "
-            f"into {dest} (set M3_AUTO_INSTALL=0 to disable).",
+            f"into {dest} (`m3 config set install.auto_install false` disables this).",
             file=sys.stderr,
             flush=True,
         )
@@ -184,11 +184,12 @@ def _run_bridge() -> None:
             "Run this once to fetch it:\n"
             "    m3 install-m3\n"
             "\n"
-            f"Or, if you already have a clone, set M3_PATH_BIN to its bin/ directory or edit\n"
+            f"Or, if you already have a clone, set [paths] bin to its bin/ directory\n"
+            "(`m3 config set paths.bin <dir>`) or edit\n"
             f"    {config_file()}\n"
             "\n"
-            "(Auto-install is gated by M3_AUTO_INSTALL; set M3_AUTO_INSTALL=0\n"
-            "to permanently disable the prompt, or leave unset to accept.)\n",
+            "(Auto-install is gated by install.auto_install; `m3 config set\n"
+            "install.auto_install false` disables the prompt, or leave it to accept.)\n",
             file=sys.stderr,
         )
         sys.exit(1)

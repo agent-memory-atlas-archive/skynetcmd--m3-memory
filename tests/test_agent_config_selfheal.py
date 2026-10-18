@@ -25,14 +25,17 @@ def canonical(tmp_path, monkeypatch):
     (state / "engine").mkdir(parents=True, exist_ok=True)
     (state / "config").mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(state))
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(state / "engine"))
+    # m3 reads roots and the payload's bin/ from m3_config.toml [paths] only;
+    # M3_CONFIG_ROOT locates that file. [paths] bin (a bin/ DIRECTORY) makes
+    # find_bridge() resolve to the fake bridge instead of the dev-checkout bin.
+    (state / "config" / "m3_config.toml").write_text(
+        "schema_version = 1\n[paths]\n"
+        f'memory_root = "{state.as_posix()}"\n'
+        f'engine_root = "{(state / "engine").as_posix()}"\n'
+        f'bin = "{bridge.parent.as_posix()}"\n',
+        encoding="utf-8",
+    )
     monkeypatch.setenv("M3_CONFIG_ROOT", str(state / "config"))
-    # M3_PATH_BIN (a bin/ DIRECTORY) replaces the removed M3_BRIDGE_PATH file-var.
-    # bin_dir() honors it (must_contain=memory_bridge.py), so find_bridge()
-    # resolves to the fake bridge instead of the real dev-checkout bin.
-    monkeypatch.setenv("M3_PATH_BIN", str(bridge.parent))
-    monkeypatch.delenv("M3_BRIDGE_PATH", raising=False)
     monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
     monkeypatch.setattr(I, "config_dir", lambda: state)
     return {"bridge": bridge, "state": state}

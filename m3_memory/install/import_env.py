@@ -203,11 +203,31 @@ def _rename_llm_file(loc: Location, after: Settings) -> str | None:
     return f"  [+] renamed {path} to {done.name}; its values are in {loc.file}"
 
 
-def run(config: str | None, *, dry_run: bool, non_interactive: bool = False, allow_checkout: bool = False) -> int:
+def run(
+    config: str | None,
+    *,
+    dry_run: bool,
+    non_interactive: bool = False,
+    allow_checkout: bool = False,
+    settings_only_into_new_file: bool = False,
+) -> int:
     """Import the legacy settings, then move the retired m3-embed-server
     config.toml into the same files (after the import, so it sees the result).
-    2 when either step was refused or could not write."""
-    rc = _import_settings(config, dry_run=dry_run, non_interactive=non_interactive, allow_checkout=allow_checkout)
+    2 when either step was refused or could not write.
+
+    ``settings_only_into_new_file`` (setup and upgrade): an m3_config.toml that
+    already exists is the user's and has precedence, so legacy M3_* values are not
+    written into it: they are listed, with where each is set, to be removed.
+    Secrets are still stored when the secrets chain lacks them (they never go into
+    m3_config.toml, and m3 never reads them from the environment). The explicit
+    `m3 config import-env` command imports into an existing file too."""
+    rc = _import_settings(
+        config,
+        dry_run=dry_run,
+        non_interactive=non_interactive,
+        allow_checkout=allow_checkout,
+        settings_only_into_new_file=settings_only_into_new_file,
+    )
     from m3_memory.install.embed_server_legacy import migrate
 
     report = migrate(config=config, dry_run=dry_run)
@@ -219,13 +239,21 @@ def run(config: str | None, *, dry_run: bool, non_interactive: bool = False, all
     return rc or (0 if report.ok else 2)
 
 
-def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool, allow_checkout: bool = False) -> int:
+def _import_settings(
+    config: str | None,
+    *,
+    dry_run: bool,
+    non_interactive: bool,
+    allow_checkout: bool = False,
+    settings_only_into_new_file: bool = False,
+) -> int:
     from m3_core.atomic_io import GuardedRewrite, atomic_write
     from m3_core.config.writer import ConfigWriteError, create_from_default, set_values
 
     loc = locate(config)
     created: str | None = None  # the default text, when this run created the file
-    if not os.path.lexists(loc.file):
+    existed = os.path.lexists(loc.file)
+    if not existed:
         if dry_run:
             print(f"m3 config import-env: would create {loc.file} from m3's defaults (every setting commented out)")
         else:
@@ -242,7 +270,12 @@ def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool
     except (ConfigFileError, ConfigEnvErrors) as e:
         print(format_config_error(e), file=sys.stderr)
         return 2
-    verb = "would import" if dry_run else "imported"
+    keep_file = settings_only_into_new_file and existed
+    verb = (
+        "not imported (m3_config.toml has precedence; remove it there)"
+        if keep_file
+        else ("would import" if dry_run else "imported")
+    )
     chosen, lines, secrets = _plan(
         loc,
         current,
@@ -269,6 +302,14 @@ def _import_settings(config: str | None, *, dry_run: bool, non_interactive: bool
 
     for line in locator_env_leftovers():  # a locator, not a setting: named, never moved
         print(line)
+    if keep_file:
+        if chosen:
+            print(
+                f"  {len(chosen)} legacy M3_* variable(s) above are not read: {loc.file} is used as it is. "
+                "Change values there (`m3 config set KEY VALUE`), then delete those variables "
+                "(`m3 config import-env` copies them into the file instead, if you want that)."
+            )
+        return 0
     if not chosen:
         print("  nothing to import")
         return 0

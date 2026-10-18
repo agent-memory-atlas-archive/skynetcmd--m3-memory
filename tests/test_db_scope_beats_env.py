@@ -1,10 +1,10 @@
 """A call scoped with ``active_database()`` resolves its scoped DB, whatever
-``M3_DATABASE`` says.
+the process-wide ``--database`` pin says (``M3_DATABASE`` is not read at all).
 
 The env value used to outrank the ContextVar, so a scoped call that "worked"
 might only have worked because env happened to name the same file: a scope that
-was never set looked correct. These tests set env to a DIFFERENT file, so a
-scope that is not honoured fails loud instead of agreeing by accident.
+was never set looked correct. These tests pin a DIFFERENT file, so a scope that
+is not honoured fails loud instead of agreeing by accident.
 """
 
 from __future__ import annotations
@@ -15,18 +15,21 @@ import pytest
 
 
 @pytest.fixture
-def two_dbs(tmp_path, monkeypatch):
+def two_dbs(tmp_path):
+    from m3_core.paths import pin_database
+
     scoped = tmp_path / "scoped.db"
     elsewhere = tmp_path / "elsewhere.db"
-    monkeypatch.setenv("M3_DATABASE", str(elsewhere))
-    return os.path.abspath(scoped), os.path.abspath(elsewhere)
+    pin_database(str(elsewhere))
+    yield os.path.abspath(scoped), os.path.abspath(elsewhere)
+    pin_database(None)
 
 
-def test_the_scope_beats_env(two_dbs):
+def test_the_scope_beats_the_pin(two_dbs):
     from m3_core.paths import active_database, resolve_db_path
 
     scoped, elsewhere = two_dbs
-    assert resolve_db_path() == elsewhere, "with no scope the legacy env still answers"
+    assert resolve_db_path() == elsewhere, "with no scope the pin answers"
     with active_database(scoped):
         assert resolve_db_path() == scoped
     assert resolve_db_path() == elsewhere
@@ -115,8 +118,8 @@ def test_access_stamps_land_in_the_store_that_was_read(two_dbs, monkeypatch, tmp
 
 # ── phase 2: the --database pin replaces m3's own M3_DATABASE writes ─────────
 def test_the_pin_ranks_where_the_env_value_did(tmp_path, monkeypatch):
-    """explicit > scope > pin > legacy env > default: the pin sits exactly where
-    m3's own env writes sat, so callers see no change."""
+    """explicit > scope > pin > default: the pin sits exactly where m3's own env
+    writes sat, so callers see no change; the legacy env value is not read."""
     from m3_core.paths import active_database, pin_database, resolve_db_path
 
     pinned = os.path.abspath(tmp_path / "pinned.db")
@@ -130,23 +133,20 @@ def test_the_pin_ranks_where_the_env_value_did(tmp_path, monkeypatch):
     assert "M3_DATABASE" in os.environ and os.environ["M3_DATABASE"] == legacy, "the pin wrote env"
 
 
-def test_the_legacy_env_value_warns_once_and_the_pin_never(tmp_path, monkeypatch, caplog):
+def test_the_legacy_env_value_is_not_read_and_nothing_warns_per_call(tmp_path, monkeypatch, caplog):
+    """M3_DATABASE is reported by setup/upgrade/doctor, never per call."""
     import logging
 
     from m3_core import paths
 
-    monkeypatch.setattr(paths, "_LEGACY_DB_WARNED", False)
     paths.pin_database(tmp_path / "pinned.db")
     with caplog.at_level(logging.WARNING):
-        paths.configured_main_db()
-    assert "M3_DATABASE" not in caplog.text, "the pin is not the legacy env var"
+        assert paths.configured_main_db() == str(tmp_path / "pinned.db")
     paths.pin_database(None)
     monkeypatch.setenv("M3_DATABASE", str(tmp_path / "legacy.db"))
     with caplog.at_level(logging.WARNING):
-        paths.configured_main_db()
-        paths.configured_main_db()
-    said = [r for r in caplog.records if "M3_DATABASE" in r.getMessage()]
-    assert len(said) == 1 and "--database PATH" in said[0].getMessage(), said
+        assert paths.configured_main_db() is None
+    assert "M3_DATABASE" not in caplog.text
 
 
 def test_scoped_db_env_restores_the_pin_and_never_touches_env(tmp_path, monkeypatch):

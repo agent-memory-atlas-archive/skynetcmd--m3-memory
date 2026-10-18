@@ -170,7 +170,8 @@ def test_ai_mechanic_refuses_a_sqlite_path_on_postgres(tmp_path):
 
     script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "ai_mechanic.py")
     db = tmp_path / "x.db"
-    env = dict(os.environ, M3_DB_BACKEND="postgres")
+    use_backend("postgres", "postgresql://u:p@127.0.0.1:5433/none")  # the child reads the sandbox's file
+    env = dict(os.environ)
     r = subprocess.run(
         [sys.executable, script, "--database", str(db), "--force"], env=env, capture_output=True, text=True, timeout=120
     )

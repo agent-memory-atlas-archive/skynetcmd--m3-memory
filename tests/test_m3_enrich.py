@@ -584,9 +584,9 @@ def test_a_chatlog_store_gets_the_queues_from_its_own_lane(tmp_path):
 
     chatlog = tmp_path / "agent_chatlog.db"
     script = Path(__file__).resolve().parents[1] / "bin" / "migrate_memory.py"
-    env = dict(os.environ, CHATLOG_DB_PATH=str(chatlog), M3_ENGINE_ROOT=str(tmp_path / "engine"))
+    env = dict(os.environ)  # the sandbox's M3_CONFIG_ROOT: engine root under tmp_path
     r = subprocess.run(
-        [sys.executable, str(script), "up", "--yes", "--target", "chatlog"],
+        [sys.executable, str(script), "--chatlog-db", str(chatlog), "up", "--yes", "--target", "chatlog"],
         env=env,
         capture_output=True,
         text=True,

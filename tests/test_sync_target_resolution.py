@@ -264,18 +264,18 @@ class TestTheResolverIsActuallyWired:
         assert '"bin/pg_sync.py"' not in src
 
 
-def test_sync_dbs_override_keeps_windows_drive_letters(monkeypatch):
-    """M3_SYNC_DBS splits on commas and os.pathsep, never on a bare ':' -- a
-    drive-letter path such as C:/x/agent_memory.db must survive intact."""
-    import os
-
+def test_db_flags_keep_windows_drive_letters_and_the_env_name_is_not_read(monkeypatch, tmp_path):
+    """--db PATH (repeatable) replaced M3_SYNC_DBS: each flag is one path, so a
+    drive-letter path such as C:/x/agent_memory.db survives intact. The former
+    M3_SYNC_DBS is not read."""
     import sync_all
 
-    a, b = os.path.abspath("one.db"), os.path.abspath("two.db")
+    a, b = str((tmp_path / "one.db").resolve()), str((tmp_path / "two.db").resolve())
+    monkeypatch.setattr(sync_all, "_CLI_DBS", [a, b])
+    assert [str(p) for p in sync_all._resolve_dbs()] == [a, b]
+    monkeypatch.setattr(sync_all, "_CLI_DBS", [])
     monkeypatch.setenv("M3_SYNC_DBS", f"{a},{b}")
-    assert [str(p) for p in sync_all._resolve_dbs()] == [a, b]
-    monkeypatch.setenv("M3_SYNC_DBS", f"{a}{os.pathsep}{b}")
-    assert [str(p) for p in sync_all._resolve_dbs()] == [a, b]
+    assert [str(p) for p in sync_all._resolve_dbs()] != [a, b]
 
 
 def test_a_store_without_warehouse_tables_is_not_a_sync_target(as_backend, monkeypatch):

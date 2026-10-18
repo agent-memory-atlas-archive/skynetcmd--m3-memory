@@ -1,8 +1,8 @@
 ---
 tool: bin/test_memory_bridge.py
-sha1: 87834627a590
-mtime_utc: 2026-10-16T19:12:28.101291+00:00
-generated_utc: 2026-10-16T19:12:52.832296+00:00
+sha1: eec23b90d4a6
+mtime_utc: 2026-10-18T00:52:31.313020+00:00
+generated_utc: 2026-10-18T00:55:13.261350+00:00
 private: false
 ---
 
@@ -45,7 +45,6 @@ _(no argparse arguments detected)_
 
 - `auth_utils (get_api_key)`
 - `m3_cognitive_loop (run_classify_pass)`
-- `m3_sdk (getenv_compat)`
 - `m3_sdk (resolve_db_path)`
 - `memory_bridge (VALID_MEMORY_TYPES, _content_hash, _ensure_sync_tables, agent_get, agent_heartbeat, agent_list, agent_offline, agent_register, conversation_append, conversation_messages, conversation_search, conversation_start, conversation_summarize, gdpr_export, gdpr_forget, memory_consolidate, memory_cost_report, memory_delete, memory_export, memory_get, memory_graph, memory_handoff, memory_history, memory_import, memory_inbox, memory_inbox_ack, memory_link, memory_maintenance, memory_search, memory_set_retention, memory_suggest, memory_update, memory_verify, memory_write, notifications_ack, notifications_ack_all, notifications_poll, notify, task_assign, task_create, task_get, task_list, task_set_result, task_tree, task_update)`
 
@@ -63,6 +62,7 @@ _(no argparse arguments detected)_
 ## Notable external imports
 
 - `httpx`
+- `m3_core.config.settings (setting)`
 - `m3_core.context (open_pointed_store)`
 - `m3_core.paths (seam_backend, seam_dialect, store_is_a_file)`
 - `memory.db (_db)`

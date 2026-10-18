@@ -22,7 +22,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from m3_core.paths import pin_database
+from m3_core.paths import pin_chatlog_db, pin_database
 
 from conftest import use_backend
 
@@ -78,7 +78,7 @@ def test_drain_spill_sqlite(tmp_path, monkeypatch):
     db = tmp_path / "chatlog.db"
     create_full_main_schema(str(db))
     pin_database(str(db))
-    monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
+    pin_chatlog_db(str(db))
 
     import chatlog_config
 
@@ -144,7 +144,7 @@ def test_drain_preserves_tenancy_and_provenance_fields(tmp_path, monkeypatch):
     db = tmp_path / "chatlog.db"
     create_full_main_schema(str(db))
     pin_database(str(db))
-    monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
+    pin_chatlog_db(str(db))
 
     import chatlog_config
 
@@ -260,7 +260,7 @@ def test_drain_spill_refuses_stale_target_and_keeps_file(tmp_path, monkeypatch):
     db = tmp_path / "chatlog.db"
     create_full_main_schema(str(db))
     pin_database(str(db))
-    monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
+    pin_chatlog_db(str(db))
 
     import chatlog_config
 

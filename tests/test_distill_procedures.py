@@ -4,7 +4,7 @@ Covers memory_distill_procedures_impl (selection, the pluggable model call
 stubbed, the backend-agnostic write via memory_write_impl, `distills_from`
 provenance, and source PRESERVATION — sources are NOT soft-deleted, unlike belief
 consolidation) plus the distill_procedures job's hard safety gate (no write
-without BOTH --apply and M3_DISTILL_AUTO=1).
+without BOTH --apply and autonomy.distill_auto = true).
 
 The distillation model + embedder are stubbed so the write path runs offline and
 deterministically.
@@ -212,7 +212,7 @@ async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_job_writes_when_apply_and_env_set(monkeypatch, tmp_path):
+async def test_job_writes_when_apply_and_auto_set(monkeypatch, tmp_path, m3_settings):
     db = tmp_path / "t.db"
     _full_db(db)
     with sqlite3.connect(str(db)) as conn:
@@ -220,7 +220,7 @@ async def test_job_writes_when_apply_and_env_set(monkeypatch, tmp_path):
         conn.commit()
     mm = _patch_db(monkeypatch, db)
     _patch_model_and_embed(monkeypatch, mm)
-    monkeypatch.setenv("M3_DISTILL_AUTO", "1")
+    m3_settings({"autonomy.distill_auto": True})
 
     import distill_procedures
 
@@ -233,7 +233,7 @@ async def test_job_writes_when_apply_and_env_set(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_job_defers_when_user_active(monkeypatch, tmp_path):
+async def test_job_defers_when_user_active(monkeypatch, tmp_path, m3_settings):
     db = tmp_path / "t.db"
     _full_db(db)
     with sqlite3.connect(str(db)) as conn:
@@ -241,7 +241,7 @@ async def test_job_defers_when_user_active(monkeypatch, tmp_path):
         conn.commit()
     mm = _patch_db(monkeypatch, db)
     _patch_model_and_embed(monkeypatch, mm)
-    monkeypatch.setenv("M3_DISTILL_AUTO", "1")
+    m3_settings({"autonomy.distill_auto": True})
 
     import distill_procedures
 

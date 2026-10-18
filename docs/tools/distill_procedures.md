@@ -1,8 +1,8 @@
 ---
 tool: bin/distill_procedures.py
-sha1: ab7298742dd6
-mtime_utc: 2026-10-12T22:51:17.765560+00:00
-generated_utc: 2026-10-12T23:01:47.635324+00:00
+sha1: 77505564a346
+mtime_utc: 2026-10-18T01:43:28.024505+00:00
+generated_utc: 2026-10-18T01:45:45.779956+00:00
 private: false
 ---
 
@@ -46,7 +46,7 @@ Usage:
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--apply` | Write procedures (requires M3_DISTILL_AUTO=1); else dry-run. | `False` |  | store_true |  |
+| `--apply` | Write procedures (requires autonomy.distill_auto = true); else dry-run. | `False` |  | store_true |  |
 | `--threshold` | f'Min completed tasks before distilling (default {DEFAULT_THRESHOLD}).' | `DEFAULT_THRESHOLD` |  | int |  |
 | `--stale-days` | f'Only distill tasks completed > N days ago (default {DEFAULT_STALE_DAYS}).' | `DEFAULT_STALE_DAYS` |  | int |  |
 | `--max-procedures` | f'Max procedures written per run (default {DEFAULT_MAX_PROCEDURES}).' | `DEFAULT_MAX_PROCEDURES` |  | int |  |

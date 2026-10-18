@@ -31,8 +31,11 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(_platform, "_winreg", None)
     monkeypatch.setattr(import_env, "console_has_person", lambda: False)
     monkeypatch.chdir(cwd)
-    cfg = tmp_path / "config" / "m3_config.toml"
-    cfg.parent.mkdir(exist_ok=True)  # the sandbox may have made it
+    # Its own config dir, passed as --config: the sandbox's config file already
+    # exists (and its [paths] keep every root under tmp), while these tests start
+    # from a config root that has no m3_config.toml yet.
+    cfg = tmp_path / "import-config" / "m3_config.toml"
+    cfg.parent.mkdir()
     return {"home": home, "cwd": cwd, "cfg": cfg}
 
 
@@ -125,6 +128,32 @@ def _secrets():
     from m3_core.secret_store import read_secret_entries
 
     return read_secret_entries()
+
+
+def test_setup_never_imports_settings_into_an_existing_file(world, capsys):
+    """User rule (2026-10-17): an existing m3_config.toml is the user's and has
+    precedence -- setup/upgrade do not write legacy M3_* values into it (they are
+    named, to remove), and still store a secret the chain lacks."""
+    from m3_memory.install import import_env
+
+    world["cfg"].write_text("schema_version = 1\n", encoding="utf-8")
+    before = world["cfg"].read_bytes()
+    _rc(world, 'export M3_SEARCH_ROW_CAP=700\nexport M3_PG_URL="postgresql://u:s3cret@h/db"\n')
+    assert import_env.run(str(world["cfg"]), dry_run=False, settings_only_into_new_file=True) == 0
+    out = capsys.readouterr().out
+    assert world["cfg"].read_bytes() == before, "an existing config file is never rewritten by setup"
+    assert "not imported" in out and "M3_SEARCH_ROW_CAP" in out and ".bashrc" in out
+    assert _secrets() == {"M3_PRIMARY_PG_URL": "postgresql://u:s3cret@h/db"}
+    assert "s3cret" not in out
+
+
+def test_setup_imports_into_a_config_it_creates(world):
+    """No file yet: setup creates it from the default and imports once."""
+    from m3_memory.install import import_env
+
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    assert import_env.run(str(world["cfg"]), dry_run=False, settings_only_into_new_file=True) == 0
+    assert _file(world)["search"]["row_cap"] == 700
 
 
 def test_a_secret_goes_to_the_secrets_file_never_the_config_or_stdout(world, capsys):
@@ -250,6 +279,10 @@ def test_disagreeing_copies_store_nothing_without_a_person_and_masked_with_one(w
 def test_a_listed_secret_is_left_and_a_differing_copy_named(world, capsys):
     from m3_core.secret_store import set_secret
 
+    from m3_memory import _roots
+
+    # The secrets file beside the config import-env runs against (--config pins it).
+    _roots.pin_config_file(world["cfg"])
     set_secret("GEMINI_API_KEY", "gm-in-the-file-0123456789")
     _rc(world, "export GEMINI_API_KEY=gm-an-old-copy-0123456789\n")
     assert _run(world) == 0

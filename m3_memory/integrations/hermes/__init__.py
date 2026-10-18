@@ -204,7 +204,7 @@ class M3MemoryProvider(MemoryProvider):
         if found is None or not os.path.isfile(os.path.join(str(found), "mcp_tool_catalog.py")):
             return (
                 f"m3-memory is installed in {sys.executable} but its payload (bin/mcp_tool_catalog.py) "
-                f"was not found (looked at: {found}). fix: {install} --force-reinstall, or set M3_PATH_BIN"
+                f"was not found (looked at: {found}). fix: {install} --force-reinstall, or set [paths] bin in m3_config.toml"
             )
         from m3_memory.integrations._client import shadowing_memory_package
 

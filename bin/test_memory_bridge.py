@@ -20,7 +20,7 @@ import httpx
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
-from m3_sdk import getenv_compat
+from m3_core.config.settings import setting
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -263,7 +263,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         import platform
 
         expected_device = (
-            getenv_compat("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE")
+            setting("identity.origin_device")
             or os.environ.get("COMPUTERNAME")
             or os.environ.get("HOSTNAME")
             or platform.node()

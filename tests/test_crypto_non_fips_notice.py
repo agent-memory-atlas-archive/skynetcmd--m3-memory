@@ -44,18 +44,15 @@ def _reset_latch():
     cp.CryptoProvider._non_fips_notice_emitted = False
 
 
-def _provider(monkeypatch, caplog, *, strict: bool):
+def _provider(m3_settings, caplog, *, strict: bool):
     """Construct a provider with a FAKE non-FIPS library, capturing logs.
 
     The library is stubbed rather than loaded: this test is about SEVERITY
     ROUTING, and requiring a real wolfSSL build would make it skip on any host
     without one — a gate that skips is not a gate.
     """
-    monkeypatch.setenv("M3_FIPS_MODE", "1")
-    if strict:
-        monkeypatch.setenv("M3_FIPS_STRICT", "1")
-    else:
-        monkeypatch.delenv("M3_FIPS_STRICT", raising=False)
+    # [crypto] fips_mode / fips_strict in m3_config.toml (m3 reads no env name).
+    m3_settings({"crypto.fips_mode": True, "crypto.fips_strict": strict})
 
     p = cp.CryptoProvider.__new__(cp.CryptoProvider)
     p._fips_validated = False
@@ -69,9 +66,9 @@ def _provider(monkeypatch, caplog, *, strict: bool):
     return caplog.records
 
 
-def test_fips_mode_notice_is_info_not_warning(monkeypatch, caplog):
+def test_fips_mode_notice_is_info_not_warning(m3_settings, caplog):
     """The everyday case must not reach a WARNING-level console."""
-    records = _provider(monkeypatch, caplog, strict=False)
+    records = _provider(m3_settings, caplog, strict=False)
     assert records, "the notice should still exist at INFO — not deleted, demoted"
     assert all(r.levelno <= logging.INFO for r in records), (
         "open-source build under plain M3_FIPS_MODE is the EXPECTED state; "
@@ -80,18 +77,18 @@ def test_fips_mode_notice_is_info_not_warning(monkeypatch, caplog):
     )
 
 
-def test_strict_mode_still_warns(monkeypatch, caplog):
+def test_strict_mode_still_warns(m3_settings, caplog):
     """STRICT + open-source build is genuinely actionable — keep it loud."""
-    records = _provider(monkeypatch, caplog, strict=True)
+    records = _provider(m3_settings, caplog, strict=True)
     assert any(r.levelno >= logging.WARNING for r in records), (
         "M3_FIPS_STRICT with a non-validated library must stay a WARNING"
     )
 
 
-def test_notice_is_emitted_once_per_process(monkeypatch, caplog):
+def test_notice_is_emitted_once_per_process(m3_settings, caplog):
     """Several providers per process (pool workers, re-exec, bridge+sweeper) must
     not each repeat a fact about the LOADED LIBRARY."""
-    first = list(_provider(monkeypatch, caplog, strict=False))
+    first = list(_provider(m3_settings, caplog, strict=False))
     caplog.clear()
     with caplog.at_level(logging.INFO, logger="m3-crypto"):
         if cp._fips_mode() and not cp.CryptoProvider._non_fips_notice_emitted:

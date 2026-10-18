@@ -33,28 +33,27 @@ def _isolate_env(monkeypatch, tmp_path):
     # (RFC 5737) address so every tier fails FAST and deterministically, which is
     # exactly the "broken corpus, every probe hits its timeout" state these SLO
     # tests claim to measure. Also disable the on-by-default LM Studio probe.
-    monkeypatch.setenv("M3_LLM_URL", "http://198.51.100.2:9")
-    monkeypatch.setenv("M3_ENABLE_LMSTUDIO_FAILOVER", "0")
-    monkeypatch.setenv("M3_ENABLE_OLLAMA_FAILOVER", "0")
-    monkeypatch.setenv("M3_DATABASE", str(tmp_path / "test.db"))
-    monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
-    # Isolate the config root to an EMPTY dir so these tests never read the host's
-    # real .embed_config.json. On a shared-embedder box (the shipped default) that
-    # file sets disable_inproc_embedder:true, which correctly makes tier-1 report
-    # 'shared-mode' — but the classification tests here assert the generic
-    # not-configured / gguf-missing states, so they must run WITHOUT a shared
-    # config present (hermetic, host-independent — §3).
-    _cfg_root = tmp_path / "config"
-    _cfg_root.mkdir(exist_ok=True)
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(_cfg_root))
-    # Same hermetic treatment for m3's OWN model dir. Discovery probes
-    # ~/.m3/models FIRST (ahead of LM Studio/Ollama/llama.cpp) so a dev box with
-    # a real GGUF there would make these host-independent classification tests
-    # pass/fail by machine — exactly what the config-root isolation above
-    # prevents. Point it at an empty tmp dir (§3: hermetic, host-independent).
+    #
+    # Settings are read from m3_config.toml only, so they go into the sandbox's
+    # config file (M3_LLM_URL and friends are not read). [paths] is that file's
+    # last table, so models_root lands in it; the [llm] table follows.
     _models_root = tmp_path / "models"
     _models_root.mkdir(exist_ok=True)
-    monkeypatch.setenv("M3_MODELS_ROOT", str(_models_root))
+    _append_config(
+        f'models_root = "{_models_root.as_posix()}"\n'
+        "[llm]\n"
+        'url = "http://198.51.100.2:9"\n'
+        "lmstudio_failover = false\n"
+        "ollama_failover = false\n"
+    )
+    monkeypatch.setattr(importlib.import_module("m3_core.paths"), "_pinned_db", str(tmp_path / "test.db"))
+    monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
+    # The sandbox's config root is a fresh tmp dir, so these tests never read the
+    # host's real .embed_config.json (on a shared-embedder box it makes tier-1
+    # report 'shared-mode', not the generic states asserted here). It must NOT be
+    # replaced by an empty dir: that drops the sandbox's [paths], and the roots
+    # fall back to the developer's real ~/.m3. m3's own model dir (probed first by
+    # discovery) is the empty models_root written above (§3: hermetic).
 
     # Force fresh module load so each doctor test re-reads the env above.
     # CRITICAL: snapshot and RESTORE the purged modules on teardown. Without
@@ -84,6 +83,16 @@ def _isolate_env(monkeypatch, tmp_path):
     for name, module in saved.items():
         if module is not None:
             sys.modules[name] = module
+
+
+def _append_config(toml: str) -> None:
+    """Append TOML to the sandbox's m3_config.toml and drop the cached snapshot."""
+    from m3_core.config import settings as st
+
+    cfg = os.path.join(os.environ["M3_CONFIG_ROOT"], "m3_config.toml")
+    with open(cfg, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write(toml)
+    st._reset_for_tests()
 
 
 def test_shim_identity_preserved(monkeypatch):
@@ -141,7 +150,7 @@ async def test_tier1_not_configured_when_no_gguf(monkeypatch):
     writes) this assertion measured the host's config instead of the behaviour
     under test. Shared-mode reporting has its own coverage in
     test_doctor_shared_embedder.py."""
-    monkeypatch.setenv("M3_EMBED_GGUF_AUTODETECT", "0")
+    _append_config("[embed]\nautodetect = false\n")
     _emb = importlib.import_module("memory.embed")
 
     monkeypatch.setattr(_emb, "_INPROC_ALLOWED", True, raising=False)
@@ -156,9 +165,9 @@ async def test_tier1_not_configured_when_no_gguf(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_tier1_gguf_missing_reports_error(monkeypatch):
-    """When M3_EMBED_GGUF points to a non-existent file, doctor reports
+    """When embed.gguf points to a non-existent file, doctor reports
     a specific issue (not a generic offline)."""
-    monkeypatch.setenv("M3_EMBED_GGUF", r"C:\nonexistent\fake.gguf")
+    _append_config("[embed]\ngguf = 'C:/nonexistent/fake.gguf'\n")
     from memory.doctor import memory_doctor_impl
 
     out = await memory_doctor_impl()
@@ -212,7 +221,7 @@ async def test_doctor_cold_cascade_slo(monkeypatch):
 
     # Mock tier-2 at a TEST-NET address so the probe times out at 2s
     # instead of getting a fast ECONNREFUSED.
-    monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://198.51.100.1:8082")
+    _append_config('[embed]\nfallback_url = "http://198.51.100.1:8082"\n')
 
     # Force fresh module so M3_EMBED_FALLBACK_URL is picked up. The autouse
     # _isolate_env fixture snapshots + restores memory.* around every test in
@@ -389,7 +398,7 @@ async def test_doctor_probes_run_concurrently(monkeypatch):
     # Each probe's REAL result, captured once; the timed run replays it after a
     # fixed 1s, so the timing depends only on how the probes are scheduled — not
     # on how long the real ones take here (2s+ on Windows, measured).
-    monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://127.0.0.1:1")  # refuses at once
+    _append_config('[embed]\nfallback_url = "http://127.0.0.1:1"\n')  # refuses at once
     results = {name: getattr(d, name)() for name in ("_probe_tier1", "_probe_tier2", "_probe_db")}
     results["_probe_roundtrip"] = await d._probe_roundtrip()
 
@@ -420,7 +429,7 @@ async def test_doctor_probes_run_concurrently(monkeypatch):
 async def test_summary_broken_when_no_tiers_and_no_roundtrip(monkeypatch):
     """If all tiers fail AND roundtrip fails, summary must be 'broken'."""
     # Point fallback URL at a port nothing listens on
-    monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://127.0.0.1:1")
+    _append_config('[embed]\nfallback_url = "http://127.0.0.1:1"\n')
     from memory.doctor import memory_doctor_impl
 
     out = await memory_doctor_impl()

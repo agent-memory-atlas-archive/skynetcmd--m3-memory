@@ -27,6 +27,81 @@ _BIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 sys.path.insert(0, _BIN)
 
 
+# ── [crypto] settings live in m3_config.toml ────────────────────────────────────
+# m3 reads no crypto setting from the environment (M3_FIPS_MODE, M3_FIPS_STRICT,
+# M3_CRYPTO_BACKEND, M3_WOLFSSL_LIB, M3_WOLFSSL_SHA256 are former names, not read).
+# Tests write a [crypto] block into the SANDBOX's own config file -- not a new
+# config root, because crypto_provider derives the trusted lib dir from the config
+# root's parent -- and a subprocess inherits it through M3_CONFIG_ROOT.
+
+_CRYPTO_KEY = {
+    "M3_FIPS_MODE": "fips_mode",
+    "M3_FIPS_STRICT": "fips_strict",
+    "M3_CRYPTO_BACKEND": "backend",
+    "M3_WOLFSSL_LIB": "wolfssl_lib",
+    "M3_WOLFSSL_SHA256": "wolfssl_sha256",
+}
+_BEGIN, _END = "# >>> test crypto", "# <<< test crypto"
+_CRYPTO_STATE: dict[str, object] = {}
+
+
+def _cfg_path() -> str:
+    return os.path.join(os.environ["M3_CONFIG_ROOT"], "m3_config.toml")
+
+
+def _toml_value(key: str, value) -> str:
+    if key in ("fips_mode", "fips_strict"):
+        return "true" if str(value).strip().lower() in ("1", "true", "yes") else "false"
+    return json.dumps(str(value))
+
+
+def _crypto_block(values: dict) -> str:
+    if not values:
+        return ""
+    body = "".join(f"{k} = {_toml_value(k, v)}\n" for k, v in values.items())
+    return f"\n{_BEGIN}\n[crypto]\n{body}{_END}\n"
+
+
+def _strip_crypto_block(text: str) -> str:
+    i = text.find("\n" + _BEGIN)
+    if i < 0:
+        return text
+    j = text.index(_END, i) + len(_END) + 1
+    return text[:i] + text[j:]
+
+
+def _write_crypto(values: dict) -> None:
+    """Make ``values`` the [crypto] table of the sandbox's config file."""
+    from m3_core.config import settings as st
+
+    path = _cfg_path()
+    with open(path, encoding="utf-8") as fh:
+        text = _strip_crypto_block(fh.read())
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text + _crypto_block(values))
+    st._reset_for_tests()
+
+
+def _set_crypto(**values) -> None:
+    """Merge [crypto] keys (None removes one) and rewrite the block."""
+    for k, v in values.items():
+        if v is None:
+            _CRYPTO_STATE.pop(k, None)
+        else:
+            _CRYPTO_STATE[k] = v
+    _write_crypto(dict(_CRYPTO_STATE))
+
+
+def _clear_crypto() -> None:
+    _CRYPTO_STATE.clear()
+    if os.path.isfile(_cfg_path()):
+        _write_crypto({})
+
+
+def _crypto_from_env_names(env: dict) -> dict:
+    return {_CRYPTO_KEY[k]: v for k, v in env.items() if k in _CRYPTO_KEY}
+
+
 # ── Subprocess isolation for native-wolfSSL tests (#85) ─────────────────────────
 #
 # Loading crypto_provider under a wolfSSL backend initializes the native wolfSSL
@@ -41,17 +116,48 @@ sys.path.insert(0, _BIN)
 
 
 def _run_fips_subprocess(body: str, env: dict) -> dict:
-    """Execute `body` in a fresh interpreter with `env` overlaid; return the dict
-    it prints via `_emit(**kv)`. `_install_mock(...)` and `_bin_mock()` are
-    available to the snippet for the ctypes-mocked wolfSSL build. A crash or a
+    """Execute `body` in a fresh interpreter; return the dict it prints via
+    `_emit(**kv)`. ``env`` names [crypto] settings by their former env names
+    (M3_FIPS_MODE, ...): they are written into the sandbox's config file, which
+    the child reads through M3_CONFIG_ROOT. `_install_mock(...)` and `_bin_mock()`
+    are available to the snippet for the ctypes-mocked wolfSSL build; the snippet
+    changes crypto settings with `_set_child_crypto(**keys)`. A crash or a
     missing verdict surfaces as a readable test failure — never a crash of the
     shared test run (that's the whole point)."""
+    crypto = _crypto_from_env_names(env)
+    _write_crypto(crypto)
     prelude = textwrap.dedent(f"""
         import ctypes, hashlib, importlib, json, os, sys, tempfile
         sys.path.insert(0, {_BIN!r})
 
         def _emit(**kv):
             print("__FIPS__" + json.dumps(kv))
+
+        _CHILD_CRYPTO = json.loads({json.dumps(json.dumps(crypto))})
+        _CFG = os.path.join(os.environ["M3_CONFIG_ROOT"], "m3_config.toml")
+        _BEGIN, _END = {_BEGIN!r}, {_END!r}
+
+        def _write_child_crypto(values):
+            with open(_CFG, encoding="utf-8") as fh:
+                text = fh.read()
+            i = text.find("\\n" + _BEGIN)
+            if i >= 0:
+                text = text[:i] + text[text.index(_END, i) + len(_END) + 1:]
+            if values:
+                def tv(k, v):
+                    if k in ("fips_mode", "fips_strict"):
+                        return "true" if str(v).strip().lower() in ("1", "true", "yes") else "false"
+                    return json.dumps(str(v))
+                body = "".join(f"{{k}} = {{tv(k, v)}}\\n" for k, v in values.items())
+                text += f"\\n{{_BEGIN}}\\n[crypto]\\n{{body}}{{_END}}\\n"
+            with open(_CFG, "w", encoding="utf-8", newline="\\n") as fh:
+                fh.write(text)
+            if "m3_core.config.settings" in sys.modules:
+                sys.modules["m3_core.config.settings"]._reset_for_tests()
+
+        def _set_child_crypto(**kv):
+            _CHILD_CRYPTO.update(kv)
+            _write_child_crypto(_CHILD_CRYPTO)
 
         def _bin_mock():
             # Load MockLibWolf from bin/test_fips_integrity.py by path (the tests/
@@ -61,17 +167,14 @@ def _run_fips_subprocess(body: str, env: dict) -> dict:
             # we can install the mock. So load it with FIPS mode temporarily off
             # (we only need the MockLibWolf class), then restore the env.
             import importlib.util as _ilu
-            saved = {{k: os.environ.pop(k, None)
-                      for k in ("M3_FIPS_MODE", "M3_FIPS_STRICT", "M3_CRYPTO_BACKEND")}}
+            _write_child_crypto({{}})  # FIPS off while the mock module imports
             try:
                 p = os.path.join({_BIN!r}, "test_fips_integrity.py")
                 spec = _ilu.spec_from_file_location("_bin_fips_mock", p)
                 m = _ilu.module_from_spec(spec); spec.loader.exec_module(m)
                 return m.MockLibWolf
             finally:
-                for k, v in saved.items():
-                    if v is not None:
-                        os.environ[k] = v
+                _write_child_crypto(_CHILD_CRYPTO)
                 # crypto_provider was imported (DEFAULT backend) while FIPS was
                 # off; drop it so _install_mock re-imports it fresh under FIPS +
                 # the mock CDLL.
@@ -99,7 +202,7 @@ def _run_fips_subprocess(body: str, env: dict) -> dict:
             fake = os.path.join(tempfile.mkdtemp(prefix="m3wolf-"), "wolfssl.dll")
             with open(fake, "wb") as f:
                 f.write(b"mock-wolfssl-placeholder")
-            os.environ["M3_WOLFSSL_LIB"] = fake
+            _set_child_crypto(wolfssl_lib=fake)
             ctypes.CDLL = _mock_cdll
             sys.modules.pop("crypto_provider", None)  # ensure a fresh FIPS init
             # crypto_provider reads [crypto] through the config registry, whose
@@ -109,13 +212,16 @@ def _run_fips_subprocess(body: str, env: dict) -> dict:
             import crypto_provider
             return crypto_provider
     """)
-    proc = subprocess.run(
-        [sys.executable, "-c", prelude + textwrap.dedent(body)],
-        capture_output=True,
-        text=True,
-        env={**os.environ, **{k: str(v) for k, v in env.items()}},
-        timeout=120,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", prelude + textwrap.dedent(body)],
+            capture_output=True,
+            text=True,
+            env={**os.environ, **{k: str(v) for k, v in env.items() if k not in _CRYPTO_KEY}},
+            timeout=120,
+        )
+    finally:
+        _clear_crypto()
     marker = "__FIPS__"
     line = next((ln for ln in proc.stdout.splitlines() if ln.startswith(marker)), None)
     assert line is not None, (
@@ -234,6 +340,10 @@ def _restore_crypto_provider():
     os.environ.pop("M3_WOLFSSL_LIB", None)
     os.environ.pop("M3_WOLFSSL_SHA256", None)
     os.environ.pop("M3_CRYPTO_BACKEND", None)
+    # The settings that matter are the [crypto] block this test wrote into the
+    # sandbox's config file: drop it so the repair reload builds the provider the
+    # next test gets (the registry default, DEFAULT backend).
+    _clear_crypto()
 
     # Re-pin the real library dir. conftest's sandbox only sets M3_LIB_DIR when
     # it is unset, so once a test has set it the sandbox will not re-pin it.
@@ -260,32 +370,20 @@ def _reset_crypto_settings():
 
 
 def _set_crypto_env(monkeypatch, name, value):
-    """A [crypto] env name set after the provider loaded: the registry snapshot
-    caches env, so rebuild it for the next read."""
-    monkeypatch.setenv(name, value)
-    _reset_crypto_settings()
+    """A [crypto] setting (named by its former env name) set after the provider
+    loaded: written into the config file; the snapshot is rebuilt for the next read."""
+    _set_crypto(**{_CRYPTO_KEY[name]: value})
 
 
 def _reload_provider(monkeypatch, backend=None, fips_mode=None, strict=None):
     """Reload crypto_provider with specific env knobs (DEFAULT backend only — the
     native-wolfSSL path is exercised via _run_fips_subprocess to avoid the #85
     in-process reload segfault)."""
-    if backend is not None:
-        monkeypatch.setenv("M3_CRYPTO_BACKEND", backend)
-    else:
-        monkeypatch.delenv("M3_CRYPTO_BACKEND", raising=False)
-    if fips_mode is not None:
-        monkeypatch.setenv("M3_FIPS_MODE", fips_mode)
-    else:
-        monkeypatch.delenv("M3_FIPS_MODE", raising=False)
-    if strict is not None:
-        monkeypatch.setenv("M3_FIPS_STRICT", strict)
-    else:
-        monkeypatch.delenv("M3_FIPS_STRICT", raising=False)
+    _CRYPTO_STATE.clear()
+    _set_crypto(backend=backend, fips_mode=fips_mode, fips_strict=strict)
 
     # Reload so module-level BACKEND and provider re-evaluate the settings
-    # (the registry snapshot caches env, so it is rebuilt first).
-    _reset_crypto_settings()
+    # (_set_crypto rebuilt the registry snapshot).
     import crypto_provider
 
     importlib.reload(crypto_provider)
@@ -691,13 +789,15 @@ class TestSecureWolfsslDiscovery:
         WOLFSSL provider touches the native loader."""
         v = _run_fips_subprocess(
             """
-            os.environ.pop("M3_WOLFSSL_LIB", None)
-            # M3_LIB_DIR outranks both roots — clear it or the real lib is found.
+            # M3_LIB_DIR outranks the config root — clear it or the real lib is found.
             os.environ.pop("M3_LIB_DIR", None)
-            # Move BOTH roots so a real ~/.m3/lib/wolfssl.dll on a dev box can't be
-            # discovered (M3_CONFIG_ROOT's parent wins over M3_MEMORY_ROOT).
+            # Move the config root (the trusted lib dir derives from its parent) so a
+            # real ~/.m3/lib/wolfssl.dll on a dev box can't be discovered; its new
+            # m3_config.toml carries FIPS mode and no wolfssl_lib pin.
             empty = tempfile.mkdtemp(prefix="m3empty-")
-            os.environ["M3_MEMORY_ROOT"] = empty
+            os.makedirs(os.path.join(empty, "config"))
+            with open(os.path.join(empty, "config", "m3_config.toml"), "w", encoding="utf-8") as fh:
+                fh.write("[crypto]\\nfips_mode = true\\n")
             os.environ["M3_CONFIG_ROOT"] = os.path.join(empty, "config")
             # Under FIPS mode with no trusted lib, fail-closed can fire either at
             # module import (the module-level provider init) OR at explicit

@@ -1,10 +1,9 @@
-"""doctor's decoupled-roots section + split-brain detection.
+"""doctor's decoupled-roots section.
 
-The three-root model (M3_MEMORY_ROOT / M3_ENGINE_ROOT / M3_CONFIG_ROOT) lets the
-engine (DBs) and config relocate independently of the repo. The documented
-hazard (CLAUDE.md "Split-brain hazard") is asymmetric/partial pinning where the
-config and engine roots diverge, or are pinned on only one of the MCP-server /
-hook surfaces. doctor surfaces both. These tests pin that behavior.
+The roots come from m3_config.toml [paths]; only M3_CONFIG_ROOT is read from the
+environment (M3_MEMORY_ROOT / M3_ENGINE_ROOT are not). The section reports where
+each root resolves. These tests keep the sandbox's config root (its [paths] pins
+every root under tmp), so the section never reads the developer's real ~/.m3.
 """
 
 from __future__ import annotations
@@ -27,7 +26,8 @@ def _roots_output():
 
 
 def _clear_roots(monkeypatch):
-    for v in ("M3_MEMORY_ROOT", "M3_ENGINE_ROOT", "M3_CONFIG_ROOT"):
+    # M3_CONFIG_ROOT stays: it is the sandbox's, and its file pins every root.
+    for v in ("M3_MEMORY_ROOT", "M3_ENGINE_ROOT"):
         monkeypatch.delenv(v, raising=False)
 
 
@@ -47,23 +47,25 @@ def test_no_warning_when_nothing_pinned(monkeypatch):
     assert "Decoupled-roots reminder" not in out
 
 
-def test_an_engine_root_pin_is_reported_as_deprecated(monkeypatch):
+def test_an_engine_root_env_pin_is_not_read(monkeypatch):
     """m3 reads one variable, M3_CONFIG_ROOT (user decision 2026-10-17): an
-    M3_ENGINE_ROOT pin is deprecated in favour of paths.engine_root. The section
-    used to say "pin BOTH M3_ENGINE_ROOT and M3_CONFIG_ROOT", the opposite."""
+    M3_ENGINE_ROOT pin changes nothing; the engine root is the file's. (doctor's
+    last section names the variable, to delete.) The section used to say "pin
+    BOTH M3_ENGINE_ROOT and M3_CONFIG_ROOT", the opposite."""
+    from m3_sdk import get_m3_engine_root
+
     _clear_roots(monkeypatch)
-    monkeypatch.setenv("M3_ENGINE_ROOT", "/tmp/eng")
+    monkeypatch.setenv("M3_ENGINE_ROOT", os.path.join(os.sep, "tmp", "eng"))
     out = _roots_output()
-    assert "M3_ENGINE_ROOT set in this process: deprecated" in out
-    assert "paths.engine_root" in out
+    assert str(get_m3_engine_root()) in out
+    assert os.path.join(os.sep, "tmp", "eng") not in out
     assert "ASYMMETRIC" not in out and "Pin M3_ENGINE_ROOT + M3_CONFIG_ROOT" not in out
 
 
 def test_m3_config_root_alone_is_not_flagged(monkeypatch):
     """The one variable m3 reads: setting it is not a finding here."""
     _clear_roots(monkeypatch)
-    monkeypatch.setenv("M3_CONFIG_ROOT", "/tmp/cfg")
-    out = _roots_output()
+    out = _roots_output()  # the sandbox sets M3_CONFIG_ROOT to its own tmp config
     assert "deprecated" not in out and "ASYMMETRIC" not in out
 
 

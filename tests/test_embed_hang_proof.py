@@ -24,15 +24,27 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-def _fresh_embed(monkeypatch, **env):
-    """Import bin/memory/embed.py fresh with a controlled environment so the
-    module-level safe-default resolution runs under the given env. Snapshot +
-    restore memory.* (the sys.modules-evict discipline — see
+def _fresh_embed(monkeypatch, M3_CONFIG_ROOT, M3_EMBED_GGUF=None, M3_EMBED_INPROC=None, **embed_keys):  # noqa: N803
+    """Import bin/memory/embed.py fresh with a controlled configuration so the
+    module-level safe-default resolution runs under it. The settings go into
+    ``<M3_CONFIG_ROOT>/m3_config.toml`` (embed.gguf / embed.inproc; the env names
+    are not read), with [paths] under that root so nothing resolves to the real
+    ~/.m3. Snapshot + restore memory.* (the sys.modules-evict discipline — see
     m3-test-sysmodules-evict-must-restore)."""
-    for k in ("M3_EMBED_GGUF", "M3_CONFIG_ROOT", "M3_MEMORY_ROOT", "M3_EMBED_INPROC", "M3_EMBED_GGUF_AUTODETECT"):
-        monkeypatch.delenv(k, raising=False)
-    for k, v in env.items():
-        monkeypatch.setenv(k, v)
+    from m3_core.config import settings as st
+
+    root = M3_CONFIG_ROOT.replace(os.sep, "/")
+    lines = ["schema_version = 1", "[paths]", f'memory_root = "{root}"', f'engine_root = "{root}/engine"']
+    lines += [f'logs_root = "{root}/logs"', "[embed]", "autodetect = false"]
+    if M3_EMBED_GGUF is not None:
+        lines.append(f'gguf = "{M3_EMBED_GGUF}"')
+    if M3_EMBED_INPROC is not None:
+        lines.append(f"inproc = {'true' if M3_EMBED_INPROC == '1' else 'false'}")
+    lines += [f"{k} = {v}" for k, v in embed_keys.items()]  # further [embed] keys, as TOML
+    with open(os.path.join(M3_CONFIG_ROOT, "m3_config.toml"), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(lines) + "\n")
+    monkeypatch.setenv("M3_CONFIG_ROOT", M3_CONFIG_ROOT)
+    st._reset_for_tests()
     # monkeypatch.delitem, not `del`: it puts every original memory.* module back
     # at teardown. The bare `del` left later tests on a second set of module
     # objects while modules imported at collection held the first, and
@@ -58,8 +70,8 @@ def test_no_config_plus_gguf_defaults_to_shared(monkeypatch):
 
 
 def test_explicit_opt_in_allows_inproc(monkeypatch):
-    """M3_EMBED_INPROC=1 is the deliberate escape hatch — inproc allowed even
-    with no config file."""
+    """embed.inproc = true is the deliberate escape hatch — inproc allowed even
+    with no .embed_config.json."""
     empty_root = tempfile.mkdtemp()
     e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=empty_root, M3_EMBED_GGUF="C:/fake/model.gguf", M3_EMBED_INPROC="1")
     assert e._INPROC_ALLOWED is True
@@ -102,7 +114,7 @@ def test_inproc_init_times_out_instead_of_hanging(monkeypatch):
     root = tempfile.mkdtemp()
     with open(os.path.join(root, ".embed_config.json"), "w") as f:
         json.dump({"fallback_url": "http://127.0.0.1:8082"}, f)  # inproc allowed
-    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root, M3_EMBED_GGUF="C:/fake/model.gguf", M3_EMBED_INIT_TIMEOUT_S="1")
+    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root, M3_EMBED_GGUF="C:/fake/model.gguf", init_timeout_s="1.0")
 
     # The wedge must stay blocked while the caller's 1s deadline elapses (that's
     # what proves the abandon path). But `embed.py` runs the init on a daemon
@@ -215,70 +227,6 @@ def test_installer_memory_env_never_has_gguf(monkeypatch):
 
 
 # ── Defect 1 auto-heal: scrub existing settings + doctor detection/fix ────────
-
-
-def _write_settings_with_leak(tmp: str) -> str:
-    path = os.path.join(tmp, "settings.json")
-    with open(path, "w") as f:
-        json.dump(
-            {
-                "mcpServers": {
-                    "memory": {
-                        "args": ["bin/memory_bridge.py"],
-                        "env": {"M3_ENGINE_ROOT": "/x", "M3_EMBED_GGUF": "/m/bge.gguf"},
-                    },
-                    "unrelated": {"args": ["bin/other.py"], "env": {"M3_EMBED_GGUF": "/m/bge.gguf"}},
-                }
-            },
-            f,
-            indent=2,
-        )
-    return path
-
-
-def test_installer_scrub_is_m3_only_and_idempotent():
-    from pathlib import Path
-
-    from m3_memory import installer
-
-    tmp = tempfile.mkdtemp()
-    path = _write_settings_with_leak(tmp)
-    actions = installer._scrub_embed_gguf_from_settings(Path(path), apply=True)
-    assert any("memory" in a for a in actions)
-    with open(path) as f:
-        data = json.load(f)
-    assert "M3_EMBED_GGUF" not in data["mcpServers"]["memory"]["env"]
-    assert "M3_EMBED_GGUF" in data["mcpServers"]["unrelated"]["env"], "non-m3 untouched"
-    assert os.path.exists(path + ".bak")
-    # idempotent
-    assert installer._scrub_embed_gguf_from_settings(Path(path), apply=True) == []
-
-
-def test_doctor_detects_and_fixes_env_leak(monkeypatch):
-    from doctor import shared_embedder_probe as p
-
-    monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
-    monkeypatch.setattr(p, "_windows_user_env_has", lambda var: False)  # not the real registry
-    tmp = tempfile.mkdtemp()
-    path = _write_settings_with_leak(tmp)
-    monkeypatch.setattr(p, "_known_agent_settings", lambda: [("Test", path)])
-
-    assert p._detect_inproc_env_leak(), "must detect the leak"
-    scrubbed, remains = p._fix_scrub_env_leak()
-    assert scrubbed is True
-    assert remains is False
-    assert p._detect_inproc_env_leak() == [], "no residue after fix"
-    assert os.path.exists(path + ".bak")
-
-
-def test_doctor_detects_process_env_leak(monkeypatch):
-    from doctor import shared_embedder_probe as p
-
-    monkeypatch.setenv("M3_EMBED_GGUF", "/m/bge.gguf")
-    monkeypatch.setattr(p, "_known_agent_settings", lambda: [])
-    monkeypatch.setattr(p, "_windows_user_env_has", lambda var: False)  # not the real registry
-    hits = p._detect_inproc_env_leak()
-    assert any("process env" in h for h in hits)
 
 
 # ── UX: shared mode must read as HEALTHY, not a scary "degraded/init-failed" ───

@@ -17,8 +17,10 @@ def home(tmp_path, monkeypatch):
     """A fresh home with a planted legacy ~/.m3-memory."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))  # the home on Windows
-    monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)  # the sandbox pins it; Root-1 needs it unpinned
-    monkeypatch.delenv("M3_ENGINE_ROOT", raising=False)  # likewise: a pre-Homecoming user chose no engine root
+    # ...nor any root in the file: drop the sandbox's [paths] (the home is tmp_path).
+    from m3_memory import _roots
+
+    (Path(_roots.config_root()) / "m3_config.toml").write_text("schema_version = 1\n", encoding="utf-8")
     old = tmp_path / ".m3-memory"
     (old / "backups").mkdir(parents=True)
     (old / "audit_trail.log.jsonl").write_text('{"old": 1}\n', encoding="utf-8")
@@ -30,9 +32,16 @@ def home(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def pinned_root(home, monkeypatch):
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(home / "custom"))
-    return home / "custom"
+def pinned_root(home):
+    """The memory root pinned where m3 reads it: [paths] memory_root in m3_config.toml
+    (M3_MEMORY_ROOT is not read)."""
+    from m3_memory import _roots
+
+    custom = home / "custom"
+    (Path(_roots.config_root()) / "m3_config.toml").write_text(
+        f'schema_version = 1\n[paths]\nmemory_root = "{custom.as_posix()}"\n', encoding="utf-8"
+    )
+    return custom
 
 
 def _migrate(home):

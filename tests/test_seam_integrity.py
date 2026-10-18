@@ -83,9 +83,13 @@ def test_the_os_seam_imports_only_stdlib_and_the_version_seam():
 
 
 def test_the_bin_path_owner_is_stdlib_only():
-    """m3_memory/_bin.py runs before anything in bin/ can be imported."""
-    foreign = _top(_imports(_ROOT / "m3_memory" / "_bin.py")) - set(sys.stdlib_module_names) - {"__future__"}
-    assert not foreign, f"m3_memory/_bin.py may import only the stdlib: {foreign}"
+    """m3_memory/_bin.py runs before anything in bin/ can be imported, so it may
+    reach only the stdlib and m3_memory._roots, itself stdlib-only (pinned by
+    test_the_stdlib_only_owners_import_only_stdlib_and_the_lower_seams): ``[paths]
+    bin`` is read there, beside the roots."""
+    names = _imports(_ROOT / "m3_memory" / "_bin.py") - {"m3_memory._roots", "m3_memory"}
+    foreign = _top(names) - set(sys.stdlib_module_names) - {"__future__"}
+    assert not foreign, f"m3_memory/_bin.py may import only the stdlib and m3_memory._roots: {foreign}"
 
 
 # Files that put something OTHER than the payload bin/ on sys.path, by design.

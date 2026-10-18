@@ -350,14 +350,14 @@ class CryptoProvider:
         #     non-FIPS (open-source) wolfSSL with a clear, actionable message.
         if _fips_strict() and not self._fips_validated:
             raise RuntimeError(
-                "FATAL: crypto.fips_strict (M3_FIPS_STRICT=1) requires the CMVP-validated wolfCrypt "
+                "FATAL: crypto.fips_strict requires the CMVP-validated wolfCrypt "
                 "FIPS module, but the loaded wolfSSL library lacks the FIPS "
                 "symbols (POST/entropy) — you have the OPEN-SOURCE build, not the "
                 "validated FIPS module. Use the commercial wolfSSL FIPS build for "
-                "strict compliance, or use crypto.fips_mode alone (M3_FIPS_MODE=1, without strict) to run "
+                "strict compliance, or use crypto.fips_mode alone (without crypto.fips_strict) to run "
                 "on open-source wolfCrypt. See docs/FIPS_MODULE_BOUNDARY.md. "
                 "observed: the loaded library has no FIPS POST/entropy symbols. "
-                "inspect: crypto.wolfssl_lib (M3_WOLFSSL_LIB) names the validated FIPS build, or crypto.fips_strict (M3_FIPS_STRICT)"
+                "inspect: crypto.wolfssl_lib names the validated FIPS build, or crypto.fips_strict"
             )
 
     def _initialize_wolfssl(self):
@@ -594,10 +594,10 @@ class CryptoProvider:
                 # full) without being repeated to someone who cannot act on it.
                 if _fips_strict():
                     logger.warning(
-                        f"crypto.fips_strict (M3_FIPS_STRICT=1) but wolfSSL is the open-source build (not CMVP-validated). "
+                        f"crypto.fips_strict is on but wolfSSL is the open-source build (not CMVP-validated). "
                         f"observed: loaded library at {self._lib_path} lacks POST/entropy FIPS service symbols. "
-                        f"cause: crypto.fips_strict (M3_FIPS_STRICT) requires the commercial wolfSSL FIPS module but the open-source build was installed instead. "
-                        f"inspect: (1) verify which wolfSSL version is at {self._lib_path}; (2) purchase/obtain the CMVP-validated module; (3) rebuild/reinstall, or unset crypto.fips_strict (M3_FIPS_STRICT) to use open-source mode."
+                        f"cause: crypto.fips_strict requires the commercial wolfSSL FIPS module but the open-source build was installed instead. "
+                        f"inspect: (1) verify which wolfSSL version is at {self._lib_path}; (2) purchase/obtain the CMVP-validated module; (3) rebuild/reinstall, or `m3 config unset crypto.fips_strict` to use open-source mode."
                     )
                 elif _fips_mode() and not CryptoProvider._non_fips_notice_emitted:
                     CryptoProvider._non_fips_notice_emitted = True
@@ -1235,7 +1235,7 @@ def active_crypto_status() -> dict:
     if out["backend"] != "WOLFSSL":
         out["summary"] = (
             "DEFAULT (Python cryptography/hashlib). Approved algorithms only; "
-            "no wolfCrypt loaded. Set crypto.fips_mode (M3_FIPS_MODE=1) to route through wolfCrypt."
+            "no wolfCrypt loaded. `m3 config set crypto.fips_mode true` routes through wolfCrypt."
         )
     elif out["fips_validated"]:
         out["summary"] = f"wolfCrypt CMVP-validated FIPS module — loaded from {out['lib_path']}" + (

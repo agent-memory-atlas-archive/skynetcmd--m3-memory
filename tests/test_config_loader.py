@@ -113,17 +113,17 @@ def test_locator_tiers(monkeypatch, tmp_path):
     assert loc.tier == "env:M3_CONFIG_ROOT" and loc.file.name == "m3_config.toml"
 
 
-def test_legacy_tier_warns(monkeypatch, tmp_path, caplog):
-    import logging
+def test_memory_root_does_not_locate_the_config(monkeypatch, tmp_path):
+    """The legacy M3_MEMORY_ROOT/config tier is gone: without M3_CONFIG_ROOT the
+    config is the default ~/.m3/config, whatever M3_MEMORY_ROOT says."""
+    from m3_core.config import locate
 
-    from m3_core.config import loader, locate
+    from m3_memory._roots import default_config_root, same_dir
 
     monkeypatch.delenv("M3_CONFIG_ROOT", raising=False)
     monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path / "legacy"))
-    monkeypatch.setattr(loader, "_LEGACY_WARNED", set())
-    with caplog.at_level(logging.WARNING):
-        loc = locate()
-    assert loc.tier.startswith("legacy:") and "removed after N+3" in caplog.text
+    loc = locate()
+    assert not str(loc.tier).startswith("legacy") and same_dir(str(loc.root), default_config_root())
 
 
 # ── loader ───────────────────────────────────────────────────────────────────

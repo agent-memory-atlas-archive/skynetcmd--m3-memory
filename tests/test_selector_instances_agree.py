@@ -20,7 +20,7 @@ from types import ModuleType
 
 import pytest
 
-from conftest import select_backend  # noqa: E402
+from conftest import select_backend, write_sandbox_config  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
@@ -81,8 +81,7 @@ def test_an_unrecognized_backend_still_raises(monkeypatch):
     import os
 
     os.makedirs(cfg, exist_ok=True)
-    with open(os.path.join(cfg, "m3_config.toml"), "w", encoding="utf-8", newline="\n") as f:
-        f.write('schema_version = 1\n[db]\nbackend = "postgre"\n')
+    write_sandbox_config('[db]\nbackend = "postgre"\n')
     from m3_core.config import settings as st
 
     st._reset_for_tests()

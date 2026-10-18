@@ -172,14 +172,18 @@ def test_cap_default_and_override(built_db, m3_settings):
     assert E._resolve_bypass_cap() == 50
 
 
-def test_a_malformed_cap_fails_at_config_load():
-    """R-loud: a malformed M3_BYPASS_SURFACE_CAP no longer silently becomes 300."""
+def test_a_malformed_cap_fails_at_config_load(tmp_path):
+    """R-loud: a malformed [search] bypass_surface_cap no longer silently becomes 300."""
+    from m3_core.config import Location
     from m3_core.config import settings as st
-    from m3_core.config.resolve import NO_DOTENV, ConfigEnvErrors
+    from m3_core.config.loader import ConfigFileError
+    from m3_core.config.resolve import NO_DOTENV
 
-    with pytest.raises(ConfigEnvErrors) as exc:
-        st.build(environ={"M3_BYPASS_SURFACE_CAP": "garbage"}, dotenv=NO_DOTENV)
-    assert "M3_BYPASS_SURFACE_CAP" in str(exc.value.exceptions[0]), exc.value.exceptions
+    cfg = tmp_path / "m3_config.toml"
+    cfg.write_text('[search]\nbypass_surface_cap = "garbage"\n', encoding="utf-8")
+    with pytest.raises(ConfigFileError) as exc:
+        st.build(Location(file=cfg, root=tmp_path, tier="t"), environ={}, dotenv=NO_DOTENV)
+    assert "bypass_surface_cap" in str(exc.value.exceptions[0]), exc.value.exceptions
 
 
 # ── GDPR (explicit enumeration, not cascade-only) ─────────────────────────────

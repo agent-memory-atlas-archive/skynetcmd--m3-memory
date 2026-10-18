@@ -1,14 +1,12 @@
-"""LLM endpoint switches that headless daemons can read.
+"""LLM endpoint switches: where setup and install record them, and the legacy
+``.llm_config.json``.
 
-Hazard: launchd and systemd start the cognitive loop with a bare environment, so
-a switch kept only in the user's shell rc (e.g. M3_ENABLE_OLLAMA_FAILOVER) never
-reaches it. ``<config_root>/.llm_config.json`` resolves the same way under every
-launcher.
-
-The registry is its one reader (``m3_core.config.env.llm_file``: a legacy source
-below env and .env, origin ``llmfile:``); this module keeps the file's path, its
-parse and the writer until import-env moves the values into [llm] (fold plan
-2026.10.12).
+Setup and ``m3 install --llm-endpoint`` record a switch in m3_config.toml [llm]
+(``write_llm_setting``), which every launcher reads, including launchd and systemd
+jobs that start with a bare environment. ``.llm_config.json`` is no longer a value
+source: the registry records what it sets as not read (``Resolved.shadowed``), and
+import-env copies it when no m3_config.toml exists. This module keeps that file's
+path and parse for those two readers.
 """
 
 from __future__ import annotations
@@ -52,12 +50,14 @@ def read_llm_config() -> dict:
 
 
 def write_llm_setting(name: str, value: str) -> str:
-    """Record ``name=value`` in the config file (atomic replace). Returns the path."""
-    path = llm_config_path()
-    data = read_llm_config()
-    data[name] = value
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    from m3_core.atomic_io import atomic_write
+    """Record the LLM switch known by the former env name ``name`` (e.g.
+    ``M3_ENABLE_OLLAMA_FAILOVER``) as its registry key in m3_config.toml, parsed as
+    import-env parses it. Returns the file's path. An unknown name raises."""
+    from m3_core.config import locate
+    from m3_core.config.keys import REGISTRY
+    from m3_core.config.writer import set_values
 
-    atomic_write(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
-    return path
+    key = REGISTRY.by_env(name)
+    if key is None:
+        raise ValueError(f"{name} is not the former name of an m3 setting")
+    return str(set_values(locate(), {key: key.coerce_env_value(value)}))

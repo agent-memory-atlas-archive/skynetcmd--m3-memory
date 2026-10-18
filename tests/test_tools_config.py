@@ -57,12 +57,14 @@ def test_config_file_beats_the_default(_clean_env):
     assert tc.CONFIG_FILENAME in source
 
 
-def test_env_beats_the_config_file(_clean_env, monkeypatch):
+def test_the_former_env_name_is_not_read(_clean_env, monkeypatch):
+    """M3_TOOLS_STARTUP is a former name: m3 does not read it, so the config
+    file's list stands and the env value never reaches the resolver."""
     _write(_clean_env, {"startup_tools": ["memory_search", *tc.ESCAPE_HATCH]})
     monkeypatch.setenv(tc.ENV_STARTUP, "chatlog_search," + ",".join(tc.ESCAPE_HATCH))
     names, source = tc.resolve_startup_tools()
-    assert names[0] == "chatlog_search"
-    assert tc.ENV_STARTUP in source  # the registry's origin, e.g. env-legacy:M3_TOOLS_STARTUP
+    assert names[0] == "memory_search"
+    assert tc.ENV_STARTUP not in source
 
 
 def test_lazy_off_beats_everything(_clean_env, m3_settings):
@@ -83,18 +85,15 @@ def test_m3_config_startup_beats_the_file(_clean_env, m3_settings):
 
 
 @pytest.mark.parametrize("word", ["0", "false", "no", "off"])
-def test_every_off_word_means_off_for_the_bridge_and_the_resolver(monkeypatch, word):
+def test_every_off_word_means_off_for_the_bridge_and_the_resolver(m3_settings, word):
     """The bridge took only "0" as off while this resolver took all four, so
-    M3_TOOLS_LAZY=false split them. Both read tools.lazy now."""
-    from m3_core.config import settings as st
+    M3_TOOLS_LAZY=false split them. Both read tools.lazy now; a former env value
+    copied by import-env is parsed by the key, and every off word means False."""
+    from m3_core.config import REGISTRY
 
-    monkeypatch.setenv(tc.ENV_LAZY, word)
-    st._reset_for_tests()
-    try:
-        assert st.setting("tools.lazy") is False
-        assert tc.resolve_startup_tools()[0] is None
-    finally:
-        st._reset_for_tests()
+    assert REGISTRY.get("tools.lazy").coerce_env_value(word) is False
+    m3_settings({"tools.lazy": False})
+    assert tc.resolve_startup_tools()[0] is None
 
 
 def test_none_is_not_an_empty_list():
@@ -126,8 +125,8 @@ def test_refuses_rather_than_silently_forcing_them_in(_clean_env):
         tc.resolve_startup_tools()
 
 
-def test_env_omitting_the_escape_hatch_is_also_refused(monkeypatch):
-    monkeypatch.setenv(tc.ENV_STARTUP, "memory_search")
+def test_m3_config_omitting_the_escape_hatch_is_also_refused(m3_settings):
+    m3_settings({"tools.startup": ["memory_search"]})
     with pytest.raises(tc.ToolsConfigError, match="escape hatch"):
         tc.resolve_startup_tools()
 
@@ -154,8 +153,8 @@ def test_malformed_json_warns_and_falls_back(_clean_env, caplog):
     assert source == "shipped default"
 
 
-def test_duplicates_are_deduped_in_order(monkeypatch):
-    monkeypatch.setenv(tc.ENV_STARTUP, "memory_search,memory_search," + ",".join(tc.ESCAPE_HATCH))
+def test_duplicates_are_deduped_in_order(m3_settings):
+    m3_settings({"tools.startup": ["memory_search", "memory_search", *tc.ESCAPE_HATCH]})
     names, _ = tc.resolve_startup_tools()
     assert names.count("memory_search") == 1
     assert names[0] == "memory_search"
@@ -256,29 +255,29 @@ def test_probe_reports_the_set_and_its_source(capsys):
     assert "escape hatch" in out
 
 
-def test_probe_fails_when_the_escape_hatch_is_missing(monkeypatch, capsys):
+def test_probe_fails_when_the_escape_hatch_is_missing(m3_settings, capsys):
     """Not a degraded-but-working state: m3 would start with a surface the user
     did not ask for, and from inside a session that looks like the tool simply
     not existing."""
     from doctor import startup_tools_probe
 
-    monkeypatch.setenv(tc.ENV_STARTUP, "memory_search")
+    m3_settings({"tools.startup": ["memory_search"]})
     assert startup_tools_probe.run() == 1
     assert "escape hatch" in capsys.readouterr().out
 
 
-def test_probe_fails_on_an_unknown_tool_name(monkeypatch, capsys):
+def test_probe_fails_on_an_unknown_tool_name(m3_settings, capsys):
     from doctor import startup_tools_probe
 
-    monkeypatch.setenv(tc.ENV_STARTUP, "memory_search_slm," + ",".join(tc.ESCAPE_HATCH))
+    m3_settings({"tools.startup": ["memory_search_slm", *tc.ESCAPE_HATCH]})
     assert startup_tools_probe.run() == 1
     out = capsys.readouterr().out
     assert "did you mean" in out and "memory_search_slim" in out
 
 
-def test_probe_handles_lazy_disabled(monkeypatch, capsys):
+def test_probe_handles_lazy_disabled(m3_settings, capsys):
     from doctor import startup_tools_probe
 
-    monkeypatch.setenv(tc.ENV_LAZY, "0")
+    m3_settings({"tools.lazy": False})
     assert startup_tools_probe.run() == 0
     assert "ALL tools" in capsys.readouterr().out

@@ -607,8 +607,9 @@ def _has_change_signal(probe_store: str) -> bool:
     the configured backend is SQLite (the default): a stripped supervisor
     payload is almost certainly SQLite-only, and guessing the polling lane would
     spawn a child that cannot connect. The backend name comes from the selector's
-    single owner (`m3_core.paths.resolve_backend_name`); a raw env read is used
-    only when even `m3_core` is missing. Gated `== "sqlite"`, never
+    single owner (`m3_core.paths.resolve_backend_name`); when even `m3_core` is
+    missing, the registry's default ``sqlite`` (nothing can locate the config file
+    then, and a stripped payload is SQLite-only). Gated `== "sqlite"`, never
     `!= "postgres"`: any other backend, or an unrecognised name, takes the
     polling lane and fails loud there rather than watching files nobody writes.
     """
@@ -622,8 +623,9 @@ def _has_change_signal(probe_store: str) -> bool:
 
             env = resolve_backend_name()
         except ImportError:  # stripped payload: no m3_core, so no registry to read [db] backend
-            # env-owner: no m3_core means no registry; db.backend's legacy env names are the only signal left
-            env = (os.environ.get("M3_DB_BACKEND") or os.environ.get("DB_BACKEND") or "sqlite").strip().lower()
+            # Without m3_core neither the registry nor the seams that locate
+            # m3_config.toml exist; take the registry's default, as documented.
+            env = "sqlite"
         except ValueError as sel_exc:  # an unrecognised name; the selector says which
             env = f"unrecognised ({sel_exc})"
         _warn(
@@ -635,8 +637,8 @@ def _has_change_signal(probe_store: str) -> bool:
 
 
 def _default_engine_root() -> str:
-    """The engine root from its one owner (m3_memory._roots, which also honours
-    M3_MEMORY_ROOT; the inline default here did not). Degraded beats dead: a
+    """The engine root from its one owner (m3_memory._roots, which reads [paths]
+    from m3_config.toml; the inline default here did not). Degraded beats dead: a
     stripped payload without m3_core gets the default location, not a crash."""
     try:
         from m3_core.seams import roots

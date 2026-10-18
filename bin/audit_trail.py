@@ -32,23 +32,54 @@ def write_audit_entry(action: str, target_id: str, metadata: dict[str, Any]) -> 
     # 1. Ensure directory exists
     os.makedirs(os.path.dirname(audit_file), exist_ok=True)
 
+    # Read-last-hash and append are one critical section across processes: without
+    # the lock, concurrent writers read the same tail and fork the chain, and
+    # interleaved appends lost entries (6 processes: 155 of 600 lost, 276 forks).
+    from m3_core.locking import file_lock
+
+    with file_lock(audit_file + ".lock", purpose="audit trail"):
+        return _append_entry(audit_file, action, target_id, metadata)
+
+
+def _last_hash(audit_file: str) -> str:
+    """The last entry's hash, read from the file's tail; genesis (64 zeros) for an
+    empty or absent file. A last line that does not parse raises: chaining from
+    genesis instead would fork the chain silently and hide the damage (§3)."""
+    try:
+        size = os.path.getsize(audit_file)
+    except FileNotFoundError:
+        return "0" * 64
+    if size == 0:
+        return "0" * 64
+    with open(audit_file, "rb") as f:
+        chunk = 4096
+        tail = b""
+        pos = size
+        while pos > 0:
+            step = min(chunk, pos)
+            pos -= step
+            f.seek(pos)
+            tail = f.read(step) + tail
+            if tail.rstrip(b"\r\n").count(b"\n") >= 1:
+                break
+            chunk *= 2
+    last_line = tail.rstrip(b"\r\n").rsplit(b"\n", 1)[-1].strip()
+    if not last_line:
+        return "0" * 64
+    try:
+        last_entry = json.loads(last_line)
+        return str(last_entry["hash"])
+    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(
+            f"observed: the last line of {audit_file} is not a valid audit entry ({type(e).__name__}); "
+            "the chain cannot continue from it. inspect: m3 doctor / verify_audit_trail; "
+            "fix: move the file aside to start a new chain, keeping the old one as evidence"
+        ) from e
+
+
+def _append_entry(audit_file: str, action: str, target_id: str, metadata: dict[str, Any]) -> str:
     # 2. Find previous entry's hash (Genesis is 64 zeros)
-    prev_hash = "0" * 64
-    if os.path.exists(audit_file) and os.path.getsize(audit_file) > 0:
-        try:
-            with open(audit_file, encoding="utf-8") as f:
-                # Read backwards or read lines. The file is log.jsonl, typically small to medium.
-                # If it grows extremely large, we can seek from the end.
-                lines = f.readlines()
-                if lines:
-                    last_line = lines[-1].strip()
-                    if last_line:
-                        last_entry = json.loads(last_line)
-                        if isinstance(last_entry, dict) and "hash" in last_entry:
-                            prev_hash = last_entry["hash"]
-        except Exception:
-            # Fall back to genesis if there is any error reading or parsing the last line
-            pass
+    prev_hash = _last_hash(audit_file)
 
     # 3. Create current entry
     entry = {

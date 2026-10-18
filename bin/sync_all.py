@@ -133,23 +133,25 @@ log = logging.getLogger("sync_all")
 _SKIP_REASONS: list[str] = []
 
 
+# --db PATH (repeatable): the stores to sync instead of the defaults.
+_CLI_DBS: list[str] = []
+
+
 def _resolve_dbs() -> list[pathlib.Path]:
     """Return list of DB paths to sync.
 
     Priority:
-      1. M3_SYNC_DBS env var (explicit override; paths separated by commas or the
-         OS path separator -- ':' on POSIX, ';' on Windows, where ':' appears in
-         every drive-letter path).
-      2. m3_sdk.resolve_db_path() — the Homecoming-aware resolver (honours
-         M3_ENGINE_ROOT / M3_MEMORY_ROOT / M3_DATABASE). Its failure propagates:
-         a repo-relative guess synced a store nobody uses.
+      1. --db PATH (repeatable), the explicit list.
+      2. m3_sdk.resolve_db_path() — the main store under the engine root from
+         m3_config.toml [paths]. Its failure propagates: a repo-relative guess
+         synced a store nobody uses.
 
-    Bench DBs and any other databases are NOT auto-detected — set M3_SYNC_DBS
-    if you self-host a custom layout.
+    Bench DBs and any other databases are NOT auto-detected — pass --db PATH
+    (repeatable) if you self-host a custom layout. The legacy M3_SYNC_DBS variable
+    is not read.
     """
-    raw = os.environ.get("M3_SYNC_DBS", "")
-    if raw:
-        parts = [p.strip() for p in raw.replace(",", os.pathsep).split(os.pathsep) if p.strip()]
+    if _CLI_DBS:
+        parts = list(_CLI_DBS)
         resolved = []
         for p in parts:
             path = pathlib.Path(p)
@@ -509,6 +511,13 @@ def main():
     )
     parser = argparse.ArgumentParser(description="Hourly sync runner")
     parser.add_argument("--dry-run", action="store_true", help="Check connectivity only")
+    parser.add_argument(
+        "--db",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="A SQLite store to sync instead of the defaults (repeatable; replaces the list)",
+    )
     sys.path.insert(0, str(BASE / "bin"))
     from _task_runtime import add_log_file_arg, setup_task_runtime
     from m3_sdk import add_database_arg
@@ -518,6 +527,7 @@ def main():
     args = parser.parse_args()
 
     setup_task_runtime(args.log_file or LOG_FILE, lock_name="sync_all")
+    _CLI_DBS[:] = args.db
 
     if args.database:
         # Pass-through env so the pg_sync subprocess inherits.

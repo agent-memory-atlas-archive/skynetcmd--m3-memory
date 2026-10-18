@@ -126,10 +126,8 @@ def test_list_profiles_discovers_yaml_files(tmp_path, monkeypatch, m3_settings):
     assert "two" in profs
 
 
-def test_profile_search_dir_stacking(tmp_path, monkeypatch):
-    """Multiple dirs in M3_SLM_PROFILES_DIR resolve first-match-wins."""
-    import os
-
+def test_profile_search_dir_stacking(tmp_path, m3_settings):
+    """Multiple dirs in slm.profile_dirs resolve first-match-wins."""
     import slm_intent
 
     dir_a = tmp_path / "a"
@@ -139,10 +137,7 @@ def test_profile_search_dir_stacking(tmp_path, monkeypatch):
     # Same name in both dirs; first dir's should win.
     _write_profile(dir_a / "shared.yaml", model="from-a")
     _write_profile(dir_b / "shared.yaml", model="from-b")
-    monkeypatch.setenv(
-        "M3_SLM_PROFILES_DIR",
-        f"{dir_a}{os.pathsep}{dir_b}",
-    )
+    m3_settings({"slm.profile_dirs": [str(dir_a), str(dir_b)]})
     slm_intent.invalidate_cache()
 
     prof = slm_intent.load_profile("shared")

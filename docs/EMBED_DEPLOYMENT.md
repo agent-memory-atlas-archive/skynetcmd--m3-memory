@@ -346,9 +346,10 @@ fips_mode = false
 Set them with `m3 config set <key> <value>` (for example
 `m3 config set embed.server.port 8093`), then restart the server.
 **Precedence**: `--set` (foreground and `secure --check` only) >
-`m3_config.toml` > the legacy `M3_*` environment names > the default. Without
+`m3_config.toml` > the default; the former `M3_*` environment names are not read
+(the server logs one line at startup naming any still set). Without
 `--config` the server finds the file the way m3 does
-(`M3_CONFIG_ROOT` > `M3_MEMORY_ROOT/config` > `~/.m3/config`); an invalid file
+(`M3_CONFIG_ROOT` > `~/.m3/config`); an invalid file
 exits 78.
 
 Cores before 3.10.16 kept a separate `config.toml`

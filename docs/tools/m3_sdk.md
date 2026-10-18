@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_sdk.py
-sha1: a2f6e6c2af4b
-mtime_utc: 2026-10-17T18:54:51.857507+00:00
-generated_utc: 2026-10-17T18:56:36.260181+00:00
+sha1: 21121e20c569
+mtime_utc: 2026-10-18T01:43:16.209994+00:00
+generated_utc: 2026-10-18T01:45:46.072459+00:00
 private: false
 ---
 
@@ -59,7 +59,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.locking`
 - `m3_core.locking (_MIGRATION_LOCK_MAX_AGE_S, _lock_owner_stamp, _pid_alive, _reclaim_stale_lock, migration_lock)`
 - `m3_core.paths`
-- `m3_core.paths (_active_db, _db_is_populated, _default_db_path, active_database, add_database_arg, assert_no_deprecated_pg_url_on_install, deprecated_env_in_use, get_m3_config_root, get_m3_engine_root, get_m3_logs_root, get_m3_root, getenv_compat, resolve_cdw_pg_dsn, resolve_db_path, resolve_primary_pg_dsn, resolve_venv_python, scoped_db_env)`
+- `m3_core.paths (_active_db, _db_is_populated, _default_db_path, active_database, add_database_arg, assert_no_deprecated_pg_url_on_install, get_m3_config_root, get_m3_engine_root, get_m3_logs_root, get_m3_root, resolve_cdw_pg_dsn, resolve_db_path, resolve_primary_pg_dsn, resolve_venv_python, scoped_db_env)`
 - `m3_core.registry_payload (PROTOCOL_VERSION, RESERVED_PAYLOAD_KEYS, ProcInfo, build_payload, parse_payload)`
 - `m3_core.runtime`
 - `m3_core.runtime (LM_READ_TIMEOUT, LM_STUDIO_BASE, M3_CORE_RS_DISABLE, StructuredLogger, ensure_utf8, format_log, iso_local_timestamp, iso_utc_timestamp, logger)`

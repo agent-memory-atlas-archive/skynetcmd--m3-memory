@@ -77,8 +77,8 @@ async def _run(apply: bool, threshold: int, stale_days: int, max_procedures: int
     dry_run = not (apply and auto)
     if apply and not auto:
         prefix = (
-            "[skipped-apply] M3_DISTILL_AUTO is not set — running DRY-RUN. "
-            "Set M3_DISTILL_AUTO=1 to enable autonomous procedure writes.\n"
+            "[skipped-apply] autonomy.distill_auto is off — running DRY-RUN. "
+            "`m3 config set autonomy.distill_auto true` enables autonomous procedure writes.\n"
         )
     else:
         prefix = ""
@@ -101,7 +101,7 @@ async def _run(apply: bool, threshold: int, stale_days: int, max_procedures: int
 def main() -> int:
     parser = argparse.ArgumentParser(description="Autonomous procedural distillation (tasks → procedures).")
     parser.add_argument(
-        "--apply", action="store_true", help="Write procedures (requires M3_DISTILL_AUTO=1); else dry-run."
+        "--apply", action="store_true", help="Write procedures (requires autonomy.distill_auto = true); else dry-run."
     )
     parser.add_argument(
         "--threshold",

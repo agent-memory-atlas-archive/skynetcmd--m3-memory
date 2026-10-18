@@ -21,7 +21,7 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 # was never scanned (check_env_access.ROOT_FILES). Not new readers.
 # 2026-10-16: 51 after the readers of registry keys moved to the registry, the
 # retired knobs became literals, and the crypto readers moved (separate change).
-_BUDGET = 51
+_BUDGET = 42
 # Sites marked `# env-owner: <why>`: reading env is
 # their job (root locators, the legacy-name shim, the doctor/import-env scanners).
 # 2026-10-16: 60 = 41 + 19 reviewed: payload/root locators (install_os, installer,
@@ -30,10 +30,10 @@ _BUDGET = 51
 # install_os naming a secret left in the environment.
 # 2026-10-16: 59: install_os takes its roots from m3_memory._roots (its own
 # M3_MEMORY_ROOT read, and the ~/.m3-memory default, are gone).
-_OWNER_BUDGET = 57
+_OWNER_BUDGET = 23
 # 2026-10-16: 595 (crypto tests moved to the config file; one setenv dropped, one
 # added: install_os must name, never store, a master key seen only in env).
-_TESTS_BUDGET = 594
+_TESTS_BUDGET = 424
 
 
 def _cea():

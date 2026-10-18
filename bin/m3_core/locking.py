@@ -77,10 +77,34 @@ def file_lock(lock_path: str, *, purpose: str):
                 os.close(fd)
             except Exception:  # noqa: BLE001 — releasing a lock fd during cleanup
                 pass
-            try:
-                Path(lock_path).unlink()
-            except Exception:  # noqa: BLE001 — removing a lock file during cleanup
-                pass
+            _release_lock_file(lock_path, purpose)
+
+
+def _release_lock_file(lock_path: str, purpose: str) -> None:
+    """Delete the lock file, retrying while a waiter has it open. On Windows a file
+    another process has open (a waiter reading the owner stamp) cannot be deleted:
+    the unlink raises PermissionError. Swallowed once, it left a lock whose owner
+    PID is alive, so it was never reclaimed and the owner's next acquire waited the
+    full 120 s on its own lock. A lock that cannot be removed is said, not hidden."""
+    deadline = time.time() + 5.0
+    while True:
+        try:
+            Path(lock_path).unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if time.time() >= deadline:
+                break
+            time.sleep(0.01)
+        except OSError:
+            break
+    logger.warning(
+        "observed: the %s lock file %s could not be removed after release; waiters will block until "
+        "its owner exits. inspect: the process holding it open; fix: delete the file",
+        purpose,
+        lock_path,
+    )
 
 
 # Hard ceiling: no legitimate startup migration runs longer than this. A lock

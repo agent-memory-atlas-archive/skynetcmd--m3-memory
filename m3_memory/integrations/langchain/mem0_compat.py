@@ -139,7 +139,7 @@ class Memory(M3ExtrasMixin):
             raise ValueError(
                 "user_id is required (m3 enforces per-user tenancy — there is no "
                 "anonymous/global mode). Pass user_id= to the constructor or the "
-                "method call, or set M3_DEFAULT_USER_ID for a single-user app."
+                "method call, or `m3 config set identity.default_user_id <id>` for a single-user app."
             )
         return uid
 

@@ -257,31 +257,35 @@ def _rewrite_chatlog_db_path(config_path, engine_root, db_name=None) -> bool:
 
 
 def _print_post_migration_checklist(config_root, engine_root):
-    """Print the explicit manual steps the migration cannot do for the user.
+    """Print the manual steps the migration cannot do for the user.
 
-    Omitting these causes silent split-brain: the MCP server reads the new root
-    (from its own env block) while the Stop/PreCompact hook keeps writing chatlog
-    turns to the old root (the hook inherits Claude Code's process env, not the
-    mcpServers[*].env block). Both must be pinned.
+    m3 reads every root from m3_config.toml [paths] and one environment variable,
+    M3_CONFIG_ROOT, which locates that file. At the default config root
+    (~/.m3/config) nothing needs pinning. At any other, two surfaces must BOTH
+    carry M3_CONFIG_ROOT or the system splits: the MCP server reads its own
+    registration's env block, while the Stop/PreCompact hook inherits the agent's
+    process env (not the server's env block).
     """
+    from m3_core.seams import roots
+
     sep = "=" * 72
-    logger.info(f"\n{sep}\nPOST-MIGRATION CHECKLIST (do these or you get split-brain):\n{sep}")
+    logger.info(f"\n{sep}\nPOST-MIGRATION CHECKLIST\n{sep}")
     logger.info(
-        "1. Add these to the `env` block of EVERY m3 MCP server in your client\n"
-        "   settings.json (e.g. ~/.claude/settings.json). New installs register\n"
-        "   only `memory`; older installs may also have custom_pc_tool, grok_intel,\n"
-        "   web_research or debug_agent — pin every one you actually have:\n"
-        f'       "M3_ENGINE_ROOT": "{engine_root}",\n'
-        f'       "M3_CONFIG_ROOT": "{config_root}"\n'
-        "   MCP servers do NOT source ~/.zshenv — without this the server derives\n"
-        "   the OLD root and the chatlog falls back to the legacy path."
+        f"1. Roots come from m3_config.toml [paths] in {config_root}: check that\n"
+        f'   engine_root = "{engine_root}" (`m3 config set paths.engine_root <dir>`).'
     )
-    logger.info(
-        "2. Inline-pin BOTH chatlog hook `command`s in settings.json (Stop and\n"
-        "   PreCompact) — the hook inherits Claude Code's process env, NOT the\n"
-        "   server env block, so it needs its own pin:\n"
-        f"       M3_ENGINE_ROOT={engine_root} M3_CONFIG_ROOT={config_root} <existing command>"
-    )
+    if roots.same_dir(str(config_root), roots.default_config_root()):
+        logger.info("2. The config root is the default (~/.m3/config): no environment pin is needed.")
+    else:
+        logger.info(
+            "2. The config root is not the default, so pin it on BOTH surfaces:\n"
+            "   - the `env` block of every m3 MCP server registration (for Claude Code,\n"
+            "     `claude mcp add ... --env M3_CONFIG_ROOT=...`, which writes ~/.claude.json):\n"
+            f'       "M3_CONFIG_ROOT": "{config_root}"\n'
+            "   - both chatlog hook `command`s (Stop and PreCompact), inline:\n"
+            f"       M3_CONFIG_ROOT={config_root} <existing command>\n"
+            "   MCP servers do NOT source ~/.zshenv; `m3 doctor` names any surface missing it."
+        )
     logger.info(
         "3. Restart your client (e.g. Claude Code) so the MCP servers re-resolve\n"
         "   their env, then run `m3 doctor` / `/m3:health` to confirm the new root."

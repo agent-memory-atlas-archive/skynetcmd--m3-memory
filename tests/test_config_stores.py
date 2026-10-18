@@ -20,14 +20,18 @@ from conftest import use_backend
 
 @pytest.fixture
 def stores_file(monkeypatch, tmp_path):
-    """Write [stores] into the sandbox's m3_config.toml and reload settings."""
+    """Write [stores] into the sandbox's m3_config.toml and reload settings. The
+    sandbox's own content ([paths], which keeps every root under tmp_path) is
+    kept: replacing it would send the roots to the developer's ~/.m3."""
     from m3_core.config import settings as st
 
     cfg_root = Path(os.environ["M3_CONFIG_ROOT"])
     cfg_root.mkdir(parents=True, exist_ok=True)
+    cfg = cfg_root / "m3_config.toml"
+    base = cfg.read_text(encoding="utf-8") if cfg.exists() else ""
 
     def write(text: str) -> None:
-        (cfg_root / "m3_config.toml").write_text(text, encoding="utf-8")
+        cfg.write_text(base.rstrip("\n") + "\n" + text, encoding="utf-8")
         st._reset_for_tests()
 
     yield write
@@ -258,8 +262,9 @@ def test_a_store_naming_the_default_database_is_never_prepared(monkeypatch, stor
     mb = importlib.import_module("memory.backends.selector")
     from m3_core.secret_store import set_secret
 
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")  # stores_file rewrites the config file; env until step (iv)
-    stores_file('[stores.alias]\nbackend = "postgres"\ndsn_secret = "M3_STORE_ALIAS_PG_URL"\n')
+    stores_file(
+        '[db]\nbackend = "postgres"\n[stores.alias]\nbackend = "postgres"\ndsn_secret = "M3_STORE_ALIAS_PG_URL"\n'
+    )
     set_secret("M3_PRIMARY_PG_URL", dsn)
     set_secret("M3_STORE_ALIAS_PG_URL", "host=db.example dbname=m3 user=other")
     prepared = _record_prepare(monkeypatch)
@@ -376,13 +381,15 @@ def test_a_sqlite_store_derives_its_own_files_database(tmp_path):
 
 
 def test_files_writes_inside_a_sqlite_store_land_in_its_files_database(stores_file, tmp_path, monkeypatch):
-    """The store outranks M3_FILES_DB_PATH, as it outranks M3_DATABASE for core (D3)."""
+    """Inside a store, files writes go to the store's files database, never the
+    default one under the engine root (D3)."""
     import importlib
 
     from m3_core.config.stores import active_store
 
-    legacy = tmp_path / "legacy.files.db"
-    monkeypatch.setenv("M3_FILES_DB_PATH", str(legacy))
+    from m3_memory import _roots
+
+    default = Path(_roots.engine_root()) / "files_database.db"
     _scratch(stores_file, tmp_path, monkeypatch)
     fdb = importlib.import_module("files_memory.db")
     marker = f"files-probe-{uuid.uuid4().hex}"
@@ -392,7 +399,7 @@ def test_files_writes_inside_a_sqlite_store_land_in_its_files_database(stores_fi
             conn.execute("INSERT INTO _files_probe (v) VALUES (?)", (marker,))
     with sqlite3.connect(tmp_path / "s.files.db") as raw:
         assert raw.execute("SELECT v FROM _files_probe").fetchall() == [(marker,)]
-    assert not legacy.exists(), "the legacy files path was opened inside the store"
+    assert not default.exists(), "the default files store was opened inside the store"
 
 
 def test_a_files_tool_follows_store(stores_file, tmp_path, monkeypatch):
@@ -400,12 +407,13 @@ def test_a_files_tool_follows_store(stores_file, tmp_path, monkeypatch):
 
     import mcp_tool_catalog as cat
 
-    legacy = tmp_path / "legacy.files.db"
-    monkeypatch.setenv("M3_FILES_DB_PATH", str(legacy))
+    from m3_memory import _roots
+
+    default = Path(_roots.engine_root()) / "files_database.db"
     _scratch(stores_file, tmp_path, monkeypatch)
     out = asyncio.run(cat.execute_tool_structured(cat._BY_NAME["files_stats"], {"store": "scratch"}, agent_id=""))
     assert isinstance(out, dict)
-    assert (tmp_path / "s.files.db").exists() and not legacy.exists()
+    assert (tmp_path / "s.files.db").exists() and not default.exists()
 
 
 def test_postgres_files_init_is_per_store(monkeypatch):

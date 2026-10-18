@@ -22,12 +22,6 @@ from m3_core.secret_store import set_secret  # noqa: E402
 from conftest import simulate_os
 
 
-@pytest.fixture(autouse=True)
-def _clear_pg_env(monkeypatch):
-    monkeypatch.delenv("M3_PG_FORBIDDEN_HOSTS", raising=False)
-    yield
-
-
 class TestPrimaryResolver:
     def test_reads_the_stored_primary_dsn(self):
         set_secret("M3_PRIMARY_PG_URL", "postgresql://p/primary")
@@ -183,35 +177,35 @@ class TestInstallerMultiLocationScan:
 class TestPrimaryBackendGuards:
     """Forbidden-host + same-as-warehouse guards in postgres_backend._resolve_dsn."""
 
-    def test_forbidden_host_rejected(self, monkeypatch):
-        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.51")
+    def test_forbidden_host_rejected(self, m3_settings):
         set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.51:5432/db")
+        m3_settings({"db.postgres.forbidden_hosts": ["198.51.100.51"]})
         from memory.backends import postgres_backend as pb
 
         with pytest.raises(RuntimeError) as ei:
             pb._resolve_dsn()
         assert "forbidden host" in str(ei.value).lower()
 
-    def test_forbidden_host_allows_other_hosts(self, monkeypatch):
-        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.51")
+    def test_forbidden_host_allows_other_hosts(self, m3_settings):
         set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5433/dev")
+        m3_settings({"db.postgres.forbidden_hosts": ["198.51.100.51"]})
         from memory.backends import postgres_backend as pb
 
         assert pb._resolve_dsn() == "postgresql://u:p@127.0.0.1:5433/dev"
 
-    def test_forbidden_host_no_false_positive_on_prefix(self, monkeypatch):
+    def test_forbidden_host_no_false_positive_on_prefix(self, m3_settings):
         # A forbidden 198.51.100.5 must NOT reject the distinct host 198.51.100.51
         # (parsed-host exact match, not substring).
-        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.5")
         set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.51:5432/db")
+        m3_settings({"db.postgres.forbidden_hosts": ["198.51.100.5"]})
         from memory.backends import postgres_backend as pb
 
         assert pb._resolve_dsn() == "postgresql://u:p@198.51.100.51:5432/db"
 
-    def test_forbidden_host_not_matched_inside_password(self, monkeypatch):
+    def test_forbidden_host_not_matched_inside_password(self, m3_settings):
         # The forbidden host string appearing only in the password must not trigger.
-        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.51")
         set_secret("M3_PRIMARY_PG_URL", "postgresql://u:198.51.100.51pw@safehost:5432/db")
+        m3_settings({"db.postgres.forbidden_hosts": ["198.51.100.51"]})
         from memory.backends import postgres_backend as pb
 
         assert pb._resolve_dsn() == "postgresql://u:198.51.100.51pw@safehost:5432/db"
@@ -275,7 +269,7 @@ class TestPrimaryBackendGuards:
         assert "never used for the primary store" in msg  # the anti-footgun note
 
 
-# ── Windows registry env migration (doctor --fix auto-writes User scope) ──────
+# ── Windows registry scan for old env names (reported; m3 reads none of them) ──
 def _make_fake_winreg(store):
     """Build a fake `winreg` module backed by `store` = {(hive, subkey): {name: (val, type)}}.
     Simulates OpenKey/QueryValueEx/SetValueEx/DeleteValue with mutation."""
@@ -322,7 +316,7 @@ def _make_fake_winreg(store):
     return fake
 
 
-class TestRegistryEnvMigration:
+class TestRegistryEnvScan:
     def _wire(self, monkeypatch, store):
         from m3_memory import installer as I
 
@@ -347,56 +341,8 @@ class TestRegistryEnvMigration:
         olds = {h["old"] for h in hits}
         assert olds == {"PG_URL", "SYNC_TARGET_IP"}  # not the already-migrated one
 
-    def test_apply_renames_user_scope_and_carries_value(self, monkeypatch):
-        store = {("HKCU", r"Environment"): {"PG_URL": ("postgresql://secret@h/db", 1)}}
-        I = self._wire(monkeypatch, store)
-        actions = I._migrate_registry_env_names(apply=True)
-        env = store[("HKCU", r"Environment")]
-        assert "PG_URL" not in env
-        assert env["M3_CDW_PG_URL"] == ("postgresql://secret@h/db", 1)  # value carried
-        assert any("renamed PG_URL -> M3_CDW_PG_URL" in a for a in actions)
-
-    def test_actions_never_print_the_secret_value(self, monkeypatch):
-        # Obvious dummy credential (RFC 5737 doc host) — the test asserts these
-        # tokens do NOT appear in the action log (redaction), so they must be
-        # unmistakably fake and never a real secret.
-        secret_pw = "DUMMYPWDONOTLOG"
-        secret_host = "198.51.100.200"
-        store = {("HKCU", r"Environment"): {"PG_URL": (f"postgresql://user:{secret_pw}@{secret_host}/db", 1)}}
-        I = self._wire(monkeypatch, store)
-        blob = "\n".join(I._migrate_registry_env_names(apply=False))
-        assert secret_pw not in blob and secret_host not in blob
-
-    def test_conflict_drops_old_keeps_new(self, monkeypatch):
-        store = {
-            ("HKCU", r"Environment"): {
-                "PG_URL": ("postgresql://old", 1),
-                "M3_CDW_PG_URL": ("postgresql://new", 1),
-            }
-        }
-        I = self._wire(monkeypatch, store)
-        actions = I._migrate_registry_env_names(apply=True)
-        env = store[("HKCU", r"Environment")]
-        assert "PG_URL" not in env
-        assert env["M3_CDW_PG_URL"] == ("postgresql://new", 1)  # new untouched
-        assert any("dropped superseded PG_URL" in a for a in actions)
-
-    def test_hklm_machine_scope_reported_not_written(self, monkeypatch):
-        store = {
-            ("HKCU", r"Environment"): {},
-            ("HKLM", r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"): {
-                "PG_URL": ("postgresql://machine", 1)
-            },
-        }
-        I = self._wire(monkeypatch, store)
-        actions = I._migrate_registry_env_names(apply=True)
-        hklm = store[("HKLM", r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")]
-        assert "PG_URL" in hklm  # NOT written — machine scope needs admin
-        assert any("admin" in a.lower() and "PG_URL" in a for a in actions)
-
     def test_noop_on_non_windows(self, monkeypatch):
         from m3_memory import installer as I
 
         simulate_os(monkeypatch, "Linux")
-        assert I._migrate_registry_env_names(apply=True) == []
         assert I._scan_registry_env_deprecations({"PG_URL": "M3_CDW_PG_URL"}) == []

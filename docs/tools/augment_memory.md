@@ -1,8 +1,8 @@
 ---
 tool: bin/augment_memory.py
-sha1: cb9293f2d924
-mtime_utc: 2026-10-12T22:51:17.765560+00:00
-generated_utc: 2026-10-12T23:24:27.086439+00:00
+sha1: ed9a6fa03fce
+mtime_utc: 2026-10-18T01:45:14.626781+00:00
+generated_utc: 2026-10-18T01:45:45.534368+00:00
 private: false
 ---
 
@@ -26,7 +26,7 @@ ingested DB without re-running the full ingest pipeline:
       Use the SLM (``slm_intent.extract_entities``) to prefix user-turn
       titles with 1-3 pithy entities. "Sparky, Golden Retriever | ..."
       makes BM25 hit on the proper noun even when the body text uses a
-      pronoun. Requires ``M3_SLM_CLASSIFIER=1`` and the entity_extract
+      pronoun. Requires ``slm.classifier = true`` and the entity_extract
       profile — off otherwise.
 
 Both operations are idempotent-ish: link-adjacent uses memory_link_impl

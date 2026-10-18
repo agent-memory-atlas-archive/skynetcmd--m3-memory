@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_config_docs.py
-sha1: 779c82165514
-mtime_utc: 2026-10-17T23:06:50.962109+00:00
-generated_utc: 2026-10-17T23:06:51.672286+00:00
+sha1: f1f18c61180c
+mtime_utc: 2026-10-18T01:06:23.349614+00:00
+generated_utc: 2026-10-18T01:06:24.179825+00:00
 private: false
 ---
 
@@ -20,8 +20,8 @@ Writes, all from ``m3_core.config.REGISTRY`` (never hand-edited):
     root that has no m3_config.toml (``m3_core.config.default_file`` renders it),
     and its SHA-256 in bin/m3_core/config/_default_config_sha256.py, which m3
     checks before copying;
-  * docs/ENVIRONMENT_VARIABLES.md: the environment names m3 still reads by
-    design, every legacy name of a setting with the key it moved to, and the
+  * docs/ENVIRONMENT_VARIABLES.md: the environment names m3 reads by
+    design, every former name of a setting with the key it moved to, and the
     retired names.
 tests/test_generated_docs_fresh.py fails when the registry moves without them.
 
@@ -29,7 +29,7 @@ tests/test_generated_docs_fresh.py fails when the registry moves without them.
 
 ## Entry points
 
-- `def main()` (line 320)
+- `def main()` (line 317)
 - `if __name__ == "__main__"` guard
 
 ---

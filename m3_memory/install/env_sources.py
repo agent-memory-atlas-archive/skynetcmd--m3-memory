@@ -33,7 +33,7 @@ class EnvFound:
     name: str
     value: str
     where: str  # a human-readable location; for a file, its path
-    kind: str  # "process" | "mcp" | "dotenv" | "rc" | "registry" | "llmfile"
+    kind: str  # "process" | "mcp" | "dotenv" | "rc" | "registry" | "llmfile" | "service"
     server: str | None = None  # kind "mcp": the server entry's name
     m3_server: bool = False  # kind "mcp": the entry runs m3 (not another tool)
     computed: bool = False  # kind "rc": the shell works the value out at startup; ``value`` is the text
@@ -249,6 +249,8 @@ def scan(
             if setting is not None:
                 out.append(EnvFound(n, setting[0], str(f), "rc", computed=setting[1]))
 
+    out += service_definition_hits(wanted, skipped)
+
     from m3_memory import installer as _I
 
     for hit in _I._scan_registry_env_deprecations(dict.fromkeys(wanted, ""), skipped):
@@ -264,6 +266,55 @@ def scan(
         out += [EnvFound(n, llm_values[n], str(llm_path), "llmfile") for n in wanted if n in llm_values]
     except Exception as e:  # noqa: BLE001 -- informational sweep, never fatal
         skipped.append(f".llm_config.json ({type(e).__name__}: {e})")
+    return out
+
+
+_SYSTEMD_ENV = re.compile(r'"([^"=\s]+)=([^"]*)"|([^"=\s]+)=(\S*)')
+
+
+def _systemd_environment(text: str) -> dict[str, str]:
+    """NAME -> value from a unit's ``Environment=`` lines (quoted or bare
+    assignments, several per line); a later line wins, as systemd does."""
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("Environment="):
+            continue
+        for m in _SYSTEMD_ENV.finditer(line.removeprefix("Environment=")):
+            name, value = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+            out[name] = value
+    return out
+
+
+def service_definition_hits(wanted: list[str], skipped: list[str]) -> list[EnvFound]:
+    """``wanted`` names set in m3's own service definitions: systemd user units
+    (``Environment=``) and launchd agents (``EnvironmentVariables``). A service
+    configured only there (an embed server given M3_EMBED_GGUF by its unit) is
+    invisible to every other sweep, and lost its setting when m3 stopped reading
+    the name. Read by file, so every OS's definitions are found wherever they sit
+    (and a test on any OS can plant them); only files naming m3 are read."""
+    out: list[EnvFound] = []
+    home = _home()
+    units = home / ".config" / "systemd" / "user"
+    for f in sorted(units.glob("*m3*.service")) if os.path.isdir(units) else []:
+        try:
+            env = _systemd_environment(f.read_text(encoding="utf-8", errors="ignore"))
+        except OSError as e:
+            skipped.append(f"{f} ({type(e).__name__}: {e})")
+            continue
+        out += [EnvFound(n, env[n], str(f), "service") for n in wanted if n in env]
+    agents = home / "Library" / "LaunchAgents"
+    for f in sorted(agents.glob("*m3*.plist")) if os.path.isdir(agents) else []:
+        try:
+            import plistlib
+
+            with open(f, "rb") as fh:
+                env = (plistlib.load(fh) or {}).get("EnvironmentVariables") or {}
+        except (OSError, ValueError) as e:  # plistlib raises InvalidFileException (a ValueError)
+            skipped.append(f"{f} ({type(e).__name__}: {e})")
+            continue
+        if isinstance(env, dict):
+            out += [EnvFound(n, str(env[n]), str(f), "service") for n in wanted if n in env]
     return out
 
 

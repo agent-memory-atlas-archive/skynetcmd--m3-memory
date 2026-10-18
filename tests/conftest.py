@@ -15,6 +15,10 @@ import os as _os
 # BEFORE any test imports cli, so it lives at conftest import time.
 _os.environ.setdefault("_M3_UTF8_REEXEC", "1")
 
+# The developer's real home, captured before any test patches HOME/USERPROFILE
+# or Path.home(): the session-end leak guard reads the real agent configs here.
+_REAL_HOME = _os.path.expanduser("~")
+
 # The suite runs the native m3_core_rs extension when it is installed: that is
 # the shipping configuration, and a suite that disables it tests only the
 # fallback. What must NOT happen in unit tests is the in-process tier-1
@@ -541,10 +545,115 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
             )
 
 
+def _real_agent_configs() -> list[Path]:
+    """The developer's real agent config files that m3 setup writes MCP entries
+    into, under the home captured at conftest import (a test may patch
+    Path.home() or HOME)."""
+    home = Path(_REAL_HOME)
+    return [
+        home / ".claude.json",
+        home / ".claude" / "settings.json",
+        home / ".gemini" / "settings.json",
+        home / ".gemini" / "antigravity-cli" / "settings.json",
+        home / ".cursor" / "mcp.json",
+        home / ".config" / "opencode" / "opencode.json",
+        home / ".codeium" / "windsurf" / "mcp_config.json",
+        home / ".profile",
+    ]
+
+
+def _leaked_into_real_configs(basetemp: Path) -> list[str]:
+    """Real agent configs that name this session's pytest temp area: a test
+    wrote the developer's config. Matching the basetemp (not mtimes) cannot fire
+    when an agent edits its own config during the run."""
+    needles = {str(basetemp), str(basetemp).replace("\\", "/")}
+    hits = []
+    for f in _real_agent_configs():
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if any(n in text for n in needles):
+            hits.append(str(f))
+    return hits
+
+
 def pytest_sessionfinish(session, exitstatus):
-    """M3_STRICT_SKIPS=1 fails a run that has an unclassified skip."""
+    """M3_STRICT_SKIPS=1 fails a run that has an unclassified skip. Any run fails
+    when a real agent config now names this session's temp area."""
     if _strict_skips() and exitstatus == 0 and any(_skip_dimension(r) is None for _n, r in _SKIPS):
         session.exitstatus = 1
+    factory = getattr(session.config, "_tmp_path_factory", None)
+    if factory is None or getattr(session.config, "workerinput", None) is not None:
+        return  # xdist workers share the controller's basetemp; the controller checks
+    try:
+        basetemp = factory.getbasetemp()
+    except (OSError, ValueError):
+        return
+    leaked = _leaked_into_real_configs(Path(basetemp))
+    if leaked:
+        tr = session.config.pluginmanager.get_plugin("terminalreporter")
+        msg = (
+            f"test sandbox leak: {', '.join(leaked)} now name {basetemp}: a test wrote the developer's "
+            "real agent config. inspect: the .bak / .backup_history beside each file; stub the writer "
+            "with the installer_home_writers_stubbed fixture"
+        )
+        if tr is not None:
+            tr.write_line(msg, red=True)
+        else:
+            print(msg, file=sys.stderr)
+        session.exitstatus = 1
+
+
+# Installer post-install steps that write outside the test sandbox (agent
+# configs under Path.home(), ~/.profile) or run real OS setup and migrations.
+# One list: a test reaching _post_install stubs all of them, or it writes the
+# developer's real Gemini/Cursor/Cline config (hit 2026-10-17).
+INSTALLER_HOME_WRITERS = (
+    "_run_os_install",
+    "_run_main_migrations",
+    "_register_gemini_mcp",
+    "_register_antigravity_mcp",
+    "_register_cursor_mcp",
+    "_register_cline_mcp",
+    "_sqlite3_cli_hint",
+    "_fix_npm_global_path",
+    "_print_backup_reminder",
+)
+
+
+@pytest.fixture
+def m3_paths(tmp_path):
+    """Set ``[paths]`` keys in the sandbox's m3_config.toml, where m3 reads them
+    (``m3_paths(bin=some_dir)``), instead of the M3_PATH_* names m3 no longer reads.
+    ``[paths]`` is the file's last table, so new lines land in it; a key the sandbox
+    already set is replaced (a duplicate key is invalid TOML, and every root would
+    fall back to the real home)."""
+
+    def use(**values):
+        cfg = tmp_path / "config" / "m3_config.toml"
+        lines = cfg.read_text(encoding="utf-8").splitlines()
+        for key, value in values.items():
+            line = f'{key} = "{Path(value).as_posix()}"'
+            at = [i for i, ln in enumerate(lines) if ln.split("=", 1)[0].strip() == key]
+            if at:
+                lines[at[0]] = line
+            else:
+                lines.append(line)
+        cfg.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+    return use
+
+
+@pytest.fixture
+def installer_home_writers_stubbed(monkeypatch):
+    """Stub INSTALLER_HOME_WRITERS on the live m3_memory.installer; returns it."""
+    import importlib
+
+    inst = importlib.import_module("m3_memory.installer")
+    for name in INSTALLER_HOME_WRITERS:
+        monkeypatch.setattr(inst, name, lambda *a, **k: None)
+    return inst
 
 
 @pytest.fixture
@@ -2075,6 +2184,26 @@ _SANDBOX_CLEAR_ENV = (
 )
 
 
+def _assert_roots_sandboxed(tmp_path) -> None:
+    """Fail when a root m3 writes through resolves outside pytest's temp area."""
+    from m3_sdk import resolve_db_path
+
+    from m3_memory import _roots
+
+    base = Path(tmp_path).resolve().parents[1]  # pytest's basetemp
+    roots = {
+        "memory root": _roots.memory_root(),
+        "engine root": _roots.engine_root(),
+        "logs root": _roots.logs_root(),
+        "main store": resolve_db_path(None),
+    }
+    outside = {k: v for k, v in roots.items() if base not in Path(v).resolve().parents and Path(v).resolve() != base}
+    if outside:
+        raise AssertionError(
+            f"test sandbox leak: {outside} resolve outside {base}; the developer's real state is exposed"
+        )
+
+
 @pytest.fixture(autouse=True)
 def m3_sandbox(monkeypatch, tmp_path):
     """The single source of truth for a hermetic test environment.
@@ -2125,6 +2254,20 @@ def m3_sandbox(monkeypatch, tmp_path):
         ("M3_MEMORY_ROOT", tmp_path),
     ):
         monkeypatch.setenv(var, str(path))
+    # m3 reads roots from m3_config.toml only (M3_CONFIG_ROOT locates it; the
+    # M3_*_ROOT names above are legacy and not read). So the sandbox's own config
+    # file names every root under tmp_path: the isolation that counts. The env
+    # pins stay only so a subprocess of an older payload is isolated too.
+    _sandbox_cfg = tmp_path / "config"
+    _sandbox_cfg.mkdir(parents=True, exist_ok=True)
+    (_sandbox_cfg / "m3_config.toml").write_text(
+        "schema_version = 1\n[paths]\n"
+        f'memory_root = "{tmp_path.as_posix()}"\n'
+        f'engine_root = "{(tmp_path / "engine").as_posix()}"\n'
+        f'logs_root = "{(tmp_path / "logs").as_posix()}"\n',
+        encoding="utf-8",
+        newline="\n",
+    )
     # The config snapshot is cached per PROCESS (m3_core.config.settings), so
     # the roots above would not move a snapshot an earlier test built: it would
     # keep that test's config root, and the secrets file derived from it.
@@ -2206,7 +2349,81 @@ def m3_sandbox(monkeypatch, tmp_path):
     # test sets its tier with m3_settings, never through the developer's shell.
     for _var in (*_SANDBOX_CLEAR_ENV, *_registry_secret_names(), *_crypto_policy_env_names()):
         monkeypatch.delenv(_var, raising=False)
+    # 3. Prove it: every root a test can write through resolves inside pytest's
+    # temp area. A sandbox that only LOOKS isolated sent one probe's writes into
+    # the developer's real store (2026-10-17); this fails before the test runs.
+    _assert_roots_sandboxed(tmp_path)
     yield
+    _assert_sandbox_config_kept(_sandbox_cfg / "m3_config.toml")
+
+
+def _assert_sandbox_config_kept(cfg: Path) -> None:
+    """Fail the test that left the sandbox's m3_config.toml without a sandboxed
+    ``[paths] memory_root``: a fixture that rewrote the whole file sent every root
+    lookup after it to the developer's real ~/.m3. The engine and logs roots
+    derive from memory_root, so a test may drop those on purpose. Write the file
+    with write_sandbox_config / m3_paths / m3_settings, which keep the roots."""
+    import tomllib
+
+    try:
+        with open(cfg, "rb") as fh:
+            paths = tomllib.load(fh).get("paths") or {}
+    except FileNotFoundError:
+        # Removed on purpose by tests of the "no m3_config.toml yet" path (setup's
+        # import, create-from-base). Not checked: failing them would be a false alarm.
+        return
+    except (OSError, ValueError):
+        # Invalid on purpose (tests of the loader's refusal): m3 refuses to load
+        # it, loudly, rather than falling back to the real home.
+        return
+    base = cfg.resolve().parents[2]  # pytest's basetemp
+    home = Path(_os.path.expanduser("~")).resolve()
+    if base in home.parents:
+        return  # the test moved the home too: every default is inside pytest's area
+    mem = paths.get("memory_root")
+    if "memory_root" in paths and not (isinstance(mem, str) and mem.strip()):
+        return  # malformed on purpose: the roots owner refuses it, loudly
+    if isinstance(mem, str) and mem and (Path(mem).resolve() == base or base in Path(mem).resolve().parents):
+        return
+    raise AssertionError(
+        f"test sandbox leak: {cfg} has no [paths] memory_root inside pytest's temp area, so the roots "
+        "resolve to the real home. inspect: a fixture that rewrote the sandbox config; write it with "
+        "write_sandbox_config(body), m3_paths or m3_settings"
+    )
+
+
+def write_sandbox_config(body: str) -> Path:
+    """Write the sandbox's m3_config.toml with ``body`` (TOML, with or without
+    ``schema_version``), keeping it sandboxed: without a ``[paths]`` table the
+    sandbox's three roots are added; with one, a missing ``memory_root`` is added
+    under it (engine and logs derive from it, so a test may leave those out on
+    purpose). Resets the settings snapshot. Returns the file's path."""
+    from m3_core.config import settings as st
+
+    from m3_memory import _roots
+
+    root = Path(_roots.config_root())
+    root.mkdir(parents=True, exist_ok=True)
+    base = root.parent  # the sandbox puts the config root at <tmp_path>/config
+    lines = body.splitlines()
+    if not any(ln.strip().startswith("schema_version") for ln in lines):
+        lines.insert(0, "schema_version = 1")
+    at = next((i for i, ln in enumerate(lines) if ln.strip() == "[paths]"), None)
+    if at is None:
+        lines += [
+            "[paths]",
+            f'memory_root = "{base.as_posix()}"',
+            f'engine_root = "{(base / "engine").as_posix()}"',
+            f'logs_root = "{(base / "logs").as_posix()}"',
+        ]
+    else:
+        end = next((i for i in range(at + 1, len(lines)) if lines[i].strip().startswith("[")), len(lines))
+        if not any(ln.split("=", 1)[0].strip() == "memory_root" for ln in lines[at + 1 : end]):
+            lines.insert(at + 1, f'memory_root = "{base.as_posix()}"')
+    f = root / "m3_config.toml"
+    f.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    st._reset_for_tests()
+    return f
 
 
 @pytest.fixture(autouse=True)

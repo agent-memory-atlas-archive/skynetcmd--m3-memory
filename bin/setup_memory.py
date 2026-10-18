@@ -74,8 +74,9 @@ def _default_db() -> str:
     return os.path.join(_roots.engine_root(), "agent_memory.db")
 
 
-# env-owner: bootstrap exception: creates the first SQLite store before m3 (and its registry) imports
-DB = pathlib.Path(_override or os.environ.get("M3_DATABASE") or _default_db())
+# Bootstrap: creates the first SQLite store before m3 (and its registry) imports.
+# The legacy M3_DATABASE variable is not read; pass the path as an argument.
+DB = pathlib.Path(_override or _default_db())
 MIGS = BASE / "memory" / "migrations"
 
 

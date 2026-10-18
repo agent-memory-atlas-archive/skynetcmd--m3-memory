@@ -1,7 +1,8 @@
 """m3_core.config precedence and the snapshot.
 
-N..N+2: env (env_override keys only) > m3_config.toml > legacy env > default.
-The environment is passed in as a mapping; no test touches os.environ.
+m3_config.toml > default. A key's former env names, .env lines and the LLM
+file are never read: each set one is reported in ``shadowed``. The environment
+is passed in as a mapping; no test touches os.environ.
 """
 
 from __future__ import annotations
@@ -53,13 +54,14 @@ def test_the_file_beats_env_for_the_backend_too(tmp_path):
     assert "M3_DB_BACKEND" in s.shadowed_env()
 
 
-def test_the_legacy_alias_still_answers_below_the_file(tmp_path):
+def test_a_legacy_alias_is_not_read_even_with_no_file_value(tmp_path):
     s = _build(tmp_path, None, {"DB_BACKEND": "postgres"})
-    assert s[_key("db.backend")] == "postgres" and s.origin(_key("db.backend")) == "env-legacy:DB_BACKEND"
+    assert s[_key("db.backend")] == "sqlite" and s.origin(_key("db.backend")) == "default"
+    assert "DB_BACKEND" in s.shadowed_env()
 
 
-def test_a_non_override_key_from_env_ranks_below_the_file(tmp_path):
-    """`m3 config set` wins at once; the stale env name is reported, not dropped."""
+def test_an_env_name_is_reported_not_read_with_or_without_a_file_value(tmp_path):
+    """`m3 config set` wins at once; the stale env name is reported, never read."""
     from m3_core.config import Key, Registry, parse_bool
     from m3_core.config import keys as k
     from m3_core.config.settings import build
@@ -74,19 +76,14 @@ def test_a_non_override_key_from_env_ranks_below_the_file(tmp_path):
         registry=reg,
         environ={"M3_VERBOSE": "yes"},
     )
-    assert env_wins[knob] is True and env_wins.origin(knob) == "env-legacy:M3_VERBOSE"
-    assert env_wins.legacy_env_in_use() == ["M3_VERBOSE"]
+    assert env_wins[knob] is False and env_wins.origin(knob) == "default"
+    assert env_wins.shadowed_env() == ["M3_VERBOSE"]
 
 
-def test_every_bad_env_value_is_reported_at_once(tmp_path):
-    from m3_core.config import format_config_error
-    from m3_core.config.resolve import ConfigEnvErrors
-
-    with pytest.raises(ConfigEnvErrors) as exc:
-        _build(tmp_path, None, {"M3_DB_BACKEND": "postgre"})
-    text = format_config_error(exc.value)
-    assert "observed: environment M3_DB_BACKEND='postgre'" in text and "[db].backend" in text
-    assert "inspect: M3_DB_BACKEND (fix or unset it)" in text
+def test_a_bad_env_value_is_not_read_so_it_cannot_break_startup(tmp_path):
+    """An unread name is not parsed: a typo in a leftover variable must not stop m3."""
+    s = _build(tmp_path, None, {"M3_DB_BACKEND": "postgre"})
+    assert s[_key("db.backend")] == "sqlite" and "M3_DB_BACKEND" in s.shadowed_env()
 
 
 def test_secrets_are_not_resolved_into_the_snapshot(tmp_path):
@@ -184,24 +181,20 @@ def _with_dotenv(tmp_path, text, environ, dotenv):
     )
 
 
-def test_dotenv_is_the_lowest_source(tmp_path):
+def test_dotenv_is_never_read_only_reported(tmp_path):
     k = _key("search.row_cap")
+    dotenv = f"M3_SEARCH_ROW_CAP (in {tmp_path / '.env'})"
     only = _with_dotenv(tmp_path, None, {}, {"M3_SEARCH_ROW_CAP": "700"})
-    assert only[k] == 700 and only.origin(k).startswith("dotenv:")
-    env_wins = _with_dotenv(tmp_path, None, {"M3_SEARCH_ROW_CAP": "800"}, {"M3_SEARCH_ROW_CAP": "700"})
-    assert env_wins[k] == 800 and "M3_SEARCH_ROW_CAP (in" in env_wins.shadowed_env()[0]
+    assert only.origin(k) == "default" and only.shadowed_env() == [dotenv]
+    both = _with_dotenv(tmp_path, None, {"M3_SEARCH_ROW_CAP": "800"}, {"M3_SEARCH_ROW_CAP": "700"})
+    assert both.origin(k) == "default" and set(both.shadowed_env()) == {"M3_SEARCH_ROW_CAP", dotenv}
     file_wins = _with_dotenv(tmp_path, "[search]\nrow_cap = 900\n", {}, {"M3_SEARCH_ROW_CAP": "700"})
-    assert file_wins[k] == 900 and file_wins.shadowed_env() == [f"M3_SEARCH_ROW_CAP (in {tmp_path / '.env'})"]
+    assert file_wins[k] == 900 and file_wins.shadowed_env() == [dotenv]
 
 
-def test_a_bad_dotenv_value_names_the_file(tmp_path):
-    from m3_core.config import format_config_error
-    from m3_core.config.resolve import ConfigEnvErrors
-
-    with pytest.raises(ConfigEnvErrors) as exc:
-        _with_dotenv(tmp_path, None, {}, {"M3_SEARCH_ROW_CAP": "lots"})
-    text = format_config_error(exc.value)
-    assert ".env" in text and "fix or remove the line" in text
+def test_a_bad_dotenv_value_is_not_read(tmp_path):
+    s = _with_dotenv(tmp_path, None, {}, {"M3_SEARCH_ROW_CAP": "lots"})
+    assert s.origin(_key("search.row_cap")) == "default"
 
 
 def test_dotenv_is_never_injected(monkeypatch, tmp_path):

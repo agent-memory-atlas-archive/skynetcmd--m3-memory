@@ -40,7 +40,6 @@ def _clear_embed_env(monkeypatch):
     own inputs on top of this clean baseline."""
     for var in ("M3_EMBED_MODEL", "M3_EMBED_URL", "M3_EMBED_GGUF"):
         monkeypatch.delenv(var, raising=False)
-    monkeypatch.setattr(P, "_windows_user_env_has", lambda var: False)
     monkeypatch.setattr(P, "_known_agent_settings", lambda: [])
 
 
@@ -192,94 +191,20 @@ def test_brief_healthy_and_unhealthy(monkeypatch, cfg_root, capsys):
 # These pin the three UX fixes: the probe must (1) localize a shell-rc leak to
 # file:line, (2) NOT re-emit "run --fix" for a manual-only leak (the dead-end
 # loop), and (3) print the exact removal command under --verbose, not only --fix.
-# All hermetic: rc scan is pointed at tmp_path, the Windows registry read is
-# stubbed, so no real HOME / registry is touched (CI-safe, §2 hermetic).
 
 
-@pytest.fixture
-def no_env_leak(monkeypatch, tmp_path):
-    """Baseline clean environment: no process var, no Windows User-env var, and
-    the shell-rc scan pointed at an empty tmp dir so a CI runner's real ~/.zshrc
-    can never leak into the assertion."""
-    monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
-    monkeypatch.setattr(P, "_windows_user_env_has", lambda var: False)
-    monkeypatch.setattr(P, "_shell_rc_candidates", lambda: [])
-    return tmp_path
-
-
-def test_shell_rc_leak_localizes_to_file_line(monkeypatch, tmp_path):
-    rc = tmp_path / ".zshrc"
-    rc.write_text('# a comment\nexport PATH="$PATH:/x"\nexport M3_EMBED_GGUF="/models/bge-m3.gguf"\n')
-    monkeypatch.setattr(P, "_shell_rc_candidates", lambda: [str(rc)])
-    hits = P._find_env_in_shell_rc("M3_EMBED_GGUF")
-    assert hits == [f"{rc}:3"]  # exact file:line, not just "shell rc"
-
-
-def test_commented_export_is_not_a_leak(monkeypatch, tmp_path):
-    rc = tmp_path / ".zshrc"
-    rc.write_text('# export M3_EMBED_GGUF="/old.gguf"\n')
-    monkeypatch.setattr(P, "_shell_rc_candidates", lambda: [str(rc)])
-    assert P._find_env_in_shell_rc("M3_EMBED_GGUF") == []
-
-
-def test_detect_leak_reports_rc_file_line(monkeypatch, no_env_leak):
-    rc = no_env_leak / ".zshrc"
-    rc.write_text('export M3_EMBED_GGUF="/models/bge-m3.gguf"\n')
-    monkeypatch.setenv("M3_EMBED_GGUF", "/models/bge-m3.gguf")  # process sees it too
-    monkeypatch.setattr(P, "_shell_rc_candidates", lambda: [str(rc)])
-    locs = P._detect_inproc_env_leak()
-    assert any(str(rc) in loc and ":1" in loc for loc in locs)
-
-
-def test_manual_only_brief_does_not_loop_to_fix(monkeypatch, cfg_root, capsys, no_env_leak):
-    # Shared config + live server + keep-alive: the ONLY problem is a process-env
-    # leak that --fix can't remove. Brief output must guide to the manual step,
-    # NOT re-print "run `m3 doctor --fix`" (the dead-end loop).
+def test_an_env_only_gguf_does_not_fail_the_probe(monkeypatch, cfg_root, capsys):
+    """M3_EMBED_GGUF is a former name: m3 does not read it, so it cannot force a
+    per-process embedder. With a shared config and a live server the probe passes
+    and asks nobody to remove it (the M3_* doctor section names it, to delete)."""
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="ok", rust=True)
     monkeypatch.setenv("M3_EMBED_GGUF", "/models/bge-m3.gguf")
-    rc = P.run(brief=True, fix=False)
-    out = capsys.readouterr().out
-    assert rc == 1
-    assert "remove it by hand" in out.lower()
-    assert "run `m3 doctor --fix`" not in out  # the loop is broken
-
-
-def test_manual_only_verbose_prints_removal_command(monkeypatch, cfg_root, capsys, no_env_leak):
-    # --verbose (fix=False) must print the actual removal command, not merely
-    # claim "the fix prints the exact command".
-    _write_shared_config(cfg_root)
-    _patch(monkeypatch, health="ok", rust=True)
-    simulate_os(monkeypatch, "Darwin")
-    rc_file = no_env_leak / ".zshrc"
-    rc_file.write_text('export M3_EMBED_GGUF="/models/bge-m3.gguf"\n')
-    monkeypatch.setenv("M3_EMBED_GGUF", "/models/bge-m3.gguf")
-    monkeypatch.setattr(P, "_shell_rc_candidates", lambda: [str(rc_file)])
-    rc = P.run(brief=False, fix=False)
-    out = capsys.readouterr().out
-    assert rc == 1
-    assert str(rc_file) in out  # the exact file is named
-    assert "new shell" in out.lower() and "restart the mcp client" in out.lower()
-
-
-def test_manual_only_verbose_prints_windows_command(monkeypatch, cfg_root, capsys, no_env_leak):
-    _write_shared_config(cfg_root)
-    _patch(monkeypatch, health="ok", rust=True)
-    simulate_os(monkeypatch, "Windows")
-    monkeypatch.setattr(P, "_windows_user_env_has", lambda var: True)
-    rc = P.run(brief=False, fix=False)
-    out = capsys.readouterr().out
-    assert rc == 1
-    assert "SetEnvironmentVariable('M3_EMBED_GGUF', $null, 'User')" in out
-
-
-def test_no_leak_verbose_stays_clean(monkeypatch, cfg_root, capsys, no_env_leak):
-    _write_shared_config(cfg_root)
-    _patch(monkeypatch, health="ok", rust=True)
-    rc = P.run(brief=False, fix=False)
-    out = capsys.readouterr().out
-    assert rc == 0
-    assert "no M3_EMBED_GGUF leak" in out
+    for brief in (True, False):
+        rc = P.run(brief=brief, fix=False)
+        out = capsys.readouterr().out
+        assert rc == 0, out
+        assert "M3_EMBED_GGUF" not in out
 
 
 # ── keep-alive must assert RUNNING, not merely installed ──────────────────────
@@ -288,7 +213,7 @@ def test_no_leak_verbose_stays_clean(monkeypatch, cfg_root, capsys, no_env_leak)
 # weeks while :8082 was dead and `--fix` skipped the repair entirely.
 
 
-def test_registered_but_stopped_service_is_not_a_keepalive(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_registered_but_stopped_service_is_not_a_keepalive(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="down", rust_state="stopped", task=None)
     rc = P.run(brief=False, fix=False)
@@ -300,7 +225,7 @@ def test_registered_but_stopped_service_is_not_a_keepalive(monkeypatch, cfg_root
     assert "keepalive: OK" not in out
 
 
-def test_binary_on_disk_but_unregistered_is_not_a_keepalive(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_binary_on_disk_but_unregistered_is_not_a_keepalive(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="down", rust_state="not-installed", task=None)
     rc = P.run(brief=False, fix=False)
@@ -310,7 +235,7 @@ def test_binary_on_disk_but_unregistered_is_not_a_keepalive(monkeypatch, cfg_roo
     assert "keepalive: OK" not in out
 
 
-def test_running_service_is_a_keepalive(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_running_service_is_a_keepalive(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="ok", rust_state="running", task=None)
     rc = P.run(brief=False, fix=False)
@@ -319,7 +244,7 @@ def test_running_service_is_a_keepalive(monkeypatch, cfg_root, capsys, no_env_le
     assert "RUNNING" in out
 
 
-def test_stopped_service_does_not_fall_through_to_python_task(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_stopped_service_does_not_fall_through_to_python_task(monkeypatch, cfg_root, capsys):
     """A registered-but-stopped Rust service must report ITS OWN fault, not be
     masked by a present Python task — they are mutually exclusive on :8082, so
     reporting the task as the keep-alive would hide the actionable problem."""
@@ -349,7 +274,7 @@ def _no_keepalive_noise(monkeypatch):
     monkeypatch.setattr(P, "_server_is_someone_elses", lambda: False)
 
 
-def test_a_401_is_misconfigured_and_fix_starts_nothing(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_a_401_is_misconfigured_and_fix_starts_nothing(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="auth", rust=True)
     started = []
@@ -361,7 +286,7 @@ def test_a_401_is_misconfigured_and_fix_starts_nothing(monkeypatch, cfg_root, ca
     assert "m3 secret set M3_EMBED_SERVER_TOKEN" in out
 
 
-def test_a_remote_dead_server_is_not_started_here(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_a_remote_dead_server_is_not_started_here(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root, url="https://gpu-box.example:8082")
     _patch(monkeypatch, health="down", rust=True)
     started = []
@@ -371,7 +296,7 @@ def test_a_remote_dead_server_is_not_started_here(monkeypatch, cfg_root, capsys,
     assert started == [] and "on another machine" in out
 
 
-def test_a_refused_loopback_server_is_started(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_a_refused_loopback_server_is_started(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="down", rust=True)
     started = []
@@ -380,7 +305,7 @@ def test_a_refused_loopback_server_is_started(monkeypatch, cfg_root, capsys, no_
     assert started == [1]
 
 
-def test_bad_scheme_is_its_own_finding(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_bad_scheme_is_its_own_finding(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root, url="file:///etc/passwd")
     _patch(monkeypatch, health="ok", rust=True)
     monkeypatch.setattr(P, "_server_health", lambda url, timeout=3.0: P.tier2_client.health(url, timeout))
@@ -389,7 +314,7 @@ def test_bad_scheme_is_its_own_finding(monkeypatch, cfg_root, capsys, no_env_lea
     assert "not http(s)" in out and "not answering" not in out
 
 
-def test_unreadable_config_is_said_not_read_as_unshared(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_unreadable_config_is_said_not_read_as_unshared(monkeypatch, cfg_root, capsys):
     (cfg_root / ".embed_config.json").write_text("{ not json", encoding="utf-8")
     _patch(monkeypatch, health="ok", rust=True)
     assert P.run(brief=False, fix=False) == 1
@@ -410,7 +335,7 @@ def test_no_gguf_still_asks_the_service_manager(monkeypatch):
     assert P._rust_service_state() == "running" and asked
 
 
-def test_a_probe_crash_is_probe_error_not_absent(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_a_probe_crash_is_probe_error_not_absent(monkeypatch, cfg_root, capsys):
     from m3_memory import embedder_admin
 
     def boom():
@@ -422,7 +347,7 @@ def test_a_probe_crash_is_probe_error_not_absent(monkeypatch, cfg_root, capsys, 
     assert P._keepalive() == ("rust-service-probe-error", False)
 
 
-def test_plaintext_ok_does_not_print_model_none(monkeypatch, cfg_root, capsys, no_env_leak):
+def test_plaintext_ok_does_not_print_model_none(monkeypatch, cfg_root, capsys):
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="ok", rust=True)
     monkeypatch.setattr(P, "_server_health", lambda url, timeout=3.0: (_DIAGS["ok"], {"status": "ok"}))

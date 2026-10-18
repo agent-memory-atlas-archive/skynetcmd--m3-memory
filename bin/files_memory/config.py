@@ -11,8 +11,6 @@ consistent value and there's a single grep target for "where is files.db?".
 
 from __future__ import annotations
 
-import os
-
 from m3_core.config import settings as _m3cfg
 from m3_core.paths import canonical_path, expand_user
 
@@ -138,8 +136,10 @@ PROMOTION_DEFAULT_SCOPE: str = _m3cfg.setting("files.promotion_scope")
 #     (M3_MEMORY_ROOT/memory/agent_memory.db, env-M3_DATABASE-independent).
 # Set M3_MEMORY_DB only if your core store isn't at the default location.
 def _memory_db_env() -> str | None:
-    """The legacy ``M3_MEMORY_DB`` (config.stores.LEGACY_LOCATORS), read in one place."""
-    return os.environ.get("M3_MEMORY_DB") or None
+    """The legacy ``M3_MEMORY_DB`` is not read (its N+3 window has passed); setup
+    and doctor list it if it is still set. Kept as the one place a future core-store
+    override would be read from."""
+    return None
 
 
 def memory_db_path() -> str:

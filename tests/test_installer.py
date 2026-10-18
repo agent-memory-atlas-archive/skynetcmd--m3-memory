@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
-from conftest import simulate_os
+from conftest import INSTALLER_HOME_WRITERS, simulate_os
 
 # The real host platform, captured at import time BEFORE the autouse
 # _isolate_home fixture fakes sys.platform="linux". A few tests need the true
@@ -60,9 +60,9 @@ def test_find_bridge_returns_none_when_nothing_configured(tmp_path):
     assert result is None or result.is_file()
 
 
-def test_find_bridge_honors_env_var(tmp_path):
-    """$M3_PATH_BIN, a bin/ DIRECTORY containing memory_bridge.py, is honored
-    first; find_bridge returns <dir>/memory_bridge.py."""
+def test_find_bridge_honors_the_configured_bin(tmp_path, m3_paths):
+    """``[paths] bin`` in m3_config.toml, a bin/ DIRECTORY containing
+    memory_bridge.py, is honored first; find_bridge returns <dir>/memory_bridge.py."""
     from m3_memory import installer
 
     bin_d = tmp_path / "custom-bin"
@@ -70,8 +70,8 @@ def test_find_bridge_honors_env_var(tmp_path):
     fake_bridge = bin_d / "memory_bridge.py"
     fake_bridge.write_text("# fake")
 
-    with patch.dict(os.environ, {"M3_PATH_BIN": str(bin_d)}):
-        assert installer.find_bridge() == fake_bridge.resolve()
+    m3_paths(bin=bin_d)
+    assert installer.find_bridge() == fake_bridge.resolve()
 
 
 def test_find_bridge_env_var_nonexistent_falls_through(tmp_path):
@@ -367,7 +367,6 @@ def test_doctor_brief_exit_code_follows_a_broken_verdict(monkeypatch, tmp_path, 
     for name in (
         "_agent_config_section",
         "_duplicate_registration_section",
-        "_deprecated_env_config_section",
     ):
         monkeypatch.setattr(installer, name, lambda *a, **k: None)
     monkeypatch.setattr(installer, "_memory_root_migration_section", lambda fix: None)
@@ -476,19 +475,19 @@ def test_resolve_chatlog_db_uses_engine_root(tmp_path, monkeypatch):
     assert resolved == engine / "agent_chatlog.db", resolved
 
 
-def test_doctor_flags_divergent_bridge_vs_config(tmp_path, monkeypatch, capsys):
-    """When the LIVE bridge (M3_PATH_BIN / dev checkout) differs from the
+def test_doctor_flags_divergent_bridge_vs_config(tmp_path, monkeypatch, capsys, m3_paths):
+    """When the LIVE bridge (``[paths] bin`` / dev checkout) differs from the
     config's recorded install, doctor must NOT present the config version as
     'installed' — it labels it the last fetch and points at the live code."""
     from m3_memory import installer
 
-    # A live bridge via M3_PATH_BIN (the honoured override) that is NOT the
-    # config's bridge_path. Use the honoured variable: a removed one would only
+    # A live bridge via [paths] bin (the honoured override) that is NOT the
+    # config's bridge_path. Use the honoured setting: a removed variable would only
     # be echoed back by doctor, and str(live) would match without testing anything.
     live = tmp_path / "dev" / "bin" / "memory_bridge.py"
     live.parent.mkdir(parents=True)
     live.write_text("# live dev bridge")
-    monkeypatch.setenv("M3_PATH_BIN", str(live.parent))
+    m3_paths(bin=live.parent)
     monkeypatch.setattr(
         installer,
         "load_config",
@@ -1045,33 +1044,21 @@ class TestStorePgDsn:
 
 
 def test_a_pinned_llm_endpoint_is_recorded_in_the_file_not_env(monkeypatch, tmp_path):
-    """`m3 install --llm-endpoint` records the pin in .llm_config.json, which
+    """`m3 install --llm-endpoint` records the pin in m3_config.toml [llm], which
     every m3 process reads; it used to setdefault env, which reached only this
-    process's children."""
-    import json
-
-    from m3_core import llm_config
+    process's children, and then .llm_config.json, which m3 no longer reads."""
+    from m3_core.config import settings as st
 
     import m3_memory.installer as inst
 
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    for name in (
-        "_run_os_install",
-        "_run_main_migrations",
-        "_register_gemini_mcp",
-        "_register_antigravity_mcp",
-        "_register_cursor_mcp",
-        "_register_cline_mcp",
-        "_sqlite3_cli_hint",
-        "_fix_npm_global_path",
-        "_print_backup_reminder",
-    ):
+    for name in INSTALLER_HOME_WRITERS:
         monkeypatch.setattr(inst, name, lambda *a, **k: None)
     monkeypatch.setattr(inst, "load_config", lambda: {})
     monkeypatch.setattr(inst, "save_config", lambda cfg: None)
     inst._post_install(tmp_path / "bridge.py", False, "http://127.0.0.1:8080/v1", None)
-    recorded = json.loads((tmp_path / llm_config.LLM_CONFIG_NAME).read_text(encoding="utf-8"))
-    assert recorded == {"M3_LLM_ENDPOINTS_CSV": "http://127.0.0.1:8080/v1"}
+    assert st.setting("llm.endpoints") == ["http://127.0.0.1:8080/v1"]
+    assert "endpoints" in (tmp_path / "m3_config.toml").read_text(encoding="utf-8")
     assert "LLM_ENDPOINTS_CSV" not in os.environ
 
 
@@ -1085,17 +1072,7 @@ def test_the_pg_schema_child_finds_the_dsn_in_the_secrets_file_not_env(monkeypat
     import m3_memory.installer as inst
 
     dsn = "postgresql://u:pw@db.example:5432/m3"
-    for name in (
-        "_run_os_install",
-        "_run_main_migrations",
-        "_register_gemini_mcp",
-        "_register_antigravity_mcp",
-        "_register_cursor_mcp",
-        "_register_cline_mcp",
-        "_sqlite3_cli_hint",
-        "_fix_npm_global_path",
-        "_print_backup_reminder",
-    ):
+    for name in INSTALLER_HOME_WRITERS:
         monkeypatch.setattr(inst, name, lambda *a, **k: None)
     monkeypatch.setattr(inst, "load_config", lambda: {})
     monkeypatch.setattr(inst, "save_config", lambda cfg: None)

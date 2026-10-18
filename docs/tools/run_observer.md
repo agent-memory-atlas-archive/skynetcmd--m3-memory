@@ -1,8 +1,8 @@
 ---
 tool: bin/run_observer.py
-sha1: 50d70613218c
-mtime_utc: 2026-10-16T17:40:37.437261+00:00
-generated_utc: 2026-10-16T19:03:59.715895+00:00
+sha1: cd7192bb965f
+mtime_utc: 2026-10-18T00:43:17.401491+00:00
+generated_utc: 2026-10-18T00:50:17.635344+00:00
 private: false
 ---
 
@@ -88,6 +88,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
 - `m3_core.runtime (utc_iso)`
+- `m3_core.secret_store (missing_secret_message)`
 - `memory.backends (dialect)`
 
 ---

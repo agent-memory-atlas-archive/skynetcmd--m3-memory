@@ -33,7 +33,7 @@ DB_BACKEND = Key[str](
     env_names=("M3_DB_BACKEND", "DB_BACKEND"),
     reloadable=False,
     doc="Primary storage backend. Set it with `m3 config set db.backend postgres`; "
-    "M3_DB_BACKEND is read only as a legacy name (below this file) through N+3.",
+    "the former names M3_DB_BACKEND and DB_BACKEND are not read.",
 )
 
 _POSITIVE = in_range(lo=1)
@@ -144,8 +144,8 @@ PATHS: list[Key] = [
         env_names=("M3_MEMORY_ROOT",),
         scope=Scope.LOCATOR,
         reloadable=False,
-        doc="Legacy master root: config, engine, logs and models derive from it when their own "
-        "keys are unset. Removed after N+3.",
+        doc="Master root: the engine, logs and models roots derive from it when their own keys "
+        "are unset. The config root never does (M3_CONFIG_ROOT or ~/.m3/config locates it).",
     ),
     Key(
         name="paths.engine_root",
@@ -289,6 +289,7 @@ RETIRED: dict[str, str] = {
     "M3_CLOUD_MINIMIZATION_LEVEL": "no consumer (memory/config.py:422)",
     "M3_ENTITY_COALESCE_MAX_PAIRS": "every caller passes 1000 (files_memory/entity_coalesce.py:69)",
     "CHATLOG_MODE": "only its presence is checked, to warn (chatlog_config.py:257)",
+    "M3_ROUTE_SHADOW_MODE": "route shadow mode was retired in 2026.10.17.3: the native router is used when present",
 }
 
 NOT_SETTINGS: dict[str, str] = {
@@ -312,7 +313,6 @@ NOT_SETTINGS: dict[str, str] = {
     "M3_CORE_RS_DISABLE": "retired as a user setting; tests use a fixture",
     # The Rust/Python route-decider switch is dev and
     # bench plumbing, folded into the test-only Rust-availability seam.
-    "M3_ROUTE_SHADOW_MODE": "dev plumbing: the Rust/Python route decider",
     # Read only by a live judge test (test plumbing, not settings).
     "M3_WIKI_DRIFT_PRECISION_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:183)",
     "M3_WIKI_DRIFT_RECALL_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:182)",

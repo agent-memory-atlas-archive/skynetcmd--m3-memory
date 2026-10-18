@@ -94,33 +94,28 @@ def test_classify_unknown_db(tmp_path):
 
 
 def test_targets_refuses_main_when_path_is_chatlog(tmp_path, monkeypatch):
-    """Core F1 invariant: if M3_DATABASE points at a chatlog-shaped DB, the
+    """Core F1 invariant: if --database points at a chatlog-shaped DB, the
     main target is dropped — never apply main-stack DDL to a chatlog DB.
     """
+    from m3_core.paths import pin_database
+
     chatlog_path = tmp_path / "fake_chatlog.db"
     _make_chatlog_db(str(chatlog_path))
-    monkeypatch.setenv("M3_DATABASE", str(chatlog_path))
-
-    # Force re-resolution
-    import importlib
-
-    importlib.reload(migrate_memory)
+    pin_database(str(chatlog_path))  # what --database PATH does
 
     ts = migrate_memory.targets("main")
-    assert ts == [], "main target must be empty when M3_DATABASE points at a chatlog DB"
+    assert ts == [], "main target must be empty when --database points at a chatlog DB"
 
 
 def test_targets_recovery_routes_chatlog_migrations(tmp_path, monkeypatch):
-    """Recovery: --target chatlog still gets a target even when M3_DATABASE
+    """Recovery: --target chatlog still gets a target even when --database
     is misconfigured at the chatlog file."""
+    from m3_core.paths import pin_chatlog_db, pin_database
+
     chatlog_path = tmp_path / "fake_chatlog.db"
     _make_chatlog_db(str(chatlog_path))
-    monkeypatch.setenv("M3_DATABASE", str(chatlog_path))
-    monkeypatch.setenv("CHATLOG_DB_PATH", str(chatlog_path))
-
-    import importlib
-
-    importlib.reload(migrate_memory)
+    pin_database(str(chatlog_path))
+    pin_chatlog_db(str(chatlog_path))  # what --chatlog-db PATH does
 
     ts = migrate_memory.targets("chatlog")
     assert len(ts) == 1

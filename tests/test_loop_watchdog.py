@@ -162,15 +162,22 @@ def test_watchdog_restart_backend_per_os(monkeypatch):
 
 
 def test_watchdog_honors_homecoming_root_overrides(monkeypatch, tmp_path):
-    """Hardcoding ~/.m3 would break every deployment that sets M3_CONFIG_ROOT /
-    M3_ENGINE_ROOT (docs: Homecoming decoupled roots)."""
+    """Hardcoding ~/.m3 would break every deployment that relocates its roots:
+    M3_CONFIG_ROOT locates m3_config.toml, whose [paths] engine_root names the
+    engine root (docs: Homecoming decoupled roots)."""
     import importlib
 
     import m3_loop_watchdog as wd
 
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "cfg"))
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "eng"))
-    # Force the fallback path (SDK unimportable) to prove the env precedence.
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir()
+    (cfg_dir / "m3_config.toml").write_text(
+        f'schema_version = 1\n[paths]\nengine_root = "{(tmp_path / "eng").as_posix()}"\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    monkeypatch.setenv("M3_CONFIG_ROOT", str(cfg_dir))
+    # The SDK unimportable: the stdlib roots owner must still answer.
     monkeypatch.setitem(sys.modules, "m3_sdk", None)
     wd = importlib.reload(wd)
     cfg, eng = wd._roots()

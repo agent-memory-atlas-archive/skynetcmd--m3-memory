@@ -1087,11 +1087,9 @@ async def _main_async(args: argparse.Namespace) -> int:
     # Token + smoke
     token = get_api_key(profile.api_key_service) or ""
     if not token:
-        sys.exit(
-            f"ERROR: API key not found. "
-            f"observed: {profile.api_key_service!r} service returned no token. "
-            f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}."
-        )
+        from m3_core.secret_store import missing_secret_message
+
+        sys.exit("ERROR: API key not found. " + missing_secret_message(profile.api_key_service))
 
     if not args.skip_preflight:
         await _smoke_profile(profile, token, valid_types, valid_predicates)

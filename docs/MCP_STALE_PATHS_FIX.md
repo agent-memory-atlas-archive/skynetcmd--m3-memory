@@ -27,7 +27,7 @@ curl http://localhost:9000/health
 Result: `{"status":"ok", ... "total":87}`
 
 ## Recommendation for Users
-If you encounter "command not found" or "module not found" errors when running MCP tools, ensure your `~/.gemini/settings.json` or `~/.claude/settings.json` points to the `repo/bin` directory inside your `M3_MEMORY_ROOT`.
+If you encounter "command not found" or "module not found" errors when running MCP tools, ensure your `~/.gemini/settings.json` or `~/.claude/settings.json` points to the installed m3 (`m3 doctor --fix` repoints stale entries).
 
 Example for Gemini CLI:
 ```json

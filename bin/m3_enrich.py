@@ -1000,7 +1000,7 @@ async def _main_async(args) -> int:
     print(f"  failed: {counters_total['failed']}")
     print()
     print("  retrieve later via:")
-    print("    M3_PREFER_OBSERVATIONS=1 mcp__m3_memory__memory_search ...")
+    print("    m3 config set search.prefer_observations true, then mcp__m3_memory__memory_search ...")
     print(f"  (or pass --observer-variant {args.target_variant} to the bench harness)")
 
     # Auto-emit a per-run report so every enrich run leaves an artifact.
@@ -1301,7 +1301,7 @@ Profile picker:
         action="store_true",
         help="Phase E2: drain pending observation_queue rows that "
         "were enqueued by the chatlog auto-enrich hook "
-        "(M3_AUTO_ENRICH=1). Single-shot, returns when the "
+        "(chatlog.auto_enrich = true). Single-shot, returns when the "
         "queue is empty. Use in cron / scheduled task for "
         "continuous enrichment.",
     )

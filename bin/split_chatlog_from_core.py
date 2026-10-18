@@ -44,8 +44,8 @@ Source (CORE, where chat_log rows currently live), in priority order:
 
 Target (CHATLOG, where they should go), in priority order:
   1. --target <path>
-  2. the configured chatlog store (m3_core.paths.configured_chatlog_db: a legacy
-     chatlog env name through N+3)
+  2. the configured chatlog store (m3_core.paths.configured_chatlog_db: the
+     --chatlog-db pin)
   3. <engine_root>/agent_chatlog.db  (via m3_core.paths.resolve_engine_file)
 
 The target must already carry the chatlog schema (memory_items,

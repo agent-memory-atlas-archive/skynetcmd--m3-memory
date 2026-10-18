@@ -8,8 +8,6 @@ an earlier test's values).
 
 from __future__ import annotations
 
-import logging
-
 import pytest
 
 # registry key -> (module, constant) holding today's default
@@ -67,31 +65,28 @@ def _build(tmp_path, environ):
         ("M3_EMBED_REQUIRE_UNIT_NORM", "off", True, False),  # today "off" was not a false value
     ],
 )
-def test_a_changed_reading_is_logged_once(tmp_path, caplog, env, raw, today, now):
+def test_a_changed_reading_is_the_one_import_env_copies(tmp_path, env, raw, today, now):
+    """The old reader and the registry disagree on these spellings; import-env
+    copies a leftover value with the registry's reading. m3 itself reads neither."""
     from m3_core.config import REGISTRY
-    from m3_core.config import resolve as r
 
-    r._LEGACY_NOTED.discard((env, raw))
     key = REGISTRY.by_env(env)
-    with caplog.at_level(logging.WARNING):
-        s1 = _build(tmp_path, {env: raw})
-        s2 = _build(tmp_path, {env: raw})
-    assert key.legacy_parse(raw) is today and s1[key] is now and s2[key] is now
-    assert caplog.text.count(f"{env}={raw!r} now reads as {now!r}") == 1, caplog.text
+    assert key.legacy_parse(raw) is today and key.coerce_env_value(raw) is now
+    s = _build(tmp_path, {env: raw})
+    assert s.origin(key) == "default" and env in s.shadowed_env()
 
 
-def test_an_agreeing_value_is_not_logged(tmp_path, caplog):
+def test_an_agreeing_value_reads_the_same():
     from m3_core.config import REGISTRY
 
-    with caplog.at_level(logging.WARNING):
-        s = _build(tmp_path, {"M3_EMBED_INPROC": "1"})
-    assert s[REGISTRY.by_env("M3_EMBED_INPROC")] is True and "now reads as" not in caplog.text
+    key = REGISTRY.by_env("M3_EMBED_INPROC")
+    assert key.legacy_parse("1") is True and key.coerce_env_value("1") is True
 
 
-def test_the_sweeper_deadline_accepts_unbounded(tmp_path):
+def test_the_sweeper_deadline_accepts_unbounded():
     from m3_core.config import REGISTRY
 
-    assert _build(tmp_path, {"M3_CHATLOG_EMBED_DEADLINE_S": "-1"})[REGISTRY.get("chatlog.embed.deadline_s")] == -1.0
+    assert REGISTRY.get("chatlog.embed.deadline_s").coerce_env_value("-1") == -1.0
 
 
 def test_gguf_is_not_an_env_override():

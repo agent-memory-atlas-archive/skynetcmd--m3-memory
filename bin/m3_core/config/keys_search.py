@@ -2,8 +2,8 @@
 bin/memory/config.py, search.py, search_routing.py, search_ranking.py, entity.py).
 
 Held on the ratchet for the user (read but unused, or parsed several ways):
-M3_CONFIDENCE_MODEL, M3_TRUST_AUTOTUNE, M3_ENABLE_ENTITY_GRAPH,
-M3_ROUTE_SHADOW_MODE. M3_LIMIT_PER_PASS belongs to the cognitive loop's table.
+M3_CONFIDENCE_MODEL, M3_TRUST_AUTOTUNE, M3_ENABLE_ENTITY_GRAPH.
+M3_LIMIT_PER_PASS belongs to the cognitive loop's table.
 """
 
 from __future__ import annotations

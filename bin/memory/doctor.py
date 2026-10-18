@@ -305,8 +305,8 @@ async def memory_doctor_impl() -> dict[str, Any]:
     if not t1_ok and tier1["status"] == "not-configured":
         if not tier1["gguf_path"]:
             recommendations.append(
-                "Tier-1 in-process embedding is opt-in: set M3_EMBED_INPROC=1 and "
-                "M3_EMBED_GGUF to a BGE-M3 GGUF path (costs one model copy per process)."
+                "Tier-1 in-process embedding is opt-in: `m3 config set embed.inproc true` and "
+                "`m3 config set embed.gguf <BGE-M3 GGUF path>` (costs one model copy per process)."
             )
         elif not tier1["gguf_exists"]:
             issues.append(f"M3_EMBED_GGUF points to a missing file: {tier1['gguf_path']}")

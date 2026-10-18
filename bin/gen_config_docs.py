@@ -9,8 +9,8 @@ Writes, all from ``m3_core.config.REGISTRY`` (never hand-edited):
     root that has no m3_config.toml (``m3_core.config.default_file`` renders it),
     and its SHA-256 in bin/m3_core/config/_default_config_sha256.py, which m3
     checks before copying;
-  * docs/ENVIRONMENT_VARIABLES.md: the environment names m3 still reads by
-    design, every legacy name of a setting with the key it moved to, and the
+  * docs/ENVIRONMENT_VARIABLES.md: the environment names m3 reads by
+    design, every former name of a setting with the key it moved to, and the
     retired names.
 tests/test_generated_docs_fresh.py fails when the registry moves without them.
 """
@@ -44,8 +44,7 @@ DEFAULT_OUTPUT = os.path.join(_BIN, "m3_core", "config", default_file.DEFAULT_FI
 SHA_OUTPUT = os.path.join(_BIN, "m3_core", "config", "_default_config_sha256.py")
 
 _CONFIG_ROOT_PRECEDENCE = (
-    f"The file is `{CONFIG_FILE_NAME}` in the config root (`--config <file>` > "
-    "`M3_CONFIG_ROOT` > `M3_MEMORY_ROOT/config` (legacy) > `~/.m3/config`)."
+    f"The file is `{CONFIG_FILE_NAME}` in the config root (`--config <file>` > `M3_CONFIG_ROOT` > `~/.m3/config`)."
 )
 
 _JSON_TYPE = {
@@ -77,25 +76,23 @@ def render_markdown() -> str:
         "",
         f"{_CONFIG_ROOT_PRECEDENCE} It carries `schema_version = {SCHEMA_VERSION}`. When the config "
         f"root has none, `m3 setup`, `m3 upgrade` and `m3 config import-env` create it from "
-        f"`{default_file.DEFAULT_FILE_NAME}`, which lists every key below commented at its default.",
+        f"`{default_file.DEFAULT_FILE_NAME}`, which lists every key below commented at its default. "
+        "An existing file is never recreated or overwritten.",
         "",
-        "Precedence for each setting: the environment, for the keys marked *env override* "
-        "only; then this file; then, through release N+3, the setting's legacy environment "
-        "names; then `.env`; then, for the `[llm]` keys, `.llm_config.json`; then the default. "
-        "`m3 config show --origin` prints where each value came from; `m3 config set KEY VALUE` "
-        "and `m3 config unset KEY` change this file; `m3 config import-env` moves settings "
-        "from the environment, rc files, `.env` and MCP env blocks into it.",
-        "",
-        "**N+3**, here and in m3's messages: N is release 2026.10.17.0, the first with this "
-        "file. Legacy names keep working, with a warning, through the third release after it "
-        "(N+3) and stop being read in the release after that.",
+        "Precedence for each setting: a command-line flag (`--set KEY=VALUE`), then this file, "
+        "then the default. m3 reads no setting from the environment, `.env` or `.llm_config.json`: "
+        "the environment names listed below are not read, and `m3 doctor` and `m3 setup` name any "
+        "still set so you can delete them. `m3 config show --origin` prints where each value came "
+        "from; `m3 config set KEY VALUE` and `m3 config unset KEY` change this file. When this file "
+        "does not exist yet, setup copies values from those older places into it once; "
+        "`m3 config import-env` does the same on request.",
         "",
     ]
     for table, keys in sorted(REGISTRY.tables().items()):
         lines += [
             f"## [{table}]",
             "",
-            "| Key | Type | Default | Deprecated environment names | Notes |",
+            "| Key | Type | Default | Former environment names (not read) | Notes |",
             "|---|---|---|---|---|",
         ]
         for key in sorted(keys, key=lambda k: k.leaf):
@@ -122,7 +119,7 @@ def render_markdown() -> str:
         "keyring, or `--stdin` to read the value from a script's standard input); "
         "`m3 config import-env` moves the ones set in the older places.",
         "",
-        "| Name | Older environment names (`import-env` reads them) | Bootstrap | Notes |",
+        "| Name | Former environment names (not read; `import-env` copies them) | Bootstrap | Notes |",
         "|---|---|---|---|",
     ]
     for key in secrets:
@@ -186,8 +183,8 @@ def _anchor_heading(title: str) -> list[str]:
 
 
 def render_env_markdown() -> str:
-    """docs/ENVIRONMENT_VARIABLES.md: what m3 still reads from the environment,
-    where each legacy name of a setting went, and which names are retired."""
+    """docs/ENVIRONMENT_VARIABLES.md: what m3 reads from the environment, where
+    each former name of a setting went, and which names are retired."""
     config_keys = sorted((k for k in REGISTRY if k.klass is KeyClass.CONFIG), key=lambda k: k.name)
     locators = [k for k in config_keys if k.scope is Scope.LOCATOR and k.env_names]
     secrets = sorted((k for k in REGISTRY if k.klass is KeyClass.SECRET), key=lambda k: k.name)
@@ -200,14 +197,16 @@ def render_env_markdown() -> str:
         "secrets in the user-only secrets file. The environment is left with three jobs: saying "
         "where m3's files are (the locators), a few switches and handoffs that are read before any "
         "configuration loads, and other programs' own variables. Every other name below is a "
-        f"**legacy name** of a setting: m3 still reads it, below `{CONFIG_FILE_NAME}`, through release "
-        "N+3, and `m3 doctor` and `m3 config import-env` name any still set.",
+        f"**former name** of a setting: m3 does not read it (`{CONFIG_FILE_NAME}` has precedence, and "
+        "a key it lacks takes its default). `m3 doctor`, `m3 setup` and `m3 upgrade` name each one "
+        "still set and where, so you or your agent can delete it.",
         "",
-        f"`m3 config import-env` moves them into `{CONFIG_FILE_NAME}` (and secrets into the secrets "
-        "file) from the environment, shell startup files, `.env` files, the Windows persistent "
-        "environment and agents' MCP `env` blocks. `m3 setup` and `m3 upgrade` run it, after "
-        f"creating `{CONFIG_FILE_NAME}` from `{default_file.DEFAULT_FILE_NAME}` when the config root "
-        "has none. It never edits the places it reads from; remove the old copies yourself. "
+        f"When the config root has no `{CONFIG_FILE_NAME}`, `m3 setup` and `m3 upgrade` create it from "
+        f"`{default_file.DEFAULT_FILE_NAME}` and copy into it, once, the values set under these names "
+        "in the environment, shell startup files, `.env` files, the Windows persistent environment, "
+        "agents' MCP `env` blocks and m3's service definitions (secrets go to the secrets file). An "
+        "existing file is never re-imported or overwritten; `m3 config import-env` copies on request. "
+        "Neither edits the places it reads from; delete the old copies yourself. "
         "`m3 config show --origin` prints where each value came from.",
         "",
         "- [Variables m3 reads by design](#variables-m3-reads-by-design)",
@@ -219,9 +218,8 @@ def render_env_markdown() -> str:
         "### Roots and locators",
         "",
         "A locator says where m3's files are, so it is read before any configuration loads. "
-        f"{_CONFIG_ROOT_PRECEDENCE} `M3_MEMORY_ROOT` is the legacy master root: set alone, the "
-        "other roots derive from it unless their own name is set. No locator is required; each "
-        "has a working default.",
+        f"{_CONFIG_ROOT_PRECEDENCE} Every other root comes from `[paths]` in that file. No locator "
+        "is required; each has a working default.",
         "",
         "| Name | Config key | What it locates |",
         "|---|---|---|",
@@ -232,9 +230,9 @@ def render_env_markdown() -> str:
             lines.append(f"| `{env}` | `{show_key(key.name)}` | {_cell(key.doc)} |")
     lines += [
         "",
-        "**Deprecated.** m3 reads one variable, `M3_CONFIG_ROOT`, and takes every root from "
-        "`m3_config.toml` (the `paths.*` keys above). These names still work, below the file, and "
-        "`m3 doctor` lists any still set, with the `m3 config set` that replaces each. Set "
+        "**Not read.** m3 reads one variable, `M3_CONFIG_ROOT`, and takes every root from "
+        "`m3_config.toml` (the `paths.*` keys above). `m3 doctor` lists any of the other names still "
+        "set, to delete, and the `m3 config set` that chooses each root. Set "
         "`M3_CONFIG_ROOT` only for a config root other than `~/.m3/config`, and then everywhere m3 "
         "runs: an agent's MCP server reads it from its registration's `env` block (for Claude Code, "
         "`~/.claude.json`), the chatlog hooks from the agent's process environment.",
@@ -251,10 +249,10 @@ def render_env_markdown() -> str:
         "",
         "### Legacy store locations",
         "",
-        "A database path is a locator, not a setting, so `import-env` never moves these. m3 reads "
-        "them through release N+3; `m3 doctor` and `m3 config import-env` name where one is set with "
-        "its replacement (`--database PATH` or a `[stores.<name>]` table with `--store NAME`; "
-        "`--chatlog-db PATH` for the chatlog).",
+        "A database path is a locator, not a setting, so `import-env` never moves these. m3 does not "
+        "read them; `m3 doctor` and `m3 config import-env` name where one is set with its replacement "
+        "(`--database PATH` or a `[stores.<name>]` table with `--store NAME`; `--chatlog-db PATH` for "
+        "the chatlog).",
         "",
         "| Name | What it locates |",
         "|---|---|",
@@ -269,10 +267,9 @@ def render_env_markdown() -> str:
         + ".",
         "",
         *_anchor_heading("Settings: environment name to config key"),
-        f"Each name is a legacy name of the key beside it: set the key in `{CONFIG_FILE_NAME}` "
-        "(`m3 config set KEY VALUE`) and remove the variable. A list is comma-separated in the "
-        "environment and a TOML array in the file. Rows marked *locator* are also read as "
-        "locators (above).",
+        f"Each name is a former name of the key beside it, and is not read: set the key in "
+        f"`{CONFIG_FILE_NAME}` (`m3 config set KEY VALUE`) and delete the variable. A list is a TOML "
+        "array in the file. Rows marked *locator* choose a root (above).",
         "",
         "| Environment name | Section | Key | Notes |",
         "|---|---|---|---|",

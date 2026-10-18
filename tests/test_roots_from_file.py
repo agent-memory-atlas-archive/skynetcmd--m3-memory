@@ -1,4 +1,5 @@
-"""Roots resolve FILE first, then the env var read LIVE, then the derived default, for the memory, engine, logs and models roots.
+"""Roots resolve from the FILE, then the derived default, for the memory, engine, logs and models roots.
+The former env names (M3_ENGINE_ROOT, M3_MEMORY_ROOT, ...) are not read.
 ``_roots`` reads ``[paths]`` itself with stdlib tomllib: it sits beside the OS seam
 and must not import the registry above it."""
 
@@ -10,17 +11,13 @@ from pathlib import Path
 
 import pytest
 
+from conftest import write_sandbox_config
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 
 def _write_config(text: str) -> Path:
-    from m3_memory import _roots
-
-    root = Path(_roots.config_root())
-    root.mkdir(parents=True, exist_ok=True)
-    f = root / "m3_config.toml"
-    f.write_text("schema_version = 1\n" + text, encoding="utf-8")
-    return f
+    return write_sandbox_config(text)
 
 
 def test_a_root_set_in_the_file_wins_over_env(tmp_path):
@@ -33,19 +30,22 @@ def test_a_root_set_in_the_file_wins_over_env(tmp_path):
     assert Path(_roots.logs_root()) == Path(target) / "logs"
 
 
-def test_env_is_read_live(tmp_path, monkeypatch):
+def test_the_env_name_is_not_read(tmp_path, monkeypatch):
     from m3_memory import _roots
 
-    moved = (tmp_path / "moved").as_posix()
-    monkeypatch.setenv("M3_ENGINE_ROOT", moved)
-    assert Path(_roots.engine_root()) == Path(moved)
+    target = (tmp_path / "from-file").as_posix()
+    _write_config(f'[paths]\nengine_root = "{target}"\n')
+    monkeypatch.setenv("M3_ENGINE_ROOT", (tmp_path / "from-env").as_posix())
+    assert Path(_roots.engine_root()) == Path(target)
+    _write_config("")  # the file names no engine root: still not the env's
+    assert Path(_roots.engine_root()) != tmp_path / "from-env"
 
 
 def test_no_file_and_no_env_gives_the_derived_default(monkeypatch):
     from m3_memory import _roots
 
-    monkeypatch.delenv("M3_MODELS_ROOT", raising=False)
-    assert Path(_roots.models_root()) == Path(os.environ["M3_MEMORY_ROOT"]) / "models"
+    monkeypatch.setenv("M3_MODELS_ROOT", "/not/read")
+    assert Path(_roots.models_root()) == Path(_roots.memory_root()) / "models"
 
 
 def test_the_registry_and_roots_agree(tmp_path):

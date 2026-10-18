@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_config.py
-sha1: f0bc8d86c286
-mtime_utc: 2026-10-17T23:11:56.962010+00:00
-generated_utc: 2026-10-17T23:12:58.438204+00:00
+sha1: 951ae12d5ecf
+mtime_utc: 2026-10-18T01:06:16.787199+00:00
+generated_utc: 2026-10-18T01:06:17.837148+00:00
 private: false
 ---
 
@@ -21,8 +21,8 @@ across (what used to be called "hybrid" is just copy=True, which is the
 default).
 
 Resolution order for the chatlog DB path:
-    1. the configured chatlog store: a script's --chatlog-db pin, else a legacy
-       chatlog env name through N+3 (m3_core.paths.configured_chatlog_db)
+    1. the configured chatlog store: a script's --chatlog-db pin
+       (m3_core.paths.configured_chatlog_db); no env name is read
     2. active_database() ContextVar (per-call override set by the MCP tool
        dispatcher when a caller passes `database` on a chatlog_* tool)
     3. .chatlog_config.json db_path field, when it pins one

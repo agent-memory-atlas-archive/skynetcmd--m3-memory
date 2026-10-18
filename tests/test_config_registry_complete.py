@@ -78,13 +78,15 @@ def test_the_ratchet_file_is_sorted_and_unique():
     assert names == sorted(set(names)), "keep tests/data/config_unregistered.txt sorted and unique"
 
 
-def test_every_legacy_store_locator_is_read_and_accounted_once():
-    """A declared locator no code reads is stale; one that is also a key or a
-    not-setting is accounted twice, and the two reasons can disagree."""
+def test_no_legacy_store_locator_is_read_and_each_is_accounted_once():
+    """LEGACY_LOCATORS lists former store-locating names so doctor and the env
+    docs can name them; m3 reads none. One that code reads again is a regression;
+    one that is also a key or a not-setting is accounted twice, and the two
+    reasons can disagree."""
     from m3_core.config.keys import NOT_SETTINGS, REGISTRY, RETIRED
     from m3_core.config.stores import LEGACY_LOCATORS
 
-    stale = sorted(set(LEGACY_LOCATORS) - _scanner_names())
-    assert not stale, "no longer read; remove from LEGACY_LOCATORS:\n  " + "\n  ".join(stale)
+    read = sorted(set(LEGACY_LOCATORS) & _scanner_names())
+    assert not read, "a former store locator is read again:\n  " + "\n  ".join(read)
     twice = sorted(set(LEGACY_LOCATORS) & (set(REGISTRY.env_names()) | set(NOT_SETTINGS) | set(RETIRED)))
     assert not twice, "accounted elsewhere too:\n  " + "\n  ".join(twice)

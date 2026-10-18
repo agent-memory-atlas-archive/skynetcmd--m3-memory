@@ -364,16 +364,21 @@ def test_a_window_under_the_ceiling_is_untouched(store):
     assert "window_clamped_from" not in res
 
 
-def test_the_env_route_cannot_exceed_the_ceiling_either():
-    """Every route resolves through one owner -- env included. The registry key's
-    range check refuses an over-ceiling value at config load (R-loud), the same
-    rule a config-file value gets, instead of clamping it silently."""
-    from m3_core.config import settings as st
-    from m3_core.config.resolve import NO_DOTENV, ConfigEnvErrors
+def test_the_config_file_route_cannot_exceed_the_ceiling_either(tmp_path):
+    """Every route resolves through one owner. The registry key's range check
+    refuses an over-ceiling value in m3_config.toml at load (R-loud) instead of
+    clamping it silently. (The former env name M3_FEEDBACK_WINDOW_MINUTES is not
+    read at all.)"""
+    from m3_core.config import Location
+    from m3_core.config.loader import ConfigFileError
+    from m3_core.config.resolve import NO_DOTENV
+    from m3_core.config.settings import build
 
-    with pytest.raises(ConfigEnvErrors) as exc:
-        st.build(environ={"M3_FEEDBACK_WINDOW_MINUTES": "525600"}, dotenv=NO_DOTENV)
-    assert "M3_FEEDBACK_WINDOW_MINUTES" in str(exc.value.exceptions[0]), exc.value.exceptions
+    cfg = tmp_path / "m3_config.toml"
+    cfg.write_text("schema_version = 1\n[governor]\nfeedback_window_minutes = 525600\n", encoding="utf-8")
+    with pytest.raises(ConfigFileError) as exc:
+        build(Location(file=cfg, root=tmp_path, tier="t"), environ={}, dotenv=NO_DOTENV)
+    assert "feedback_window_minutes" in str(exc.value.exceptions[0]), exc.value.exceptions
 
 
 def test_a_non_integer_window_returns_a_structured_error(store):

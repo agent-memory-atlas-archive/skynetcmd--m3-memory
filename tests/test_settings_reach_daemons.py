@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import write_sandbox_config
+
 _REPO = Path(__file__).resolve().parents[1]
 _BIN = _REPO / "bin"
 if str(_BIN) not in sys.path:
@@ -32,8 +34,7 @@ def config_file():
     root.mkdir(parents=True, exist_ok=True)
 
     def write(body: str) -> None:
-        (root / "m3_config.toml").write_text("schema_version = 1\n" + body, encoding="utf-8")
-        st._reset_for_tests()
+        write_sandbox_config(body)
 
     yield write
     st._reset_for_tests()

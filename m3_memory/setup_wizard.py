@@ -1932,12 +1932,11 @@ def _endpoint_reachable(base_url: str, timeout: float = 0.4) -> bool:
 
 
 def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
-    """Detect the reachable local LLM runtime(s) and persist the failover opt-in
-    vars to match. Mirrors the M3_EMBED_GGUF persistence (shell rc + MCP env)."""
+    """Detect the reachable local LLM runtime(s) and record the failover switches
+    to match in m3_config.toml [llm]."""
     # If the user already pinned a custom server, honor it — just confirm.
     custom = (_config.setting("llm.url") or "").strip()
-    # llm.endpoints: m3_config.toml, the legacy env names, or the .llm_config.json
-    # pin `m3 install --llm-endpoint` records, all through the registry.
+    # llm.endpoints: m3_config.toml (where `m3 install --llm-endpoint` records it).
     csv = ",".join(_config.setting("llm.endpoints") or [])
     if csv:
         _ok(f"  LLM endpoints pinned ({csv}); leaving as-is")
@@ -1945,7 +1944,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         return
     if custom:
         live = _endpoint_reachable(custom)
-        _ok(f"  M3_LLM_URL set ({custom}) — {'reachable' if live else 'NOT reachable yet'}")
+        _ok(f"  llm.url set ({custom}) — {'reachable' if live else 'NOT reachable yet'}")
         _record_llm_switch("M3_LLM_URL", custom)
         return
 
@@ -1975,15 +1974,9 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         # non-default ones, and an explicit disable for LM Studio if it's absent.
         if var == "M3_ENABLE_LMSTUDIO_FAILOVER":
             continue  # default already on; nothing to persist
-        # env-owner: setup carries a switch the shell exports into the file (an import)
-        already = os.environ.get(var, "").strip()
-        from m3_memory.wizard.persist import shell_rc_has
-
-        # Recorded in <config root>/.llm_config.json, which every launcher reads
-        # (the registry, below env and .env). No env write and no shell-rc / MCP-env
-        # persistence: setup writes files, not env; the file folds into m3_config.toml with import-env.
-        if already in ("1", "true", "yes") or shell_rc_has(var, val):
-            _record_llm_switch(var, val)  # the shell has it; daemons never read the rc
+        # Recorded in m3_config.toml [llm], which every launcher reads. Already on
+        # there: nothing to ask.
+        if _llm_switch_enabled(var):
             continue
         if args.non_interactive or _ask_yes_no(f"  Enable {label} for enrichment ({var}=1)?", default=True):
             _record_llm_switch(var, val)
@@ -1998,65 +1991,39 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         _record_llm_switch("M3_ENABLE_LMSTUDIO_FAILOVER", "0")
 
 
-def _llm_recorded(var: str) -> str:
-    """The value a previous setup or install recorded for ``var`` in
-    <config_root>/.llm_config.json ("" when none)."""
+def _llm_key(var: str):
+    """The registry key a former LLM env name maps to, or None."""
     try:
         _m3bin.ensure_on_path()
-        from m3_core.llm_config import read_llm_config
+        from m3_core.config.keys import REGISTRY
 
-        return str(read_llm_config().get(var, "")).strip()
-    except (ImportError, OSError, ValueError):
-        return ""
+        return REGISTRY.by_env(var)
+    except ImportError:
+        return None
 
 
 def _llm_switch_enabled(var: str) -> bool:
-    """True when a previous setup recorded this LLM runtime switch as on."""
-    return _llm_recorded(var).lower() in ("1", "true", "yes", "on")
-
-
-def _report_llm_env_disagreement(var: str, val: str) -> None:
-    """Name an env var that contradicts the LLM setting setup just recorded: env
-    outranks .llm_config.json, so m3 runs on the env value. Part of the transition
-    report; silent when they agree."""
-    try:
-        from m3_core.config.keys import REGISTRY
-        from m3_core.config.settings import env_contradicting
-
-        key = REGISTRY.by_env(var)
-        if key is None:
-            return
-        found = env_contradicting(key, key.coerce_env_value(val))
-    except (ImportError, ValueError) as e:
-        _warn(f"    could not compare {var} with the environment ({e}). inspect: m3 doctor")
-        return
-    from m3_memory.installer import _find_env_var_locations
-
-    for name, seen in found:
-        where = ", ".join(_find_env_var_locations(name)) or "the environment"
-        _warn(
-            f"    {name}={seen} (set in {where}) disagrees with the recorded {var}={val}; "
-            f"m3 uses {seen} (env outranks the recorded value). fix: remove {name} there"
-        )
+    """True when the LLM runtime switch (by its former env name) is on in m3_config.toml."""
+    key = _llm_key(var)
+    return bool(key is not None and _config.setting(key.name))
 
 
 def _record_llm_switch(var: str, val: str) -> None:
-    """Write an LLM endpoint switch to <config_root>/.llm_config.json, the copy
-    background daemons read."""
+    """Record an LLM switch (by its former env name) in m3_config.toml [llm], which
+    every launcher reads, background services included."""
+    key = _llm_key(var)
     try:
-        _m3bin.ensure_on_path()
-        from m3_core.llm_config import read_llm_config, write_llm_setting
-
-        _report_llm_env_disagreement(var, val)
-        if str(read_llm_config().get(var, "")) == val:
+        if key is None:
+            raise ValueError(f"{var} is not a known LLM setting")
+        if _config.setting(key.name) == key.coerce_env_value(val):
             return
+        from m3_core.llm_config import write_llm_setting
+
         path = write_llm_setting(var, val)
-    except (ImportError, OSError) as e:
-        _warn(
-            f"    could not record {var}={val} for background services ({e}); they will not see it. inspect: m3 doctor"
-        )
+    except (ImportError, OSError, ValueError) as e:
+        _warn(f"    could not record {var}={val} in m3_config.toml ({e}). inspect: m3 config show --origin")
         return
-    _ok(f"    recorded {var}={val} for background services ({path})")
+    _ok(f"    recorded {key.name} = {val} ({path})")
 
 
 # ── B15 helpers ──────────────────────────────────────────────────────────
@@ -3757,22 +3724,32 @@ def _repair_kept_wiring() -> None:
 
 
 def _step_import_env() -> None:
-    """Move settings and secrets still kept in env, rc files, .env and MCP env
-    blocks into m3_config.toml and the secrets file. m3 no longer reads secrets
-    from the environment, so a warehouse DSN left there stops sync after an
-    upgrade; an older release's `m3 upgrade` runs THIS setup and has no import
-    step of its own. Non-interactive (m3 7200dbed): a disagreement is listed
-    with its fix, never decided here. Never raises."""
+    """Settings still kept in env, rc files, .env and MCP env blocks: imported into
+    m3_config.toml ONLY when this run creates it; an existing file is the user's
+    and has precedence, so those variables are listed (not read) with the advice
+    to delete them (user decision 2026-10-17). Secrets the chain lacks are stored
+    either way: m3 never reads them from the environment, so a warehouse DSN left
+    there would stop sync after an upgrade. Non-interactive (m3 7200dbed): a
+    disagreement is listed with its fix, never decided here. Never raises."""
     try:
         from m3_memory.install import import_env
 
-        rc = import_env.run(None, dry_run=False, non_interactive=True)
+        rc = import_env.run(None, dry_run=False, non_interactive=True, settings_only_into_new_file=True)
         if rc != 0:
             _warn(
                 f"moving legacy settings exited {rc}; they keep working where they are. inspect: m3 config import-env"
             )
     except Exception as e:  # noqa: BLE001 -- the import must not fail setup
         _warn(f"moving legacy settings skipped: {type(e).__name__}: {e}. inspect: m3 config import-env")
+    # Which config is authoritative, places that would read another, and the
+    # M3_* variables m3 no longer reads: said here, at setup/upgrade, not per command.
+    try:
+        from m3_memory.install.sections import config_root_section, m3_env_settings_section
+
+        config_root_section(brief=True)
+        m3_env_settings_section(brief=True)
+    except Exception as e:  # noqa: BLE001 -- a report must not fail setup
+        _warn(f"checking config locators skipped: {type(e).__name__}: {e}. inspect: m3 doctor")
 
 
 def _claim_free_ports(plan: SetupPlan) -> None:

@@ -40,12 +40,12 @@ def _write_profile(path, **fields):
     path.write_text(yaml.safe_dump(base), encoding="utf-8")
 
 
-async def _capture_payload(monkeypatch, tmp_path, endpoints):
+async def _capture_payload(monkeypatch, tmp_path, endpoints, m3_settings):
     import httpx
 
     monkeypatch.setattr(LF, "LLM_ENDPOINTS", endpoints, raising=False)
     _write_profile(tmp_path / "p.yaml")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     SI.invalidate_cache()
     prof = SI.load_profile("p")
 
@@ -67,23 +67,23 @@ async def _capture_payload(monkeypatch, tmp_path, endpoints):
 
 
 @pytest.mark.asyncio
-async def test_ollama_gets_reasoning_effort_none(tmp_path, monkeypatch):
-    cap = await _capture_payload(monkeypatch, tmp_path, ["http://localhost:11434/v1"])
+async def test_ollama_gets_reasoning_effort_none(tmp_path, monkeypatch, m3_settings):
+    cap = await _capture_payload(monkeypatch, tmp_path, ["http://localhost:11434/v1"], m3_settings)
     assert cap["url"] == "http://localhost:11434/v1/chat/completions"
     assert cap["json"].get("reasoning_effort") == "none"
 
 
 @pytest.mark.asyncio
-async def test_lmstudio_openai_gets_reasoning_effort(tmp_path, monkeypatch):
+async def test_lmstudio_openai_gets_reasoning_effort(tmp_path, monkeypatch, m3_settings):
     # LM Studio ALSO honors reasoning_effort="none" (verified live) -> send it.
-    cap = await _capture_payload(monkeypatch, tmp_path, ["http://localhost:1234/v1"])
+    cap = await _capture_payload(monkeypatch, tmp_path, ["http://localhost:1234/v1"], m3_settings)
     assert cap["url"] == "http://localhost:1234/v1/chat/completions"
     assert cap["json"].get("reasoning_effort") == "none"
 
 
 @pytest.mark.asyncio
-async def test_other_openai_server_does_not_get_reasoning_effort(tmp_path, monkeypatch):
+async def test_other_openai_server_does_not_get_reasoning_effort(tmp_path, monkeypatch, m3_settings):
     # A non-LMStudio/non-Ollama server (vLLM :8000) is unverified — must NOT get
     # reasoning_effort (it may 400, like real OpenAI cloud does on "none").
-    cap = await _capture_payload(monkeypatch, tmp_path, ["http://localhost:8000/v1"])
+    cap = await _capture_payload(monkeypatch, tmp_path, ["http://localhost:8000/v1"], m3_settings)
     assert "reasoning_effort" not in cap["json"]

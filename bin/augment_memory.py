@@ -15,7 +15,7 @@ ingested DB without re-running the full ingest pipeline:
       Use the SLM (``slm_intent.extract_entities``) to prefix user-turn
       titles with 1-3 pithy entities. "Sparky, Golden Retriever | ..."
       makes BM25 hit on the proper noun even when the body text uses a
-      pronoun. Requires ``M3_SLM_CLASSIFIER=1`` and the entity_extract
+      pronoun. Requires ``slm.classifier = true`` and the entity_extract
       profile — off otherwise.
 
 Both operations are idempotent-ish: link-adjacent uses memory_link_impl

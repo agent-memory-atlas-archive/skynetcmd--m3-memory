@@ -98,7 +98,7 @@ def _profile_search_dirs() -> list[Path]:
     # repo/payload root.
     from m3_core.seams import roots
 
-    base = roots.pinned(roots.MEMORY_ROOT_ENV)  # env-owner: the approved root locators
+    base = roots.memory_root_pin()
     if base:
         dirs.append(Path(base) / "config" / "slm")
     # ALWAYS also search the code-relative location where profiles actually ship

@@ -25,6 +25,8 @@ import sys
 
 import pytest
 
+from conftest import INSTALLER_HOME_WRITERS
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -79,6 +81,11 @@ def isolated_roots(tmp_path, monkeypatch):
     # "it has a timeout" does not make it safe to call here. Stubbing it keeps
     # the fixture's stated contract -- "never hit the network" -- actually true.
     monkeypatch.setattr(installer, "_run_os_install", lambda *a, **k: "OS setup skipped (test).")
+    # The agent registrations write under Path.home(): unstubbed, every run wrote
+    # this test's temp config root into the developer's real ~/.gemini/settings.json.
+    for name in INSTALLER_HOME_WRITERS:
+        if name != "_run_os_install":
+            monkeypatch.setattr(installer, name, lambda *a, **k: None)
     return m3_sdk, installer
 
 

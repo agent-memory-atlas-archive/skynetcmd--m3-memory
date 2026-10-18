@@ -234,16 +234,15 @@ def test_m3_call_async_tool_dispatches():
         assert data["tool"] == "memory_search"
 
 
-def test_destructive_gate_reads_the_m3_name_and_the_legacy_name(monkeypatch):
-    """m3_call and the MCP proxy share one reading of the opt-in, and both the
-    M3_ name and the legacy name enable it."""
+def test_destructive_gate_reads_the_setting_not_the_env_names(monkeypatch, m3_settings):
+    """m3_call and the MCP proxy share one reading of the opt-in:
+    mcp.allow_destructive in m3_config.toml. The former env names do not enable it."""
     import m3_sdk
     from m3_core.config import settings as st
     from m3_core.config.resolve import NO_DOTENV
 
-    # The registry key owns both names; build the snapshot from each, as a process would.
     for name in ("M3_MCP_PROXY_ALLOW_DESTRUCTIVE", "MCP_PROXY_ALLOW_DESTRUCTIVE"):
-        st._install_for_tests(st.build(environ={}, dotenv=NO_DOTENV))
-        assert m3_sdk.destructive_tools_allowed() is False
         st._install_for_tests(st.build(environ={name: "1"}, dotenv=NO_DOTENV))
-        assert m3_sdk.destructive_tools_allowed() is True, name
+        assert m3_sdk.destructive_tools_allowed() is False, name
+    m3_settings({"mcp.allow_destructive": True})
+    assert m3_sdk.destructive_tools_allowed() is True

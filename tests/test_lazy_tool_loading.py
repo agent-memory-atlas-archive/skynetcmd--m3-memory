@@ -211,50 +211,23 @@ def test_load_domain_spec_requires_domain_arg():
 # ── Integration with memory_bridge ───────────────────────────────────────────
 
 
-def _reload_bridge_with_env(env_overrides: dict) -> object:
-    """Import / re-import memory_bridge with controlled env. Returns the
-    fresh module. Each call gets a clean FastMCP instance.
-
-    We can't just monkey-patch os.environ because the bridge reads
-    M3_TOOLS_LAZY at import time. We pop the cached module so the next
-    import picks up the new env.
-    """
-    saved_env = {k: os.environ.get(k) for k in env_overrides}
-    for k, v in env_overrides.items():
-        if v is None:
-            os.environ.pop(k, None)
-        else:
-            os.environ[k] = v
-
-    saved_modules = {}
+def _reload_bridge(m3_settings, values: dict) -> object:
+    """Import / re-import memory_bridge with the given settings (m3 reads them
+    from m3_config.toml, never the environment). The bridge reads tools.lazy and
+    tools.startup at import time, so the cached module is popped first and the
+    next import builds a clean FastMCP instance."""
+    m3_settings(values)
     for mod in ("memory_bridge", "tool_loader"):
-        if mod in sys.modules:
-            saved_modules[mod] = sys.modules.pop(mod)
+        sys.modules.pop(mod, None)
+    import memory_bridge
 
-    try:
-        import memory_bridge
-
-        return memory_bridge
-    finally:
-        # Restore env so the rest of the test session is unaffected.
-        for k, v in saved_env.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
-        # Drop the reload so the cached version doesn't leak into other tests.
-        for mod in ("memory_bridge",):
-            sys.modules.pop(mod, None)
-        # Restore any modules we evicted.
-        for mod, val in saved_modules.items():
-            if mod not in sys.modules:
-                sys.modules[mod] = val
+    return memory_bridge
 
 
-def test_bridge_lazy_mode_registers_only_the_startup_set():
-    """With M3_TOOLS_LAZY=1 (or unset — lazy is the default) and no startup
+def test_bridge_lazy_mode_registers_only_the_startup_set(m3_settings):
+    """With tools.lazy on (the default) and no startup
     config, exactly the shipped default registers."""
-    mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "1"})
+    mb = _reload_bridge(m3_settings, {"tools.lazy": True})
     expected = set(tool_domains.ESSENTIAL_TOOL_NAMES)
     assert mb.STARTUP_TOOLS == expected
     assert mb._REGISTERED == expected, (
@@ -264,19 +237,19 @@ def test_bridge_lazy_mode_registers_only_the_startup_set():
     )
 
 
-def test_bridge_eager_mode_registers_all_tools():
-    """With M3_TOOLS_LAZY=0, every MCP tool is registered up-front (the legacy
+def test_bridge_eager_mode_registers_all_tools(m3_settings):
+    """With tools.lazy off, every MCP tool is registered up-front (the legacy
     behavior); CLI-only commands never are."""
-    mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "0"})
+    mb = _reload_bridge(m3_settings, {"tools.lazy": False})
     assert mb.STARTUP_TOOLS is None
     all_names = {t.name for t in mcp_tool_catalog.MCP_TOOLS}
     assert mb._REGISTERED == all_names, f"eager mode missed: {sorted(all_names - mb._REGISTERED)}"
 
 
-def test_bridge_lazy_mode_domain_callback_registers_domain():
+def test_bridge_lazy_mode_domain_callback_registers_domain(m3_settings):
     """Domain callback should add exactly that domain's tools, return
     schemas, and be idempotent on a second call."""
-    mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "1"})
+    mb = _reload_bridge(m3_settings, {"tools.lazy": True})
     baseline = set(mb._REGISTERED)
 
     # Pick a domain we know has tools and isn't already registered.
@@ -300,19 +273,19 @@ def test_bridge_lazy_mode_domain_callback_registers_domain():
     assert mb._REGISTERED == baseline | expected_new
 
 
-def test_bridge_registers_a_configured_startup_set(tmp_path):
+def test_bridge_registers_a_configured_startup_set(m3_settings):
     """tools.startup reached only `m3 doctor`'s report; the bridge registered its
     own list (2026-10-17). It now registers what tools_config resolves."""
-    mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "1", "M3_TOOLS_STARTUP": "memory_get,m3_call"})
+    mb = _reload_bridge(m3_settings, {"tools.lazy": True, "tools.startup": ["memory_get", "m3_call"]})
     assert mb._REGISTERED == {"memory_get", "m3_call"}
 
 
-def test_bridge_falls_back_loudly_on_an_unusable_startup_set(caplog):
+def test_bridge_falls_back_loudly_on_an_unusable_startup_set(caplog, m3_settings):
     """An unknown name must not stop the server (that drops every memory tool):
     the shipped default loads and the error is logged."""
     import logging
 
     with caplog.at_level(logging.ERROR):
-        mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "1", "M3_TOOLS_STARTUP": "memory_gett,m3_call"})
+        mb = _reload_bridge(m3_settings, {"tools.lazy": True, "tools.startup": ["memory_gett", "m3_call"]})
     assert mb._REGISTERED == set(tool_domains.ESSENTIAL_TOOL_NAMES)
     assert "memory_gett" in caplog.text

@@ -77,19 +77,20 @@ def test_second_rotation_drops_the_older_generation(tmp_path):
     assert generations == ["d.log.1"], generations
 
 
-def test_cap_zero_disables_rotation(tmp_path, monkeypatch):
-    monkeypatch.setenv("M3_LOG_MAX_BYTES", "0")
+def test_cap_zero_disables_rotation(tmp_path, m3_settings):
+    m3_settings({"log.max_bytes": 0})
     _reset_log_cfg_cache()
     log = tmp_path / "d.log"
     _make_oversized(log)
     _rotate_if_oversized(log)
-    assert log.exists(), "M3_LOG_MAX_BYTES=0 must disable rotation"
+    assert log.exists(), "log.max_bytes = 0 must disable rotation"
 
 
 # --- §3: the cap must be reachable from a HEADLESS launcher -----------------
 # A Windows scheduled task / launchd agent / systemd --user unit runs with a
 # BARE environment, so an env-only knob is absent in exactly the process whose
-# log grows. Precedence must be: config file > env var > default.
+# log grows. Precedence: .log_config.json > log.max_bytes (m3_config.toml) >
+# default. The env name M3_LOG_MAX_BYTES is not read.
 
 
 def _reset_log_cfg_cache():
@@ -112,27 +113,33 @@ def test_default_cap_when_nothing_configured(log_cfg, monkeypatch):
     assert _task_runtime._log_max_bytes() == CAP
 
 
-def test_env_overrides_default(log_cfg, monkeypatch):
-    monkeypatch.setenv("M3_LOG_MAX_BYTES", "1234")
+def test_the_setting_overrides_the_default(log_cfg, m3_settings):
+    m3_settings({"log.max_bytes": 1234})
     _reset_log_cfg_cache()
     assert _task_runtime._log_max_bytes() == 1234
 
 
-def test_config_file_beats_env(log_cfg, monkeypatch):
-    """The §3 requirement: headless launchers can only see the file."""
+def test_the_env_name_is_not_read(log_cfg, monkeypatch):
     monkeypatch.setenv("M3_LOG_MAX_BYTES", "1234")
+    _reset_log_cfg_cache()
+    assert _task_runtime._log_max_bytes() == CAP
+
+
+def test_config_file_beats_the_setting(log_cfg, m3_settings):
+    """The §3 requirement: headless launchers can only see the file."""
+    m3_settings({"log.max_bytes": 1234})
     log_cfg.write_text(json.dumps({"max_bytes": 999}), encoding="utf-8")
     _reset_log_cfg_cache()
     assert _task_runtime._log_max_bytes() == 999
 
 
-def test_malformed_config_warns_loudly_and_falls_back(log_cfg, monkeypatch, capsys):
+def test_malformed_config_warns_loudly_and_falls_back(log_cfg, monkeypatch, capsys, m3_settings):
     """§3 never silent: dead tuning must not look like working tuning."""
-    monkeypatch.setenv("M3_LOG_MAX_BYTES", "1234")
+    m3_settings({"log.max_bytes": 1234})
     log_cfg.write_text("{not json", encoding="utf-8")
     _reset_log_cfg_cache()
     monkeypatch.setattr(sys, "__stderr__", sys.stderr)  # route to capsys
-    assert _task_runtime._log_max_bytes() == 1234, "must fall back to env"
+    assert _task_runtime._log_max_bytes() == 1234, "must fall back to log.max_bytes"
     assert "WARNING" in capsys.readouterr().err, "malformed config must warn"
 
 

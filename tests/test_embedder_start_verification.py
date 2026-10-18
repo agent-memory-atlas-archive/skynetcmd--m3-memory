@@ -161,11 +161,11 @@ def test_dead_service_with_a_free_port_gets_start_advice(pair, monkeypatch, caps
     assert "`start` exited 7" in err
 
 
-def test_verification_honours_a_custom_port(pair, monkeypatch, capsys):
-    """M3_EMBED_SERVER_PORT is supported, so a hardcoded 8082 in the message is
+def test_verification_honours_a_custom_port(pair, monkeypatch, capsys, m3_settings):
+    """embed.server.port is supported, so a hardcoded 8082 in the message is
     wrong advice — it sends the operator to look at the wrong socket."""
     binary, gguf = pair
-    monkeypatch.setenv("M3_EMBED_SERVER_PORT", "9123")
+    m3_settings({"embed.server.port": 9123})
     monkeypatch.setattr(ea, "_service_reports_running", lambda *a, **k: False)
     monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
 

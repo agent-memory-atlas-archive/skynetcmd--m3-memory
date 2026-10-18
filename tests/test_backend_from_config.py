@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import write_sandbox_config
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 
@@ -20,12 +22,7 @@ def postgres_in_file():
     """M3_DB_BACKEND / DB_BACKEND start unset: the conftest sandbox clears them."""
     from m3_core.config import settings as st
 
-    from m3_memory import _roots
-
-    root = Path(_roots.config_root())
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "m3_config.toml").write_text('schema_version = 1\n[db]\nbackend = "postgres"\n', encoding="utf-8")
-    st._reset_for_tests()
+    write_sandbox_config('[db]\nbackend = "postgres"\n')
     yield
     st._reset_for_tests()
 
@@ -45,23 +42,20 @@ def test_the_file_beats_env(postgres_in_file, monkeypatch):
     assert resolve_backend_name() == "postgres"
 
 
-def test_the_legacy_env_name_answers_below_the_file_and_warns_once(monkeypatch, caplog):
-    """With no [db] backend in the file, M3_DB_BACKEND still selects through N+3,
-    and says so once per process: a daemon on PostgreSQL because of a variable
-    nobody sees must not be silent (§3)."""
+def test_the_legacy_env_name_does_not_select_the_backend(monkeypatch, caplog):
+    """With no [db] backend in the file, M3_DB_BACKEND is not read: the default
+    (sqlite) is used, and nothing is said per call (setup/upgrade/doctor name the
+    leftover variable)."""
     import logging
 
     from m3_core import paths
     from m3_core.config import settings as st
 
     monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setattr(paths, "_BACKEND_ENV_WARNED", set())
     st._reset_for_tests()
     with caplog.at_level(logging.WARNING):
-        assert paths.resolve_backend_name() == "postgres"
-        assert paths.resolve_backend_name() == "postgres"
-    said = [r.getMessage() for r in caplog.records if "M3_DB_BACKEND" in r.getMessage()]
-    assert len(said) == 1 and "m3 config set db.backend postgres" in said[0], said
+        assert paths.resolve_backend_name() == "sqlite"
+    assert "M3_DB_BACKEND" not in caplog.text
 
 
 def test_a_flag_beats_env(postgres_in_file, monkeypatch):

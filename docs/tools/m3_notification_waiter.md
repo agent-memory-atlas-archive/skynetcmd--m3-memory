@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: 454ee2cabe22
-mtime_utc: 2026-10-17T09:12:47.851428+00:00
-generated_utc: 2026-10-17T09:14:26.581725+00:00
+sha1: 27c0823fbed1
+mtime_utc: 2026-10-18T01:34:08.331327+00:00
+generated_utc: 2026-10-18T01:36:26.076570+00:00
 private: false
 ---
 
@@ -33,7 +33,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 ## Entry points
 
-- `def main()` (line 649)
+- `def main()` (line 651)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -56,8 +56,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 ## Environment variables read
 
-- `DB_BACKEND`
-- `M3_DB_BACKEND`
+_(none detected)_
 
 ---
 
@@ -72,7 +71,7 @@ _(none detected)_
 **subprocess**
 
 - `subprocess.Popen()  → `cmd`` (line 488)
-- `subprocess.Popen()  → `cmd`` (line 905)
+- `subprocess.Popen()  → `cmd`` (line 907)
 - `subprocess.run()` (line 261)
 
 

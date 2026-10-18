@@ -39,9 +39,9 @@ def test_reminder_always_advises_backup(monkeypatch):
     assert "data warehouse" in out.lower()
 
 
-def test_cdw_via_env_ip_is_named(monkeypatch):
+def test_cdw_via_configured_ip_is_named(monkeypatch, m3_settings):
     monkeypatch.delenv("PG_URL", raising=False)
-    monkeypatch.setenv("SYNC_TARGET_IP", "192.0.2.50")
+    m3_settings({"sync.target_ip": "192.0.2.50"})
     out = _reminder_output()
     assert "192.0.2.50" in out
     assert "not a" in out.lower() and "backup" in out.lower()

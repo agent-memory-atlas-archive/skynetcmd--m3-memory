@@ -13,12 +13,17 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 
-def test_a_flag_beats_env_and_never_writes_env(monkeypatch):
+def test_a_flag_beats_the_file_and_never_writes_env(monkeypatch):
+    """The file's value, not the former env name, is what a flag outranks; the
+    env value is never read and the flag never writes env."""
+    from m3_core.config import locate
     from m3_core.config import settings as st
 
+    with open(locate().file, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write('\n[embed]\nurl = "http://from-file:1"\n')
     monkeypatch.setenv("M3_EMBED_URL", "http://from-env:1")
     st._reset_for_tests()
-    assert st.setting("embed.url") == "http://from-env:1"
+    assert st.setting("embed.url") == "http://from-file:1"
     st.set_from_cli({"embed.url": "http://from-flag:2"})
     assert st.setting("embed.url") == "http://from-flag:2"
     assert st.origin_of("embed.url") == "cli"

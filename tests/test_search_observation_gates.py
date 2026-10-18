@@ -32,8 +32,8 @@ def _raw(i, content="x"):
 
 
 # ── _apply_observation_preference ────────────────────────────────────────────
-def test_obs_preference_interleaves_when_under_budget(monkeypatch):
-    monkeypatch.setenv("M3_OBSERVATION_BUDGET_TOKENS", "100000")  # never reached
+def test_obs_preference_interleaves_when_under_budget(m3_settings):
+    m3_settings({"search.observation_budget_tokens": 100000})  # never reached
     ranked = [(0.9, _obs(1, "short")), (0.8, _raw(1)), (0.7, _raw(2)), (0.6, _raw(3))]
     out = s._apply_observation_preference(ranked, k=3)
     # obs first, then raw to fill k=3 slots
@@ -42,8 +42,8 @@ def test_obs_preference_interleaves_when_under_budget(monkeypatch):
     assert [it["id"] for _, it in out] == ["obs1", "raw1", "raw2"]
 
 
-def test_obs_preference_returns_obs_only_when_over_budget(monkeypatch):
-    monkeypatch.setenv("M3_OBSERVATION_BUDGET_TOKENS", "1")  # trivially exceeded
+def test_obs_preference_returns_obs_only_when_over_budget(m3_settings):
+    m3_settings({"search.observation_budget_tokens": 1})  # trivially exceeded
     big = "z" * 400  # ~100 tokens by the 1-per-4-chars estimate
     ranked = [(0.9, _obs(1, big)), (0.8, _raw(1)), (0.7, _raw(2))]
     out = s._apply_observation_preference(ranked, k=5)
@@ -52,8 +52,8 @@ def test_obs_preference_returns_obs_only_when_over_budget(monkeypatch):
     assert [it["id"] for _, it in out] == ["obs1"]
 
 
-def test_obs_preference_noop_without_observations(monkeypatch):
-    monkeypatch.setenv("M3_OBSERVATION_BUDGET_TOKENS", "4000")
+def test_obs_preference_noop_without_observations(m3_settings):
+    m3_settings({"search.observation_budget_tokens": 4000})
     ranked = [(0.9, _raw(1)), (0.8, _raw(2))]
     out = s._apply_observation_preference(ranked, k=5)
     assert out == ranked  # unchanged when no obs hits
@@ -80,8 +80,8 @@ def tmp_memory_db(tmp_path, monkeypatch):
     return db
 
 
-def test_two_stage_expands_observation_source_turns(tmp_memory_db, monkeypatch):
-    monkeypatch.setenv("M3_TWO_STAGE_TURN_PENALTY", "0.7")
+def test_two_stage_expands_observation_source_turns(tmp_memory_db, m3_settings):
+    m3_settings({"search.two_stage_turn_penalty": 0.7})
     # one observation whose metadata points at two source turns
     ranked = [(1.0, _obs(1, "summary", source_turn_ids=["turnA", "turnB"]))]
     out = asyncio.run(s._apply_two_stage_expansion(ranked, k=10))

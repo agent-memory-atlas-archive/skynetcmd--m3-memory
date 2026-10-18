@@ -61,11 +61,10 @@ identically — the MCP protocol does the rest.
 > /plugin install m3@skynetcmd
 > ```
 
-The plugin's `mcpServers.memory.env` block reads six `userConfig` knobs set
-during install — `endpoint`, `capture_mode`, `embed_fallback_url`,
-`embed_gguf`, `engine_root`, `config_root` (see
-[claude_code_plugin.md](claude_code_plugin.md#configuration)). All are
-optional; `embed_fallback_url` defaults to `http://127.0.0.1:8082`.
+The plugin's `mcpServers.memory.env` block carries one `userConfig` knob,
+`config_root` (`M3_CONFIG_ROOT`, only for a non-default config root); every
+other setting is a key in `m3_config.toml` (see
+[claude_code_plugin.md](claude_code_plugin.md#configuration)).
 
 Use the plugin **or** `m3 setup`'s direct registration
 (`claude mcp add --scope user -- m3_memory m3`), not both — both gives two live
@@ -193,20 +192,21 @@ openclaw mcp show m3_memory
 ```
 
 You should see `transport: "stdio"`, a `command`/`args` pair pointing at your
-interpreter and `bin/memory_bridge.py`, and an `env` block carrying
-`M3_ENGINE_ROOT` / `M3_CONFIG_ROOT` / `M3_MEMORY_ROOT`. Those root pins matter:
-the server and the chatlog hook must agree on the same databases (see the
-split-brain hazard in `CLAUDE.md`). Restart the OpenClaw CLI or gateway to pick
+interpreter and `bin/memory_bridge.py`, and — when your config root is not the
+default `~/.m3/config` — an `env` block carrying `M3_CONFIG_ROOT`. That pin
+matters: the server and the chatlog hook must read the same `m3_config.toml`,
+whose `[paths]` names the databases (see the split-brain hazard in `CLAUDE.md`).
+m3 reads no other root variable. Restart the OpenClaw CLI or gateway to pick
 the server up.
 
-To register by hand — note the `env` block is the part people drop, and dropping
-it is what causes the split-brain:
+To register by hand — with a non-default config root, the `env` block is the
+part people drop, and dropping it is what causes the split-brain:
 
 ```bash
 openclaw mcp set m3_memory '{
   "command": "/path/to/python",
   "args": ["/path/to/m3-memory/bin/memory_bridge.py"],
-  "env": {"M3_ENGINE_ROOT": "...", "M3_CONFIG_ROOT": "..."},
+  "env": {"M3_CONFIG_ROOT": "..."},
   "transport": "stdio",
   "enabled": true
 }'
@@ -407,8 +407,8 @@ detected issue.
 
 - `docs/install_windows.md` / `install_macos.md` / `install_linux.md` —
   OS-level prerequisites and `m3 setup` walkthrough
-- `docs/ENVIRONMENT_VARIABLES.md` — every M3_* env name m3 still reads, and
-  the `m3_config.toml` key each legacy one moved to
+- `docs/ENVIRONMENT_VARIABLES.md` — the few M3_* env names m3 reads, and
+  the `m3_config.toml` key each former one moved to
 - `bin/memory/doctor.py` — the diagnostic impl
 - Memory `a18d6a67` — MCP Proxy Integration Architecture (the Aider path; its
   OpenClaw sections are superseded — OpenClaw is a native MCP client since

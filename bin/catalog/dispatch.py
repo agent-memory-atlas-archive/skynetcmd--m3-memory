@@ -210,7 +210,7 @@ async def _run_impl_bounded(spec: ToolSpec, args: dict, timeout: float | None) -
     except TimeoutError as e:
         raise ToolTimeout(
             f"{spec.name} exceeded {timeout:g}s timeout "
-            f"(raise with a larger `timeout` arg or M3_TOOL_TIMEOUT, "
+            f"(raise with a larger `timeout` arg or `m3 config set tools.timeout_s <seconds>`, "
             f"or set <=0 to disable)"
         ) from e
 

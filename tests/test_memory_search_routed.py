@@ -21,21 +21,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 @pytest.fixture(autouse=True)
 def isolate_routing_env(monkeypatch):
-    """Run with M3_ROUTE_SHADOW_MODE 'off', whatever was imported before.
-
-    auto_route reads the variable ONCE, at import (`auto_route.py:51`), and
-    defaults to 'enforce' when the Rust core is present. Setting the env var
-    only works if auto_route has not been imported yet, so the module values are
-    pinned too: an earlier test that imported auto_route (config_parity's
-    capture did) froze 'enforce' and failed this suite on every Rust lane.
-    """
+    """Run the Python router, whatever was imported before: auto_route uses the
+    native router ('enforce') when the Rust core is present, fixed at import, so
+    the module value is pinned to 'off' for these Python-path assertions."""
     import sys
 
-    monkeypatch.setenv("M3_ROUTE_SHADOW_MODE", "off")
     ar = sys.modules.get("auto_route")
     if ar is not None:
         monkeypatch.setattr(ar, "_ROUTE_SHADOW_MODE", "off")
-        monkeypatch.setattr(ar, "_ROUTE_SHADOW", False)
 
 
 @pytest.mark.asyncio

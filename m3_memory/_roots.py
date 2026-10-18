@@ -38,7 +38,6 @@ MODELS_ROOT_ENV = "M3_MODELS_ROOT"
 # Which tier of the config-root precedence answered. The
 # loader reports it (`m3 config show --origin`) and warns on the legacy tier.
 CONFIG_ROOT_ENV = "env:M3_CONFIG_ROOT"
-CONFIG_ROOT_LEGACY = "legacy:M3_MEMORY_ROOT/config"
 CONFIG_ROOT_DEFAULT = "default:~/.m3/config"
 CONFIG_ROOT_ARG = "arg:--config"
 CONFIG_FILE_NAME = "m3_config.toml"
@@ -61,8 +60,18 @@ def abs_root(root: str) -> str:
     return os.path.abspath(p).replace("\\", "/")
 
 
+# The only root locators m3 reads from the environment. The others (M3_MEMORY_ROOT,
+# M3_ENGINE_ROOT, M3_LOGS_ROOT, M3_MODELS_ROOT) were legacy names, read through
+# release N+3, which has passed: their roots come from m3_config.toml [paths].
+READ_LOCATORS = frozenset({"M3_CONFIG_ROOT", "M3_LIB_DIR"})
+
+
 def _env(name: str) -> str | None:
-    """The variable's value, or None when unset or blank (R-blank)."""
+    """The variable's value, or None when unset or blank (R-blank). Only
+    READ_LOCATORS are read; a legacy root name is ignored here, and setup,
+    upgrade, install and doctor list it (never each command)."""
+    if name not in READ_LOCATORS:
+        return None
     return os.environ.get(name) or None  # env-owner: the approved root locators
 
 
@@ -85,13 +94,15 @@ MIGRATED_MARKER = ".memory_root_migrated"
 
 
 def memory_root_pin() -> str | None:
-    """The memory root ``M3_MEMORY_ROOT`` pins explicitly, or None. The one read of
-    that name for Root-1: the legacy root, the default and the migration all ask here."""
-    return pinned(MEMORY_ROOT_ENV)  # env-owner: the approved root locators
+    """The memory root ``[paths] memory_root`` in m3_config.toml pins explicitly, or
+    None. The one read of that pin for Root-1: the legacy root, the default and the
+    migration all ask here (a pinned root is the user's choice, never migrated).
+    ``M3_MEMORY_ROOT`` is not read."""
+    return _file_root("memory_root")
 
 
 def legacy_memory_root() -> str:
-    """Where pre-decoupling state lives: ``M3_MEMORY_ROOT`` when pinned, else
+    """Where pre-decoupling state lives: ``[paths] memory_root`` when pinned, else
     ``~/.m3-memory``. Legacy lookups (the old salt location, the .env fallback, the
     old ``memory/`` databases) read it through the deprecation window, whatever
     ``memory_root()`` resolves to. They must NOT ask ``memory_root()``: after the
@@ -107,18 +118,18 @@ def memory_root_migrated() -> bool:
 
 
 def memory_root() -> str:
-    """The memory root: ``[paths] memory_root`` in m3_config.toml; else
-    ``M3_MEMORY_ROOT``; else ``~/.m3`` once the legacy state has been migrated
+    """The memory root: ``[paths] memory_root`` in m3_config.toml; else ``~/.m3``
+    once the legacy state has been migrated
     there; else the legacy ``~/.m3-memory``.
 
     Root-1: the default moves to
     ``~/.m3`` only AFTER the migration ran, so an un-migrated install keeps its old
     root instead of splitting its audit trail and config across two directories."""
-    chosen = _file_root("memory_root")  # the file outranks the env name, as for every root
+    chosen = memory_root_pin()
     if chosen:
         return chosen
-    if memory_root_pin() or not memory_root_migrated():
-        return legacy_memory_root()  # the pin, or the un-migrated ~/.m3-memory
+    if not memory_root_migrated():
+        return legacy_memory_root()  # the un-migrated ~/.m3-memory
     return _home(".m3")
 
 
@@ -132,9 +143,6 @@ def _derived(env_name: str, sub: str, *, file_memory_root: bool = True) -> str:
     mem_file = _file_root("memory_root") if file_memory_root else None
     if mem_file:
         return posixpath.join(mem_file, sub)
-    mem = _env(MEMORY_ROOT_ENV)  # env-owner: the approved root locators
-    if mem:
-        return posixpath.join(abs_root(mem), sub)
     return _home(".m3", sub)
 
 
@@ -220,9 +228,6 @@ def config_root_with_tier() -> tuple[str, str]:
     if _env(CONFIG_ROOT_ENV_NAME):  # env-owner: the approved root locators
         # env-owner: the approved root locators
         return _derived(CONFIG_ROOT_ENV_NAME, "config", file_memory_root=False), CONFIG_ROOT_ENV
-    if _env(MEMORY_ROOT_ENV):  # env-owner: the approved root locators
-        # env-owner: the approved root locators
-        return _derived(CONFIG_ROOT_ENV_NAME, "config", file_memory_root=False), CONFIG_ROOT_LEGACY
     # env-owner: the approved root locators
     return _derived(CONFIG_ROOT_ENV_NAME, "config", file_memory_root=False), CONFIG_ROOT_DEFAULT
 
@@ -264,7 +269,7 @@ def _file_paths() -> dict[str, str]:
         with open(path, "rb") as fh:
             table = tomllib.load(fh).get("paths") or {}
         paths: dict[str, str] = {}
-        for name in ("memory_root", "engine_root", "logs_root", "models_root"):
+        for name in ("memory_root", "engine_root", "logs_root", "models_root", "bin", "docs", "assets", "examples"):
             if name not in table:
                 continue
             value = table[name]
@@ -280,6 +285,19 @@ def _file_root(name: str) -> str | None:
     The file outranks the env var and the derived default."""
     value = _file_paths().get(name)
     return abs_root(value) if value else None
+
+
+def file_root(name: str) -> str | None:
+    """``[paths] <name>`` from m3_config.toml, made absolute; None when unset. For
+    reporting where a root came from (doctor); resolution uses the root functions."""
+    return _file_root(name)
+
+
+def payload_path(key: str) -> str | None:
+    """``[paths] <key>`` for a payload part (bin, docs, assets, examples), made
+    absolute; None when unset. Read here, beside the roots, because the code that
+    finds bin/ runs before the registry can import."""
+    return _file_root(key)
 
 
 def engine_root() -> str:
@@ -320,8 +338,7 @@ LIB_DIR_ENV = "M3_LIB_DIR"
 def lib_root() -> str:
     """m3's own trusted native-library directory (wolfSSL): ``~/.m3/lib`` by default.
 
-    Precedence: ``M3_LIB_DIR`` > the config root's PARENT ``/lib`` >
-    ``M3_MEMORY_ROOT/lib`` > ``~/.m3/lib``. Unlike the other roots it hangs off
+    Precedence: ``M3_LIB_DIR`` > the config root's PARENT ``/lib`` > ``~/.m3/lib``. Unlike the other roots it hangs off
     the config root's parent, and it keeps host-convention ``abspath``: the crypto
     loader and the wolfSSL installer each carried a hand-synced copy of exactly
     this rule, and this is that rule, unchanged. Relocating it matters: anything
@@ -333,11 +350,7 @@ def lib_root() -> str:
     if pinned:
         return os.path.abspath(os.path.expanduser(pinned))
     cfg = _env(CONFIG_ROOT_ENV_NAME)  # env-owner: the approved root locators
-    if cfg:
-        base = os.path.dirname(os.path.abspath(os.path.expanduser(cfg)))
-    else:
-        mem = _env(MEMORY_ROOT_ENV)  # env-owner: the approved root locators
-        base = os.path.abspath(os.path.expanduser(mem)) if mem else _home(".m3")
+    base = os.path.dirname(os.path.abspath(os.path.expanduser(cfg))) if cfg else _home(".m3")
     return os.path.join(base, "lib")
 
 

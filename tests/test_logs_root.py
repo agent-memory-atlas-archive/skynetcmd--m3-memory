@@ -16,29 +16,43 @@ sys.path.insert(0, str(_BIN))
 
 from m3_core.paths import get_m3_logs_root  # noqa: E402
 
+from conftest import write_sandbox_config  # noqa: E402
+
 
 def _norm(p) -> str:
     return os.path.normcase(os.path.normpath(str(p)))
 
 
-def test_logs_root_precedence(monkeypatch, tmp_path):
-    monkeypatch.delenv("M3_LOGS_ROOT", raising=False)
-    monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
-    assert _norm(get_m3_logs_root()) == _norm(Path.home() / ".m3" / "logs")
+def _paths(tmp_path, **paths) -> None:
+    """Rewrite the sandbox's m3_config.toml with these [paths] keys (plus the
+    sandbox's memory_root when not given, so nothing resolves to the real home)."""
+    write_sandbox_config("[paths]\n" + "".join(f'{k} = "{Path(v).as_posix()}"\n' for k, v in paths.items()))
 
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path / "master"))
+
+def test_logs_root_precedence(monkeypatch, tmp_path):
+    """[paths] logs_root > <memory_root>/logs > ~/.m3/logs; the env names are not read."""
+    monkeypatch.setenv("M3_LOGS_ROOT", str(tmp_path / "env-ignored"))
+    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path / "env-ignored"))
+    # The default is under the home: move the home into pytest's area to see it,
+    # rather than resolving the developer's real ~/.m3.
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    (tmp_path / "config" / "m3_config.toml").write_text("schema_version = 1\n", encoding="utf-8")
+    assert _norm(get_m3_logs_root()) == _norm(home / ".m3" / "logs")
+
+    _paths(tmp_path, memory_root=tmp_path / "master")
     assert _norm(get_m3_logs_root()) == _norm(tmp_path / "master" / "logs")
 
-    monkeypatch.setenv("M3_LOGS_ROOT", str(tmp_path / "explicit"))
+    _paths(tmp_path, memory_root=tmp_path / "master", logs_root=tmp_path / "explicit")
     assert _norm(get_m3_logs_root()) == _norm(tmp_path / "explicit")
 
 
 def test_schedule_specs_log_outside_the_install_root(monkeypatch, tmp_path):
     import install_schedules
 
-    logs = tmp_path / "logs"
+    logs = tmp_path / "logs"  # the sandbox's [paths] logs_root
     payload = tmp_path / "payload"
-    monkeypatch.setenv("M3_LOGS_ROOT", str(logs))
     specs = install_schedules.get_schedule_specs(str(payload))
 
     log_args = [s["args"][s["args"].index("--log-file") + 1] for s in specs if "--log-file" in s["args"]]

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_timing.py
-sha1: bc6019825e76
-mtime_utc: 2026-10-16T21:46:05.023453+00:00
-generated_utc: 2026-10-16T21:49:54.920437+00:00
+sha1: e505e1ca6e57
+mtime_utc: 2026-10-18T01:30:20.469797+00:00
+generated_utc: 2026-10-18T01:36:25.653265+00:00
 private: false
 ---
 
@@ -49,7 +49,7 @@ seen, which is correct — a partial tail beats a lock.
 
 ## Entry points
 
-- `def main()` (line 164)
+- `def main()` (line 175)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -70,13 +70,13 @@ seen, which is correct — a partial tail beats a lock.
 
 ## Environment variables read
 
-- `M3_PATH_BIN`
+_(none detected)_
 
 ---
 
 ## Calls INTO this repo (intra-repo imports)
 
-_(none detected)_
+- `m3_memory._bin (bin_dir)`
 
 ---
 

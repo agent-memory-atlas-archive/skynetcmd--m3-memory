@@ -47,14 +47,12 @@ from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surf
     _chatlog_db_stats,
     _chatlog_section,
     _claude_hook_state,
-    _config_env_disagreement_section,
     _crypto_section,
     _database_env_section,
     _deprecated_env_section,
     _embedder_tier_section,
     _gemini_hook_state,
     _interrupted_rewrite_section,
-    _llm_file_legacy_section,
     _read_json,
     _resolve_chatlog_db,
     _roots_section,
@@ -160,11 +158,11 @@ def _developer_bridge() -> Path | None:
     return None
 
 
-def _payload_dir(component: str, env_var: str, must_contain: str | None = None) -> Path | None:
+def _payload_dir(component: str, config_key: str, must_contain: str | None = None) -> Path | None:
     """Resolve a payload component dir: owned by ``m3_memory._bin.payload_dir``."""
     from m3_memory import _bin
 
-    return _bin.payload_dir(component, env_var, must_contain)  # env-owner: the approved payload locator
+    return _bin.payload_dir(component, config_key, must_contain)
 
 
 def bin_dir() -> Path | None:
@@ -177,19 +175,19 @@ def bin_dir() -> Path | None:
 def docs_dir() -> Path | None:
     """The docs/ directory. $M3_PATH_DOC overrides."""
     # env-owner: the payload locator (it finds the payload, where the registry lives)
-    return _payload_dir("docs", "M3_PATH_DOC")
+    return _payload_dir("docs", "docs")
 
 
 def assets_dir() -> Path | None:
     """The _assets/ directory. $M3_PATH_ASSETS overrides."""
     # env-owner: the payload locator (it finds the payload, where the registry lives)
-    return _payload_dir("_assets", "M3_PATH_ASSETS")
+    return _payload_dir("_assets", "assets")
 
 
 def examples_dir() -> Path | None:
     """The examples/ directory. $M3_PATH_EXAMPLES overrides."""
     # env-owner: the payload locator (it finds the payload, where the registry lives)
-    return _payload_dir("examples", "M3_PATH_EXAMPLES")
+    return _payload_dir("examples", "examples")
 
 
 def find_bridge() -> Path | None:
@@ -299,12 +297,10 @@ def _canonical_memory_env() -> dict:
     env: dict[str, str] = {}
     if not _roots.same_dir(conf, _roots.default_config_root()):
         env["M3_CONFIG_ROOT"] = str(conf).replace("\\", "/")
-    # Deliberately NO M3_EMBED_GGUF in the MCP server env. An env var forces the
-    # bridge to load its OWN in-process CUDA embedder (a second context; the exact
-    # hang that motivated this). Discover the GGUF and seed it into the SHARED
-    # config instead (§3 headless knob -> config file), so the single :8082 server
-    # owns the one CUDA context and the bridge defers to it.
-    embed: str | os.PathLike[str] | None = _config.setting("embed.gguf")  # m3_config.toml or M3_EMBED_GGUF
+    # No GGUF in the MCP server env (m3 reads none there). Discover the GGUF and seed
+    # it into the SHARED config, so the single :8082 server owns the one CUDA
+    # context and the bridge defers to it.
+    embed: str | os.PathLike[str] | None = _config.setting("embed.gguf")  # m3_config.toml
     if not embed:
         cand = Path.home() / ".lmstudio" / "models" / "deepsweet" / "bge-m3-GGUF-Q4_K_M" / "bge-m3-GGUF-Q4_K_M.gguf"
         if os.path.isfile(cand):
@@ -1518,18 +1514,18 @@ def _post_install(
     changed = False
     if endpoint_choice is not None:
         cfg["llm_endpoints_csv"] = endpoint_choice
-        # Recorded where every m3 process reads it (the registry, below env and .env),
-        # not in env: setup writes files, not env.
+        # Recorded in m3_config.toml [llm], where every m3 process reads it; setup
+        # writes files, not env.
         try:
             _bin.ensure_on_path()
             from m3_core.llm_config import write_llm_setting
 
             where = write_llm_setting("M3_LLM_ENDPOINTS_CSV", endpoint_choice)
             messages.append(f"[+] pinned LLM endpoint: {endpoint_choice} (in {where})")
-        except (ImportError, OSError) as e:
+        except (ImportError, OSError, ValueError) as e:  # ValueError: the writer refused the value
             messages.append(
                 f"[!] the LLM endpoint {endpoint_choice} was NOT recorded ({e}); m3 will not use it. "
-                "fix: re-run with --llm-endpoint, or set M3_LLM_ENDPOINTS_CSV"
+                "fix: `m3 config set llm.endpoints <url>`"
             )
         changed = True
     if capture_choice is not None:
@@ -2267,44 +2263,12 @@ def _dedupe_mcp_registration(*, apply: bool = False) -> list[str]:
     return actions
 
 
-def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
-    """Return {file: {OLD: NEW}} for each file that still sets a deprecated
-    (pre-M3_ namespacing) env var name: MCP client env blocks (including
-    ``~/.claude.json``) and the ``.env`` files, as the one sweep
-    (``env_sources.scan``) finds them. ``all_env_renames()`` is the sole source
-    of what counts as an old name. Only files with >=1 old name are included."""
-
-    _bin.ensure_on_path()  # parent.parent/bin missed a wheel install
-    from m3_core.paths import all_env_renames
-
-    from m3_memory.install.env_sources import scan
-
-    renames = all_env_renames()
-    out: dict[Path, dict[str, str]] = {}
-    for found in scan(list(renames), include_process_env=False):
-        if found.kind in ("mcp", "dotenv"):
-            out.setdefault(Path(found.where), {})[found.name] = renames[found.name]
-    return {path: dict(sorted(names.items())) for path, names in out.items()}
-
-
 def _shell_assigns(text: str, name: str) -> bool:
     """Whether shell startup text assigns ``name`` (env_sources.shell_assignment,
     the one owner of that reading)."""
     from m3_memory.install.env_sources import shell_assignment
 
     return shell_assignment(text, name) is not None
-
-
-def _all_env_renames() -> dict[str, str]:
-    """The union deprecation map (pure-namespacing + role-split). Best-effort:
-    returns {} if the payload SDK isn't importable (thin pip pre-payload)."""
-    try:
-        _bin.ensure_on_path()  # parent.parent/bin missed a wheel install
-        from m3_core.paths import all_env_renames
-
-        return cast("dict[str, str]", all_env_renames())
-    except Exception:  # noqa: BLE001
-        return {}
 
 
 def _scan_registry_env_deprecations(names: dict[str, str], unchecked: list[str] | None = None) -> list[dict]:
@@ -2360,7 +2324,7 @@ def _find_env_var_locations(
 
 def _note_deprecated_pg_url_anywhere() -> None:
     """Print every scanned place the old PG_URL is set, in one pass. It used to
-    hard-fail install, when an env PG_URL could arm the wrong store; m3 reads no
+    fail install, when an env PG_URL could arm the wrong store; m3 reads no
     secret from env now, so a copy is only plaintext left behind, and
     `m3 config import-env` stores it as the warehouse DSN (M3_CDW_PG_URL)."""
     unchecked: list[str] = []
@@ -2375,205 +2339,7 @@ def _note_deprecated_pg_url_anywhere() -> None:
         )
 
 
-def _migrate_env_names(*, apply: bool = False) -> list[str]:
-    """Rename deprecated env var KEYS to their M3_ names in on-disk config.
-    Mirrors ``_dedupe_mcp_registration``'s contract exactly.
-
-    apply=False (default): dry-run, returns "would rename ..." lines, no writes.
-    apply=True: rewrites each affected file (a .bak is written FIRST with the
-    original contents), renaming the env KEY in place while preserving its
-    VALUE, then returns "renamed ..." lines. Idempotent — a clean config (or a
-    second run right after) yields [].
-
-    Conflict rule: if BOTH the old and new name are already present in the same
-    env block, the old key is dropped WITHOUT touching the new value (matches
-    getenv_compat's new > old precedence) — the old value is discarded, not
-    merged in, since the new value already wins at read time.
-
-    Never let one bad file abort the rest (try/except per file, error noted).
-    """
-    actions: list[str] = []
-    affected = _deprecated_env_in_config()
-
-    from m3_memory.install.env_sources import claude_user_config
-
-    for path, renames in affected.items():
-        try:
-            if path.name.startswith(".env"):
-                # m3 never rewrites a user's .env.
-                actions.extend(
-                    f"[!] {path}: rename {old} to {new} by hand (m3 does not rewrite a .env)"
-                    for old, new in renames.items()
-                )
-            elif path == claude_user_config():
-                # The claude CLI manages this file; m3 says what to change.
-                actions.extend(
-                    f"[!] {path}: rename {old} to {new} in the server's env block "
-                    f"(or `claude mcp remove <server>` and add it again with --env {new}=...)"
-                    for old, new in renames.items()
-                )
-            else:
-                actions.extend(_migrate_json_config_file(path, renames, apply=apply))
-        except (OSError, json.JSONDecodeError) as e:
-            actions.append(f"[X] could not migrate env names in {path}: {e}")
-
-    # Windows persistent registry env vars (User scope written; Machine reported).
-    actions.extend(_migrate_registry_env_names(apply=apply))
-
-    return actions
-
-
-def _migrate_registry_env_names(*, apply: bool = False) -> list[str]:
-    """Rename deprecated Windows registry env vars to their new names, User scope.
-
-    Config-file renames (``_migrate_env_names``) can't reach a persistent env var
-    set in the Windows registry; without this, ``m3 doctor --fix`` would report a
-    clean run while a registry ``PG_URL`` still shadows behavior and install still
-    hard-fails. This closes that gap.
-
-    Scope policy: **HKCU (User) is rewritten** — it needs no admin. **HKLM
-    (Machine) is REPORTED, never written** (would need elevation); the operator
-    gets the exact command. Same conflict rule as the config path: if the NEW name
-    already exists at that scope, the OLD one is DROPPED (new wins), else RENAMED.
-    The old value is logged (backup) before any delete. Non-Windows → []. After a
-    write, a WM_SETTINGCHANGE broadcast asks running shells to reload env.
-
-    apply=False: dry-run ("would rename/drop ..."). apply=True: performs HKCU
-    writes. Best-effort and per-var isolated: a failure on one var is noted, never
-    aborts the rest. Idempotent."""
-    from m3_memory._platform import user_env_rename
-
-    actions: list[str] = []
-    names = _all_env_renames()
-    hits = _scan_registry_env_deprecations(names)
-    for hit in hits:
-        old, new = hit["old"], hit["new"]
-        label = hit["label"]
-        if not hit["writable"]:
-            # HKLM — report the manual, admin-required command; never auto-write.
-            actions.append(
-                f"[!] {label}: {old} must be renamed to {new} manually (admin): "
-                f'setx /M {new} "%{old}%" && REG delete '
-                f'"HKLM\\{hit["subkey"]}" /v {old} /f'
-            )
-            continue
-        new_set = any(
-            h["name"] == new and h["scope"] == hit["scope"] for h in _scan_registry_env_deprecations({new: new})
-        )
-        if not apply:
-            actions.append(
-                f"[+] would drop superseded {old} ({new} already set) in {label}"
-                if new_set
-                else f"[+] would rename {old} -> {new} in {label} (value carried over)"
-            )
-            continue
-        try:
-            done = user_env_rename(old, new)
-        except OSError as e:
-            actions.append(f"[X] {label}: could not rename {old}->{new}: {e}")
-            continue
-        actions.append(
-            f"[+] dropped superseded {old} ({new} already set) in {label}"
-            if done == "dropped"
-            else f"[+] renamed {old} -> {new} in {label} (value carried over)"
-        )
-    return actions
-
-
-def _migrate_json_config_file(path: Path, renames: dict[str, str], *, apply: bool) -> list[str]:
-    """Rename OLD->NEW env keys inside every mcpServers.<name>.env block of a
-    single JSON config file. Raises on I/O or parse error (caller handles)."""
-    actions: list[str] = []
-    original = path.read_text(encoding="utf-8")
-    data = json.loads(original) or {}
-    changed = False
-    for entry in (data.get("mcpServers") or {}).values():
-        env_block = (entry or {}).get("env")
-        if not isinstance(env_block, dict):
-            continue
-        for old, new in renames.items():
-            if old not in env_block:
-                continue
-            if new in env_block:
-                verb = "dropped" if apply else "would drop"
-                actions.append(f"[+] {verb} superseded {old} ({new} already set) in {path}")
-                if apply:
-                    env_block.pop(old, None)
-                    changed = True
-            else:
-                verb = "renamed" if apply else "would rename"
-                actions.append(f"[+] {verb} {old} -> {new} in {path}")
-                if apply:
-                    env_block[new] = env_block.pop(old)
-                    changed = True
-    if apply and changed:
-        _guarded_write(path, json.dumps(data, indent=2) + "\n", by="m3 doctor --fix (env names)")
-    return actions
-
-
-# The m3 MCP server names whose env blocks must never carry M3_EMBED_GGUF (it
-# forces a per-process CUDA embedder — the hang footgun). Only the memory server
-# reads it, but scrub any m3-owned block defensively.
 _M3_MCP_SERVER_NAMES = ("memory",)
-
-
-def _scrub_embed_gguf_from_settings(path: Path, *, apply: bool) -> list[str]:
-    """Remove M3_EMBED_GGUF from m3 MCP-server env blocks in one settings file.
-
-    An env-var GGUF makes the bridge open its OWN CUDA context, which can hang
-    the read/write path indefinitely (§3/§6). Shared mode (.embed_config.json)
-    is the correct home for the model path. This auto-heals installs already in
-    the bad state, on every upgrade and via `m3 doctor --fix`. Idempotent: a
-    clean file yields no actions. Backs up to <file>.bak before writing.
-    Raises on I/O or parse error (caller handles)."""
-    actions: list[str] = []
-    if not os.path.exists(path):
-        return actions
-    original = path.read_text(encoding="utf-8")
-    data = json.loads(original) or {}
-    changed = False
-    servers = data.get("mcpServers") or {}
-    for name, entry in servers.items():
-        env_block = (entry or {}).get("env")
-        if not isinstance(env_block, dict) or "M3_EMBED_GGUF" not in env_block:
-            continue
-        # Scrub the m3 memory server (the one that reads it) — and any block that
-        # points at a bridge/embed script, to be safe on renamed servers.
-        args_blob = " ".join((entry or {}).get("args") or [])
-        is_m3 = name in _M3_MCP_SERVER_NAMES or "memory_bridge" in args_blob or "m3" in name.lower()
-        if not is_m3:
-            continue
-        verb = "scrubbed" if apply else "would scrub"
-        actions.append(f"[+] {verb} M3_EMBED_GGUF from mcpServers.{name}.env in {path}")
-        if apply:
-            env_block.pop("M3_EMBED_GGUF", None)
-            changed = True
-    if apply and changed:
-        _guarded_write(path, json.dumps(data, indent=2) + "\n", by="m3 doctor --fix (M3_EMBED_GGUF)")
-    return actions
-
-
-def _heal_embed_gguf_env_leak(*, apply: bool) -> list[str]:
-    """Scrub M3_EMBED_GGUF from every known agent settings file AND seed the
-    shared config, so an upgrade auto-heals the per-process-CUDA hang footgun.
-    Best-effort per file (a bad file is warned, not fatal). Returns actions."""
-    actions: list[str] = []
-    for _label, path in _known_agent_settings():
-        try:
-            actions.extend(_scrub_embed_gguf_from_settings(path, apply=apply))
-        except Exception as e:  # noqa: BLE001 — one bad file must not abort the sweep
-            actions.append(f"[!] could not scrub {path}: {type(e).__name__}: {e}")
-    # Seed the shared config so clients have somewhere to defer to after the scrub.
-    if apply:
-        try:
-            from m3_memory.embedder_admin import seed_shared_config
-
-            _p, wrote = seed_shared_config()
-            if wrote:
-                actions.append(f"[+] seeded shared embedder config: {_p}")
-        except Exception as e:  # noqa: BLE001
-            actions.append(f"[!] could not seed shared config: {type(e).__name__}: {e}")
-    return actions
 
 
 def _memory_root_migration_section(fix: bool) -> None:
@@ -2596,34 +2362,6 @@ def _memory_root_migration_section(fix: bool) -> None:
     print(f"  [OK] memory root moved to ~/.m3 (copied: {', '.join(report['moved']) or 'nothing'}; old root kept)")
 
 
-def _deprecated_env_config_section() -> None:
-    """Doctor section: flag on-disk config still using deprecated env var names.
-
-    Mirrors ``_duplicate_registration_section``. Distinct from
-    ``m3_memory.install.sections._deprecated_env_section`` (which reports names
-    actually READ by THIS process via getenv_compat) — this one scans config
-    FILES so it catches names sitting unread in someone else's settings.json.
-    """
-    affected = _deprecated_env_in_config()
-    if not affected:
-        return  # clean — no noise
-    print()
-    print(
-        "  [!] deprecated env var NAMES found in on-disk config (still work via "
-        "back-compat, but should migrate to the M3_ namespace):"
-    )
-    for path, renames in sorted(affected.items(), key=lambda kv: str(kv[0])):
-        for old, new in sorted(renames.items()):
-            print(f"        {path}: {old}  ->  {new}")
-    print("      → `m3 doctor --fix` renames these in MCP client configs (each file keeps")
-    print("        <name>.bak and a <name>.backup_history entry); a .env and ~/.claude.json")
-    print("        are never rewritten: it prints the edit to make. The old names still")
-    print("        work until you change them.")
-
-
-# m3's own long-running scripts. The four deleted bridges (grok/web_research/
-# debug_agent/custom_tool) are gone from here too -- a double-launch check for a
-# script that no longer ships can only produce a false negative.
 _BRIDGE_SCRIPTS = ("memory_bridge.py", "mcp_proxy.py")
 
 
@@ -2804,17 +2542,6 @@ def _heal_all_agents(*, force: bool = False) -> int:
         print(f"  {line}")
         if line.lstrip().startswith("[+]"):
             changed += 1
-    # Auto-migrate deprecated env var names to the M3_ namespace.
-    for line in _migrate_env_names(apply=True):
-        print(f"  {line}")
-        if line.lstrip().startswith("[+]"):
-            changed += 1
-    # Auto-heal the per-process-CUDA hang footgun: scrub M3_EMBED_GGUF from m3
-    # MCP-server env blocks and seed the shared config so clients defer to :8082.
-    for line in _heal_embed_gguf_env_leak(apply=True):
-        print(f"  {line}")
-        if line.lstrip().startswith("[+]"):
-            changed += 1
     return changed
 
 
@@ -2851,7 +2578,6 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
             for line in _heal_config_bridge_path(apply=False):
                 print(f"  {line}")
         _duplicate_registration_section()
-        _deprecated_env_config_section()
         _memory_root_migration_section(fix)
         bridge = find_bridge()
         if bridge and os.path.isfile(bridge):
@@ -2865,8 +2591,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     from m3_memory import _roots
 
-    # env-owner: reports a root's source
-    root_src = "(M3_MEMORY_ROOT env)" if _roots.pinned(_roots.MEMORY_ROOT_ENV) else "(default)"
+    root_src = "(m3_config.toml [paths] memory_root)" if _roots.memory_root_pin() else "(default)"
 
     print(f"m3-memory package version: {__version__}")
     print(f"M3 root directory:         {config_dir()} {root_src}")
@@ -2922,10 +2647,6 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     _deprecated_env_section()
 
-    _config_env_disagreement_section()
-
-    _llm_file_legacy_section()
-
     _interrupted_rewrite_section()
 
     _secrets_in_env_section(brief=brief)
@@ -2951,8 +2672,6 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
             print(f"  {line}")
 
     _duplicate_registration_section()
-
-    _deprecated_env_config_section()
 
     print()
     bridge = find_bridge()

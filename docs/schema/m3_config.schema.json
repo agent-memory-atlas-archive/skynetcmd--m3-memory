@@ -220,7 +220,7 @@
       "properties": {
         "backend": {
           "type": "string",
-          "description": "Primary storage backend. Set it with `m3 config set db.backend postgres`; M3_DB_BACKEND is read only as a legacy name (below this file) through N+3.",
+          "description": "Primary storage backend. Set it with `m3 config set db.backend postgres`; the former names M3_DB_BACKEND and DB_BACKEND are not read.",
           "enum": [
             "sqlite",
             "postgres"
@@ -1371,7 +1371,7 @@
         },
         "memory_root": {
           "type": "string",
-          "description": "Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed after N+3."
+          "description": "Master root: the engine, logs and models roots derive from it when their own keys are unset. The config root never does (M3_CONFIG_ROOT or ~/.m3/config locates it)."
         },
         "models_root": {
           "type": "string",

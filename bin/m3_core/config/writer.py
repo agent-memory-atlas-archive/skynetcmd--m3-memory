@@ -80,6 +80,9 @@ def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *, 
         validate_text(path, new, registry)  # refuse BEFORE replacing
         if new != old:
             atomic_write(path, new)
+    from .settings import _CACHE  # lazy: settings sits above the writer
+
+    _CACHE.mark_stale()
     return path
 
 

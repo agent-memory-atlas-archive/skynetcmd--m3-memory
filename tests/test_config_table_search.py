@@ -43,24 +43,19 @@ def test_defaults_are_what_todays_readers_produce():
 
 
 def test_decided_names_land_where_the_user_put_them():
-    """Two retired, one dev plumbing, one registered."""
+    """Two retired, one registered; M3_ROUTE_SHADOW_MODE was retired with route
+    shadow mode and is no longer a name m3 reads."""
     from m3_core.config import REGISTRY
     from m3_core.config.keys import NOT_SETTINGS, RETIRED
 
     assert {"M3_CONFIDENCE_MODEL", "M3_TRUST_AUTOTUNE"} <= set(RETIRED)
-    assert "M3_ROUTE_SHADOW_MODE" in NOT_SETTINGS
+    assert "M3_ROUTE_SHADOW_MODE" not in NOT_SETTINGS
     assert REGISTRY.by_env("M3_ENABLE_ENTITY_GRAPH").name == "memory.entity_graph"
 
 
-def test_an_unknown_title_gate_is_an_error_not_off(tmp_path):
+def test_an_unknown_title_gate_is_an_error_not_off():
     import pytest
-    from m3_core.config import Location, format_config_error
-    from m3_core.config.resolve import ConfigEnvErrors
-    from m3_core.config.settings import build
+    from m3_core.config import REGISTRY
 
-    with pytest.raises(ConfigEnvErrors) as exc:
-        build(
-            Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"),
-            environ={"M3_CONTRADICTION_TITLE_GATE": "lose"},
-        )
-    assert "not one of strict, loose, off" in format_config_error(exc.value)
+    with pytest.raises(ValueError, match="not one of strict, loose, off"):
+        REGISTRY.by_env("M3_CONTRADICTION_TITLE_GATE").coerce_env_value("lose")

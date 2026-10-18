@@ -1,6 +1,7 @@
-""".llm_config.json folds into the registry as its lowest legacy source (fold
-step 1-3; plan 2026.10.12-LLM_CONFIG_FOLD_DESIGN): m3_config.toml > legacy env >
-.env > .llm_config.json > default. One reader: llm_failover reads setting()."""
+""".llm_config.json, like the legacy env names and .env, is no longer a value
+source: m3_config.toml > default. A value set there is reported (Resolved.shadowed,
+`m3 config show`, `m3 doctor`) and never read; setup copies it into a NEW
+m3_config.toml once. One reader: llm_failover reads setting()."""
 
 from __future__ import annotations
 
@@ -38,44 +39,40 @@ def _build(tmp_path, *, toml=None, environ=None, dotenv=None, llmfile=None):
     )
 
 
-def test_each_tier_outranks_the_one_below(tmp_path):
+def test_only_the_file_and_the_default_give_a_value(tmp_path):
     k = _key(URL)
-    tiers = {
-        "toml": '[llm]\nurl = "http://toml/v1"\n',
+    legacy = {
         "environ": {"M3_LLM_URL": "http://env/v1"},
         "dotenv": {"M3_LLM_URL": "http://dotenv/v1"},
         "llmfile": {"M3_LLM_URL": "http://llmfile/v1"},
     }
-    expect = ["http://toml/v1", "http://env/v1", "http://dotenv/v1", "http://llmfile/v1", None]
-    names = list(tiers)
-    for i, want in enumerate(expect):
-        (tmp_path / str(i)).mkdir()
-        s = _build(tmp_path / str(i), **{n: tiers[n] for n in names[i:]})
-        assert s[k] == want, (names[i:], s.origin(k))
+    (tmp_path / "with").mkdir()
+    (tmp_path / "without").mkdir()
+    s = _build(tmp_path / "with", toml='[llm]\nurl = "http://toml/v1"\n', **legacy)
+    assert s[k] == "http://toml/v1"
+    s = _build(tmp_path / "without", **legacy)
+    assert s[k] is None and s.origin(k) == "default"
 
 
-def test_the_llm_file_alone_gives_todays_value_and_names_itself(tmp_path):
+def test_an_llm_file_value_is_reported_and_not_read(tmp_path):
     k = _key(URL)
     s = _build(tmp_path, llmfile={"M3_LLM_URL": "http://localhost:8080/v1"})
-    assert s[k] == "http://localhost:8080/v1"
-    assert s.origin(k) == f"llmfile:{tmp_path / '.llm_config.json'} M3_LLM_URL"
-    assert s.llm_file_in_use() == ["M3_LLM_URL"]
-
-
-def test_an_outranked_llm_file_value_is_reported_shadowed(tmp_path):
-    s = _build(tmp_path, dotenv={"M3_LLM_URL": "http://dotenv/v1"}, llmfile={"M3_LLM_URL": "http://llmfile/v1"})
+    assert s[k] is None and s.origin(k) == "default"
     assert s.shadowed_env() == [f"M3_LLM_URL (in {tmp_path / '.llm_config.json'})"]
-    assert s.llm_file_in_use() == [], "the value in use came from .env, not the LLM file"
 
 
-def test_a_bad_llm_file_value_names_the_file(tmp_path):
-    from m3_core.config import format_config_error
-    from m3_core.config.resolve import ConfigEnvErrors
+def test_every_legacy_source_still_set_is_reported(tmp_path):
+    s = _build(tmp_path, dotenv={"M3_LLM_URL": "http://dotenv/v1"}, llmfile={"M3_LLM_URL": "http://llmfile/v1"})
+    assert s.shadowed_env() == sorted(
+        [f"M3_LLM_URL (in {tmp_path / '.env'})", f"M3_LLM_URL (in {tmp_path / '.llm_config.json'})"]
+    )
 
-    with pytest.raises(ConfigEnvErrors) as exc:
-        _build(tmp_path, llmfile={"M3_ENABLE_OLLAMA_FAILOVER": "maybe"})
-    text = format_config_error(exc.value)
-    assert ".llm_config.json" in text and ".env" not in text and "fix or remove the line" in text
+
+def test_a_bad_llm_file_value_is_not_read_so_it_is_not_an_error(tmp_path):
+    k = _key("llm.ollama_failover")
+    s = _build(tmp_path, llmfile={"M3_ENABLE_OLLAMA_FAILOVER": "maybe"})
+    assert s[k] is False
+    assert any(".llm_config.json" in n for n in s.shadowed_env())
 
 
 @pytest.fixture
@@ -117,14 +114,12 @@ def test_an_absent_or_malformed_file_adds_nothing(config_root, caplog):
     assert "unreadable" in caplog.text, "a malformed file is reported (§3), not silently empty"
 
 
-def test_setting_reads_the_file_and_an_explicit_environ_does_not(config_root, tmp_path):
+def test_setting_does_not_read_the_file(config_root, tmp_path):
     from m3_core.config import settings as st
 
     _write(config_root, {"M3_ENABLE_OLLAMA_FAILOVER": "1"})
-    assert st.setting("llm.ollama_failover") is True
-    assert st.origin_of("llm.ollama_failover").startswith("llmfile:")
-    hermetic = st.build(environ={})
-    assert hermetic[_key("llm.ollama_failover")] is False, "a test's own environ stays hermetic"
+    assert st.setting("llm.ollama_failover") is False
+    assert st.origin_of("llm.ollama_failover") == "default"
 
 
 @pytest.mark.parametrize(
@@ -151,32 +146,31 @@ def test_llm_failover_builds_its_list_from_the_registry(m3_settings, values, wan
     assert llm_failover.endpoints_from_settings() == want
 
 
-def test_llm_failover_and_the_registry_agree_on_the_file(config_root):
+def test_llm_failover_ignores_the_file_as_the_registry_does(config_root):
     import llm_failover
 
     _write(config_root, {"M3_LLM_URL": "http://box:8080/v1", "M3_ENABLE_OLLAMA_FAILOVER": "1"})
-    assert llm_failover.endpoints_from_settings() == ["http://box:8080/v1", "http://localhost:11434/v1"]
+    assert llm_failover.endpoints_from_settings() == ["http://localhost:1234/v1"]
 
 
-def test_config_show_lists_the_llm_file_as_legacy(config_root):
+def test_config_show_lists_the_llm_file_value_as_not_read(config_root):
     import config_cli
 
     _write(config_root, {"M3_LLM_URL": "http://box:8080/v1"})
     out = config_cli.show(config_cli.build(), origin=True, as_json=False)
-    assert "legacy .llm_config.json" in out and "#   M3_LLM_URL" in out
+    assert "not read" in out and "M3_LLM_URL (in " in out
     data = json.loads(config_cli.show(config_cli.build(), origin=True, as_json=True))
-    assert data["llm_file_in_use"] == ["M3_LLM_URL"]
+    assert any(n.startswith("M3_LLM_URL (in ") for n in data["ignored_env"])
+    assert "llm_file_in_use" not in data
 
 
-def test_doctor_lists_the_llm_file_as_legacy_and_is_silent_without_it(config_root, capsys):
-    from m3_memory.install.sections import _llm_file_legacy_section
+def test_doctor_names_the_llm_file_value_to_delete(config_root, capsys):
+    from m3_memory.install.sections import m3_env_settings_section
 
-    _llm_file_legacy_section()
-    assert capsys.readouterr().out == ""
     _write(config_root, {"M3_LLM_URL": "http://box:8080/v1"})
     from m3_core.config import settings as st
 
     st._reset_for_tests()
-    _llm_file_legacy_section()
+    m3_env_settings_section()
     out = capsys.readouterr().out
-    assert "M3_LLM_URL" in out and ".llm_config.json" in out and "[llm]" in out
+    assert "M3_LLM_URL" in out and ".llm_config.json" in out and "not read" in out

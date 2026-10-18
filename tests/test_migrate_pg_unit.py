@@ -64,10 +64,10 @@ class TestValidation:
 
 
 class TestDsnGuard:
-    def test_forbidden_host_refused(self, monkeypatch):
-        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.7")  # before the snapshot set_secret builds
+    def test_forbidden_host_refused(self, m3_settings):
         set_secret("M3_PRIMARY_PG_URL", "postgresql://u:p@198.51.100.7:5432/db")
-        # Match the REFUSED HOST, not the env var name: M3_PG_FORBIDDEN_HOSTS is
+        m3_settings({"db.postgres.forbidden_hosts": ["198.51.100.7"]})
+        # Match the REFUSED HOST, not the key name: db.postgres.forbidden_hosts is
         # an input to this test, so a message that merely echoed it for some
         # unrelated reason would still pass. The host is what the guard decided.
         with pytest.raises(RuntimeError, match=re.escape("198.51.100.7")):
@@ -87,6 +87,5 @@ class TestDsnGuard:
         with pytest.raises(SystemExit):
             migrate_pg._resolve_dsn()
 
-    def test_explicit_dsn_wins(self, monkeypatch):
-        monkeypatch.delenv("M3_PG_FORBIDDEN_HOSTS", raising=False)
+    def test_explicit_dsn_wins(self):
         assert migrate_pg._resolve_dsn("postgresql://x/y") == "postgresql://x/y"

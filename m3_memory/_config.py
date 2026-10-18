@@ -39,7 +39,7 @@ def explicit(name: str) -> bool:
 
 
 def origin(name: str) -> str:
-    """Where key ``name``'s value came from (``default``, ``file:...``, ``env-legacy:NAME``, ``cli``...)."""
+    """Where key ``name``'s value came from (``default``, ``file:...``, ``env:NAME``, ``cli``...)."""
     return str(_settings().origin_of(name))
 
 

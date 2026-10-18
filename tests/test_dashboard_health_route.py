@@ -252,7 +252,7 @@ def test_inference_block_none_configured(monkeypatch):
     monkeypatch.setattr(lf, "LLM_ENDPOINTS", [])
     inf = H._inference_block_uncached()
     assert inf["status"] == "none_configured"
-    assert "M3_LLM_URL" in inf["remedy"]
+    assert "llm.url" in inf["remedy"]
 
 
 def test_inference_block_failover_active(monkeypatch):

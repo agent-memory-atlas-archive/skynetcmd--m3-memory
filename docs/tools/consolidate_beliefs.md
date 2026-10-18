@@ -1,8 +1,8 @@
 ---
 tool: bin/consolidate_beliefs.py
-sha1: e1d63fe9fee4
-mtime_utc: 2026-10-13T16:36:43.214120+00:00
-generated_utc: 2026-10-13T16:37:33.341993+00:00
+sha1: 3e7c03a97220
+mtime_utc: 2026-10-18T01:45:45.220158+00:00
+generated_utc: 2026-10-18T01:45:45.703443+00:00
 private: false
 ---
 
@@ -18,9 +18,10 @@ this script is the *trigger and policy* around it. Beliefs link back to their
 sources via `consolidates` edges and the sources are soft-deleted (never purged),
 so a belief is always reversible and its provenance reconstructable.
 
-Gated by M3_CONSOLIDATION_AUTO (default off): when the flag is unset, this runs in
+Gated by autonomy.consolidation_auto (default off): when it is off, this runs in
 DRY-RUN regardless of --apply, so a scheduled invocation is a safe no-op until the
-operator opts in. Pass --apply AND set M3_CONSOLIDATION_AUTO=1 to actually write.
+operator opts in. Pass --apply AND `m3 config set autonomy.consolidation_auto true`
+to actually write.
 
 Scheduled weekly (see install_schedules.py). Protected types
 (preference/user_fact/task/plan) are never consolidated — inherited from
@@ -34,7 +35,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 112)
+- `def main()` (line 113)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -43,7 +44,7 @@ Usage:
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--apply` | Write beliefs (requires M3_CONSOLIDATION_AUTO=1); else dry-run. | `False` |  | store_true |  |
+| `--apply` | Write beliefs (requires autonomy.consolidation_auto = true); else dry-run. | `False` |  | store_true |  |
 | `--threshold` | f'Min group size before consolidating (default {DEFAULT_THRESHOLD}).' | `DEFAULT_THRESHOLD` |  | int |  |
 | `--stale-days` | f'Only consolidate items older than N days (default {DEFAULT_STALE_DAYS}).' | `DEFAULT_STALE_DAYS` |  | int |  |
 | `--source-type` | f"Episodic source memory type (default '{DEFAULT_SOURCE_TYPE}')." | `DEFAULT_SOURCE_TYPE` |  | str |  |

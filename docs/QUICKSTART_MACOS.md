@@ -112,7 +112,7 @@ OpenClaw speaks MCP natively since `2026.3.22`, so `m3 setup` already registered
 the server — no proxy needed. Verify and restart:
 
 ```bash
-openclaw mcp show m3_memory   # transport stdio, env carries M3_ENGINE_ROOT/M3_CONFIG_ROOT
+openclaw mcp show m3_memory   # transport stdio; env carries M3_CONFIG_ROOT only for a non-default config root
 ```
 
 On an older build, `m3 setup` refuses and tells you to run

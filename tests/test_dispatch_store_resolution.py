@@ -28,6 +28,19 @@ from memory.backends.sqlite_backend import SqliteDialect  # noqa: E402
 
 _DISPATCH_ENV = ("M3_DISPATCH_DB", "M3_DISPATCH_MODE", "M3_DISPATCH_PG_SCHEMA")
 
+
+def _set_in_config(table: str, key: str, value: str) -> None:
+    """Write ``[table] key = value`` into the sandbox's m3_config.toml (where m3
+    reads settings; the M3_DISPATCH_* names are not read) and drop the cached
+    snapshot so the next read sees it."""
+    from m3_core.config import settings as st
+
+    cfg = os.path.join(os.environ["M3_CONFIG_ROOT"], "m3_config.toml")
+    with open(cfg, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f'\n[{table}]\n{key} = "{value}"\n')
+    st._reset_for_tests()
+
+
 # The seven lease columns 047 added. A table carrying these works with the
 # shared primitives and needs no new code -- that inheritance is the whole
 # architectural claim, so it is pinned rather than assumed.
@@ -67,7 +80,7 @@ class TestStoreResolution(_CleanEnv):
 
     def test_integrated_mode_uses_the_main_store(self):
         """Offered for a single-agent install where a second file is overhead."""
-        os.environ["M3_DISPATCH_MODE"] = "integrated"
+        _set_in_config("dispatch", "mode", "integrated")
         self.assertEqual(P.dispatch_store_mode(), "integrated")
         self.assertTrue(P.resolve_dispatch_db().endswith("agent_memory.db"))
 
@@ -75,26 +88,41 @@ class TestStoreResolution(_CleanEnv):
         """Never silently integrate on a typo: that would put ephemeral churn
         into the permanent store, which is the outcome the split prevents. The
         registry key dispatch.mode refuses a value outside separate/integrated
-        (it used to fall back to separate silently); case and spaces are not typos."""
+        (it used to fall back to separate silently)."""
         from m3_core.config import settings as st
-        from m3_core.config.resolve import ConfigEnvErrors
+        from m3_core.config.loader import ConfigFileError
 
-        for ok in ("Separate ", "", " INTEGRATED"):
-            with self.subTest(mode=ok):
-                os.environ["M3_DISPATCH_MODE"] = ok
-                st._reset_for_tests()
-                self.assertEqual(P.dispatch_store_mode(), "integrated" if "INTEGRATED" in ok else "separate")
-        for bogus in ("hybrid", "yes"):
-            with self.subTest(mode=bogus):
-                os.environ["M3_DISPATCH_MODE"] = bogus
-                st._reset_for_tests()
-                with self.assertRaises(ConfigEnvErrors):
-                    P.resolve_dispatch_db()
-        st._reset_for_tests()
+        cfg = os.path.join(os.environ["M3_CONFIG_ROOT"], "m3_config.toml")
+        with open(cfg, encoding="utf-8") as fh:
+            base = fh.read()
 
-    def test_an_explicit_path_wins(self):
+        def with_mode(value):
+            with open(cfg, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(base + f'\n[dispatch]\nmode = "{value}"\n')
+            st._reset_for_tests()
+
+        try:
+            for ok in ("separate", "integrated"):
+                with self.subTest(mode=ok):
+                    with_mode(ok)
+                    self.assertEqual(P.dispatch_store_mode(), ok)
+            for bogus in ("hybrid", "yes"):
+                with self.subTest(mode=bogus):
+                    with_mode(bogus)
+                    with self.assertRaises(ConfigFileError):
+                        P.resolve_dispatch_db()
+        finally:
+            with open(cfg, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(base)
+            st._reset_for_tests()
+
+    def test_the_legacy_env_names_are_not_read(self):
+        """M3_DISPATCH_DB / M3_DISPATCH_MODE in the environment change nothing:
+        the store follows the engine root and dispatch.mode in m3_config.toml."""
         os.environ["M3_DISPATCH_DB"] = os.path.join("custom", "x.db")
-        self.assertEqual(P.resolve_dispatch_db(), os.path.join("custom", "x.db"))
+        os.environ["M3_DISPATCH_MODE"] = "integrated"
+        self.assertEqual(P.dispatch_store_mode(), "separate")
+        self.assertTrue(P.resolve_dispatch_db().endswith("agent_dispatch.db"))
 
     def test_hybrid_is_deliberately_not_a_mode(self):
         """The chatlog has integrated/separate/hybrid; dispatch takes the first
@@ -135,15 +163,19 @@ class TestMigrationsDirIsCodeNotData(_CleanEnv):
     def test_it_does_not_move_when_the_data_roots_move(self):
         """The engine root is relocatable; the code is not."""
         before = P.dispatch_migrations_dir()
-        saved = os.environ.get("M3_ENGINE_ROOT")
+        engine_before = P.resolve_dispatch_db()
+        cfg = os.path.join(os.environ["M3_CONFIG_ROOT"], "m3_config.toml")
+        with open(cfg, encoding="utf-8") as fh:
+            base = fh.read()
+        elsewhere = os.path.join(os.environ["M3_CONFIG_ROOT"], "somewhere", "else").replace(os.sep, "/")
         try:
-            os.environ["M3_ENGINE_ROOT"] = os.path.join("somewhere", "else")
+            with open(cfg, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(base.replace("engine_root = ", f'engine_root = "{elsewhere}"\n#engine_root = ', 1))
+            self.assertNotEqual(P.resolve_dispatch_db(), engine_before, "the data root did not move")
             self.assertEqual(P.dispatch_migrations_dir(), before)
         finally:
-            if saved is None:
-                os.environ.pop("M3_ENGINE_ROOT", None)
-            else:
-                os.environ["M3_ENGINE_ROOT"] = saved
+            with open(cfg, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(base)
 
 
 class TestPgSchemaIsolation(_CleanEnv):
@@ -152,7 +184,7 @@ class TestPgSchemaIsolation(_CleanEnv):
 
     def test_per_fleet_override(self):
         """Several m3 fleets share one server by taking a schema each."""
-        os.environ["M3_DISPATCH_PG_SCHEMA"] = "m3_fleet_a"
+        _set_in_config("db.postgres", "dispatch_schema", "m3_fleet_a")
         self.assertEqual(P.dispatch_pg_schema(), "m3_fleet_a")
 
 

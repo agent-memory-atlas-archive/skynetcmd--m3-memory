@@ -30,6 +30,8 @@ if _BIN not in sys.path:
 import m3_notification_waiter as waiter  # noqa: E402
 from memory.backends import selector  # noqa: E402
 
+from conftest import select_backend  # noqa: E402
+
 
 @pytest.fixture(autouse=True)
 def _clean_backend_env(monkeypatch):
@@ -39,24 +41,23 @@ def _clean_backend_env(monkeypatch):
     selector._reset_for_tests()
 
 
+def test_waiter_agrees_with_the_seam_on_postgres():
+    """THE regression: when the seam says PostgreSQL the waiter must not take
+    the SQLite WAL path (it would watch a .db-wal file PostgreSQL never writes
+    and poll forever, with no error)."""
+    select_backend("postgres")
+    selector._reset_for_tests()
+    assert selector.resolve_backend_name() == "postgres"
+    assert not waiter._has_change_signal("agent_memory.db")
+
+
 @pytest.mark.parametrize("var", ["M3_DB_BACKEND", "DB_BACKEND"])
-def test_waiter_agrees_with_the_seam_for_every_backend_env_var(var, monkeypatch):
-    """THE regression. `DB_BACKEND` is deprecated but still honoured by the
-    selector, so a deployment using it must not send the waiter down the
-    SQLite WAL path while the store is PostgreSQL."""
+def test_former_backend_env_names_move_neither_the_seam_nor_the_waiter(var, monkeypatch):
+    """The former names are not read: seam and waiter agree on the default."""
     monkeypatch.setenv(var, "postgres")
     selector._reset_for_tests()
-
-    seam_says_pg = selector.resolve_backend_name() == "postgres"
-    assert seam_says_pg, (
-        f"precondition: the selector should honour {var}; if this alias was "
-        f"removed, delete this parametrisation rather than weakening the test"
-    )
-    assert not waiter._has_change_signal("agent_memory.db"), (
-        f"{var}=postgres: the seam resolves 'postgres' but the waiter chose the "
-        f"file-signal path -- it would watch a .db-wal file PostgreSQL never "
-        f"writes and poll forever, with no error"
-    )
+    assert selector.resolve_backend_name() == "sqlite"
+    assert waiter._has_change_signal("agent_memory.db")
 
 
 def test_default_is_the_sqlite_wal_path():
@@ -89,8 +90,9 @@ def test_supervisor_imports_no_db_framework_at_module_level():
 
 
 def test_seam_failure_degrades_loudly_not_silently(monkeypatch, capsys):
-    """If the seam cannot be imported we fall back to the env read -- but that
-    degradation must be logged. A silent fallback is how the original bug hid."""
+    """If the seam cannot be imported we fall back to the configured backend name
+    -- but that degradation must be logged. A silent fallback is how the original
+    bug hid."""
     import builtins
 
     real_import = builtins.__import__
@@ -104,8 +106,8 @@ def test_seam_failure_degrades_loudly_not_silently(monkeypatch, capsys):
     warned = []
     monkeypatch.setattr(waiter, "_warn", lambda m: warned.append(m))
 
-    monkeypatch.setenv("DB_BACKEND", "postgres")
-    assert not waiter._has_change_signal("agent_memory.db"), "env fallback ignored DB_BACKEND"
+    select_backend("postgres")
+    assert not waiter._has_change_signal("agent_memory.db"), "the fallback ignored db.backend"
     assert warned, "the seam failed and nothing was logged -- silent degradation"
 
 
@@ -126,14 +128,22 @@ def _seam_unimportable(monkeypatch, *, also_m3_core=False):
 
 @pytest.mark.parametrize("name", ["mariadb", "postgre"])
 def test_seam_failure_sends_only_sqlite_to_the_file_lane(name, monkeypatch):
-    """The fallback gates on `== "sqlite"`, never `!= "postgres"` (§10a): a
-    future backend or a typo must not get the SQLite file-signal lane, where it
-    would watch files nobody writes. It takes the polling lane and fails loud."""
+    """A future backend or a typo must not get the SQLite file-signal lane, where
+    it would watch files nobody writes. The config file refuses an unknown
+    backend at load, so the fallback raises (naming the line) rather than
+    choosing a lane."""
+    from m3_core.config import locate
+    from m3_core.config import settings as st
+    from m3_core.config.loader import ConfigFileError
+
+    cfg = locate().file
+    with open(cfg, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f'\n[db]\nbackend = "{name}"\n')
+    st._reset_for_tests()
     _seam_unimportable(monkeypatch)
-    monkeypatch.setenv("M3_DB_BACKEND", name)
-    assert not waiter._has_change_signal("agent_memory.db"), (
-        f"M3_DB_BACKEND={name!r} with no seam got the SQLite file-signal lane"
-    )
+    with pytest.raises(ConfigFileError) as e:
+        waiter._has_change_signal("agent_memory.db")
+    assert any(name in str(x) and "backend" in str(x) for x in e.value.exceptions)
 
 
 @pytest.mark.parametrize("also_m3_core", [False, True])

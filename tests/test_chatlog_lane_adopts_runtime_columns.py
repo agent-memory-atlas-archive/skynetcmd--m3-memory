@@ -8,7 +8,6 @@ at runtime. Such a store already has the column when 008 runs: 008's ALTER hits
 
 from __future__ import annotations
 
-import os
 import sqlite3
 import subprocess
 import sys
@@ -17,10 +16,8 @@ from pathlib import Path
 
 def _up(chatlog: Path, tmp_path: Path) -> None:
     script = Path(__file__).resolve().parents[1] / "bin" / "migrate_memory.py"
-    env = dict(os.environ, CHATLOG_DB_PATH=str(chatlog), M3_ENGINE_ROOT=str(tmp_path / "engine"))
     r = subprocess.run(
-        [sys.executable, str(script), "up", "--yes", "--target", "chatlog"],
-        env=env,
+        [sys.executable, str(script), "--chatlog-db", str(chatlog), "up", "--yes", "--target", "chatlog"],
         capture_output=True,
         text=True,
         timeout=120,

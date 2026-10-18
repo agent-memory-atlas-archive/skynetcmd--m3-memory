@@ -91,9 +91,8 @@ These run alongside any hooks you have in `~/.gemini/antigravity-cli/settings.js
 
 ## Configuration
 
-The plugin exposes four `userConfig` knobs that Google Antigravity prompts for at enable time:
+The plugin exposes one `userConfig` knob that Google Antigravity prompts for at enable time:
 
-- **`endpoint`** — the address of the small chat model used by enrichment (`llm.endpoints`). The embedder itself is the sovereign in-process BGE-M3 installed by `m3 setup`. Empty = probe local OpenAI-compatible servers (Ollama `:11434`, etc.).
 - **`capture_mode`** — chatlog capture policy. `both` / `stop` / `precompact` / `none`. Default `both`.
-- **`embed_fallback_url`** — fallback sovereign HTTP embedder service URL on `http://127.0.0.1:8082`.
-- **`embed_gguf`** — optional absolute path to BGE-M3 GGUF for in-process acceleration.
+
+Every other setting lives in `m3_config.toml`: the enrichment chat model (`m3 config set llm.endpoints <url>`) and the embedder (the `[embed]` keys). The former `endpoint`, `embed_fallback_url` and `embed_gguf` knobs set environment variables m3 no longer reads, so they were removed.

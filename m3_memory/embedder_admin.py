@@ -1144,7 +1144,7 @@ def _locate_gguf_or_explain() -> Path | None:
             f"Error: {gguf} is an LFS pointer, not the actual model file.\n"
             "  Pull LFS-tracked assets:\n"
             "    cd <m3-memory repo>; git lfs install; git lfs pull\n"
-            "  Or set M3_EMBED_GGUF to a hand-downloaded GGUF.",
+            "  Or `m3 config set embed.gguf <path>` to a hand-downloaded GGUF.",
             file=sys.stderr,
         )
         return None
@@ -1250,7 +1250,7 @@ def cmd_install(args: argparse.Namespace) -> int:
             ]
         lines += [
             "",
-            "  Alternative: set M3_EMBED_SERVER_BIN to point at a prebuilt binary.",
+            "  Alternative: `m3 config set embed.server.bin <path>` to a prebuilt binary.",
             "",
             f"  {tier1_availability()}",
         ]
@@ -1964,13 +1964,13 @@ def cmd_unshared(args: argparse.Namespace) -> int:
     inproc_on = bool(_config.setting("embed.inproc"))
     print()
     if inproc_on:
-        print("     M3_EMBED_INPROC=1 is set, so processes WILL load their own in-process embedder.")
+        print("     embed.inproc is on, so processes WILL load their own in-process embedder.")
     else:
         print("     NOTE: removing the config does NOT enable in-process embedding.")
-        print("     With no config file and M3_EMBED_INPROC unset (default 0), every")
+        print("     With no config file and embed.inproc off (the default), every")
         print("     process routes to the SHARED server on 127.0.0.1:8082 instead.")
-        print("     To actually run in-process, set M3_EMBED_INPROC=1 in the")
-        print("     environment of each m3 process (MCP server registration + hooks).")
+        print("     To actually run in-process: `m3 config set embed.inproc true`")
+        print("     (m3_config.toml; every m3 process reads it).")
         print("     Keep the shared server running until you have done so, or you")
         print("     will have NO embedder and writes will defer embedding.")
     print("     Restart the MCP server + cognitive loop to apply.")

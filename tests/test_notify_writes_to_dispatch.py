@@ -22,7 +22,6 @@ import os
 import pathlib
 import sqlite3
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin"))
@@ -46,26 +45,28 @@ _ID_FLOOR = 1_000_000_000
 
 
 class _Store(unittest.TestCase):
-    """A fresh engine root per test, with both stores bootstrapped."""
+    """A fresh engine root per test (the sandbox's [paths] engine_root), with
+    both stores bootstrapped. dispatch.mode comes from the settings, not env."""
 
     INTEGRATED = False
 
     def setUp(self):
-        self._saved = {k: os.environ.get(k) for k in ("M3_ENGINE_ROOT", "M3_DISPATCH_MODE")}
         # The main store is a hand-built subset no migration chain produces; a
         # failed migration now raises, so skip its lazy migration (restored in tearDown).
         self._mdb = importlib.import_module("memory.db")
         self._real_ensure = self._mdb._ensure_sync_tables
         self._mdb._ensure_sync_tables = lambda *a, **k: None
-        root = tempfile.mkdtemp(prefix="m3-notify-test-")
-        engine = os.path.join(root, "engine")
-        os.makedirs(engine, exist_ok=True)
-        os.environ["M3_ENGINE_ROOT"] = engine
+        from m3_core.config import REGISTRY
+        from m3_core.config import settings as st
+        from m3_core.config.resolve import NO_DOTENV
+
+        from m3_memory import _roots
+
+        os.makedirs(_roots.engine_root(), exist_ok=True)
         pin_database(None)
-        if self.INTEGRATED:
-            os.environ["M3_DISPATCH_MODE"] = "integrated"
-        else:
-            os.environ.pop("M3_DISPATCH_MODE", None)
+        snap = st.build(environ={}, dotenv=NO_DOTENV)
+        mode = "integrated" if self.INTEGRATED else "separate"
+        st._install_for_tests(st.override(snap, {REGISTRY.get("dispatch.mode"): mode}))
 
         self.main = P.resolve_engine_file("agent_memory.db")
         conn = sqlite3.connect(self.main)
@@ -88,11 +89,9 @@ class _Store(unittest.TestCase):
     def tearDown(self):
         self._mdb._ensure_sync_tables = self._real_ensure
         pin_database(None)
-        for k, v in self._saved.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+        from m3_core.config import settings as st
+
+        st._reset_for_tests()
 
     def _count(self, db_path, table):
         conn = sqlite3.connect(db_path)

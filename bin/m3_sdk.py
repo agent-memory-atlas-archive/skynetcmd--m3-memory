@@ -77,12 +77,10 @@ from m3_core.paths import (  # noqa: F401
     active_database,
     add_database_arg,
     assert_no_deprecated_pg_url_on_install,
-    deprecated_env_in_use,
     get_m3_config_root,
     get_m3_engine_root,
     get_m3_logs_root,
     get_m3_root,
-    getenv_compat,
     resolve_cdw_pg_dsn,
     resolve_db_path,
     resolve_primary_pg_dsn,
@@ -198,8 +196,8 @@ def destructive_tools_allowed() -> bool:
     """Whether catalog tools marked default_allowed=False may run through a proxy.
 
     The one reading of the opt-in, shared by the MCP proxy and the m3_call
-    dispatcher: mcp.allow_destructive in m3_config.toml (deprecated env names
-    M3_MCP_PROXY_ALLOW_DESTRUCTIVE / MCP_PROXY_ALLOW_DESTRUCTIVE still read).
+    dispatcher: mcp.allow_destructive in m3_config.toml (the former env names
+    M3_MCP_PROXY_ALLOW_DESTRUCTIVE / MCP_PROXY_ALLOW_DESTRUCTIVE are not read).
     DESTRUCTIVE_ENABLE_HINT is the one wording of how to turn it on.
     """
     # Registry key mcp.allow_destructive: both names, today's 1/true/yes reading

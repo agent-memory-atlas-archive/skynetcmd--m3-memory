@@ -74,10 +74,12 @@ def _is_windows() -> bool:
 
     That is not hypothetical: it made this module's own tests pass on Windows
     (where the patch is a no-op) and FAIL on the Linux and macOS CI lanes
-    (2026-09-13). Mirrors ``m3_memory._platform.is_windows`` for the same
-    reason.
+    (2026-09-13). Delegates to the OS seam (``m3_memory._platform.is_windows``,
+    whose one knob is ``sys.platform``), so ``conftest.simulate_os`` reaches it.
     """
-    return os.name == "nt"
+    from m3_core.seams import is_windows
+
+    return is_windows()
 
 
 def _windowless(interpreter: str) -> str:
@@ -139,7 +141,7 @@ def _hook_env_prefix(engine_root: str, config_root: str) -> str:
     child process inherits, including hooks) rather than rely on a per-command
     prefix the shell cannot parse.
     """
-    if os.name == "nt":
+    if _is_windows():
         return ""
     # Only a non-default config root needs a pin: m3 reads that one variable and
     # takes every root from m3_config.toml (user decision 2026-10-17).

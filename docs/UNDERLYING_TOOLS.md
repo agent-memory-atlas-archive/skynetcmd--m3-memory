@@ -6,7 +6,7 @@ This document details the core services, frameworks, and engines that power the 
 
 ### SQLite (Local Storage)
 - **Role**: Primary low-latency transactional database for local agents.
-- **Location**: `<M3_ENGINE_ROOT>/agent_memory.db` (default `~/.m3/engine/agent_memory.db`).
+- **Location**: `<engine root>/agent_memory.db` (`[paths] engine_root` in `m3_config.toml`; default `~/.m3/engine/agent_memory.db`).
 - **Features**: WAL (Write-Ahead Logging) mode enabled for concurrency; FTS5 for full-text search.
 - **Version**: Built-in Python 3.12+ `sqlite3` (SQLite 3.35.0+ required for UPSERT/RETURNING).
 

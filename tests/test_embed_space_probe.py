@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -82,8 +83,13 @@ def _store(tmp_path, rows):
 
 @pytest.fixture
 def _engine(tmp_path, monkeypatch):
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path))
-    return tmp_path
+    """The sandbox's engine root ([paths] engine_root in its m3_config.toml; the
+    M3_ENGINE_ROOT name is not read), where the probe finds the main store."""
+    from m3_sdk import get_m3_engine_root
+
+    root = Path(get_m3_engine_root())
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def test_single_family_multiple_tags_is_not_flagged(_engine, capsys):

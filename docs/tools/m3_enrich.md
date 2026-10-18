@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 79662ac83a44
-mtime_utc: 2026-10-13T10:22:46.464138+00:00
-generated_utc: 2026-10-13T10:23:04.451022+00:00
+sha1: 95ea2d31682e
+mtime_utc: 2026-10-18T01:45:14.625785+00:00
+generated_utc: 2026-10-18T01:45:45.995256+00:00
 private: false
 ---
 
@@ -87,7 +87,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 | `--include-notes` | Add type='note' rows to the active allowlist (extends whichever default applies; redundant under --core). | `False` |  | store_true |  |
 | `--include-types` | Comma-separated types to ADD to the active allowlist (extends whichever default applies). E.g. '--include-types reference,project' adds those alongside the per-DB default. | None |  | str |  |
 | `--only-use-types` | Comma-separated types -- REPLACES the default allowlist entirely (e.g. '--only-use-types decision,plan' selects ONLY those, no defaults merged in). Use this when you want a precise narrow list. --include-summaries / --include-notes / --include-types still extend after replacement. | None |  | str |  |
-| `--drain-queue` | Phase E2: drain pending observation_queue rows that were enqueued by the chatlog auto-enrich hook (M3_AUTO_ENRICH=1). Single-shot, returns when the queue is empty. Use in cron / scheduled task for continuous enrichment. | `False` |  | store_true |  |
+| `--drain-queue` | Phase E2: drain pending observation_queue rows that were enqueued by the chatlog auto-enrich hook (chatlog.auto_enrich = true). Single-shot, returns when the queue is empty. Use in cron / scheduled task for continuous enrichment. | `False` |  | store_true |  |
 | `--drain-batch` | Max queue rows to process per --drain-queue invocation. Default 100 (a few minutes of work for typical convs). | `100` |  | int |  |
 | `--no-reflect` | Skip the Reflector merge/supersede pass. | `False` |  | store_true |  |
 | `--reflector-threshold` | Min observations per (user,conv) before Reflector fires. Default 50. | `50` |  | int |  |

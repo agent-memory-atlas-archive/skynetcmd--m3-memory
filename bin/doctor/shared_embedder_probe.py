@@ -32,7 +32,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from m3_core import tier2_client
-from m3_core.seams import detached_spawn_kwargs, is_windows, user_env_get
+from m3_core.seams import detached_spawn_kwargs, is_windows
 from m3_core.tier2_client import Diagnosis
 
 
@@ -107,178 +107,6 @@ def _known_agent_settings() -> list[tuple[str, str]]:
             j(vscode_user_dir(), "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json"),
         ),
     ]
-
-
-def _shell_rc_candidates() -> list[str]:
-    """Standard POSIX shell rc / profile files that commonly `export` env vars.
-    Order matters only for reporting; we scan all that exist."""
-    home = os.path.expanduser("~")
-    j = os.path.join
-    return [
-        j(home, name)
-        for name in (
-            ".zshrc",
-            ".zshenv",
-            ".zprofile",
-            ".bashrc",
-            ".bash_profile",
-            ".profile",
-        )
-    ]
-
-
-def _find_env_in_shell_rc(var: str) -> list[str]:
-    """Return 'path:line' for every uncommented `export VAR=`/`VAR=` occurrence
-    of `var` in the user's shell rc files. Localizes the category 'shell rc' down
-    to the exact file:line the user must edit. Empty when nothing matches."""
-    hits: list[str] = []
-    needle = f"{var}="
-    for path in _shell_rc_candidates():
-        if not os.path.exists(path):
-            continue
-        try:
-            with open(path, encoding="utf-8", errors="replace") as f:
-                for lineno, raw in enumerate(f, start=1):
-                    stripped = raw.lstrip()
-                    if stripped.startswith("#"):
-                        continue  # commented-out — not live
-                    # match `VAR=` or `export VAR=` (VAR at a word boundary)
-                    body = stripped[len("export ") :].lstrip() if stripped.startswith("export ") else stripped
-                    if body.startswith(needle):
-                        hits.append(f"{path}:{lineno}")
-        except Exception:  # noqa: BLE001 — an unreadable rc file just yields no hit
-            continue
-    return hits
-
-
-def _windows_user_env_has(var: str) -> bool:
-    """True if `var` is set in the Windows *User* environment (persists across
-    shells / MCP restarts), read from the registry so it reflects the persisted
-    value, not just this process's inherited copy."""
-    return bool((user_env_get(var) or "").strip())  # the OS seam owns the store
-
-
-def _gguf_pinned_in_process_env() -> bool:
-    """Is embed.gguf set by this process's environment (M3_EMBED_GGUF or a legacy
-    alias)? Answered from the config snapshot's ORIGIN, the config package's
-    reporting path, not by reading os.environ here."""
-    from m3_core.config import settings as _m3cfg
-
-    return _m3cfg.origin_of("embed.gguf").startswith("env")
-
-
-def _manual_env_leak_remains() -> bool:
-    """True if a MANUAL-ONLY M3_EMBED_GGUF leak is present — a process/User/shell
-    var that --fix provably cannot remove (as opposed to a settings.json env block,
-    which it can auto-scrub). This is the signal that lets the doctor print manual
-    instructions and STOP, instead of looping 'run --fix' forever."""
-    return (
-        _gguf_pinned_in_process_env()
-        or _windows_user_env_has("M3_EMBED_GGUF")
-        or bool(_find_env_in_shell_rc("M3_EMBED_GGUF"))
-    )
-
-
-def _manual_removal_command() -> list[str]:
-    """The exact, copy-pasteable command(s) to remove a persistent M3_EMBED_GGUF
-    from the User/shell environment — the ONE thing --fix cannot do for the user.
-    Localized to file:line where we can find it. Returned as printable lines so
-    BOTH --verbose and --fix render identical guidance (single source of truth)."""
-    lines: list[str] = []
-    if is_windows():
-        lines.append("Remove it from the Windows User environment (persists across shells):")
-        lines.append("  PowerShell:  [Environment]::SetEnvironmentVariable('M3_EMBED_GGUF', $null, 'User')")
-        lines.append("Then open a NEW terminal and restart the MCP client.")
-    else:
-        rc_hits = _find_env_in_shell_rc("M3_EMBED_GGUF")
-        if rc_hits:
-            lines.append("Remove the M3_EMBED_GGUF export at:")
-            for hit in rc_hits:
-                lines.append(f"  {hit}")
-            lines.append("e.g.  sed -i.bak '/M3_EMBED_GGUF/d' <file>   (or delete the line by hand),")
-        else:
-            lines.append("Remove the `export M3_EMBED_GGUF=...` line from your shell rc")
-            lines.append("  (~/.zshrc / ~/.zshenv / ~/.bashrc / ~/.profile),")
-        lines.append("then start a NEW shell and restart the MCP client.")
-    return lines
-
-
-def _detect_inproc_env_leak() -> list[str]:
-    """Locations where M3_EMBED_GGUF is set — each forces a per-process CUDA
-    embedder (the hang footgun) when shared mode is on. Returns human-readable
-    location strings (empty when clean). Checks the process env (localized to the
-    exact shell-rc file:line / Windows User-env key where possible) AND every
-    client settings file's m3 MCP-server env block."""
-    hits: list[str] = []
-    if _gguf_pinned_in_process_env() or _windows_user_env_has("M3_EMBED_GGUF"):
-        rc_hits = _find_env_in_shell_rc("M3_EMBED_GGUF")
-        if rc_hits:
-            for hit in rc_hits:
-                hits.append(f"shell rc — {hit}")
-        elif _windows_user_env_has("M3_EMBED_GGUF"):
-            hits.append("Windows User env (HKCU\\Environment\\M3_EMBED_GGUF)")
-        else:
-            hits.append("process env (M3_EMBED_GGUF) — persists via User env / shell rc")
-    for label, path in _known_agent_settings():
-        if not os.path.exists(path):
-            continue
-        try:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f) or {}
-        except Exception:  # noqa: BLE001 — a bad settings file is another probe's concern
-            continue
-        for name, entry in (data.get("mcpServers") or {}).items():
-            env_block = (entry or {}).get("env")
-            if not isinstance(env_block, dict) or "M3_EMBED_GGUF" not in env_block:
-                continue
-            args_blob = " ".join((entry or {}).get("args") or [])
-            if name == "memory" or "memory_bridge" in args_blob or "m3" in name.lower():
-                hits.append(f"{label}: mcpServers.{name}.env ({path})")
-    return hits
-
-
-def _fix_scrub_env_leak() -> tuple[bool, bool]:
-    """Scrub M3_EMBED_GGUF from m3 MCP-server env blocks in every client settings
-    file (backing each up first). Returns (settings_scrubbed, process_env_remains).
-    A persistent User/shell env var CANNOT be auto-removed from another process's
-    environment — we report it so the user removes it (with the exact command)."""
-    settings_scrubbed = False
-    for _label, path in _known_agent_settings():
-        if not os.path.exists(path):
-            continue
-        try:
-            with open(path, encoding="utf-8") as f:
-                original = f.read()
-            data = json.loads(original) or {}
-        except Exception:  # noqa: BLE001
-            continue
-        changed = False
-        for name, entry in (data.get("mcpServers") or {}).items():
-            env_block = (entry or {}).get("env")
-            if not isinstance(env_block, dict) or "M3_EMBED_GGUF" not in env_block:
-                continue
-            args_blob = " ".join((entry or {}).get("args") or [])
-            if name == "memory" or "memory_bridge" in args_blob or "m3" in name.lower():
-                env_block.pop("M3_EMBED_GGUF", None)
-                changed = True
-        if changed:
-            try:
-                from m3_core.atomic_io import GuardedRewrite
-
-                guard = GuardedRewrite(path, by="m3 doctor --fix (M3_EMBED_GGUF)")
-                guard.write(json.dumps(data, indent=2) + "\n")
-                print(f"  [fix] scrubbed M3_EMBED_GGUF from {path} (backup: {guard.bak}, history: {guard.history})")
-                settings_scrubbed = True
-            except Exception as e:  # noqa: BLE001
-                print(f"  [fix] could not rewrite {path}: {e}")
-    process_env_remains = _gguf_pinned_in_process_env() or _windows_user_env_has("M3_EMBED_GGUF")
-    if process_env_remains:
-        print("  [fix] M3_EMBED_GGUF is ALSO set in the process/User env — that cannot")
-        print("        be removed from here. Remove it so new shells + MCP servers stop")
-        print("        inheriting it:")
-        for line in _manual_removal_command():
-            print(f"        {line}")
-    return settings_scrubbed, process_env_remains
 
 
 def _server_health(url: str, timeout: float = 3.0) -> tuple[Diagnosis, dict]:
@@ -587,7 +415,7 @@ def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, lis
     from m3_core.config import settings as _m3cfg
 
     origin = _m3cfg.origin_of("embed.model")
-    user_set = origin != "default" and not origin.startswith("env-legacy:")
+    user_set = origin != "default"
     configured = (_m3cfg.setting("embed.model") or "").strip() if user_set else ""
     pinned = (configured or (cfg or {}).get("embed_model") or "").strip()
     served = str((body or {}).get("model") or "").strip()
@@ -657,13 +485,6 @@ def run(brief: bool = False, fix: bool = False) -> int:
     if not ka_ok and whose is not True:
         problems.append("keepalive-missing")
 
-    # 4. Inproc env leak: M3_EMBED_GGUF anywhere forces a per-process CUDA embedder
-    #    — the unbounded-init hang. Flag it whenever shared mode is the intent
-    #    (config missing or shared-on), so the exact footgun is never silent.
-    leak_locations = _detect_inproc_env_leak()
-    if leak_locations:
-        problems.append("inproc-env-leak")
-
     if fix and problems:
         print()
         print("=== shared-embedder: applying fixes ===")
@@ -713,21 +534,8 @@ def run(brief: bool = False, fix: bool = False) -> int:
                     problems = [p for p in problems if p != "keepalive-missing"]
             elif _fix_register_task():
                 problems = [p for p in problems if p != "keepalive-missing"]
-        if "inproc-env-leak" in problems:
-            _scrubbed, _env_remains = _fix_scrub_env_leak()
-            # Clear the problem only when nothing leaks anymore. A persistent
-            # process/User env var still needs the manual step printed above, so
-            # keep the flag (loud, not silent) until it's actually gone.
-            if not _detect_inproc_env_leak():
-                problems = [p for p in problems if p != "inproc-env-leak"]
 
     healthy = not problems
-
-    # Manual-only state: the sole remaining issue is an M3_EMBED_GGUF leak that
-    # --fix provably cannot remove (process/User/shell-rc var). Re-emitting
-    # "run --fix" here is the dead-end loop — the user runs --fix and is told to
-    # run --fix. When this is the case, guide to the actual manual step instead.
-    manual_only = (problems == ["inproc-env-leak"]) and _manual_env_leak_remains()
 
     if brief:
         if not healthy:
@@ -739,11 +547,6 @@ def run(brief: bool = False, fix: bool = False) -> int:
             print("shared-embedder: settings OK; the server it reaches is another account's (see embed-server)")
         elif healthy:
             print("✅ shared-embedder: OK (settings, server and keep-alive)")
-        elif manual_only:
-            print(
-                "⚠️  shared-embedder: M3_EMBED_GGUF set in your environment — "
-                "remove it by hand (`m3 doctor --verbose` shows the exact command)."
-            )
         else:
             print(f"⚠️  shared-embedder: {len(problems)} issue(s) — run `m3 doctor --fix`")
         return 0 if healthy else 1
@@ -821,25 +624,6 @@ def run(brief: bool = False, fix: bool = False) -> int:
             print("             fallback: `python bin/install_schedules.py --add embed-server`")
             print("                       (Windows: from an ADMIN shell — ONSTART needs it).")
 
-    if "inproc-env-leak" in problems:
-        print("  inproc   : [FAIL] M3_EMBED_GGUF is set — forces a per-process GPU")
-        print("             context (CUDA/Metal/Vulkan) or heavy CPU load per process")
-        print("             (the read/write HANG risk). Locations:")
-        for loc in leak_locations:
-            print(f"               - {loc}")
-        # A settings.json env block CAN be auto-scrubbed; a User/shell-rc var
-        # cannot. Print the exact removal command HERE (not only under --fix) so
-        # --verbose actually delivers the fix it references.
-        if _manual_env_leak_remains():
-            print("             fix: `m3 doctor --fix` scrubs any settings.json blocks; the")
-            print("                  persistent User/shell var must be removed by hand:")
-            for line in _manual_removal_command():
-                print(f"                  {line}")
-        else:
-            print("             fix: `m3 doctor --fix` scrubs the settings blocks (backs them up).")
-    else:
-        print("  inproc   : OK — no M3_EMBED_GGUF leak (clients defer to the server).")
-
     if healthy and model_token is None:
         print("  status   : OK — shared mode fully configured and serving.")
     elif healthy and model_token is not None:
@@ -849,12 +633,6 @@ def run(brief: bool = False, fix: bool = False) -> int:
             "  status   : [WARN] shared mode wired, but embedder-model mismatch "
             "(see model line above) — not auto-fixable."
         )
-    elif manual_only:
-        # Don't tell the user to run --fix for the one thing it can't fix; the
-        # exact manual command is printed in the inproc block above.
-        print()
-        print("  Remove M3_EMBED_GGUF by hand (command above), then open a new shell")
-        print("  and restart the MCP client. `m3 doctor --fix` cannot remove it for you.")
     elif not fix:
         print()
         print("  Run `m3 doctor --fix` to repair the above automatically.")

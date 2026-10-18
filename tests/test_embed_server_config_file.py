@@ -176,6 +176,7 @@ def test_install_records_the_model_and_values_held_only_outside_the_file(m3_sett
 def test_install_refuses_a_set_flag_and_an_env_only_crypto_value(m3_settings, tmp_path, capsys):
     from m3_core.config import settings as st
 
+    before = _config_file().read_bytes() if _config_file().is_file() else None
     m3_settings({"crypto.fips_mode": True})
     st.set_from_cli({"embed.server.port": 8094})
     try:
@@ -185,7 +186,8 @@ def test_install_refuses_a_set_flag_and_an_env_only_crypto_value(m3_settings, tm
     err = capsys.readouterr().err
     assert "m3 config set embed.server.port 8094" in err and "--set" in err
     assert "m3 config set crypto.fips_mode True" in err and "every m3 process" in err
-    assert not _config_file().is_file(), "a refused install writes nothing"
+    after = _config_file().read_bytes() if _config_file().is_file() else None
+    assert after == before, "a refused install writes nothing"
 
 
 def test_install_refuses_on_an_older_binary_before_touching_anything(monkeypatch, tmp_path, capsys):

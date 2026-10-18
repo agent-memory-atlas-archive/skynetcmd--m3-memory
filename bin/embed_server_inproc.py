@@ -334,9 +334,9 @@ def _load_embedder() -> None:
         if not gguf:
             logger.error(
                 "observed: no bge-m3 GGUF model found. cause: either "
-                "M3_EMBED_GGUF is not set or no model file exists in the standard "
-                "model directories. inspect: set M3_EMBED_GGUF to the path to a "
-                "GGUF file, or place one in a discoverable model directory. Nothing "
+                "embed.gguf is not set in m3_config.toml or no model file exists in the "
+                "standard model directories. inspect: `m3 config set embed.gguf <path to a "
+                "GGUF file>`, or place one in a discoverable model directory. Nothing "
                 "to serve — exiting."
             )
             sys.exit(2)

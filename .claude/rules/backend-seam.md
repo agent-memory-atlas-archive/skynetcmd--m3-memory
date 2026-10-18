@@ -12,7 +12,7 @@ paths:
 
 - **Registry key `db.backend` is the ONLY backend selector** (default `sqlite`):
   a flag (`set_from_cli` / `--set`), then `[db] backend` in m3_config.toml, then
-  `M3_DB_BACKEND` only as a legacy name BELOW the file (warned once; until N+3).
+  the default. `M3_DB_BACKEND` / `DB_BACKEND` are not read.
   A test switches it with
   `select_backend(name)` (a flag) or `use_backend(name, dsn)` (the file), never
   `setenv`. `M3_PRIMARY_PG_URL` never selects the

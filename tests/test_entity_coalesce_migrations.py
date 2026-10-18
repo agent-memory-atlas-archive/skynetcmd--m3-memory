@@ -18,8 +18,10 @@ from pathlib import Path
 _SCRIPT = Path(__file__).resolve().parents[1] / "bin" / "migrate_memory.py"
 
 
-def _up(tmp_path, *args, env_extra=None):
-    env = dict(os.environ, M3_ENGINE_ROOT=str(tmp_path / "engine"), **(env_extra or {}))
+def _up(tmp_path, *args):
+    # The child inherits the sandbox's M3_CONFIG_ROOT, whose [paths] keeps every
+    # root under tmp; the stores are named with --database / --chatlog-db.
+    env = dict(os.environ)
     r = subprocess.run([sys.executable, str(_SCRIPT), *args], env=env, capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr[-800:]
     return r
@@ -55,7 +57,7 @@ def test_057_repairs_a_main_store_whose_043_was_rolled_back(tmp_path):
 
 def test_a_chatlog_store_gets_the_coalescing_schema_from_its_own_lane(tmp_path):
     chatlog = tmp_path / "agent_chatlog.db"
-    _up(tmp_path, "up", "--yes", "--target", "chatlog", env_extra={"CHATLOG_DB_PATH": str(chatlog)})
+    _up(tmp_path, "--chatlog-db", str(chatlog), "up", "--yes", "--target", "chatlog")
     tables, indexes, cols = _objects(chatlog)
     assert {"idx_entities_coalesce_state", "idx_entities_cluster", "idx_ecc_reviewed"} <= indexes
     assert {"entity_coalesce_candidates", "entity_coalesce_embeddings"} <= tables

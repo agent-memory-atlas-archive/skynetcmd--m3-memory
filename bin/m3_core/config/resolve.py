@@ -1,18 +1,16 @@
 """Resolve each config key to (value, origin).
 
-Precedence for a CONFIG key, N..N+2 (the deprecation window):
+Precedence for a CONFIG key:
 
-    m3_config.toml (no key's env value outranks it, db.backend
-    included)
-    > legacy env (any other key's old env name; honoured, and reported, through N+3)
-    > .env (parsed, never injected)
-    > <config_root>/.llm_config.json (the [llm] keys' old file; folds in at import-env)
-    > the registry default
+    m3_config.toml > the registry default
 
-So ``m3 config set`` wins at once even while HKCU / rc files / MCP env blocks
-still hold an old value; the shadowed env name is reported, never silently
-dropped. After N+3 the third rung goes. Secrets are not resolved here: their
-chain (``m3_core.secret_store``) touches the keyring, so they resolve on demand.
+The N+3 deprecation window is over: a key's old environment name, a .env line
+and the old <config_root>/.llm_config.json are NOT read for a value. When one
+is still set it is recorded in ``shadowed`` (never silently dropped), so
+`m3 doctor` and `m3 config show` name it with the fix, and `m3 config
+import-env` (run by setup and upgrade) moves it into the file. Secrets are not
+resolved here: their chain (``m3_core.secret_store``) touches the keyring, so
+they resolve on demand.
 """
 
 from __future__ import annotations
@@ -33,8 +31,8 @@ ORIGIN_DEFAULT = "default"
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Resolved:
     value: ConfigValue | None
-    origin: str  # "env:NAME" | "file:<path> [t].k" | "env-legacy:NAME" | "default"
-    shadowed: tuple[str, ...] = ()  # env names set but outranked by the file
+    origin: str  # "env:NAME" | "file:<path> [t].k" | "default"
+    shadowed: tuple[str, ...] = ()  # legacy names set (env, .env, LLM file) and not read
     env_name: str | None = None  # the env / .env name that supplied the value, if one did
 
 
@@ -137,24 +135,17 @@ def _resolve_below_env(
     def unused(below: list[tuple[DotEnv, tuple[str, str]]]) -> tuple[str, ...]:
         return tuple(f"{h[0]} (in {src.path})" for src, h in below)
 
+    # Every legacy source still set for this key: reported, never read.
+    not_read = (hit[0],) if hit is not None else ()
+    not_read += unused(files)
     if key.name in loaded.values:
-        shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip()) + unused(files)
         return Resolved(
-            value=loaded.values[key.name], origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed
+            value=loaded.values[key.name], origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=not_read
         )
-    if hit is not None:
-        value = from_env(key, *hit)
-        _note_legacy_difference(key, *hit, value)
-        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=unused(files), env_name=hit[0])
-    if files:  # the lowest sources: below the file and below real env
-        (src, dot), below = files[0], files[1:]
-        value = from_env(key, *dot, where=src.where)
-        _note_legacy_difference(key, *dot, value)
-        return Resolved(value=value, origin=f"{src.kind}:{src.path} {dot[0]}", shadowed=unused(below), env_name=dot[0])
     # A list default is copied: the registry's own object must never be shared
     # with a caller that might mutate it.
     default = list(key.default) if isinstance(key.default, list) else key.default
-    return Resolved(value=default, origin=ORIGIN_DEFAULT)
+    return Resolved(value=default, origin=ORIGIN_DEFAULT, shadowed=not_read)
 
 
 def resolve_all(

@@ -23,14 +23,16 @@ the policy is forward-going only.
 
 ### Changed
 
-- **Native core 3.10.171.** On Windows, importing the CUDA core and installing
-  the embed service no longer flash a console window. The in-process embedder
-  takes its settings from `m3_config.toml` only (`M3_EMBED_*` variables are no
-  longer read), and `M3_HASH_PROVIDER` is not read.
-  **Affected:** installs with the native core; the window fix on Windows with a
-  CUDA wheel · **Action:** none; `m3 upgrade` installs it. If you set
-  `M3_EMBED_*` for the in-process embedder, `m3 config import-env` moves them ·
-  **Data status:** none.
+- **Native core 3.10.172.** On Windows, importing the CUDA core and installing
+  the embed service no longer flash a console window. The in-process embedder,
+  the embed server and the FIPS settings take their values from
+  `m3_config.toml` only: `M3_EMBED_*`, `M3_FIPS_MODE`, `M3_FIPS_STRICT` and
+  `M3_HASH_PROVIDER` are not read, and `M3_MEMORY_ROOT/config` no longer
+  locates the config.
+  **Affected:** installs with the native core; an embed server configured by its
+  service definition's environment · **Action:** none; `m3 upgrade` installs it
+  and, when no `m3_config.toml` exists, copies those values into a new one.
+  Otherwise `m3 config set embed.<key> <value>` · **Data status:** none.
 - **Smaller default startup tool set.** Six tools register at startup
   (`memory_write`, `memory_search`, `memory_supersede`, `memory_get`,
   `chatlog_search`, `m3_call`; about 3,200 tokens, was 10 and about 4,000).
@@ -40,14 +42,21 @@ the policy is forward-going only.
   **Affected:** MCP clients in lazy mode (the default) · **Action:** none; to
   keep the old set, `m3 config set tools.startup "<names>"` (must include
   `m3_call`) · **Data status:** none.
-- **One environment variable.** m3 reads only `M3_CONFIG_ROOT`, and only when
-  it is not the default; setup and `m3 doctor --fix` stop writing other root
-  pins into agent configs and hooks. `m3 doctor` ends with a section listing
-  each `M3_*` variable still set, whether it is in use or ignored, and the
-  `m3 config set` that replaces it.
-  **Affected:** installs with `M3_*` variables in shell profiles or agent
-  configs · **Action:** move each listed variable into the config file as
-  doctor shows, then remove it · **Data status:** none.
+- **One environment variable.** m3 reads only `M3_CONFIG_ROOT` (`--config` >
+  `M3_CONFIG_ROOT` > `~/.m3/config`). Every setting comes from `m3_config.toml`,
+  then its default; no other `M3_*` variable, `.env` line or `.llm_config.json`
+  value is read. When no `m3_config.toml` exists, setup and upgrade create it and
+  copy those values into it once, including from m3's systemd and launchd
+  service definitions; an existing file is never re-imported or overwritten.
+  Setup, upgrade and `m3 doctor` list each variable still set, where, and that it
+  is not read; they also name the config file in use and any place that would
+  read a different one. The Claude Code and Antigravity plugins drop their
+  `endpoint`, `embed_fallback_url`, `embed_gguf` and `engine_root` settings.
+  `sync_all.py` takes `--db PATH` instead of `M3_SYNC_DBS`.
+  **Affected:** installs with `M3_*` variables in shell profiles, agent configs
+  or service definitions; plugin users who set those fields · **Action:** set
+  the values with `m3 config set KEY VALUE`, then delete the variables doctor
+  lists · **Data status:** none.
 - **MCP tools and m3 doctor: clearer and correct**
   - MCP tools describe themselves to agents: `tools/list` carries every
     parameter's description and each tool's `readOnlyHint` / `destructiveHint`
@@ -79,6 +88,23 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Audit trail: concurrent writers no longer lose entries or fork the chain.**
+  Appends take a cross-process lock; a corrupt last line is reported instead of
+  starting a new chain. On Windows, releasing m3's file locks no longer leaves
+  a lock behind while another process is waiting on it.
+  **Affected:** several agents or processes writing at once · **Action:** none ·
+  **Data status:** entries written concurrently before this release may be
+  missing from the trail.
+- **`memory_supersede` refuses another owner's memory.** An `agent_id` or
+  `user_id` that differs from the memory's own, or a `replacement_id` owned by
+  someone else, is refused; an empty id still inherits the owner.
+  **Affected:** multi-agent and multi-tenant stores · **Action:** none ·
+  **Data status:** none.
+- **A missing API key names `m3 secret set`.** The enrichment, entity,
+  observer and reflector jobs suggested an environment variable, which m3
+  does not read.
+  **Affected:** jobs run without the key stored · **Action:** none ·
+  **Data status:** none.
 - **An engine root set in `m3_config.toml` is always used.** When a populated
   `~/.m3/engine/agent_memory.db` also existed, m3 used that store instead of
   the `[paths] engine_root` you set (only the deprecated `M3_ENGINE_ROOT`

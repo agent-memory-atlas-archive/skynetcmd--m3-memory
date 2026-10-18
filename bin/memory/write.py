@@ -1141,8 +1141,17 @@ async def memory_supersede_impl(
         return "Error: pass content (write a new replacement) OR replacement_id (use an existing one), not both"
     if not replacement_id and not content:
         return "Error: pass content (the replacement's body) or replacement_id (an existing memory to retire into)"
+    owner_error = _owner_mismatch(old_id, row, agent_id=agent_id, user_id=user_id)
+    if owner_error:
+        return owner_error
     if replacement_id:
-        return _supersede_into_existing(old_id, replacement_id, valid_from=valid_from, agent_id=agent_id)
+        return _supersede_into_existing(
+            old_id,
+            replacement_id,
+            valid_from=valid_from,
+            agent_id=agent_id,
+            owner=(row["agent_id"] or "", row["user_id"] or ""),
+        )
 
     # 2. Inherit unspecified fields from the old memory — the caller passes
     #    only what changed. See the docstring for the sentinel convention:
@@ -1236,7 +1245,25 @@ async def memory_supersede_impl(
     return f"Superseded {old_id} -> Created: {new_id}"
 
 
-def _supersede_into_existing(old_id: str, replacement_id: str, *, valid_from: str, agent_id: str) -> str:
+def _owner_mismatch(old_id: str, row, *, agent_id: str, user_id: str) -> str | None:
+    """An error when the caller names an owner other than ``old_id``'s: an
+    agent_id or user_id that is set on both sides and differs. Empty means
+    "inherit" and is not refused. This keeps cooperating agents (and tenants)
+    from retiring each other's memories by mistake; it is not authentication:
+    over stdio m3 has no server-side identity, so a caller can pass any id."""
+    for field, given in (("agent_id", agent_id), ("user_id", user_id)):
+        owned = row[field] or ""
+        if given and owned and given != owned:
+            return (
+                f"Error: memory {old_id} belongs to {field}={owned!r}, not {given!r}; nothing was superseded. "
+                f"Supersede as {field}={owned!r}, or write a new memory of your own"
+            )
+    return None
+
+
+def _supersede_into_existing(
+    old_id: str, replacement_id: str, *, valid_from: str, agent_id: str, owner: tuple[str, str] = ("", "")
+) -> str:
     """Retire ``old_id`` in favour of the existing active memory ``replacement_id``.
 
     Creates nothing. Refuses, leaving both rows untouched: the same id twice, a
@@ -1251,7 +1278,9 @@ def _supersede_into_existing(old_id: str, replacement_id: str, *, valid_from: st
 
     p = dialect().param()
     with _db() as db:
-        rep = db.execute(f"SELECT is_deleted FROM memory_items WHERE id = {p}", (replacement_id,)).fetchone()
+        rep = db.execute(
+            f"SELECT is_deleted, agent_id, user_id FROM memory_items WHERE id = {p}", (replacement_id,)
+        ).fetchone()
     if rep is None:
         return f"Error: replacement memory {replacement_id} not found; nothing was superseded"
     if rep["is_deleted"]:
@@ -1259,6 +1288,13 @@ def _supersede_into_existing(old_id: str, replacement_id: str, *, valid_from: st
             f"Error: replacement memory {replacement_id} is itself deleted/superseded; "
             "retire into an active memory (nothing was superseded)"
         )
+    for field, owned in zip(("agent_id", "user_id"), owner, strict=True):
+        theirs = rep[field] or ""
+        if owned and theirs and owned != theirs:
+            return (
+                f"Error: replacement memory {replacement_id} belongs to {field}={theirs!r} but {old_id} to "
+                f"{owned!r}; retiring across owners is refused (nothing was superseded)"
+            )
     close_at = valid_from or datetime.now(UTC).isoformat()
     with _db() as db:
         won_race = _mark_superseded(

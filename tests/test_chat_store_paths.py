@@ -55,20 +55,18 @@ class TestChatStorePaths(unittest.TestCase):
         paths = [os.path.abspath(p) for p in C.chat_store_paths()]
         self.assertIn(chat, paths)
 
-    def test_honours_an_explicit_chatlog_db_env(self):
+    def test_honours_an_explicit_chatlog_pin(self):
         """The reason to call the resolver instead of guessing a sibling: a
-        relocated chatlog must still be found."""
-        saved = os.environ.get("M3_CHATLOG_DB_PATH")
+        relocated chatlog (--chatlog-db) must still be found."""
+        from m3_core.paths import pin_chatlog_db
+
         target = os.path.abspath(os.path.join(os.path.dirname(__file__), "_relocated_chatlog.db"))
         try:
-            os.environ["M3_CHATLOG_DB_PATH"] = target
+            pin_chatlog_db(target)
             C.invalidate_cache()
             self.assertIn(target, [os.path.abspath(p) for p in C.chat_store_paths()])
         finally:
-            if saved is None:
-                os.environ.pop("M3_CHATLOG_DB_PATH", None)
-            else:
-                os.environ["M3_CHATLOG_DB_PATH"] = saved
+            pin_chatlog_db(None)
             C.invalidate_cache()
 
     def test_main_store_is_first(self):

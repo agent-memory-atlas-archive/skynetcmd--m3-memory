@@ -310,39 +310,24 @@ def install_schedules() -> bool:
 
 
 def _root_env_prefix() -> str:
-    """Inline `M3_ENGINE_ROOT=… M3_CONFIG_ROOT=… ` prefix for capture hooks.
-
-    A capture hook inherits the agent's PROCESS env (NOT the MCP server env
-    block), so without these it can resolve a different engine root than the
-    server and diverge the two chatlog halves (CLAUDE.md 'Split-brain hazard').
-    generate_configs pins these too; both writers must, or one reverts the other.
-    Trailing space so it prefixes the command directly. m3 roots are space-free
-    by convention (matches the prior working format).
-
-    ⚠ POSIX ONLY — returns "" on Windows. `VAR=val cmd` has no cmd.exe
-    equivalent, so emitting it there produces a hook that fails instantly with
-    "'M3_ENGINE_ROOT' is not recognized as an internal or external command".
-    That killed chatlog capture for ~2 days on a live install (2026-08-09..11)
-    with no symptom but a stalled last_write_at. Mirrors
-    generate_configs._hook_env_prefix; see its docstring for why dropping the
-    pins on Windows is safe rather than a downgrade."""
-    if is_windows():
-        return ""
-    # The roots owner is stdlib-only, so this needs no m3_sdk fallback (the copy
-    # that fallback carried defaulted the memory root differently).
+    """The inline env prefix for a capture hook command: generate_configs'
+    ``_hook_env_prefix`` (the one owner), so the Gemini hook and the Claude hooks
+    carry the same pins. A hook inherits the agent's PROCESS env, not the MCP
+    server's env block, so a non-default config root must be pinned on it too;
+    a default one needs nothing, and POSIX `VAR=val cmd` syntax is never
+    emitted on Windows (see that function). This was a copy that drifted: it
+    still pinned M3_ENGINE_ROOT, which m3 no longer reads."""
+    from generate_configs import _hook_env_prefix
     from m3_core.seams import roots
 
-    eng, cfg = roots.engine_root(), roots.config_root()
-    eng = str(eng).replace("\\", "/")
-    cfg = str(cfg).replace("\\", "/")
-    return f"M3_ENGINE_ROOT={eng} M3_CONFIG_ROOT={cfg} "
+    return _hook_env_prefix(str(roots.engine_root()), str(roots.config_root()))
 
 
 # (The old Claude hook builders — _build_claude_hook_command /
 # _build_claude_settings_patch — were removed when apply_claude_settings below
 # became a thin delegate to generate_configs.install_claude_settings, the single
 # canonical Claude writer. _root_env_prefix() above is retained: the Gemini
-# onExit hook still needs the same inline root pins.)
+# onExit hook needs the same inline pin.)
 
 
 def apply_claude_settings(config: ChatlogConfig) -> tuple[bool, str]:

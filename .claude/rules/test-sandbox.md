@@ -18,6 +18,13 @@ suite stayed green:
   directory that is later deleted.
 - A mocked `subprocess.run` that treats the last argument as a path to create
   will create directories in the checkout.
+- `installer._post_install` registers m3 with Gemini/Antigravity/Cursor/Cline
+  under `Path.home()`, which the sandbox does not move. A fixture that stubbed
+  only some steps wrote its temp config root into the real
+  `~/.gemini/settings.json` on every run (2026-10-17). Stub the one list,
+  `conftest.INSTALLER_HOME_WRITERS` (fixture `installer_home_writers_stubbed`);
+  `pytest_sessionfinish` now fails the run when a real agent config names the
+  session's basetemp.
 
 So: any module-level constant holding a path must be re-pointed **per test**,
 not just overridden by env var. Never let a test resolve a warehouse or

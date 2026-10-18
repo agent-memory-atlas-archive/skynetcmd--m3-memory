@@ -195,6 +195,16 @@ Every write landed. Measured 2026-10-13 on an Apple M3 Max with the embedder stu
 the figures are the database write and its locking; an inline embedding adds ~30 ms that
 runs outside the lock.
 
+**The busy timeout does not cover every wait.** A transaction that starts *deferred*,
+reads, and then writes holds a read snapshot; if another process commits first, SQLite
+cannot upgrade it to a writer and returns `SQLITE_BUSY` at once — `busy_timeout` does not
+apply to that upgrade. With a bulk import or maintenance pass running alongside the
+writers, 7 of 40 writes failed this way. Since 2026.10.17.3 every m3 SQLite connection
+begins write transactions `IMMEDIATE` (`bin/sqlite_pragmas.py`), taking the write lock at
+`BEGIN`, where the busy timeout does apply: 0 of 40 failed on the same run. Measure it with
+`python bin/bench_concurrent_writes.py` and its `--ingest` option (an import, a maintenance
+pass, or both alongside the writers).
+
 ## Embedding, and the shared-vs-in-process question
 
 m3's default is a **shared embed server** on `127.0.0.1:8082` — one model in RAM

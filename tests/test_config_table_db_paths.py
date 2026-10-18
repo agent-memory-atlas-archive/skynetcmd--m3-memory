@@ -45,15 +45,18 @@ def test_dispatch_schema_default_is_the_readers(monkeypatch):
 @pytest.mark.parametrize(
     "name,env,raw,value",
     [
-        ("db.pool_size", "DB_POOL_SIZE", "7", 7),  # legacy alias still answers
+        ("db.pool_size", "DB_POOL_SIZE", "7", 7),
         ("db.pool_timeout_s", "M3_DB_POOL_TIMEOUT", "45", 45),
         ("db.postgres.forbidden_hosts", "M3_PG_FORBIDDEN_HOSTS", " a.b , ,c.d ", ["a.b", "c.d"]),
         ("db.postgres.upsert_page_size", "M3_PG_UPSERT_PAGE_SIZE", "250", 250),
     ],
 )
-def test_env_names_parse_as_todays_readers_do(tmp_path, name, env, raw, value):
+def test_env_names_are_not_read_and_import_env_parses_them(tmp_path, name, env, raw, value):
+    """m3 does not read the name (reported in shadowed); `m3 config import-env`
+    copies its value with the old readers' parsing."""
     s = _build(tmp_path, None, {env: raw})
-    assert s[_key(name)] == value and s.origin(_key(name)) == f"env-legacy:{env}"
+    assert s.origin(_key(name)) == "default" and env in s.shadowed_env()
+    assert env in _key(name).env_names and _key(name).coerce_env_value(raw) == value
 
 
 def test_the_file_spells_them_as_tables(tmp_path):
@@ -78,14 +81,11 @@ def test_the_file_spells_them_as_tables(tmp_path):
     assert s[_key("paths.engine_root")] == Path("~/m3-engine").expanduser()
 
 
-def test_mmap_size_is_validated_not_silently_ignored(tmp_path):
-    """sqlite_pragmas ignores a non-integer silently today: intended change."""
-    from m3_core.config import format_config_error
-    from m3_core.config.resolve import ConfigEnvErrors
-
-    with pytest.raises(ConfigEnvErrors) as exc:
-        _build(tmp_path, None, {"M3_SQLITE_MMAP_SIZE": "big"})
-    assert "M3_SQLITE_MMAP_SIZE='big'" in format_config_error(exc.value)
+def test_mmap_size_is_validated_not_silently_ignored():
+    """The old sqlite_pragmas reader ignored a non-integer silently; the registry
+    refuses one (import-env reports it instead of copying it)."""
+    with pytest.raises(ValueError):
+        _key("db.sqlite_mmap_size").coerce_env_value("big")
 
 
 def test_a_list_default_is_never_the_registrys_own_object(tmp_path):

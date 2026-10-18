@@ -838,10 +838,10 @@ def _inference_block_uncached() -> dict:
 
     if not endpoints:
         out["remedy"] = (
-            "No LLM endpoint is configured. Set M3_LLM_URL to your "
+            "No LLM endpoint is configured. `m3 config set llm.url <url>` for your "
             "OpenAI-compatible server, or enable LM Studio "
-            "(M3_ENABLE_LMSTUDIO_FAILOVER=1) / Ollama "
-            "(M3_ENABLE_OLLAMA_FAILOVER=1)."
+            "(`m3 config set llm.lmstudio_failover true`) / Ollama "
+            "(`m3 config set llm.ollama_failover true`)."
         )
         return out
 

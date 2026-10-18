@@ -121,6 +121,12 @@ fields, and the tamper-evident chain. **Not** retained: the memories, their
 content, embeddings, relationships, or history. Keeping proof-of-deletion is
 permitted; it is not "still holding their data."
 
+> **The audit trail keeps identifiers.** Its earlier entries (writes, updates,
+> deletes) and the erasure entry name the affected memory IDs and the operation,
+> and are not rewritten: rewriting would break the hash chain that makes the log
+> tamper-evident. Memory IDs are random UUIDs that carry no content; if your DPO
+> treats them as personal data, record that in your erasure procedure.
+
 > **Derived content is a separate case.** A [wiki](WIKI.md) synthesis compiled
 > from an erased memory is its own row and is *not* removed by the cascade — it is
 > marked `restricted` (withheld from rendering) and held for review instead. See

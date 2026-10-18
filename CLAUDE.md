@@ -15,21 +15,22 @@
 ## Homecoming Architecture (decoupled roots)
 
 Persistent state is split across **three roots** so the engine (databases) and
-the configuration can live and be secured independently:
+the configuration can live and be secured independently. Only the config root is
+located from the environment; every other root comes from `[paths]` in
+`m3_config.toml` (owner: `m3_memory._roots`):
 
-- **`M3_CONFIG_ROOT`** — configuration. Default `~/.m3/config`. Resolution:
-  `M3_CONFIG_ROOT` env > `M3_MEMORY_ROOT/config` > `~/.m3/config`. Holds
-  `.chatlog_config.json`, `.migrate_config.json`, `.agent_os_salt`.
-- **`M3_ENGINE_ROOT`** — databases + runtime state. Default `~/.m3/engine`.
-  Resolution: `M3_ENGINE_ROOT` env > `M3_MEMORY_ROOT/engine` > `~/.m3/engine`.
-  Holds `agent_memory.db`, `agent_chatlog.db`, chatlog state/cursor, spill dir.
-- **`M3_LOGS_ROOT`** — scheduled-task and service logs. Default `~/.m3/logs`.
-  Resolution: `M3_LOGS_ROOT` env > `M3_MEMORY_ROOT/logs` > `~/.m3/logs`
-  (`m3_core.paths.get_m3_logs_root`). Never under the payload — a reinstall
-  wipes it.
-- **`M3_MEMORY_ROOT`** — the repo/payload (code), and a *master override*: if set,
-  config, engine and logs derive from it (`/config`, `/engine`, `/logs`) unless
-  their own env vars are set.
+- **Config root** — `--config <file>` > `M3_CONFIG_ROOT` > `~/.m3/config`. Holds
+  `m3_config.toml`, `.chatlog_config.json`, `.migrate_config.json`, `.agent_os_salt`.
+- **Engine root** — `[paths] engine_root`, else `<memory_root>/engine` when
+  `[paths] memory_root` is set, else `~/.m3/engine`. Holds `agent_memory.db`,
+  `agent_chatlog.db`, chatlog state/cursor, spill dir.
+- **Logs root** — `[paths] logs_root` (same fallbacks, `/logs`), default
+  `~/.m3/logs` (`m3_core.paths.get_m3_logs_root`). Never under the payload — a
+  reinstall wipes it.
+
+`M3_ENGINE_ROOT`, `M3_LOGS_ROOT` and `M3_MEMORY_ROOT` are **not read** (nor any
+other setting's env name); `m3 doctor` names any still set. `M3_HOME` /
+`M3_LIB_DIR` only help locate the payload's `bin/`.
 
 ### Migration
 `bin/homecoming.py` relocates legacy state (repo-relative `memory/*` or the old
@@ -38,23 +39,26 @@ config's pinned `db_path` to the new engine root (a verbatim copy would leave th
 chatlog pointing at the old path), and prints a post-migration checklist.
 
 ### Split-brain hazard (read before changing roots)
-Two env paths must BOTH be pinned or the system splits: the **MCP server** reads
-its root from its own registration's `env` block (NOT from `~/.zshenv`), while
-the **chatlog Stop/PreCompact hook** inherits the agent's *process* env (NOT the
-server `env` block). Pinning only one makes the server read the new root while
-the hook keeps writing turns to the old one. Fix: pin `M3_ENGINE_ROOT` +
+With the default config root (`~/.m3/config`) nothing needs pinning: every
+process finds the same `m3_config.toml`. With a **non-default** config root, two
+env paths must BOTH carry `M3_CONFIG_ROOT` or the system splits: the **MCP
+server** reads it from its own registration's `env` block (NOT from `~/.zshenv`),
+while the **chatlog Stop/PreCompact hook** inherits the agent's *process* env (NOT
+the server `env` block). Pinning only one makes the server read one config (and
+its stores) while the hook writes turns through the other. Fix: set
 `M3_CONFIG_ROOT` in the server registration's `env` AND inline-prefix both hook
-`command`s with the same two vars.
+`command`s with it. `m3 doctor` reports the config file in use and every surface
+that names another root or lacks the pin.
 
 **Where the server `env` lives is agent-specific — and Claude Code is the
 exception.** Claude Code does **NOT** read MCP server *definitions* from
 `~/.claude/settings.json` (only `~/.claude.json`, `.mcp.json`, and plugins are
 honored). So m3's Claude memory server is registered via
-`claude mcp add --scope user m3_memory m3 --env M3_ENGINE_ROOT=… --env
-M3_CONFIG_ROOT=…` (written to `~/.claude.json`) — that `--env` is where Claude's
-server roots must go, NOT a `settings.json` `mcpServers` block (which Claude
+`claude mcp add --scope user m3_memory m3 [--env M3_CONFIG_ROOT=…]` (written to
+`~/.claude.json`; the `--env` only for a non-default config root) — that `--env`
+is where Claude's server config root must go, NOT a `settings.json` `mcpServers` block (which Claude
 ignores; `generate_configs` no longer writes one). The m3 **plugin** alternative
-carries roots via its `userConfig` (`${user_config.engine_root/config_root}`);
+carries the config root via its `userConfig` (`${user_config.config_root}`);
 `m3 setup` keeps the plugin's server disabled (`disabledMcpServers +=
 plugin:m3:memory` — written atomically with the `claude mcp add`, not only via
 the hooks writer) so only the direct `mcp__m3_memory__` server runs. That
@@ -63,7 +67,7 @@ plugin server behind m3's back → two live servers (double payload load, split
 `mcp__m3_memory__` / `mcp__plugin_m3_memory__` namespace). `claude_mcp_probe`
 (the `m3 doctor` "one m3 server, not two" check) is the only thing that catches
 that; `m3 doctor --fix --fix-hooks` converges back to one. For
-Gemini/Antigravity/Cursor/Cline the roots DO go in the `env` block of the
+Gemini/Antigravity/Cursor/Cline a non-default `M3_CONFIG_ROOT` DOES go in the `env` block of the
 `memory` entry in their own config files (those ARE read). `settings.json` hooks
 and `statusLine` ARE read for Claude — only `mcpServers` is not.
 

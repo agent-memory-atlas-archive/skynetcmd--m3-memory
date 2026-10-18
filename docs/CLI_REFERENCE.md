@@ -63,10 +63,10 @@ Every DB-aware script accepts a standardized `--database PATH` flag. To use a na
 2. The active named store (`--store`)
 3. A call's `active_database()` scope
 4. The process's `--database PATH` pin
-5. `M3_DATABASE` environment variable — **legacy**: read only when nothing above names a database, with a one-time warning, through release N+3. m3 itself no longer writes it.
-6. Default: `<engine_root>/agent_memory.db` — i.e. `~/.m3/engine/agent_memory.db`
-   (the engine root resolves `M3_ENGINE_ROOT` → `M3_MEMORY_ROOT/engine` → `~/.m3/engine`;
+5. Default: `<engine_root>/agent_memory.db` — i.e. `~/.m3/engine/agent_memory.db`
+   (the engine root is `[paths] engine_root` in `m3_config.toml`, else `~/.m3/engine`;
    see [Roots and locators](ENVIRONMENT_VARIABLES.md#roots-and-locators)).
+   The former `M3_DATABASE` variable is not read; `m3 doctor` names it if still set.
    A legacy `memory/agent_memory.db` in a dev checkout is used only if it already
    holds data.
 
@@ -81,15 +81,15 @@ python bin/memory_doctor.py
 # Scratch DB for testing
 python bin/memory_doctor.py --database memory/scratch.db
 
-# Separate chatlog file (unchanged behavior — still honored via CHATLOG_DB_PATH)
-CHATLOG_DB_PATH=memory/my_chatlog.db python bin/chatlog_ingest.py --format claude-code --transcript-path foo.jsonl
+# Separate chatlog file for one run (CHATLOG_DB_PATH is not read)
+python bin/chatlog_ingest.py --db memory/my_chatlog.db --format claude-code --transcript-path foo.jsonl
 ```
 
 ---
 
 ## Running tests against an isolated DB
 
-The test suites (`test_memory_bridge.py`, `test_debug_agent.py`, `test_mcp_proxy.py`) read their `DB_PATH` via `resolve_db_path(None)` at import time. They define no `--database` flag, so point them at a scratch DB with the legacy `M3_DATABASE` env var (read through release N+3, with a one-time warning).
+The test suites (`test_memory_bridge.py`, `test_debug_agent.py`, `test_mcp_proxy.py`) read their `DB_PATH` via `resolve_db_path(None)` at import time. They define no `--database` flag, so point them at a scratch config root whose `m3_config.toml` names a scratch engine root (`M3_DATABASE` is not read).
 
 Isolated test run:
 
@@ -97,8 +97,11 @@ Isolated test run:
 # Seed a fresh schema-complete scratch DB
 python bin/setup_test_db.py --database memory/_test.db --force
 
-# Run any test suite against it (legacy env name; these scripts have no --database flag)
-M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
+# Run any test suite against a scratch engine root (these scripts have no --database flag)
+mkdir -p /tmp/m3-test/config
+printf 'schema_version = 1\n[paths]\nengine_root = "/tmp/m3-test/engine"\n' > /tmp/m3-test/config/m3_config.toml
+python bin/setup_test_db.py --database /tmp/m3-test/engine/agent_memory.db --force
+M3_CONFIG_ROOT=/tmp/m3-test/config python bin/test_memory_bridge.py
 ```
 
 `setup_test_db.py` brings the target to the current schema with m3's migration runner (`migrate_memory.py up`), the same path an install takes. Pass `--force` to wipe the target before seeding.
@@ -112,9 +115,9 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 | `bin/bench_memory.py` | Write/search/dedup micro-benchmarks | — |
 | `bin/ai_mechanic.py` | DESTRUCTIVE schema repair (recreates from the migrations) | SQLite: `--database` is **required** (no default); PostgreSQL: the configured database. Always requires `--force` |
 | `bin/augment_memory.py` | Post-ingest augmentation: adjacent-turn linking + SLM-based title enrichment | `link-adjacent` / `enrich-titles` / `all` subcommands; entity-enrichment requires `M3_SLM_CLASSIFIER=1` ([SLM_INTENT.md](SLM_INTENT.md)) |
-| `bin/build_kg_variant.py` | Build KG-enriched variant from a source variant | Honors legacy `AGENT_DB` env var as an alias |
+| `bin/build_kg_variant.py` | Build KG-enriched variant from a source variant | `--database` / `--store` (the former `AGENT_DB` variable is not read) |
 | `bin/chatlog_init.py` | Interactive chatlog setup | `--db-path PATH` sets the chatlog DB in the saved config |
-| `bin/chatlog_ingest.py` | Ingest a transcript into the chatlog DB | `--db PATH` (deprecated, alias for `CHATLOG_DB_PATH`) |
+| `bin/chatlog_ingest.py` | Ingest a transcript into the chatlog DB | `--db PATH` pins the chatlog store for this run |
 | `bin/chatlog_embed_sweeper.py` | Lazy-embed unembedded chatlog rows | — |
 | `bin/cli_kb_browse.py` | Paginated knowledge base browser | `--db PATH` (legacy alias for `--database`) |
 | `bin/cli_knowledge.py` | Add/update/search/delete knowledge items | — |
@@ -125,7 +128,7 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 | `bin/mission_control.py` | Status dashboard | Uses default resolution only |
 | `bin/re_embed_all.py` | Re-embed every active item | — |
 | `bin/secret_rotator.py` | Rotate vault-stored secrets | — |
-| `bin/setup_memory.py` | Bootstrap (venv + deps + migrations) | Reads `--database PATH` positionally (or legacy `M3_DATABASE`) |
+| `bin/setup_memory.py` | Bootstrap (venv + deps + migrations) | Reads `--database PATH` positionally |
 | `bin/setup_secret.py` | Add/list/delete vault keys | — |
 | `bin/setup_test_db.py` | Seed a scratch DB with the full schema (for test isolation) | `--force` wipes existing file before seeding |
 | `bin/sync_all.py` | Hourly sync runner (shells out to pg_sync) | Passes the database to the pg_sync child as `--db <path>` |
@@ -137,11 +140,12 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 
 The chatlog subsystem has its own resolver (see `bin/chatlog_config.py`):
 
-| Env | Role |
+| Override | Role |
 | --- | --- |
-| `CHATLOG_DB_PATH` | Explicit chatlog-only path override, highest priority for chatlog reads/writes |
-| `M3_DATABASE` | **Legacy** (read through release N+3, warned). Unified layout: with no `CHATLOG_DB_PATH` and no `db_path` pinned in `.chatlog_config.json`, the chatlog shares the process's `--database` (or legacy `M3_DATABASE`) main DB |
-| `CHATLOG_MODE` | **Deprecated** — ignored with a one-time warning. The three-mode system (integrated/separate/hybrid) has collapsed into path equality: same file = integrated behavior, different file = separate behavior, promote semantics switch automatically. |
+| `--chatlog-db PATH` (or `chatlog_ingest.py --db`) | Chatlog-only path for one process, highest priority for chatlog reads/writes |
+| `db_path` in `.chatlog_config.json` | The install's chatlog path (`m3 setup` pins it) |
+| `--database PATH` | Unified layout: with no chatlog pin and no `db_path`, the chatlog shares the process's main DB |
+| `CHATLOG_DB_PATH`, `M3_DATABASE`, `CHATLOG_MODE` | **Not read.** `m3 doctor` names any still set. The three-mode system (integrated/separate/hybrid) collapsed into path equality: same file = integrated behavior, different file = separate behavior, promote semantics switch automatically. |
 
 See [CHATLOG.md](CHATLOG.md) for the full chatlog architecture.
 

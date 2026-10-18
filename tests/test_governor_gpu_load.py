@@ -176,8 +176,10 @@ def test_ensure_governor_config_creates_and_is_idempotent(monkeypatch, tmp_path,
     assert path == str(cfg)
 
 
-def test_governor_thresholds_env_fallback(monkeypatch, tmp_path):
-    # No config file -> the legacy env name, read by the registry, beats the default.
+def test_governor_threshold_env_names_are_not_read(monkeypatch, tmp_path):
+    # No governor file, no [governor] keys: the defaults apply. The former env
+    # names (M3_GOVERNOR_*_THRESHOLD) are not read.
+    from m3_core.config import REGISTRY
     from m3_core.config import settings as st
 
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(tmp_path))
@@ -187,7 +189,12 @@ def test_governor_thresholds_env_fallback(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_GOVERNOR_LIMIT_THRESHOLD", "60")
     st._reset_for_tests()
     try:
-        assert m3_sdk._governor_thresholds(now=1.0) == (30, 60)
+        defaults = (
+            REGISTRY.get("governor.initial_threshold").default,
+            REGISTRY.get("governor.limit_threshold").default,
+        )
+        assert defaults != (30, 60)
+        assert m3_sdk._governor_thresholds(now=1.0) == defaults
     finally:
         st._reset_for_tests()
 

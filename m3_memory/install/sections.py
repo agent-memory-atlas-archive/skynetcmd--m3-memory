@@ -416,7 +416,7 @@ def _crypto_section() -> None:
             if not cs["integrity_pinned"]:
                 # Help the operator self-pin THEIR build (M3 doesn't ship wolfSSL).
                 print("    (to detect later tampering, pin your trusted build:")
-                print(f"     export M3_WOLFSSL_SHA256={sha} )")
+                print(f"     m3 config set crypto.wolfssl_sha256 {sha} )")
     else:
         print(f"  status:                  {cs['summary']}")
 
@@ -446,11 +446,11 @@ def _roots_section() -> None:
 
     from m3_memory import _roots
 
-    def _src(env_name: str, default: str) -> str:
-        if _roots.pinned(env_name):  # env-owner: doctor reports which root a pin set
-            return f"({env_name} env)"
-        if _roots.pinned(_roots.MEMORY_ROOT_ENV):  # env-owner: doctor reports which root a pin set
-            return "(derived from M3_MEMORY_ROOT)"
+    def _src(key: str, default: str) -> str:
+        if _roots.file_root(key):
+            return f"(m3_config.toml [paths] {key})"
+        if key != "memory_root" and _roots.memory_root_pin():
+            return "(derived from [paths] memory_root)"
         return f"(default {default})"
 
     print()
@@ -458,12 +458,12 @@ def _roots_section() -> None:
     mem = get_m3_root()
     cfg_root = get_m3_config_root()
     eng_root = get_m3_engine_root()
-    # env-owner: doctor reports which root a pin set
-    mem_src = _src("M3_MEMORY_ROOT", "~/.m3" if _roots.memory_root_migrated() else "~/.m3-memory")
-    # env-owner: doctor reports which root a pin set
-    cfg_src = _src("M3_CONFIG_ROOT", "~/.m3/config")
-    # env-owner: doctor reports which root a pin set
-    eng_src = _src("M3_ENGINE_ROOT", "~/.m3/engine")
+    mem_src = _src("memory_root", "~/.m3" if _roots.memory_root_migrated() else "~/.m3-memory")
+    _cfg_root, cfg_tier = _roots.config_root_with_tier()
+    cfg_src = {_roots.CONFIG_ROOT_ARG: "(--config)", _roots.CONFIG_ROOT_ENV: "(M3_CONFIG_ROOT)"}.get(
+        cfg_tier, "(default ~/.m3/config)"
+    )
+    eng_src = _src("engine_root", "~/.m3/engine")
     print(f"  memory root (repo/state): {mem}  {mem_src}")
     print(f"  config root:              {cfg_root}  {cfg_src}")
     print(f"  engine root (DBs):        {eng_root}  {eng_src}")
@@ -477,18 +477,6 @@ def _roots_section() -> None:
         print("  engine DBs present:       (none yet — no captures/migrations written)")
     else:
         print("  engine DBs present:       (engine root does not exist yet)")
-
-    # m3 reads one variable, M3_CONFIG_ROOT, and takes every root from
-    # m3_config.toml (user decision 2026-10-17). This used to say "pin
-    # M3_ENGINE_ROOT + M3_CONFIG_ROOT on BOTH surfaces", the opposite of what keeps
-    # them in agreement now: no copies at all.
-    # env-owner: doctor reports which root a pin set
-    pinned = [n for n in (_roots.MEMORY_ROOT_ENV, _roots.ENGINE_ROOT_ENV) if _roots.pinned(n)]
-    if pinned:
-        print()
-        print(f"  [i] {', '.join(pinned)} set in this process: deprecated. Put the root in m3_config.toml")
-        print("      (paths.memory_root / paths.engine_root) and remove the variable from every place it is")
-        print("      set; the last section of this report lists them.")
 
 
 def _fmt_dual_time(value: object) -> str:
@@ -792,36 +780,8 @@ def _backend_section(cfg: dict) -> None:
     _cdw_sync_section()
 
 
-def _config_env_disagreement_section() -> None:
-    """Name each env var that contradicts a value set in m3_config.toml, both
-    values, and which one m3 uses. The transition report: kept until the user
-    decides to stop it. Says nothing when
-    env and file agree, or when the file sets nothing (§3: no false alarm)."""
-    try:
-        _bin.ensure_on_path()
-        from m3_core.config.settings import env_disagreements
-
-        found = env_disagreements()
-    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
-        print()
-        print(f"  [!] could not compare env with m3_config.toml: {e}. inspect: m3 config show --origin")
-        return
-    if not found:
-        return
-    print()
-    from m3_memory import installer as _I  # lazy: installer imports this module
-
-    for d in found:
-        where = ", ".join(_I._find_env_var_locations(d.env_name)) or "the environment"
-        print(
-            f"  [i] {d.env_name}={d.env_value} (set in {where}) disagrees with m3_config.toml "
-            f"{d.key} = {d.file_value}; m3 uses the file's value. fix: remove {d.env_name} "
-            "there, or change the file."
-        )
-
-
-# The legacy env names that LOCATE a store, each with its fix. m3 reads them only
-# through N+3 and never moves them into a file: a database PATH is a locator, so the
+# The legacy env names that LOCATE a store, each with its fix. m3 does not read
+# them and never moves them into a file: a database PATH is a locator, so the
 # fix is a flag, a named store or the chatlog config's db_path (M3_DATABASE design
 # Q2, 2026-10-12; chatlog design, 2026-10-13).
 LOCATOR_ENV_FIXES: tuple[tuple[tuple[str, ...], str], ...] = (
@@ -853,7 +813,7 @@ def locator_env_leftovers() -> list[str]:
                 lines.append(
                     f"  [i] {name} is set in: "
                     + "; ".join(places)
-                    + f". m3 reads it only through release N+3. fix: {fix}; then remove it."
+                    + f". m3 does not read it. fix: {fix}; then delete it there."
                 )
     return lines
 
@@ -866,31 +826,6 @@ def _database_env_section() -> None:
     if lines:
         print()
         print("\n".join(lines))
-
-
-def _llm_file_legacy_section() -> None:
-    """Name each LLM setting m3 takes from the legacy .llm_config.json, to move
-    into [llm] of m3_config.toml (fold plan 2026.10.12, step 3). Silent when no
-    value in use comes from that file."""
-    try:
-        _bin.ensure_on_path()
-        from m3_core.config.settings import current
-        from m3_core.llm_config import llm_config_path
-
-        snap = current()
-        names = snap.llm_file_in_use()
-    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
-        print()
-        print(f"  [!] could not read the LLM settings: {e}. inspect: m3 config show --origin")
-        return
-    if not names:
-        return
-    print()
-    print(f"  [i] LLM settings read from the legacy {llm_config_path()}; move them into [llm] of")
-    print(f"      {snap.location.file}:")
-    for name in names:
-        print(f"        {name}")
-    print("      `m3 config import-env` moves them (`--dry-run` first to see the plan).")
 
 
 def _inside(path: str, root: str) -> bool:
@@ -1069,14 +1004,93 @@ def _secrets_in_env_section(brief: bool = False) -> None:
         print(f"  [i] could not check {u} for secrets; inspect it by hand.")
 
 
+def config_root_section(brief: bool = False) -> int:
+    """Which m3_config.toml is authoritative, and every place that would read a
+    different one. Locator order: --config > M3_CONFIG_ROOT > ~/.m3/config.
+    With a non-default root, a process that does not see M3_CONFIG_ROOT (an m3
+    MCP server entry without it, a new terminal, a service) silently reads
+    ~/.m3/config: two configs, possibly two stores. Reported: the file in use and
+    its locator; places where M3_CONFIG_ROOT names another root; m3 MCP entries
+    missing it; and a second config file that is ignored. Returns the number of
+    problems (exit-code neutral). Paths only, never values of settings."""
+    try:
+        _bin.ensure_on_path()
+        from m3_core.config import locate
+
+        from m3_memory._roots import CONFIG_FILE_NAME, default_config_root, same_dir
+        from m3_memory.install.env_sources import _server_entries, is_m3_server, mcp_config_files, scan
+
+        loc = locate()
+        found = scan(["M3_CONFIG_ROOT"])
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not check which m3_config.toml is authoritative: {e}")
+        return 0
+    root = str(loc.root)
+    default = default_config_root()
+    non_default = not same_dir(root, default)
+    problems: list[str] = []
+    for f in found:
+        if f.kind == "mcp" and not f.m3_server:
+            continue  # another tool's entry: not a surface m3 runs from
+        value = os.path.expanduser(f.value.strip())
+        if value and not same_dir(value, root):
+            problems.append(
+                f"M3_CONFIG_ROOT in {f.place} names {value}, but this process uses {root}: processes "
+                f"started from there read another config. fix: set it to {root} there, or remove it"
+            )
+    if non_default:
+        try:
+            files = mcp_config_files()
+        except Exception:  # noqa: BLE001 -- the sweep above already reported what it could
+            files = []
+        for path in files:
+            try:
+                import json
+
+                with open(path, encoding="utf-8") as fh:
+                    data = json.load(fh) or {}
+            except (OSError, ValueError):
+                continue
+            for server, entry in _server_entries(data if isinstance(data, dict) else {}):
+                entry = entry if isinstance(entry, dict) else {}
+                if is_m3_server(server, entry) and not (entry.get("env") or {}).get("M3_CONFIG_ROOT"):
+                    problems.append(
+                        f"{path} (server {server!r}) has no M3_CONFIG_ROOT, so that server reads {default}. "
+                        "fix: `m3 doctor --fix` writes it"
+                    )
+    second = os.path.join(default, CONFIG_FILE_NAME)
+    if non_default and os.path.isfile(second):
+        problems.append(f"{second} also exists and is ignored (the config in use is {loc.file}); remove or merge it")
+    locator = {
+        "arg:--config": "--config",
+        "env:M3_CONFIG_ROOT": "M3_CONFIG_ROOT",
+    }.get(str(loc.tier), "the default location")
+    if brief and not problems:
+        return 0
+    print()
+    print(f"config: {loc.file} (located by {locator})")
+    for line in problems:
+        print(f"  [!] {line}")
+    if non_default and not problems:
+        print(f"  [i] every m3 surface found names {root}")
+    if non_default:
+        print(
+            f"  [i] set M3_CONFIG_ROOT={root} wherever m3 runs (your shell or user environment, each agent's "
+            "MCP server entry, services); m3 setup writes it where m3 owns the entry"
+        )
+    return len(problems)
+
+
 def m3_env_settings_section(brief: bool = False) -> int:
     """The last doctor section: every m3 setting still set as an M3_*
     environment variable (the process, a shell startup file, `.env`, the Windows
-    registry, or an m3 MCP entry's env block), deprecated in favour of
-    m3_config.toml, each with the `m3 config set` that replaces it. m3 reads one
-    variable, M3_CONFIG_ROOT, and that one only when it is not the default.
-    Names and places only, never values. Silent when nothing is set. Returns the
-    number of variables reported (exit-code neutral: deprecated, not broken)."""
+    registry, an m3 MCP entry's env block, or an m3 service definition). m3 does
+    not read them: m3_config.toml has precedence and a key it lacks takes its
+    default. Each is listed with where it is set, what m3 uses instead, and the
+    advice to delete it. m3 reads one variable, M3_CONFIG_ROOT, and that one only
+    when it is not the default. Names and places only, never values. Silent when
+    nothing is set. Returns the number reported (exit-code neutral)."""
     try:
         _bin.ensure_on_path()
         from m3_core.config import REGISTRY, KeyClass
@@ -1107,24 +1121,30 @@ def m3_env_settings_section(brief: bool = False) -> int:
         by_name.setdefault(f.name, set()).add(f.place)
     if not by_name and not config_root_places:
         return 0
+    from m3_core.config import locate
+
+    cfg_file = locate().file
     print()
-    print("M3_* environment variables (deprecated: m3 reads its settings from m3_config.toml):")
-    in_use = 0
+    print(f"M3_* environment variables m3 does not read ({cfg_file} has precedence):")
+    from_default = 0
     for name in sorted(by_name):
         key = REGISTRY.by_env(name)
         if key is None:
             continue
         where = ", ".join(sorted(by_name[name]))
-        ignored = current.origin(key).startswith("file")
-        in_use += not ignored
-        state = "ignored, m3_config.toml sets it" if ignored else "in use"
-        print(f"  [deprecated] {name} -> {key.name} ({state}); set in {where}")
-        if not ignored:
-            print(f"      fix: `m3 config set {key.name} <value>`, then remove {name} from those places")
-    if in_use:
-        print("  `m3 config import-env` moves every one still in use into m3_config.toml at once.")
-    if len(by_name) > in_use:
-        print("  Remove the ignored ones from the places named: m3_config.toml already sets each of them.")
+        in_file = current.origin(key).startswith("file")
+        from_default += not in_file
+        uses = "the value in m3_config.toml" if in_file else "the default (m3_config.toml does not set it)"
+        print(f"  [not read] {name} -> {key.name}: m3 uses {uses}; set in {where}")
+        if not in_file:
+            print(f"      to choose a value: `m3 config set {key.name} <value>`")
+    print(
+        "  Delete these variables (you or your agent): the export lines in the shell files named, "
+        "Windows user variables (`[Environment]::SetEnvironmentVariable('NAME', $null, 'User')`), "
+        "the env entries in MCP configs, and Environment lines in service definitions."
+    )
+    if from_default:
+        print("  `m3 config import-env` copies their values into m3_config.toml instead, if you want m3 to use them.")
     if config_root_places:
         print(
             f"  [i] M3_CONFIG_ROOT is set to the default in {', '.join(sorted(config_root_places))}; "
@@ -1155,60 +1175,30 @@ def _interrupted_rewrite_section() -> None:
 
 
 def _deprecated_env_section() -> None:
-    """Surface deprecated (un-namespaced) env vars that are actually in use.
-
-    m3-specific config vars are migrating under the M3_ namespace; the old
-    generic names (PG_URL, tuning knobs, ...) still work via a
-    back-compat shim but will be removed. This process's config modules read
-    their env at import time, so by the time doctor runs, getenv_compat has
-    recorded any deprecated name that resolved. Report only what's genuinely in
-    use (no noise on a clean setup), with the new name to migrate to.
-
-    Best-effort: skip silently if the SDK isn't importable.
-    """
+    """Old (un-namespaced) env names still set anywhere m3 looks (the process, shell
+    startup files, .env, MCP env blocks, service definitions, the Windows registry).
+    m3 reads none of them; each is named with where it is set, to delete. Silent
+    when none is set. The M3_* names are reported by m3_env_settings_section."""
     try:
-        import os as _os
-
         _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
-        from m3_core.paths import ROLE_SPLIT_ENV_RENAMES
-        from m3_sdk import deprecated_env_in_use
-    except Exception:  # noqa: BLE001 — informational only
-        return
-    in_use = dict(deprecated_env_in_use())
-    # Role-split deprecations (e.g. PG_URL) may be SET but not read this process
-    # (doctor doesn't exercise pg_sync), so getenv_compat never recorded them.
-    # Surface them from the live environment directly so a set PG_URL is flagged.
-    for old, new in ROLE_SPLIT_ENV_RENAMES.items():
-        if _os.environ.get(old) is not None:  # env-owner: doctor names deprecated env names in use
-            in_use[old] = new
-
-    # Windows PERSISTENT env vars live in the registry, not this process's env, so
-    # a User/Machine-scope deprecated var (any name, not just PG_URL) would be
-    # invisible to the checks above — doctor would report "clean" while the var is
-    # still active. Scan the registry and surface each with its scope so the report
-    # is complete on Windows. `m3 doctor --fix` rewrites the User-scope ones.
-    reg_lines: list[str] = []
-    try:
         from m3_core.paths import all_env_renames
 
-        from m3_memory import installer as _I
+        from m3_memory.install.env_sources import scan
 
-        for hit in _I._scan_registry_env_deprecations(all_env_renames()):
-            reg_lines.append(f"        {hit['old']}  ->  {hit['new']}   [{hit['label']}]")
-    except Exception:  # noqa: BLE001 — best-effort; registry scan is Windows-only
-        pass
-
-    if not in_use and not reg_lines:
-        return  # clean — say nothing rather than add noise
+        renames = all_env_renames()
+        old = [n for n in renames if not n.startswith("M3_")]
+        found = scan(old)
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not check for old env names: {e}")
+        return
+    by_name: dict[str, set[str]] = {}
+    for f in found:
+        if f.value.strip() and (f.kind != "mcp" or f.m3_server):
+            by_name.setdefault(f.name, set()).add(f.place)
+    if not by_name:
+        return  # clean -- say nothing rather than add noise
     print()
-    print("  [!] deprecated env vars in use (still work, but migrate — the old")
-    print("      names will be removed; `m3 install-m3`/`update` will refuse while set):")
-    for old, new in sorted(in_use.items()):
-        print(f"        {old}  ->  {new}")
-    for line in sorted(reg_lines):
-        print(line)
-    if reg_lines:
-        print(
-            "      (registry entries: `m3 doctor --fix` rewrites User scope; "
-            "Machine scope needs admin — command shown by --fix)"
-        )
+    print("  [!] old env names m3 does not read (delete them where they are set):")
+    for name in sorted(by_name):
+        print(f"        {name}: set in {', '.join(sorted(by_name[name]))}")

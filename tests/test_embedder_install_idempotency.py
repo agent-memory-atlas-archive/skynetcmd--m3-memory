@@ -150,26 +150,25 @@ def test_not_stale_when_no_matching_process(tmp_path, monkeypatch):
 # ── 4. m3's own model dir ────────────────────────────────────────────────────
 
 
-def test_models_root_precedence(monkeypatch):
-    """M3_MODELS_ROOT > M3_MEMORY_ROOT/models > ~/.m3/models — matching the
-    established engine/config root contract exactly."""
+def test_models_root_precedence(monkeypatch, tmp_path, m3_paths):
+    """[paths] models_root > [paths] memory_root/models > ~/.m3/models — the
+    engine/config root contract. The M3_MODELS_ROOT / M3_MEMORY_ROOT names are
+    not read."""
     from m3_core.paths import get_m3_models_root
 
-    monkeypatch.delenv("M3_MODELS_ROOT", raising=False)
-    monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
-    assert get_m3_models_root() == str(Path.home() / ".m3" / "models")
+    # The sandbox's file sets memory_root = tmp_path, so models derive from it.
+    assert Path(get_m3_models_root()) == tmp_path / "models"
+    monkeypatch.setenv("M3_MODELS_ROOT", str(tmp_path / "env-models"))
+    assert Path(get_m3_models_root()) == tmp_path / "models", "the env name is not read"
 
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(Path("/srv/m3")))
-    assert get_m3_models_root().endswith("models")
-
-    monkeypatch.setenv("M3_MODELS_ROOT", str(Path("/srv/models")))
-    assert Path(get_m3_models_root()).name == "models"
+    m3_paths(models_root=tmp_path / "chosen-models")
+    assert Path(get_m3_models_root()) == tmp_path / "chosen-models"
 
 
-def test_m3_models_dir_probed_before_third_party(monkeypatch, tmp_path):
+def test_m3_models_dir_probed_before_third_party(monkeypatch, tmp_path, m3_paths):
     """m3's own dir must be FIRST. Every other location belongs to a tool the
     user may uninstall (LM Studio, Ollama, llama.cpp)."""
-    monkeypatch.setenv("M3_MODELS_ROOT", str(tmp_path))
+    m3_paths(models_root=tmp_path)
     import importlib
 
     # The models dir is resolved per call (m3_core.paths), so no reload: reloading a
@@ -189,7 +188,6 @@ def test_invalid_gguf_is_rejected(tmp_path, monkeypatch):
     as a model — validate MAGIC BYTES, not just the extension."""
     from memory.model_fetch import _is_valid_gguf
 
-    monkeypatch.setenv("M3_MODELS_ROOT", str(tmp_path))
     html = tmp_path / "bad.gguf"
     html.write_bytes(b"<!DOCTYPE html><html>404</html>")
     assert _is_valid_gguf(html) is False
@@ -332,14 +330,11 @@ def _plausible_gguf(path: Path) -> Path:
 
 
 @pytest.fixture()
-def sovereign(tmp_path, monkeypatch):
-    """An m3-owned models root + an isolated config root."""
+def sovereign(tmp_path, monkeypatch, m3_paths):
+    """An m3-owned models root + an isolated config root (the sandbox's)."""
     models, config = tmp_path / "models", tmp_path / "config"
     models.mkdir(), config.mkdir(exist_ok=True)  # the sandbox may have made config/
-    monkeypatch.setenv("M3_MODELS_ROOT", str(models))
-    monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
-    monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
-    monkeypatch.delenv("M3_EMBED_GGUF_AUTODETECT", raising=False)
+    m3_paths(models_root=models)
     own = _plausible_gguf(models / "bge-m3-Q4_K_M.gguf")
     return SimpleNamespace(models=models, config=config, own=own, cfg=config / ".embed_config.json")
 
@@ -417,21 +412,21 @@ def test_third_party_config_wins_when_m3_owns_nothing(sovereign, tmp_path):
     assert ea._find_bundled_gguf() == third
 
 
-def test_explicit_env_override_is_never_migrated(sovereign, tmp_path, monkeypatch):
-    """$M3_EMBED_GGUF means "use exactly this". Migrating out from under it
-    would make the flag stop meaning what it says."""
+def test_an_explicit_gguf_setting_is_never_migrated(sovereign, tmp_path, monkeypatch, m3_settings):
+    """embed.gguf means "use exactly this". Migrating out from under it would
+    make the setting stop meaning what it says."""
     explicit = tmp_path / "explicit.gguf"
     explicit.write_bytes(b"GGUF" + b"\x00" * 64)
-    monkeypatch.setenv("M3_EMBED_GGUF", str(explicit))
+    m3_settings({"embed.gguf": str(explicit)})
     _write_cfg(sovereign, explicit)
     assert ea._find_bundled_gguf() == explicit
     assert _read_cfg(sovereign)["gguf_path"] == str(explicit), "config rewritten"
 
 
-def test_autodetect_off_suppresses_migration(sovereign, tmp_path, monkeypatch):
-    """M3_EMBED_GGUF_AUTODETECT=0 already means "only what I named"; it must
+def test_autodetect_off_suppresses_migration(sovereign, tmp_path, monkeypatch, m3_settings):
+    """embed.autodetect = false already means "only what I named"; it must
     keep suppressing the config read, and so the migration too."""
-    monkeypatch.setenv("M3_EMBED_GGUF_AUTODETECT", "0")
+    m3_settings({"embed.autodetect": False})
     third = tmp_path / "third" / "m.gguf"
     third.parent.mkdir()
     third.write_bytes(b"GGUF" + b"\x00" * 64)

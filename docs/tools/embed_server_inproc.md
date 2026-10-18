@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server_inproc.py
-sha1: a2b55a16bee6
-mtime_utc: 2026-10-16T23:01:24.237482+00:00
-generated_utc: 2026-10-16T23:03:22.015128+00:00
+sha1: 085907f8de46
+mtime_utc: 2026-10-18T01:45:14.624782+00:00
+generated_utc: 2026-10-18T01:45:45.800019+00:00
 private: false
 ---
 

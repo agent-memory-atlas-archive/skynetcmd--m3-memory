@@ -58,7 +58,7 @@ def test_default_backend_matches_the_standard_answers():
     assert r.stdout.split()[-1] == "DEFAULT", r.stdout
 
 
-def test_wolfcrypt_backend_matches_the_standard_answers_and_exits_cleanly():
+def test_wolfcrypt_backend_matches_the_standard_answers_and_exits_cleanly(tmp_path):
     probe = subprocess.run(
         [
             sys.executable,
@@ -74,7 +74,14 @@ def test_wolfcrypt_backend_matches_the_standard_answers_and_exits_cleanly():
     lib = probe.stdout.strip()
     if not lib:
         pytest.skip(skip_reason("env", "wolfSSL is not installed on this host"))
-    r = _run(_env(M3_FIPS_MODE="1", M3_WOLFSSL_LIB=lib))
+    # [crypto] settings come from m3_config.toml (the M3_FIPS_MODE / M3_WOLFSSL_LIB
+    # names are not read): give the child a config root whose file turns FIPS on.
+    cfg = tmp_path / "fips-config"
+    cfg.mkdir()
+    (cfg / "m3_config.toml").write_text(
+        f'[crypto]\nfips_mode = true\nwolfssl_lib = "{Path(lib).as_posix()}"\n', encoding="utf-8"
+    )
+    r = _run(_env(M3_CONFIG_ROOT=str(cfg)))
     assert r.returncode == 0, f"FIPS-mode child exited {r.returncode}; stderr: {r.stderr[-600:]}"
     assert r.stdout.split() == ["_WolfSha256Stream", "WOLFSSL"], r.stdout
 

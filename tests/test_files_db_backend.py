@@ -32,8 +32,13 @@ _FILE_NODE_VALS = "'u1','k','f.md','markdown','/f.md',10,'sha','2020','h','v1'"
 
 @pytest.fixture()
 def sqlite_files(tmp_path, monkeypatch):
-    """A fresh SQLite files store wired via M3_FILES_DB_PATH."""
-    monkeypatch.setenv("M3_FILES_DB_PATH", str(tmp_path / "files.db"))
+    """A fresh SQLite files store at tmp_path/files.db. The path is
+    memory.config.FILES_DB_PATH, a constant resolved at import (the legacy
+    M3_FILES_DB_PATH is not read), so it is re-pointed per test before the files
+    modules reload and copy it."""
+    import importlib
+
+    monkeypatch.setattr(importlib.import_module("memory.config"), "FILES_DB_PATH", str(tmp_path / "files.db"))
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
     monkeypatch.delenv("M3_PRIMARY_PG_URL", raising=False)
     monkeypatch.delenv("M3_PG_URL", raising=False)
@@ -73,7 +78,10 @@ def test_sqlite_schema_has_expected_tables_and_fts(sqlite_files):
     (FTS5 is SQLite-only; PG uses a native tsvector column instead)."""
     fdb = sqlite_files
     fdb.init_db()
-    path = os.environ["M3_FILES_DB_PATH"]
+    import files_memory.config as fc
+
+    path = fc.FILES_DB_PATH
+    assert os.path.basename(path) == "files.db", path
     conn = sqlite3.connect(path)
     tabs = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()

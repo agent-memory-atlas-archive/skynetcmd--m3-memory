@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_all.py
-sha1: 8ce9c3298667
-mtime_utc: 2026-10-16T21:46:47.476346+00:00
-generated_utc: 2026-10-16T21:49:55.584501+00:00
+sha1: d06d61161b5b
+mtime_utc: 2026-10-18T01:31:48.383351+00:00
+generated_utc: 2026-10-18T01:36:26.357224+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ DB list:
 
 ## Entry points
 
-- `def main()` (line 501)
+- `def main()` (line 503)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -41,6 +41,7 @@ DB list:
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
 | `--dry-run` | Check connectivity only | `False` | Checks SYNC_TARGET_IP reachability, then calls pg_sync.py (writes to the PostgreSQL warehouse). | store_true | Checks reachability only; logs planned sync but skips subprocess calls (no actual writes). |
+| `--db` | A SQLite store to sync instead of the defaults (repeatable; replaces the list) | `[]` |  | append |  |
 | `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
@@ -48,7 +49,7 @@ DB list:
 
 ## Environment variables read
 
-- `M3_SYNC_DBS`
+_(none detected)_
 
 ---
 
@@ -68,7 +69,7 @@ DB list:
 
 **subprocess**
 
-- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 208)
+- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 210)
 
 
 ---

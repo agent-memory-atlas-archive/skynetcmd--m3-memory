@@ -33,12 +33,13 @@ _TOKEN = "dashboard-test-token-not-real-0123456789"
 
 
 @pytest.fixture
-def stub_token(monkeypatch):
-    """Force a specific (token, state) without touching the real vault."""
+def stub_token(monkeypatch, m3_settings):
+    """Force a specific (token, state) without touching the real vault; the bind
+    address is the dashboard.host setting (m3 reads no env name for it)."""
 
     def _apply(token, state=A.TokenState.OK, host="127.0.0.1"):
         monkeypatch.setattr(A, "resolve_token", lambda *a, **k: (token, state))
-        monkeypatch.setenv("M3_DASHBOARD_HOST", host)
+        m3_settings({"dashboard.host": host})
         import dashboard_server as D
 
         return D

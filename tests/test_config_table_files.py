@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 _PINNED = {
     "files.default_corpus": ("files_memory.config", "FILES_DEFAULT_CORPUS"),
     "files.default_extract_mode": ("files_memory.config", "DEFAULT_EXTRACT_MODE"),
@@ -45,15 +43,8 @@ def test_settings_that_do_nothing_are_retired_not_registered():
         assert env in RETIRED, env
 
 
-def test_follow_symlinks_on_is_a_changed_reading(tmp_path, caplog):
-    from m3_core.config import REGISTRY, Location
-    from m3_core.config import resolve as r
-    from m3_core.config.settings import build
+def test_follow_symlinks_on_is_a_changed_reading():
+    """import-env copies a leftover "on" as true (the old reader took only "1")."""
+    from m3_core.config import REGISTRY
 
-    r._LEGACY_NOTED.discard(("M3_FILES_FOLLOW_SYMLINKS", "on"))
-    with caplog.at_level(logging.WARNING):
-        s = build(
-            Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"),
-            environ={"M3_FILES_FOLLOW_SYMLINKS": "on"},
-        )
-    assert s[REGISTRY.get("files.follow_symlinks")] is True and "now reads as True" in caplog.text
+    assert REGISTRY.get("files.follow_symlinks").coerce_env_value("on") is True

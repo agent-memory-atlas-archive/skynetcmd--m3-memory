@@ -90,7 +90,6 @@ def _stub_probe(monkeypatch, p, *, others: bool, started: list):
     monkeypatch.setattr(p, "_server_health", lambda *a, **k: (Diagnosis("ok", "serving"), {}))
     monkeypatch.setattr(p, "_classify_embed_model", lambda cfg, body: (None, []))
     monkeypatch.setattr(p, "_keepalive", lambda: ("rust-service", False))
-    monkeypatch.setattr(p, "_detect_inproc_env_leak", lambda: [])
     monkeypatch.setattr(p, "_server_is_someone_elses", lambda: others)
     monkeypatch.setattr(p, "_rust_service_state", lambda: "stopped")
     monkeypatch.setattr(p, "_fix_start_rust_service", lambda: started.append(1) or True)

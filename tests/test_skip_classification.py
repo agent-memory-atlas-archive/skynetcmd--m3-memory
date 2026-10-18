@@ -48,7 +48,7 @@ def _finish(monkeypatch, skips, strict):
         monkeypatch.setenv("M3_STRICT_SKIPS", "1")
     else:
         monkeypatch.delenv("M3_STRICT_SKIPS", raising=False)
-    session = types.SimpleNamespace(exitstatus=0)
+    session = types.SimpleNamespace(exitstatus=0, config=types.SimpleNamespace())
     conftest.pytest_sessionfinish(session, 0)
     return session.exitstatus
 

@@ -495,7 +495,7 @@ async def require_usable_endpoint(
         "observed: no local LLM endpoint can answer — "
         + ("; ".join(observed) if observed else "LLM_ENDPOINTS is empty")
         + ". inspect: load a model in the local server (LM Studio: `lms load "
-        "<model>`; Ollama: `ollama run <model>`), or set M3_LLM_ENDPOINTS_CSV."
+        "<model>`; Ollama: `ollama run <model>`), or `m3 config set llm.endpoints <url>`."
     )
 
 

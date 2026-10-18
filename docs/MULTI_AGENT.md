@@ -167,7 +167,7 @@ All agents contribute facts and observations to `scope="org"` asynchronously, wi
 
 #### Concurrency & scale
 
-Concurrent writes from multiple agents do **not** fail on lock contention. Every SQLite connection runs in **WAL mode** (concurrent readers alongside a writer) with a **30-second `busy_timeout`**, a connection pool, and a write-path retry — so simultaneous writers serialize and wait rather than erroring. WAL is verified at init; m3 raises rather than silently running in a slower journal mode.
+Concurrent writes from multiple agents do **not** fail on lock contention. Every SQLite connection runs in **WAL mode** (concurrent readers alongside a writer) with a **30-second `busy_timeout`**, `IMMEDIATE` write transactions (the write lock is taken at `BEGIN`, so a read-then-write transaction waits instead of failing on an un-upgradable snapshot), a connection pool, and a write-path retry — so simultaneous writers serialize and wait rather than erroring. Measured with `bin/bench_concurrent_writes.py`: see [PERFORMANCE.md](PERFORMANCE.md#sqlite-many-agents-writing-at-once). WAL is verified at init; m3 raises rather than silently running in a slower journal mode.
 
 For **high-concurrency fleets** where many agents write to one shared pool continuously, there are two paths:
 
@@ -214,7 +214,7 @@ See [`examples/multi-agent-team/README.md`](../examples/multi-agent-team/README.
 
 **Memory is the coordination layer.** Agents don't talk to each other directly — they read and write shared memory. This decouples agent execution from agent communication.
 
-**Scope is the access control.** Private scratch work stays in `scope="agent"`. Shared decisions go to `scope="org"`. User data goes to `scope="user"` with GDPR primitives (`gdpr_export`, `gdpr_forget`) attached.
+**Scope organizes; it is not a security boundary.** Private scratch work stays in `scope="agent"`. Shared decisions go to `scope="org"`. User data goes to `scope="user"` with GDPR primitives (`gdpr_export`, `gdpr_forget`) attached. Scope and `agent_id` filter results for *cooperating* agents: the stdio bridge has no server-side identity (an agent's id is what it says it is), and `memory_get` by id is not agent-isolated. Separate untrusted agents with separate stores or OS accounts, not scope.
 
 **The orchestrator is pluggable.** m3 Memory exposes primitives, not opinions about scheduling. The bundled `m3-team` is one orchestrator; you can build your own with the same tool catalog.
 

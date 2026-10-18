@@ -66,7 +66,7 @@ def test_rendered_job_definitions_name_the_launcher(tmp_path, monkeypatch):
     assert install_schedules._launchd_plist(spec, python)["ProgramArguments"][0] == str(tmp_path / "m3-sync")
 
 
-def test_a_launcher_runs_the_script_as_python_would(tmp_path):
+def test_a_launcher_runs_the_script_as_python_would(tmp_path, m3_paths):
     (tmp_path / "memory_bridge.py").write_text("", encoding="utf-8")  # what marks a bin/ dir
     script = tmp_path / "job.py"
     script.write_text(
@@ -74,6 +74,7 @@ def test_a_launcher_runs_the_script_as_python_would(tmp_path):
         "if __name__ == '__main__':\n    sys.exit(3)\n",
         encoding="utf-8",
     )
+    m3_paths(bin=tmp_path)  # [paths] bin: where the launcher finds bin/
     code = "import sys; from m3_memory.jobs import run_script; sys.argv[0] = 'm3-x'; run_script()"
     r = subprocess.run(
         [sys.executable, "-c", code, "-u", str(script), "--flag", "v"],
@@ -81,7 +82,7 @@ def test_a_launcher_runs_the_script_as_python_would(tmp_path):
         text=True,
         cwd=ROOT,
         timeout=60,
-        env={**os.environ, "M3_PATH_BIN": str(tmp_path)},
+        env=dict(os.environ),
     )
     assert r.returncode == 3, r.stderr
     assert r.stdout.strip() == "['--flag', 'v'] True"

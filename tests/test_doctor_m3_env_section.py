@@ -2,8 +2,9 @@
 
 m3 reads its settings from m3_config.toml and one variable, M3_CONFIG_ROOT, only
 when it is not the default (user decision 2026-10-17). Every other M3_* setting
-is reported as deprecated, with the `m3 config set` that replaces it. Names and
-places only, never values. The sweep is faked: these tests read nothing real.
+is reported as NOT READ: where it is set, what m3 uses instead (the file's value
+or the default), and the advice to delete it. Names and places only, never
+values. The sweep is faked: these tests read nothing real.
 """
 
 from __future__ import annotations
@@ -39,9 +40,12 @@ def test_a_setting_in_the_environment_is_reported_with_its_fix(sweep, capsys):
     sweep([EnvFound("M3_ENGINE_ROOT", "/secret/place", "~/.zshenv", "rc")])
     assert sections.m3_env_settings_section(brief=True) == 1
     out = capsys.readouterr().out
-    assert "[deprecated] M3_ENGINE_ROOT -> paths.engine_root (in use); set in ~/.zshenv" in out
+    assert "m3 does not read" in out
+    assert "[not read] M3_ENGINE_ROOT -> paths.engine_root: m3 uses the default" in out
+    assert "set in ~/.zshenv" in out
     assert "m3 config set paths.engine_root <value>" in out
-    assert "m3 config import-env" in out and "Remove the ignored" not in out
+    assert "Delete these variables" in out
+    assert "m3 config import-env" in out, "the opt-in import is offered for values m3 does not use"
     assert "/secret/place" not in out, "values are never printed"
 
 
@@ -52,8 +56,9 @@ def test_one_the_file_already_sets_is_marked_ignored(sweep, capsys):
     )
     sections.m3_env_settings_section(brief=True)
     out = capsys.readouterr().out
-    assert "(ignored, m3_config.toml sets it)" in out and "fix:" not in out
-    assert "Remove the ignored ones" in out and "import-env" not in out
+    assert "[not read] M3_ENGINE_ROOT -> paths.engine_root: m3 uses the value in m3_config.toml" in out
+    assert "m3 config set" not in out, "the file already chooses it"
+    assert "Delete these variables" in out and "import-env" not in out
 
 
 def test_another_tools_mcp_entry_is_not_reported(sweep, capsys):

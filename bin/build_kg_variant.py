@@ -35,7 +35,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from m3_core.context import pointed_store_connection  # noqa: E402
 from m3_core.paths import resolve_cli_store, seam_backend, seam_dialect  # noqa: E402
-from m3_sdk import add_database_arg, getenv_compat  # noqa: E402
+from m3_sdk import add_database_arg  # noqa: E402
 from memory.backends.base import EmbeddingRow  # noqa: E402
 
 
@@ -220,10 +220,9 @@ def main():
     add_database_arg(p)
     args = p.parse_args()
 
-    # Order: --database > --store (selected while parsing) > the deprecated
-    # AGENT_DB alias > M3_DATABASE > engine default. Resolved here, after
-    # parsing; an import-time constant could not see --store.
-    explicit = args.database or (None if args.store else getenv_compat("M3_AGENT_DB", "AGENT_DB"))
+    # Order: --database > --store (selected while parsing) > engine default.
+    # Resolved here, after parsing; an import-time constant could not see --store.
+    explicit = args.database
     try:
         db_path = resolve_cli_store(explicit, "--database")
     except ValueError as e:

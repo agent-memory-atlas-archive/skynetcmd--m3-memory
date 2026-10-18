@@ -21,7 +21,6 @@ from m3_core.errors import describe_http_failure
 from m3_core.gpu import probe_gpu_util
 from m3_core.paths import (
     canonical_path,
-    dotenv_path,
     get_m3_config_root,
     get_m3_engine_root,
     get_m3_root,
@@ -31,7 +30,6 @@ from m3_core.paths import (
 )
 from m3_core.runtime import (
     StructuredLogger,
-    load_dotenv,
     logger,
 )
 from m3_core.secret_store import loggable_url
@@ -134,13 +132,6 @@ class M3Context:
         self.m3_config_root = get_m3_config_root()
         self.m3_engine_root = get_m3_engine_root()
         self.m3_memory_root = get_m3_root()  # Keep for legacy compatibility
-
-        # Inject .env into os.environ (existing values win). Kept until the LAST
-        # 2D commit, when every reader has moved to the registry, which reads
-        # .env itself and never injects it.
-        dotenv = dotenv_path()
-        if dotenv is not None:
-            load_dotenv(dotenv)
 
         # Preserve constructor contract: no-arg M3Context() resolves against
         # env + default. Callers passing an explicit path bypass the resolver.
@@ -982,7 +973,8 @@ def open_pointed_store(db_path: str | None, *, profile: str | None = None) -> An
     # empty store that then fails on its first table, far from the cause.
     if not os.path.exists(db_path):
         raise ValueError(
-            f"observed: no SQLite DB at {db_path}. inspect: the tool's database flag, M3_DATABASE, or M3_ENGINE_ROOT"
+            f"observed: no SQLite DB at {db_path}. inspect: the tool's database flag, or [paths] engine_root "
+            "in m3_config.toml"
         )
     conn = sqlite3.connect(str(db_path), timeout=30.0)
     apply_pragmas(conn, profile or profile_for_db(db_path))

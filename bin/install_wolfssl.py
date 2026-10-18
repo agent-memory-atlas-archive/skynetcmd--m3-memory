@@ -456,12 +456,9 @@ def main(argv: list[str] | None = None) -> int:
         digest = _sha256(dest_path)
         _say(f"installed -> {dest_path}")
         _say(f"SHA-256:  {digest}")
-        _say("This is the OPEN-SOURCE (non-FIPS) build — works with M3_FIPS_MODE=1.")
+        _say("This is the OPEN-SOURCE (non-FIPS) build — works with crypto.fips_mode = true.")
         _say("To self-pin your trusted build (recommended):")
-        if is_windows():
-            _say(f"  setx M3_WOLFSSL_SHA256 {digest}")
-        else:
-            _say(f"  export M3_WOLFSSL_SHA256={digest}")
+        _say(f"  m3 config set crypto.wolfssl_sha256 {digest}")
         _say("Verify anytime with:  m3 doctor   (crypto section)")
         if args.print_sha:
             print(digest)
