@@ -452,10 +452,16 @@ _DSN_ENV_NAMES: dict[PgRole, tuple[str, ...]] = {
 }
 
 
-def missing_secret_message(name: str) -> str:
+def missing_secret_message(name: str | None) -> str:
     """What to tell a person when a required secret resolves to nothing: where m3
     looked and the one fix. The one wording, so no caller suggests an environment
-    variable (m3 never reads secrets from the environment)."""
+    variable (m3 never reads secrets from the environment). ``name`` None: the
+    profile names no secret at all, which is the thing to fix."""
+    if not name:
+        return (
+            "observed: the profile names no API key secret (api_key_service is empty). "
+            "fix: set api_key_service in the profile, then `m3 secret set <that name>`."
+        )
     return (
         f"observed: no {name} in the secrets file, the OS keyring or the vault. "
         f"fix: `m3 secret set {name}` (prompts for the value; add --keyring to keep it in the "

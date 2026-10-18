@@ -33,6 +33,7 @@ import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -101,13 +102,18 @@ def _role_ingest(kind: str, stop_file: str, batch: int) -> None:
     _run(mc.memory_write_impl(type="note", content="ingest warm-up", title="warm", embed=False))
     print("READY", flush=True)
     while not os.path.exists(stop_file):
-        steps = []
+        steps: list[tuple[str, Callable[[], object]]] = []
         if kind in ("import", "both"):
             items = [
                 {"id": str(uuid.uuid4()), "type": "note", "title": "ingested", "content": f"ingested row {k} " * 20}
                 for k in range(batch)
             ]
-            steps.append(("memory_import", lambda items=items: mm.memory_import_impl(json.dumps({"items": items}))))
+            payload = json.dumps({"items": items})
+
+            def _import(payload: str = payload) -> object:
+                return mm.memory_import_impl(payload)
+
+            steps.append(("memory_import", _import))
         if kind in ("maintenance", "both"):
             steps.append(
                 (

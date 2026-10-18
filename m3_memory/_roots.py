@@ -307,13 +307,13 @@ def engine_root() -> str:
 
 def engine_root_chosen() -> bool:
     """Whether the user chose the engine root: ``[paths] engine_root`` in
-    m3_config.toml (or the legacy ``M3_ENGINE_ROOT`` pin). A chosen root is used as
+    m3_config.toml (``M3_ENGINE_ROOT`` is not read). A chosen root is used as
     written; resolvers must not second-guess it by which files happen to exist
     elsewhere (a populated default store must not win over it)."""
     # A value equal to the default is not a choice: setup writes the default into
     # the file, and that must not switch off the legacy fallbacks for old layouts.
-    root = _file_root("engine_root") or pinned(ENGINE_ROOT_ENV)  # env-owner: the approved root locators
-    return bool(root) and not same_dir(root, _home(".m3", "engine"))
+    root = _file_root("engine_root")
+    return root is not None and not same_dir(root, _home(".m3", "engine"))
 
 
 def config_root_chosen() -> bool:

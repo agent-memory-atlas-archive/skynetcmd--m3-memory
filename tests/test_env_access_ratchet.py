@@ -30,7 +30,7 @@ _BUDGET = 42
 # install_os naming a secret left in the environment.
 # 2026-10-16: 59: install_os takes its roots from m3_memory._roots (its own
 # M3_MEMORY_ROOT read, and the ~/.m3-memory default, are gone).
-_OWNER_BUDGET = 23
+_OWNER_BUDGET = 22
 # 2026-10-16: 595 (crypto tests moved to the config file; one setenv dropped, one
 # added: install_os must name, never store, a master key seen only in env).
 _TESTS_BUDGET = 389

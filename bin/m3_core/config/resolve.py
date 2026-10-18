@@ -136,7 +136,7 @@ def _resolve_below_env(
         return tuple(f"{h[0]} (in {src.path})" for src, h in below)
 
     # Every legacy source still set for this key: reported, never read.
-    not_read = (hit[0],) if hit is not None else ()
+    not_read: tuple[str, ...] = (hit[0],) if hit is not None else ()
     not_read += unused(files)
     if key.name in loaded.values:
         return Resolved(

@@ -117,3 +117,12 @@ def test_a_masked_value_never_shows_the_secret(value, shown):
     assert mask_secret(value) == shown
     assert mask_dsn_passwords(f"connect failed: {value}").startswith("connect failed: ")
     assert "hunter2" not in mask_dsn_passwords(f"error: could not reach {value}")
+
+
+def test_a_missing_secret_with_no_name_says_the_profile_names_none():
+    """A profile with no api_key_service used to print "no None in the secrets file"."""
+    from m3_core.secret_store import missing_secret_message
+
+    assert "names no API key secret" in missing_secret_message(None)
+    assert "None" not in missing_secret_message(None)
+    assert "m3 secret set LM_API_TOKEN" in missing_secret_message("LM_API_TOKEN")

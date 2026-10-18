@@ -1,8 +1,8 @@
 ---
 tool: bin/bench_concurrent_writes.py
-sha1: c94b77418a9b
-mtime_utc: 2026-10-17T23:49:20.560785+00:00
-generated_utc: 2026-10-18T00:02:10.405738+00:00
+sha1: 682aab25e26c
+mtime_utc: 2026-10-18T04:50:33.379574+00:00
+generated_utc: 2026-10-18T04:50:41.092214+00:00
 private: false
 ---
 
@@ -34,7 +34,7 @@ ingestion transaction (the bound on how long any writer can be made to wait).
 
 ## Entry points
 
-- `def main()` (line 225)
+- `def main()` (line 231)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -72,8 +72,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()` (line 150)
-- `subprocess.Popen()` (line 177)
+- `subprocess.Popen()` (line 156)
+- `subprocess.Popen()` (line 183)
 
 
 ---

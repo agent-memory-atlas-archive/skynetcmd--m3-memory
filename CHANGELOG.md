@@ -19,6 +19,13 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A job whose profile names no API key says so.** It printed "no None in
+  the secrets file".
+  **Affected:** enrichment, entity, observer and reflector jobs with a profile
+  lacking `api_key_service` · **Action:** none · **Data status:** none.
+
 ## [2026.10.17.3] — 2026-10-17 — tools that describe themselves, one environment variable
 
 ### Changed
