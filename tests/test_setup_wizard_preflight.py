@@ -1587,3 +1587,52 @@ def test_step_headers_are_not_printed_under_the_upgrade(monkeypatch, capsys):
     monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     setup_wizard._step(2, "native core")
     assert capsys.readouterr().out == ""
+
+
+def _current_plugin(tmp_path):
+    src, plugins = _hermes_dirs(tmp_path)
+    dst = plugins / "m3"
+    dst.mkdir()
+    for fname in setup_wizard._HERMES_PLUGIN_FILES:
+        (dst / fname).write_text("SRC")
+    return src, plugins
+
+
+def test_wire_hermes_current_files_but_no_m3_in_hermes_python_is_not_current(monkeypatch, tmp_path, capsys):
+    """Plugin files current but Hermes' own Python cannot import m3_memory: Hermes
+    lists the plugin as not installed, so setup must not say "already current"."""
+    src, plugins = _current_plugin(tmp_path)
+    monkeypatch.setattr(setup_wizard, "_find_m3_hermes_plugin_src", lambda: src)
+    monkeypatch.setattr(setup_wizard, "_find_hermes_plugins_dir", lambda: plugins)
+    monkeypatch.setattr(
+        setup_wizard, "_hermes_m3_import_problem", lambda d: ("broken", "cannot import m3_memory. fix: X")
+    )
+    _no_input(monkeypatch)
+    assert setup_wizard._wire_hermes(non_interactive=True) is False
+    out = capsys.readouterr()
+    assert "cannot import m3_memory" in out.out + out.err
+    assert "already current" not in out.out
+
+
+def test_wire_hermes_unknown_python_is_said_not_failed(monkeypatch, tmp_path, capsys):
+    src, plugins = _current_plugin(tmp_path)
+    monkeypatch.setattr(setup_wizard, "_find_m3_hermes_plugin_src", lambda: src)
+    monkeypatch.setattr(setup_wizard, "_find_hermes_plugins_dir", lambda: plugins)
+    _no_input(monkeypatch)
+    assert setup_wizard._wire_hermes(non_interactive=True) is True
+    assert "could not check that Hermes can load it" in capsys.readouterr().out
+
+
+def test_hermes_import_probe_reports_a_python_that_cannot_import(monkeypatch, tmp_path):
+    import subprocess
+    from types import SimpleNamespace
+
+    plugins = tmp_path / "hermes" / "plugins" / "memory"
+    plugins.mkdir(parents=True)
+    sub = ("Scripts", "python.exe") if setup_wizard.is_windows() else ("bin", "python")
+    py = tmp_path / "hermes" / "venv" / sub[0] / sub[1]
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=1, stdout="", stderr="x"))
+    state, why = setup_wizard._hermes_m3_import_problem(plugins)
+    assert state == "broken" and "pip install m3-memory" in why

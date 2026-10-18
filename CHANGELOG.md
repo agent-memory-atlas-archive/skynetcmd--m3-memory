@@ -21,6 +21,11 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Setup says when Hermes cannot load the m3 provider.** It reported the
+  plugin "already current" while Hermes' own Python could not import m3 (for
+  example a Python 3.11 Hermes venv), so Hermes listed it as not installed; it
+  now names that Python and the `pip install` that fixes it.
+  **Affected:** Hermes Agent installs · **Action:** none · **Data status:** none.
 - **`m3 upgrade` no longer stalls on the Claude Code plugin update.** Where the
   `claude` CLI does not answer (e.g. over SSH with no login session), the plugin
   update stops after 90 s and says how to finish it by hand; it waited until the

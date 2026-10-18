@@ -3483,6 +3483,41 @@ def _hermes_plugin_is_current(src: Path, dst: Path) -> bool:
     return True
 
 
+def _hermes_m3_import_problem(plugins_dir: Path) -> tuple[str, str | None]:
+    """("ok", None) when Hermes' own Python imports m3_memory; ("broken", why +
+    fix) when it runs but cannot; ("unknown", why) when that Python could not be
+    found or run (said, never counted as broken: Hermes may live elsewhere). The shim imports
+    ``m3_memory`` from Hermes' OWN interpreter, so plugin files alone are not
+    enough: with m3 missing there, Hermes lists the plugin as not installed while
+    setup reported it current (2026-10-18)."""
+    import subprocess
+
+    from m3_memory._platform import hidden_window_kwargs
+
+    root = plugins_dir.parent.parent  # <hermes-agent>/plugins/memory
+    sub = ("Scripts", "python.exe") if is_windows() else ("bin", "python")
+    py = next((root / v / sub[0] / sub[1] for v in ("venv", ".venv") if (root / v / sub[0] / sub[1]).exists()), None)
+    if py is None:
+        return "unknown", f"could not find Hermes' Python under {root} (venv/ or .venv/); check `hermes memory status`"
+    try:
+        r = subprocess.run(
+            [str(py), "-c", "import m3_memory"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            stdin=subprocess.DEVNULL,
+            **hidden_window_kwargs(),
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        return "unknown", f"could not run Hermes' Python {py} ({type(e).__name__}: {e})"
+    if r.returncode == 0:
+        return "ok", None
+    return "broken", (
+        f"Hermes' Python ({py}) cannot import m3_memory, so Hermes will not load the plugin. "
+        f'fix: "{py}" -m pip install m3-memory   (it needs Python 3.12+)'
+    )
+
+
 def _wire_hermes(*, non_interactive: bool = False) -> bool:
     """Copy the m3 memory-provider plugin into the user's hermes-agent checkout.
 
@@ -3513,7 +3548,13 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
     if existed:
         # Already up to date -> leave it, exactly like OpenCode's "already wired".
         if _hermes_plugin_is_current(src, dst):
+            state, why = _hermes_m3_import_problem(dst_parent)
+            if state == "broken":
+                _warn(f"  · Hermes: m3 plugin files current ({dst}), but {why}")
+                return False
             _say_unchanged(f"  · Hermes: m3 plugin already current ({dst})")
+            if state == "unknown":
+                _say(f"    (could not check that Hermes can load it: {why})")
             return True
         # Present but stale -> back up the old plugin before overwriting so a bad
         # upgrade is recoverable (mirrors OpenCode's .m3bak on rewrite).
@@ -3535,9 +3576,12 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
 
     verb = "updated" if existed else "installed"
     _say(f"  · Hermes: m3 SOTA provider {verb} at {dst}" + (" (previous backed up to m3.m3bak)" if existed else ""))
+    state, why = _hermes_m3_import_problem(dst_parent)
     print("    To complete configuration:")
-    print("    1. Install m3-memory into Hermes' own Python (3.12+):")
-    print('         "<hermes-agent>/venv/<bin|Scripts>/python" -m pip install m3-memory')
+    if state == "ok":
+        print("    1. m3-memory imports in Hermes' own Python: nothing to install.")
+    else:
+        print(f"    1. {why}")
     print("    2. Select it: `hermes memory setup` and choose m3 (or set memory.provider: m3).")
     print("    3. Check: `hermes memory status`.")
     try:
