@@ -1,6 +1,6 @@
 {
   "name": "m3-memory",
-  "version": "2026.10.17.3",
+  "version": "2026.10.18.0",
   "description": "Local-first, cloud-friendly agentic memory layer for MCP agents — 100+ tools, hybrid search, contradiction detection, cross-device sync, GDPR-ready. Local by default; cloud models and servers are optional.",
   "homepage": "https://github.com/skynetcmd/m3-memory",
   "repository": "https://github.com/skynetcmd/m3-memory",

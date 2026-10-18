@@ -19,6 +19,8 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+## [2026.10.18.0] — 2026-10-18 — upgrades that finish, quieter doctor
+
 ### Fixed
 
 - **Setup says when Hermes cannot load the m3 provider.** It reported the
