@@ -101,6 +101,18 @@ def compute_cost_usd(provider: str, model_id: str, tokens_in: int | None, tokens
 
 # THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
 from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
+from m3_core.runtime import utc_stored  # noqa: E402
+
+
+def _turn_time(value, fallback: str | None) -> str | None:
+    """A turn's valid_from/valid_to as zoned UTC (``utc_stored``). An
+    unparseable transcript time is logged and replaced by ``fallback``: capture
+    must never drop a turn over a timestamp."""
+    try:
+        return utc_stored(value) or fallback
+    except ValueError:
+        logger.warning(f"chatlog: turn time {value!r} is not ISO-8601; stored {fallback!r} instead")
+        return fallback
 
 
 def _content_hash(s: str) -> str:
@@ -502,8 +514,8 @@ def _executemany_insert(batch: list[dict], *, ignore_conflicts: bool = False) ->
                 item.get("scope") or "",
                 item.get("expires_at"),
                 item["_created_at"],
-                item.get("valid_from") or item["_created_at"],
-                item.get("valid_to"),
+                _turn_time(item.get("valid_from"), item["_created_at"]),
+                _turn_time(item.get("valid_to"), None),
                 item["conversation_id"],
                 item.get("refresh_on"),
                 item.get("refresh_reason"),

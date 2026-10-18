@@ -124,6 +124,14 @@ the policy is forward-going only.
   upgrade.
   **Affected:** Claude Code, Codex, Gemini CLI, OpenCode and OpenClaw users ·
   **Action:** none · **Data status:** none.
+- **Every stored timestamp is UTC and carries its zone.** A `valid_from` or
+  `valid_to` given as a bare date is stored as that day at 00:00 UTC, a time
+  without a zone is stored as UTC, and another offset is converted. An
+  unparseable time is refused by `memory_write` and `memory_supersede`; in bulk
+  writes and chat capture it is logged and replaced, so no turn is dropped.
+  **Affected:** all installs · **Action:** none · **Data status:** on SQLite,
+  migration 061 adds the UTC zone to existing bare-date and zoneless values;
+  each keeps the instant it already meant. PostgreSQL stores were already zoned.
 
 ### Removed
 

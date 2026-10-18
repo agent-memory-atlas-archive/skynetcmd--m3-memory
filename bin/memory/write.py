@@ -20,6 +20,7 @@ from embedding_utils import (
     unpack as _unpack,
 )
 from m3_core.aio import gather_or_cancel
+from m3_core.runtime import utc_stored
 from m3_sdk import M3Context, resolve_db_path
 
 from . import config as _wcfg
@@ -390,6 +391,11 @@ async def memory_write_impl(
     gate_err = content_gate_error(content, title, metadata)
     if gate_err:
         return gate_err
+    try:
+        valid_from = utc_stored(valid_from) or ""
+        valid_to = utc_stored(valid_to) or ""
+    except ValueError as exc:
+        return f"Error: {exc}"
     if scope not in VALID_SCOPES:
         if scope:
             logger.warning(
@@ -1127,6 +1133,10 @@ async def memory_supersede_impl(
     so two racing callers can never both replace the same memory.
     """
     _resolve_mc_callbacks()
+    try:
+        valid_from = utc_stored(valid_from) or ""  # it also closes old_id's interval
+    except ValueError as exc:
+        return f"Error: {exc}"
 
     # 1. Fast pre-check: exists + active. This is NOT the correctness guard
     #    (step 4's conditional UPDATE is) — it just fails cheaply, before the
@@ -1326,6 +1336,17 @@ def _supersede_into_existing(
     return f"Superseded {old_id} -> Existing: {replacement_id}"
 
 
+def _bulk_utc(value: str | None, bad: list[str]) -> str | None:
+    """``utc_stored`` for one bulk item: an unparseable time is collected in
+    ``bad`` (reported once per batch) and read as absent, so one odd value
+    cannot fail a whole import or a captured batch of chat turns."""
+    try:
+        return utc_stored(value)
+    except ValueError:
+        bad.append(str(value))
+        return None
+
+
 async def memory_write_bulk_impl(
     items: list[dict],
     *,
@@ -1392,6 +1413,7 @@ async def memory_write_bulk_impl(
     now = datetime.now(UTC).isoformat()
     prepared: list[dict] = []
     bad_scopes: dict[str, int] = {}
+    bad_times: list[str] = []
     for it in items:
         mid = it.get("id") or str(uuid.uuid4())
         meta = it.get("metadata", "{}")
@@ -1461,8 +1483,8 @@ async def memory_write_bulk_impl(
                 "user_id": it.get("user_id", ""),
                 "scope": scope,
                 "expires_at": expires_at,
-                "valid_from": it.get("valid_from") or now,
-                "valid_to": it.get("valid_to") or None,
+                "valid_from": _bulk_utc(it.get("valid_from"), bad_times) or now,
+                "valid_to": _bulk_utc(it.get("valid_to"), bad_times),
                 "conversation_id": it.get("conversation_id") or None,
                 "refresh_on": it.get("refresh_on") or None,
                 "refresh_reason": it.get("refresh_reason") or None,
@@ -1475,6 +1497,11 @@ async def memory_write_bulk_impl(
         logger.warning(
             f"memory_write_bulk: {sum(bad_scopes.values())} of {len(items)} item(s) had a scope not in "
             f"{sorted(VALID_SCOPES)} ({bad_scopes}); written as 'agent' (private to their agent_id)"
+        )
+    if bad_times:
+        logger.warning(
+            f"memory_write_bulk: {len(bad_times)} valid_from/valid_to value(s) were not ISO-8601 "
+            f"(first: {bad_times[:3]}); written as now / open-ended"
         )
 
     # Pre-enrichment phase: auto-title, auto-entities, augment embed_text.

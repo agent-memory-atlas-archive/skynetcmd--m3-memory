@@ -84,6 +84,28 @@ def utc_iso(
     return when.isoformat(timespec=timespec).removesuffix("+00:00") + "Z"
 
 
+def utc_stored(value: str | None) -> str | None:
+    """A caller-supplied time (``valid_from``, ``valid_to``, ``expires_at``) as
+    the zoned UTC string m3 stores. THE owner of that rule: every m3 timestamp
+    is UTC and says so.
+
+    A bare date ``YYYY-MM-DD`` is that day at 00:00 UTC; a value without a zone
+    is UTC; one with another offset is converted. The instant's own precision is
+    kept (``isoformat``), matching the ``+00:00`` form the columns already hold.
+    None or blank is None (open-ended). Unparseable raises ValueError: storing it
+    verbatim would put a value in the column that as-of comparisons misorder."""
+    if value is None or not str(value).strip():
+        return None
+    text = str(value).strip()
+    try:
+        dt = datetime.fromisoformat(text)  # a bare date parses as midnight; reads "Z"
+    except ValueError:
+        raise ValueError(f"not an ISO-8601 date or time: {text!r}") from None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).isoformat()
+
+
 def local_and_utc(value: object) -> str:
     """A time for a person: local wall clock with its zone, then UTC in parens,
     e.g. ``2026-07-19 14:32:01 EDT (2026-07-19T18:32:01Z)``. THE owner of that
