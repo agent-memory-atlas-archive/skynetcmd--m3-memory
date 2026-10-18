@@ -1984,7 +1984,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     # If LM Studio is NOT reachable but something else is, disable its probe so
     # the user stops paying for a dead :1234 connect on every discovery.
     lmstudio_live = any(label == "LM Studio" for label, *_ in reachable)
-    # llm.lmstudio_failover (env alias M3_ENABLE_LMSTUDIO_FAILOVER): already off -> nothing to announce.
+    # llm.lmstudio_failover (former env name, not read: M3_ENABLE_LMSTUDIO_FAILOVER): already off -> nothing to announce.
     if not lmstudio_live and _config.setting("llm.lmstudio_failover") is not False:
         _say("  LM Studio (:1234) not reachable — disabling its probe to avoid a dead connect")
     if not lmstudio_live:

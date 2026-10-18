@@ -155,7 +155,7 @@ def _log_config_path() -> str:
 
 def _log_max_bytes(now: float | None = None) -> int:
     """Rotation cap in bytes. Precedence: .log_config.json > log.max_bytes (m3_config.toml,
-    env alias M3_LOG_MAX_BYTES) > default.
+    former env name (not read) M3_LOG_MAX_BYTES) > default.
 
     A config FILE, not an env var alone (§3): none of the headless launchers
     inherit a shell environment — the Windows scheduled task that runs the
@@ -191,7 +191,7 @@ def _log_max_bytes(now: float | None = None) -> int:
                     print(
                         f"[m3] WARNING: log config {_log_config_path()} is "
                         f"unreadable/malformed ({e}) — falling back to "
-                        f"log.max_bytes (env alias M3_LOG_MAX_BYTES) + default until fixed.",
+                        f"log.max_bytes in m3_config.toml, else the default, until fixed.",
                         file=sys.__stderr__ or sys.stderr,
                     )
                     cfg = {}
@@ -203,7 +203,7 @@ def _log_max_bytes(now: float | None = None) -> int:
             return int(val)
         except (TypeError, ValueError):
             pass  # malformed value -> fall through to env/default
-    # Registry key log.max_bytes (env alias M3_LOG_MAX_BYTES), read per call.
+    # Registry key log.max_bytes (former env name, not read: M3_LOG_MAX_BYTES), read per call.
     return int(_configured("log.max_bytes", _DEFAULT_LOG_MAX_BYTES))
 
 

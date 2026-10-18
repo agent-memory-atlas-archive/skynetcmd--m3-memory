@@ -34,9 +34,8 @@ _ROLE = "cognitive-loop"
 
 @pytest.fixture
 def engine_root(tmp_path, monkeypatch):
-    """Redirect the shared lock to an isolated tmp engine root."""
+    """The shared lock under the sandbox's [paths] engine_root (tmp_path/engine)."""
     root = tmp_path / "engine"
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(root))
     monkeypatch.setattr(cl, "_INSTANCE_LOCK", None, raising=False)
     yield root
     lk = getattr(cl, "_INSTANCE_LOCK", None)

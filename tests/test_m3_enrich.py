@@ -518,7 +518,7 @@ def test_chatlog_ingest_auto_enrich_gated_by_env(monkeypatch):
     assert "M3_AUTO_ENRICH_MIN_TURNS" in src
 
 
-def test_resolve_db_uses_engine_root_not_the_checkout(tmp_path, monkeypatch):
+def test_resolve_db_uses_engine_root_not_the_checkout(tmp_path, monkeypatch, m3_paths):
     """The default DB must come from the engine root, not the caller's checkout.
 
     Regression: _resolve_db built its default as ``REPO_ROOT / "memory" / name``,
@@ -532,12 +532,12 @@ def test_resolve_db_uses_engine_root_not_the_checkout(tmp_path, monkeypatch):
     """
     from m3_core.paths import resolve_role_db as _resolve_db
 
-    engine = tmp_path / "engine"
+    # A root other than the sandbox's own (tmp_path/engine), so the test fails
+    # unless the root is really read from m3_config.toml.
+    engine = tmp_path / "chosen-engine"
     engine.mkdir()
     (engine / "agent_memory.db").write_bytes(b"")
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
-    monkeypatch.delenv("M3_DATABASE", raising=False)
-    monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
+    m3_paths(engine_root=engine)
 
     resolved = _resolve_db(None, "core", "agent_memory.db")
 

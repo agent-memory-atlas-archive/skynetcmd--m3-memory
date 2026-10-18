@@ -123,7 +123,11 @@ def test_the_schema_name_is_configurable(monkeypatch, pg_url):
     hardcodes 'm3_dispatch', several m3 fleets can no longer share one server.
     """
     use_backend("postgres", pg_url)
-    monkeypatch.setenv("M3_DISPATCH_PG_SCHEMA", "m3_dispatch_alt")
+    from m3_core.config import REGISTRY, locate
+    from m3_core.config.writer import set_values
+
+    # Where m3 reads it: m3_config.toml (M3_DISPATCH_PG_SCHEMA is not read).
+    set_values(locate(), {REGISTRY.get("db.postgres.dispatch_schema"): "m3_dispatch_alt"})
 
     from memory.backends import selector as _selector
 
@@ -145,7 +149,7 @@ def test_the_schema_name_is_configurable(monkeypatch, pg_url):
             assert conn is not None
 
         assert _schema_exists(backend, "m3_dispatch_alt"), (
-            "M3_DISPATCH_PG_SCHEMA was ignored — the applier hardcodes a name"
+            "db.postgres.dispatch_schema was ignored — the applier hardcodes a name"
         )
         with backend.connection() as c:
             cur = c.cursor()

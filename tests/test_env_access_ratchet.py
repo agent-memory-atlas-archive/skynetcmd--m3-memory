@@ -33,7 +33,7 @@ _BUDGET = 42
 _OWNER_BUDGET = 23
 # 2026-10-16: 595 (crypto tests moved to the config file; one setenv dropped, one
 # added: install_os must name, never store, a master key seen only in env).
-_TESTS_BUDGET = 424
+_TESTS_BUDGET = 389
 
 
 def _cea():

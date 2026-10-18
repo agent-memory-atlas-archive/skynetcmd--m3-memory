@@ -446,21 +446,23 @@ async def test_auto_route_signal_capture_present(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_auto_route_with_M3_QUERY_TYPE_ROUTING(monkeypatch):
-    """auto_route + M3_QUERY_TYPE_ROUTING=1 should not conflict or raise."""
+    """auto_route + search.query_type_routing on should not conflict or raise."""
     import memory_core as mc
 
     async def stub_scored(*args, **kwargs):
         return []
 
     monkeypatch.setattr(mc, "memory_search_scored_impl", stub_scored)
-    monkeypatch.setenv("M3_QUERY_TYPE_ROUTING", "1")
+    from conftest import pin_setting
+
+    pin_setting("search.query_type_routing", True)  # where m3 reads it, not M3_QUERY_TYPE_ROUTING
 
     cap = {}
-    # Temporal query → should still resolve to temporal branch despite env var
+    # Temporal query → should still resolve to temporal branch with routing on
     await mc.memory_search_routed_impl("when did this happen", auto_route=True, _capture_dict=cap)
 
     assert cap.get("auto_branch") == "temporal", f"Expected temporal branch; got {cap.get('auto_branch')!r}"
-    # No assertion on M3_QUERY_TYPE_ROUTING side effect — just verifying no crash
+    # No assertion on the routing setting's side effect — just verifying no crash
     # and that auto_branch still fires correctly.
 
 

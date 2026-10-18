@@ -753,12 +753,10 @@ class TestSecureWolfsslDiscovery:
         # M3_LIB_DIR outranks both roots (and the sandbox fixture sets it to the
         # real ~/.m3/lib so FIPS boxes can run the suite) — clear it too.
         monkeypatch.delenv("M3_LIB_DIR", raising=False)
-        # Point M3 roots at an empty temp area so ~/.m3/lib resolves nowhere real.
-        # BOTH roots must move: _m3_lib_dir() prefers M3_CONFIG_ROOT's parent over
-        # M3_MEMORY_ROOT, so on a dev box that has a real ~/.m3/lib/wolfssl.dll,
-        # redirecting only M3_MEMORY_ROOT leaves the real lib discoverable.
+        # Point the config root at an empty temp area so <config root>/../lib
+        # resolves nowhere real (_m3_lib_dir() derives from it; M3_MEMORY_ROOT is
+        # not read).
         empty = str(tmp_path / "m3empty")  # pytest reaps it; mkdtemp left one per run
-        monkeypatch.setenv("M3_MEMORY_ROOT", empty)
         monkeypatch.setenv("M3_CONFIG_ROOT", os.path.join(empty, "config"))
         # System dirs won't have wolfssl on a test box; expect None.
         assert cp._resolve_wolfssl_path() is None

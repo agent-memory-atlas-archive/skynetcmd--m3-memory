@@ -173,10 +173,16 @@ def test_a_retry_after_a_failed_copy_merges_the_trail_once(home, monkeypatch):
 
 
 def test_a_pin_to_the_target_still_migrates_from_the_legacy_root(home, monkeypatch):
-    """With M3_MEMORY_ROOT=~/.m3 the migration skipped itself, so the
+    """With the memory root pinned to ~/.m3 the migration skipped itself, so the
     marker was never written and an unpinned process fell back to ~/.m3-memory
-    (2026-10-17). A pin naming ~/.m3 is the target: migrate, from ~/.m3-memory."""
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(home / ".m3"))
+    (2026-10-17). A pin naming ~/.m3 is the target: migrate, from ~/.m3-memory.
+    The pin is [paths] memory_root, where m3 reads it (M3_MEMORY_ROOT is not)."""
+    from m3_memory import _roots
+
+    (Path(_roots.config_root()) / "m3_config.toml").write_text(
+        f'schema_version = 1\n[paths]\nmemory_root = "{(home / ".m3").as_posix()}"\n', encoding="utf-8"
+    )
+    assert _roots.memory_root_pin(), "precondition: the pin is read"
     report = _migrate(home)
     assert not report["skipped"], report
     assert (home / ".m3" / ".memory_root_migrated").exists()

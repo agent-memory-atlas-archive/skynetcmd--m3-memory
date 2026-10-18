@@ -416,7 +416,7 @@ def node_id() -> str:
 
     POSIX hostnames ARE case-significant, so normalisation is Windows-only.
 
-    Registry key ``identity.node_id`` (env alias ``M3_NODE_ID``) overrides
+    Registry key ``identity.node_id`` (former env name, not read: ``M3_NODE_ID``) overrides
     everything, for a deployment that needs an explicit identity (containers
     sharing a hostname, or a fleet with a naming scheme). Read per call: a
     daemon has no shell, so m3_config.toml must reach it.
@@ -432,7 +432,7 @@ def node_id() -> str:
 
 def configured_warehouse_host() -> str:
     """The warehouse host the user configured by name, or "" when none: registry
-    key sync.warehouse_host (env aliases M3_POSTGRES_SERVER, POSTGRES_SERVER),
+    key sync.warehouse_host (former env names, not read: M3_POSTGRES_SERVER, POSTGRES_SERVER),
     then the legacy-form sync.target_ip (M3_SYNC_TARGET_IP, SYNC_TARGET_IP).
     The one reading of that pair (sync_all's target and the installer's reminder).
     Read per call: a value captured at import is the importing process's."""
@@ -448,7 +448,7 @@ def dispatch_store_mode() -> str:
     because ``chatlog_promote`` copies rows into canonical memory, and a
     delivery record has no equivalent promotion.
 
-    Set registry key ``dispatch.mode = "integrated"`` (env alias
+    Set registry key ``dispatch.mode = "integrated"`` (former env name, not read:
     ``M3_DISPATCH_MODE``) to keep dispatch tables in the main store --
     reasonable for a single-agent install where a second file is overhead.
     Unset means separate; a value other than the two is refused by the
@@ -531,7 +531,7 @@ def dispatch_pg_schema() -> str:
     not a second database with a second URL and a second pool.
 
     Several m3 fleets can share one server by giving each its own schema name:
-    registry key ``db.postgres.dispatch_schema`` (env alias ``M3_DISPATCH_PG_SCHEMA``).
+    registry key ``db.postgres.dispatch_schema`` (former env name, not read: ``M3_DISPATCH_PG_SCHEMA``).
     """
     from m3_core.config.settings import setting  # config imports this module
 

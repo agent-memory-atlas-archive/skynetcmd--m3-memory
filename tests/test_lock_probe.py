@@ -17,8 +17,7 @@ from doctor import lock_probe  # noqa: E402
 
 @pytest.fixture
 def engine(tmp_path, monkeypatch):
-    root = tmp_path / "engine"
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(root))
+    root = tmp_path / "engine"  # the sandbox's [paths] engine_root
     return str(root)
 
 

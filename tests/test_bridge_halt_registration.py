@@ -31,7 +31,8 @@ if BIN not in sys.path:
 def halt(tmp_path, monkeypatch):
     import m3_halt
 
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path))
+    # The registry lives under the sandbox's [paths] engine_root (inside tmp);
+    # M3_ENGINE_ROOT is not read, so no env pin is needed or meaningful.
     return m3_halt
 
 

@@ -71,22 +71,26 @@ def test_service_templates_use_the_logs_placeholder():
     assert not offenders, f"templates still log under the payload: {offenders}"
 
 
-def test_render_template_substitutes_the_logs_root(monkeypatch, tmp_path):
+def test_render_template_substitutes_the_logs_root(monkeypatch, tmp_path, m3_paths):
     import install_schedules
 
-    monkeypatch.setenv("M3_LOGS_ROOT", str(tmp_path / "logs"))
+    # Not the sandbox's own logs root (tmp_path/logs), so the test fails unless
+    # the root is really read from m3_config.toml.
+    logs = tmp_path / "chosen-logs"
+    m3_paths(logs_root=logs)
     tpl = tmp_path / "t.service"
     tpl.write_text("ExecStart=[M3_PYTHON] x --log-file [M3_LOGS_ROOT]/a.log\n", encoding="utf-8")
     out = install_schedules._render_template(str(tpl), "/payload", "/py")
     assert "[M3_LOGS_ROOT]" not in out
-    # get_m3_logs_root() normalises an env-supplied root to forward slashes.
-    assert (tmp_path / "logs").as_posix() in out.replace("\\", "/"), out
+    # get_m3_logs_root() normalises the root to forward slashes.
+    assert logs.as_posix() in out.replace("\\", "/"), out
 
 
-def test_task_runtime_default_log_is_under_the_logs_root(monkeypatch, tmp_path):
+def test_task_runtime_default_log_is_under_the_logs_root(monkeypatch, tmp_path, m3_paths):
     import _task_runtime
 
-    monkeypatch.setenv("M3_LOGS_ROOT", str(tmp_path / "logs"))
+    logs = tmp_path / "chosen-logs"
+    m3_paths(logs_root=logs)
     monkeypatch.delenv("M3_TASK_LOG_FILE", raising=False)
     resolved = _task_runtime._resolve_log_file(None)
-    assert _norm(resolved.parent) == _norm(tmp_path / "logs"), resolved
+    assert _norm(resolved.parent) == _norm(logs), resolved

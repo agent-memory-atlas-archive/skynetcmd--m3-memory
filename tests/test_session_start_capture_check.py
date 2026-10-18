@@ -24,15 +24,14 @@ def _load_hook():
     return mod
 
 
-def test_resolve_db_uses_canonical_engine_root(monkeypatch, tmp_path):
-    """With M3_ENGINE_ROOT set, the hook resolves to <engine_root>/agent_memory.db
-    — the same path the server uses — not the repo-relative engine/ copy."""
-    engine = tmp_path / "engine"
+def test_resolve_db_uses_canonical_engine_root(monkeypatch, tmp_path, m3_paths):
+    """With an engine root in m3_config.toml, the hook resolves to
+    <engine_root>/agent_memory.db — the same path the server uses — not the
+    repo-relative engine/ copy. A root other than the sandbox's own, so the test
+    fails unless the hook really reads it."""
+    engine = tmp_path / "chosen-engine"
     engine.mkdir()
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
-    monkeypatch.delenv("M3_DATABASE", raising=False)
-    monkeypatch.delenv("M3_DB_PATH", raising=False)
-    monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
+    m3_paths(engine_root=engine)
 
     mod = _load_hook()
     db = mod._resolve_db()
@@ -42,18 +41,18 @@ def test_resolve_db_uses_canonical_engine_root(monkeypatch, tmp_path):
     assert "hooks" not in db
 
 
-def test_resolve_db_never_returns_repo_stale_when_engine_root_set(monkeypatch, tmp_path):
+def test_resolve_db_never_returns_repo_stale_when_engine_root_set(monkeypatch, tmp_path, m3_paths):
     """The repo-relative fallback must lose to the canonical engine root."""
     engine = tmp_path / "eng2"
     engine.mkdir()
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
-    monkeypatch.delenv("M3_DATABASE", raising=False)
+    m3_paths(engine_root=engine)
 
     mod = _load_hook()
     db = Path(mod._resolve_db()).resolve()
 
     repo_relative = (_HOOK.parents[3] / "engine" / "agent_memory.db").resolve()
     assert db != repo_relative, "resolved the stale repo copy instead of engine root"
+    assert db == (engine / "agent_memory.db").resolve(), db
 
 
 def test_resolve_db_follows_the_configured_engine_root(monkeypatch, tmp_path):

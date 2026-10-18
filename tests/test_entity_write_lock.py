@@ -47,7 +47,6 @@ def store(tmp_path, monkeypatch):
     pin_database(str(db))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
     use_backend("sqlite")
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
     with sqlite3.connect(str(db)) as c:
         c.execute(
             "INSERT INTO memory_items (id, type, title, content, created_at, is_deleted) "

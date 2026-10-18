@@ -169,7 +169,7 @@ def read_secrets() -> dict[str, str]:
 
 
 def _known_secret_names() -> set[str]:
-    """Registry secrets with their env aliases, plus the names DSNs are stored under."""
+    """Registry secrets with their alias names, plus the names DSNs are stored under."""
     from m3_core.config import REGISTRY, KeyClass
 
     known = {n for k in REGISTRY if k.klass is KeyClass.SECRET for n in (k.name, *k.env_names)}
@@ -534,7 +534,7 @@ def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
 
 
 def is_known_secret(name: str) -> bool:
-    """A registry secret (or env alias), a DSN store name, or an SLM profile's
+    """A registry secret (or an alias name), a DSN store name, or an SLM profile's
     api_key_service: the names the secrets file accepts."""
     if name in _known_secret_names():
         return True

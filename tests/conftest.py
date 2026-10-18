@@ -806,14 +806,19 @@ def _backend_diagnosis(item, call) -> "str | None":
     exc = call.excinfo.value
     on_sqlite = isinstance(exc, _sqlite3.Error) or type(exc).__module__ == "sqlite3"
 
-    # Never import — ask only a selector that is already loaded.
-    env_backend = (
-        _os.environ.get("M3_DB_BACKEND") or _os.environ.get("DB_BACKEND") or ""
-    ).strip() or "(unset -> default sqlite)"
+    # Never import — ask only modules that are already loaded. The selector is
+    # registry key db.backend (M3_DB_BACKEND is not read): name its origin.
+    _st = sys.modules.get("m3_core.config.settings")
+    try:
+        setting_origin = _st.origin_of("db.backend") if _st is not None else "(settings not loaded)"
+    except Exception as e:  # noqa: BLE001 -- a config that does not load is itself the answer
+        setting_origin = f"<error: {e}>"
+    if setting_origin == "default":
+        setting_origin = "default sqlite (nothing selected a backend)"
     _sel = sys.modules.get("memory.backends.selector")
     try:
         resolved = _sel.resolve_backend_name() if _sel is not None else None
-    except Exception as e:  # an invalid M3_DB_BACKEND is itself the answer
+    except Exception as e:  # an invalid db.backend is itself the answer
         resolved = f"<error: {e}>"
     dsn = pg_dsn()
     dsn_shown = "present" if dsn else "ABSENT"
@@ -821,7 +826,7 @@ def _backend_diagnosis(item, call) -> "str | None":
     lines = [
         "observed: a test marked `requires_pg` failed" + (" while executing against SQLite" if on_sqlite else ""),
         f"           exception          : {type(exc).__module__}.{type(exc).__name__}",
-        f"           M3_DB_BACKEND      : {env_backend}",
+        f"           db.backend origin  : {setting_origin}",
         f"           selector resolved  : {resolved!r}"
         + ("  <- NOT postgres" if resolved not in (None, "postgres") else ""),
         f"           PG DSN (pg_dsn())  : {dsn_shown}",
@@ -834,9 +839,11 @@ def _backend_diagnosis(item, call) -> "str | None":
             "          error naming missing tables or `%` placeholders.",
             "inspect:  run this file ALONE (`pytest <file> -q`). If it passes alone, the",
             "          backend was decided elsewhere in the session: a test that resolved",
-            "          the seam before this one, or a fixture that set M3_DB_BACKEND",
+            "          the seam before this one, or a fixture that selected a backend",
             "          without calling `selector._reset_for_tests()`. If it also fails",
-            "          alone, set M3_DB_BACKEND=postgres for the run.",
+            "          alone, the test must select PostgreSQL itself: `use_backend(",
+            '          "postgres", pg_dsn())` or `select_backend("postgres")` (db.backend;',
+            "          the M3_DB_BACKEND env name is not read).",
         ]
     else:
         lines.append("inspect:  if this is not a backend problem, ignore this section.")
@@ -2390,6 +2397,19 @@ def _assert_sandbox_config_kept(cfg: Path) -> None:
         "resolve to the real home. inspect: a fixture that rewrote the sandbox config; write it with "
         "write_sandbox_config(body), m3_paths or m3_settings"
     )
+
+
+def pin_setting(name: str, value) -> None:
+    """Set registry key ``name`` in the sandbox's m3_config.toml, where m3 reads it
+    (a former env name is not read, so a ``setenv`` of it tests nothing). Merges
+    with what the file holds (use_backend's [db], the sandbox [paths]); the
+    writer validates the value and the snapshot reads it back at once."""
+    from m3_core.config import REGISTRY, locate
+    from m3_core.config.writer import set_values
+
+    key = REGISTRY.get(name)
+    assert key is not None, f"pin_setting: {name!r} is not a registry key"
+    set_values(locate(), {key: value})
 
 
 def write_sandbox_config(body: str) -> Path:

@@ -77,7 +77,7 @@ def test_windows_hook_command_starts_with_the_interpreter(monkeypatch):
     executable path, never a `VAR=` token that cmd.exe would try to run."""
     import generate_configs as gc
 
-    monkeypatch.setattr(gc.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")  # the OS seam's one knob, not os.name
     prefix = gc._hook_env_prefix("C:/x/engine", "C:/x/config")
     cmd = f"{prefix}C:/venv/Scripts/python.exe C:/m3/bin/hooks/chatlog/x.py"
     first = cmd.split(" ", 1)[0]

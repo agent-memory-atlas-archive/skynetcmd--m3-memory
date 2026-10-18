@@ -455,7 +455,7 @@ def test_doctor_reports_resolved_bridge(tmp_path, monkeypatch, capsys):
     assert "resolved bridge" in out.lower()
 
 
-def test_resolve_chatlog_db_uses_engine_root(tmp_path, monkeypatch):
+def test_resolve_chatlog_db_uses_engine_root(tmp_path, monkeypatch, m3_paths):
     """Decoupled-roots regression (2026-06-27 macOS): the chatlog DB must
     resolve to <engine_root>/agent_chatlog.db, NOT the legacy repo-relative
     path — otherwise doctor/`m3 status` falsely report 'no captures' for a real
@@ -465,10 +465,12 @@ def test_resolve_chatlog_db_uses_engine_root(tmp_path, monkeypatch):
     # Clean env so the earlier env-override branches don't short-circuit.
     for v in ("CHATLOG_DB_PATH", "M3_DATABASE"):
         monkeypatch.delenv(v, raising=False)
-    engine = tmp_path / "engine"
+    # Not the sandbox's own engine root (tmp_path/engine): with that one the test
+    # passed whether or not the root was read from anywhere.
+    engine = tmp_path / "chosen-engine"
     engine.mkdir()
     (engine / "agent_chatlog.db").write_bytes(b"")  # the real DB lives here
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
+    m3_paths(engine_root=engine)  # where m3 reads it; M3_ENGINE_ROOT is not read
 
     # A config that ALSO has a (wrong) repo_path — the engine root must win.
     resolved = installer._resolve_chatlog_db({"repo_path": str(tmp_path / "repo")})
@@ -543,7 +545,7 @@ def test_doctor_says_installed_when_bridge_matches_config(tmp_path, monkeypatch,
     assert "LIVE bridge differs" not in out
 
 
-def test_resolve_chatlog_db_falls_back_to_repo_when_no_engine_db(tmp_path, monkeypatch):
+def test_resolve_chatlog_db_falls_back_to_repo_when_no_engine_db(tmp_path, monkeypatch, m3_paths):
     """When no engine-root chatlog DB exists, fall back to the legacy
     repo-relative path (back-compat for non-decoupled installs)."""
     from m3_memory import installer
@@ -551,7 +553,7 @@ def test_resolve_chatlog_db_falls_back_to_repo_when_no_engine_db(tmp_path, monke
     for v in ("CHATLOG_DB_PATH", "M3_DATABASE"):
         monkeypatch.delenv(v, raising=False)
     # Engine root with NO chatlog db.
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "empty-engine"))
+    m3_paths(engine_root=tmp_path / "empty-engine")
     repo = tmp_path / "repo"
     resolved = installer._resolve_chatlog_db({"repo_path": str(repo)})
     assert resolved == repo / "memory" / "agent_chatlog.db", resolved
@@ -847,9 +849,10 @@ class TestDbBackendSelection:
         import sys as _sys
 
         monkeypatch.setattr(_sys, "platform", _ORIG_PLATFORM)
+        from conftest import pin_setting
         from m3_memory.installer import _pg_reachable
 
-        monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.9")
+        pin_setting("db.postgres.forbidden_hosts", ["198.51.100.9"])  # M3_PG_FORBIDDEN_HOSTS is not read
         # unreachable port → (False, masked detail)
         ok, detail = _pg_reachable("postgresql://u:p@127.0.0.1:5599/none")
         assert ok is False
@@ -857,7 +860,9 @@ class TestDbBackendSelection:
         # forbidden (warehouse) host → refused before connecting
         ok2, d2 = _pg_reachable("postgresql://u:p@198.51.100.9:5432/wh")
         assert ok2 is False
-        assert "forbidden" in d2.lower() or "198.51.100.9" in d2
+        # "forbidden", not just the host: an unreachable host's message names the
+        # host too, so the old `or` passed without the refusal ever running.
+        assert "forbidden" in d2.lower(), d2
 
     # D2: the DSN goes to the secret store, never into a profile or the registry.
     _DSN = "postgresql://u:s3cretpw@db.example/m3"

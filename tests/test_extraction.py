@@ -20,7 +20,7 @@ from memory.extraction import (
     normalize_entity_id,
 )
 
-from conftest import create_full_main_schema
+from conftest import create_full_main_schema, pin_setting
 from memory import config as _config
 from memory import entity as _entity_mod
 from memory import write as _write_mod
@@ -29,7 +29,7 @@ from memory import write as _write_mod
 @pytest.fixture(autouse=True)
 def _skip_migrations(monkeypatch):
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "1")
+    pin_setting("memory.entity_graph", True)  # where m3 reads it, not the former env name
 
 
 @pytest.fixture(autouse=True)

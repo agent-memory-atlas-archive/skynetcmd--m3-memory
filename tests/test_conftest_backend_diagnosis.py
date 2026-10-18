@@ -67,7 +67,7 @@ def test_a_requires_pg_failure_on_sqlite_is_explained():
     assert msg, "the diagnostic did not fire on the exact shape it exists for"
     # The three things the original output never said.
     assert "SQLite" in msg
-    assert "M3_DB_BACKEND" in msg
+    assert "db.backend" in msg  # the selector, by the name m3 reads (not M3_DB_BACKEND)
     assert "_reset_for_tests" in msg, "must name the mechanism that fixes it"
     # And it must be actionable, not just descriptive.
     assert "run this file ALONE" in msg, "must say what to DO next"
@@ -85,7 +85,7 @@ def test_it_reports_the_resolved_backend(monkeypatch):
     assert "'sqlite'" in msg and "NOT postgres" in msg
 
 
-def test_it_echoes_the_env_var_including_the_unset_case(monkeypatch):
+def test_it_shows_the_selector_including_the_unset_case(monkeypatch):
     msg = ct._backend_diagnosis(_Item("requires_pg"), _Call(exc=_sqlite_error()))
     assert "default sqlite" in msg, "an unset backend is the common cause and must be shown as such, not blank"
 

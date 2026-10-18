@@ -18,11 +18,11 @@ logger = logging.getLogger("M3_SDK")
 # feed it into telemetry so the governor's max(cpu,ram,gpu,llm) load reacts.
 #
 # Cached with a short TTL: spawning nvidia-smi costs ~30-80ms, and the loop reads
-# telemetry often. Disable with `gpu.probe_disabled = true` (env alias
+# telemetry often. Disable with `gpu.probe_disabled = true` (former env name, not read:
 # M3_GPU_PROBE_DISABLE=1), e.g. on CPU-only hosts.
 #
 # _GPU_PROBE_DISABLE / _GPU_PROBE_TTL are bound once at import from the registry
-# (m3_config.toml > env aliases > default): they are m3_sdk's public, patchable
+# (m3_config.toml > default): they are m3_sdk's public, patchable
 # fallbacks. The per-call layer a running daemon follows is .governor_config.json
 # (_gpu_probe_ttl below).
 _GPU_PROBE_DISABLE: bool = bool(_m3cfg.setting("gpu.probe_disabled"))
@@ -33,7 +33,7 @@ _GPU_PROBE_DISABLE: bool = bool(_m3cfg.setting("gpu.probe_disabled"))
 # per-cycle governor path meant a console window every ~2 seconds, which pulls
 # focus out of fullscreen apps (reported live while gaming).
 # 60s still tracks GPU load for a governor that reacts over minutes; set
-# gpu.probe_ttl_s (env alias M3_GPU_PROBE_TTL) lower only on a host where no one
+# gpu.probe_ttl_s (former env name, not read: M3_GPU_PROBE_TTL) lower only on a host where no one
 # is looking at the screen, or gpu.probe_disabled to turn the probe off entirely.
 _GPU_PROBE_TTL: float = float(_m3cfg.setting("gpu.probe_ttl_s"))
 _GPU_TTL_CFG_TTL = 5.0

@@ -44,7 +44,7 @@ from m3_core.secret_store import loggable_url
 # many distinct per-call `database` values. Hot paths (default DB, any DB the
 # process accesses repeatedly) get refreshed to most-recently-used on every
 # lookup, so the cap only ever evicts cold paths. Registry key context.cache_size
-# (env alias M3_CONTEXT_CACHE_SIZE). Read once at import: m3_sdk re-exports the
+# (former env name, not read: M3_CONTEXT_CACHE_SIZE). Read once at import: m3_sdk re-exports the
 # constant, and the key is not reloadable (the cap sizes a live cache).
 _CONTEXT_CACHE_SIZE = max(2, int(_m3cfg.setting("context.cache_size")))
 _CONTEXTS: "OrderedDict[str, M3Context]" = OrderedDict()
@@ -226,7 +226,7 @@ class M3Context:
         with self._pool_lock:
             if self._pool is not None:
                 return
-            # Registry keys db.pool_size / db.pool_timeout_s (env aliases
+            # Registry keys db.pool_size / db.pool_timeout_s (former env names, not read:
             # M3_DB_POOL_SIZE / DB_POOL_SIZE, M3_DB_POOL_TIMEOUT / DB_POOL_TIMEOUT).
             pool_size = int(_m3cfg.setting("db.pool_size"))
             pool_timeout = int(_m3cfg.setting("db.pool_timeout_s"))

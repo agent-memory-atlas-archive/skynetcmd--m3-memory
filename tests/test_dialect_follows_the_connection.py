@@ -24,7 +24,7 @@ import sys
 
 import pytest
 
-from conftest import pg_dsn, skip_reason, use_backend
+from conftest import pg_dsn, select_backend, skip_reason, use_backend
 
 _HERE = os.path.dirname(__file__)
 _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
@@ -51,26 +51,33 @@ def test_a_sqlite_cursor_gets_the_sqlite_param(sqlite_conn):
     assert dialect_for_connection(sqlite_conn.cursor()).param() == "?"
 
 
-@pytest.mark.parametrize("backend", ["postgres", "sqlite", "not-a-backend"])
-def test_the_global_env_var_cannot_override_a_real_connection(backend, sqlite_conn, monkeypatch):
-    """THE regression. A SQLite cursor gets `?` no matter what M3_DB_BACKEND
-    says -- including a bogus value, which must not make it guess."""
-    # Load the `memory` package (and its config) BEFORE the bogus value is set.
-    # After an earlier test purged the namespace, the first dialect lookup
-    # re-imports the package, and its config load rightly raises on a malformed
-    # M3_DB_BACKEND (R-loud): that is config loading, not the dialect choice
-    # this test is about (an order-dependent failure).
-    dialect_for_connection(sqlite_conn.cursor())
-    monkeypatch.setenv("M3_DB_BACKEND", backend)
+@pytest.mark.parametrize("backend", ["postgres", "sqlite"])
+def test_the_global_backend_cannot_override_a_real_connection(backend, sqlite_conn):
+    """THE regression. A SQLite cursor gets `?` whatever the deployment's backend
+    (db.backend) says. The global is selected for real; setting the former env
+    name left it at the default and tested nothing."""
+    from m3_core.paths import resolve_backend_name
+
+    select_backend(backend)
+    assert resolve_backend_name() == backend, "precondition: the global really is this backend"
     assert dialect_for_connection(sqlite_conn.cursor()).param() == "?", (
-        f"M3_DB_BACKEND={backend!r} leaked into a SQLite connection's dialect; "
+        f"db.backend={backend!r} leaked into a SQLite connection's dialect; "
         f"PostgreSQL syntax would reach a SQLite cursor"
     )
 
 
+def test_an_env_backend_name_cannot_reach_a_connection_either(sqlite_conn, monkeypatch):
+    """A bogus former env name is not read at all: no guess, no error."""
+    monkeypatch.setenv("M3_DB_BACKEND", "not-a-backend")
+    assert dialect_for_connection(sqlite_conn.cursor()).param() == "?"
+
+
 def test_pg_sync_param_helper_follows_the_cursor(sqlite_conn, monkeypatch):
     """The call-site wrapper must inherit the property, not just the seam."""
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    from m3_core.paths import resolve_backend_name
+
+    select_backend("postgres")
+    assert resolve_backend_name() == "postgres", "precondition: the global really is postgres"
     import pg_sync
 
     assert pg_sync._param_of(sqlite_conn.cursor()) == "?"

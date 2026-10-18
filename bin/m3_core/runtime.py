@@ -162,8 +162,8 @@ def ensure_utf8() -> None:
 
 
 # The local LLM base URL + read timeout, for bridges that import them from here
-# instead of redefining them. Registry keys llm.lmstudio_base (env alias
-# LM_STUDIO_BASE) and llm.read_timeout_s (env aliases M3_LM_READ_TIMEOUT,
+# instead of redefining them. Registry keys llm.lmstudio_base (former env name, not read:
+# LM_STUDIO_BASE) and llm.read_timeout_s (former env names, not read: M3_LM_READ_TIMEOUT,
 # LM_READ_TIMEOUT). Bound once at import: they are public module constants
 # (m3_sdk re-exports both); a reader that must follow an edited file calls
 # m3_core.config.settings.setting() itself.

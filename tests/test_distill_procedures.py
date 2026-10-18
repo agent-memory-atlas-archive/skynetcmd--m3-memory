@@ -397,15 +397,25 @@ async def test_distill_call_keeps_a_request_error_per_task(monkeypatch, caplog):
 
 @pytest.mark.asyncio
 async def test_llm_selector_with_no_model_is_loud(monkeypatch):
-    """The 'llm' selector returned None with NO log when no endpoint had a model."""
+    """The 'llm' selector returned None with NO log when no endpoint had a model.
+    The selector is pinned where m3 reads it (loop.distill_model in
+    m3_config.toml), and the LLM probe must actually run: the default 'slm' path
+    raises LLMUnavailable too, so without that check the test passed while never
+    reaching the 'llm' branch."""
     import llm_failover
     import memory_maintenance as mm
 
+    from conftest import pin_setting
+
+    probed: list = []
+
     async def _none(client, token):
-        return None
+        probed.append(token)
+        return
 
     monkeypatch.setattr(mm, "get_best_llm", _none)
-    monkeypatch.setenv("M3_DISTILL_MODEL", "llm")
+    pin_setting("loop.distill_model", "llm")
     monkeypatch.setattr(mm.ctx, "get_secret", lambda *a, **k: "tok")
     with pytest.raises(llm_failover.LLMUnavailable):
         await mm._distill_call_model("p")
+    assert probed, "the 'llm' selector never asked for an LLM"

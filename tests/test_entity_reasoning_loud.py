@@ -25,7 +25,8 @@ import m3_entities as E  # noqa: E402
 def _profile(monkeypatch, model="m"):
     import dataclasses
 
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(Path(_BIN).parent / "config" / "slm"))
+    # The shipped profiles are found where they ship (config/slm next to bin/);
+    # slm.profile_dirs adds directories, and the former env name is not read.
     from slm_intent import load_profile
 
     base = load_profile("entities_local_qwen")

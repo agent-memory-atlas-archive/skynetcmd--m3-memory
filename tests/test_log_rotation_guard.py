@@ -157,9 +157,12 @@ def test_rotation_failure_is_not_silent(tmp_path, monkeypatch, capsys):
     assert "WARNING" in capsys.readouterr().err, "a rotation failure means the only disk-space bound is dead — say so"
 
 
-def test_malformed_cap_falls_back_to_default(tmp_path, monkeypatch):
-    """A typo'd env var must not silently disable the only disk-space bound."""
-    monkeypatch.setenv("M3_LOG_MAX_BYTES", "not-a-number")
+def test_malformed_cap_falls_back_to_default(tmp_path, log_cfg):
+    """A typo'd cap must not silently disable the only disk-space bound. The cap
+    is read from .log_config.json (then log.max_bytes); the former env name is
+    not read, so a typo there could not reach this path at all."""
+    log_cfg.write_text(json.dumps({"max_bytes": "not-a-number"}), encoding="utf-8")
+    _reset_log_cfg_cache()
     log = tmp_path / "d.log"
     _make_oversized(log)
     _rotate_if_oversized(log)

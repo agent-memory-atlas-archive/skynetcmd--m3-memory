@@ -60,7 +60,6 @@ def test_lib_dir_pin_outranks_roots(monkeypatch, tmp_path):
     under M3_FIPS_MODE=1 when the pinned dir (a tmp_path here) holds no library.
     The function is pure env-reading, so no reload is needed to see the pin.
     """
-    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path / "mem"))
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "cfg" / "config"))
     monkeypatch.setenv("M3_LIB_DIR", str(tmp_path / "pinned"))
     iw = _load()

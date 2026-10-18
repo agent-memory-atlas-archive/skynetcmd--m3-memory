@@ -45,14 +45,22 @@ def test_default_backend_is_sqlite(monkeypatch):
 
 
 def test_explicit_sqlite_selection(monkeypatch):
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    """Selected in m3_config.toml ([db] backend), not merely the default: the
+    origin says the file chose it (setting the former env name tested nothing,
+    since SQLite is the default either way)."""
+    from m3_core.config import settings as st
+
+    use_backend("sqlite")
     assert resolve_backend_name() == "sqlite"
+    assert st.origin_of("db.backend").startswith("file:"), st.origin_of("db.backend")
     assert active_backend().name == "sqlite"
 
 
-def test_legacy_alias_resolves(monkeypatch):
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
-    monkeypatch.setenv("DB_BACKEND", "sqlite")
+def test_the_legacy_names_do_not_select(monkeypatch):
+    """DB_BACKEND / M3_DB_BACKEND are not read: naming postgres in either leaves
+    the default (a value that matched the default could not show it)."""
+    monkeypatch.setenv("DB_BACKEND", "postgres")
+    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
     assert resolve_backend_name() == "sqlite"
 
 
@@ -116,7 +124,7 @@ def test_postgres_selection_no_dsn_fails_loud(monkeypatch):
 def test_sqlite_ensure_schema_is_noop(monkeypatch):
     """SQLite ensure_schema is a no-op (schema is lazy-inited by _db()); it must
     not raise and must not require a connection."""
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    select_backend("sqlite")
     backend = active_backend()
     backend.ensure_schema()  # no raise, no side effect
 
@@ -130,7 +138,7 @@ def test_sqlite_schema_version_reports_current(monkeypatch, tmp_path):
 
     sqlite3.connect(str(db_path)).close()  # empty file; _db() will migrate it
     pin_database(str(db_path))
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    select_backend("sqlite")
     backend = active_backend()
     v = backend.schema_version()
     assert isinstance(v, int) and v >= 39  # migrated to at least the 039 baseline
@@ -150,7 +158,7 @@ def test_require_sqlite_backend_fails_loud_on_postgres(monkeypatch):
 
 
 def test_placeholder_matches_qmark_idiom(monkeypatch):
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    select_backend("sqlite")
     backend = active_backend()
     assert backend.placeholder(1) == "?"
     assert backend.placeholder(3) == "?, ?, ?"
@@ -171,7 +179,7 @@ def test_sqlite_connection_delegates_to_db(monkeypatch, tmp_path):
     db_path = tmp_path / "agent_memory.db"
     create_full_main_schema(db_path)
     pin_database(str(db_path))
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    select_backend("sqlite")
 
     from memory import db as db_mod
 

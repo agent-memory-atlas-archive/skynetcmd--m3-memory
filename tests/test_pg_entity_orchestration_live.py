@@ -26,7 +26,7 @@ _FORBIDDEN = [h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").spl
 # pg_dsn() centralizes the M3_PRIMARY_PG_URL > M3_PG_URL precedence — NEVER PG_URL
 # (the deprecated warehouse var points at production; a live test resolving to it
 # would run destructive DDL against the warehouse).
-from conftest import pg_dsn, use_backend
+from conftest import pg_dsn, pin_setting, use_backend
 
 pytestmark = pytest.mark.requires_pg
 _DSN = pg_dsn()
@@ -206,7 +206,7 @@ def test_entity_writer_holds_no_connection_across_embedding_awaits_on_pg(pg_back
     import importlib
 
     use_backend("postgres", _DSN)
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    pin_setting("memory.entity_graph", True)  # where m3 reads it, not the former env name
     from memory.backends import selector as _selector
 
     _selector._reset_for_tests()
