@@ -175,6 +175,35 @@ _PROFILE_CACHE: dict[str, Profile] = {}
 _PROFILE_CACHE_LOCK = threading.Lock()
 
 
+def job_api_key(profile: Profile) -> str:
+    """The API key a job sends to ``profile``'s endpoint; "" when none is stored
+    and the endpoint may not need one.
+
+    An OpenAI-compatible local server (Ollama, LM Studio without auth) needs no
+    key, so a missing one is not refused here: the job calls without a header
+    (``llm_failover.auth_headers``) and a server that requires one answers 401,
+    which ``llm_failover.unauthorized_hint`` turns into the fix. Refusing up front
+    stopped the cognitive loop on every keyless install (2026-10-18). Only an
+    Anthropic-format profile, whose API always needs a key, still stops here."""
+    import sys
+
+    from auth_utils import get_api_key
+    from m3_core.secret_store import missing_secret_message
+
+    token = (get_api_key(profile.api_key_service) if profile.api_key_service else "") or ""
+    if token:
+        return token
+    if getattr(profile, "backend", "openai") == "anthropic":
+        sys.exit("ERROR: API key not found. " + missing_secret_message(profile.api_key_service))
+    print(
+        f"[info] no {profile.api_key_service or 'API key'} stored: calling {profile.url} without one "
+        "(a keyless server such as Ollama needs none; one that requires a key answers 401 and the "
+        "job says how to set it)",
+        file=sys.stderr,
+    )
+    return ""
+
+
 def invalidate_cache() -> None:
     """Drop cached profiles so the next classify_intent() re-reads YAMLs."""
     with _PROFILE_CACHE_LOCK:

@@ -1,8 +1,8 @@
 ---
 tool: bin/slm_intent.py
-sha1: 5d5489b127f7
-mtime_utc: 2026-10-18T01:31:17.570746+00:00
-generated_utc: 2026-10-18T01:36:26.344973+00:00
+sha1: 33d8bfb0640c
+mtime_utc: 2026-10-18T11:56:38.005969+00:00
+generated_utc: 2026-10-18T11:57:06.712686+00:00
 private: false
 ---
 
@@ -94,9 +94,9 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 572)
-- `httpx.AsyncClient()` (line 629)
-- `httpx.AsyncClient()` (line 679)
+- `httpx.AsyncClient()` (line 601)
+- `httpx.AsyncClient()` (line 658)
+- `httpx.AsyncClient()` (line 708)
 
 
 ---
@@ -107,6 +107,7 @@ _(none detected)_
 - `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
 - `m3_core.seams (roots)`
+- `m3_core.secret_store (missing_secret_message)`
 - `yaml`
 
 ---

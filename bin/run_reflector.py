@@ -33,7 +33,13 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from llm_failover import apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room
+from llm_failover import (
+    apply_thinking_suppression,
+    apply_thinking_suppression_anthropic,
+    auth_headers,
+    reply_ran_out_of_room,
+    unauthorized_hint,
+)
 from m3_core.aio import gather_or_cancel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +50,6 @@ if str(_MAIN_BIN) not in sys.path:
 import httpx  # noqa: E402
 import memory_core as mc  # noqa: E402
 from agent_protocol import strip_code_fences  # noqa: E402
-from auth_utils import get_api_key  # noqa: E402
 from m3_core.config import settings as _m3cfg
 from memory.backends import dialect  # noqa: E402
 from slm_intent import load_profile  # noqa: E402
@@ -122,6 +127,7 @@ async def call_reflector(
                 f"observed: {r.status_code} from {profile.url}. "
                 f"response: {r.text[:200]}. "
                 f"inspect: profile.url, model availability, API connectivity."
+                + unauthorized_hint(r.status_code, profile.api_key_service)
             )
         data = r.json()
         blocks = data.get("content", [])
@@ -148,10 +154,7 @@ async def call_reflector(
         # Local reasoning models leave `content` empty; the reflector would
         # parse an empty reply and silently produce no reflection.
         apply_thinking_suppression(payload, profile.url)
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        }
+        headers = {"Content-Type": "application/json", **auth_headers(token)}
         r = await client.post(profile.url, json=payload, headers=headers, timeout=profile.timeout_s)
         if r.status_code != 200:
             raise RuntimeError(
@@ -159,6 +162,7 @@ async def call_reflector(
                 f"observed: {r.status_code} from {profile.url}. "
                 f"response: {r.text[:200]}. "
                 f"inspect: profile.url, model availability, API connectivity."
+                + unauthorized_hint(r.status_code, profile.api_key_service)
             )
         data = r.json()
         choice = (data.get("choices") or [{}])[0]
@@ -472,11 +476,9 @@ def main() -> None:
             f"observed: load_profile({PROFILE_NAME!r}) returned None. "
             f"inspect: REFLECTOR_PROFILE env var or config/slm/{PROFILE_NAME}.yaml."
         )
-    token = get_api_key(profile.api_key_service) or ""
-    if not token:
-        from m3_core.secret_store import missing_secret_message
+    from slm_intent import job_api_key
 
-        sys.exit("ERROR: API key not found. " + missing_secret_message(profile.api_key_service))
+    token = job_api_key(profile)
 
     if args.force_conversation:
         asyncio.run(force_mode(args, profile, token))

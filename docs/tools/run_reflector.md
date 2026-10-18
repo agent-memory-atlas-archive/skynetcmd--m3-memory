@@ -1,8 +1,8 @@
 ---
 tool: bin/run_reflector.py
-sha1: 1ffd4ad60743
-mtime_utc: 2026-10-18T00:43:17.402491+00:00
-generated_utc: 2026-10-18T00:50:17.641407+00:00
+sha1: a9dffb17c801
+mtime_utc: 2026-10-18T11:56:37.966458+00:00
+generated_utc: 2026-10-18T11:57:06.688970+00:00
 private: false
 ---
 
@@ -35,7 +35,7 @@ Status: Phase D Task 4. Pairs with config/slm/reflector_local.yaml.
 
 ## Entry points
 
-- `def main()` (line 452)
+- `def main()` (line 456)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -60,9 +60,9 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `agent_protocol (strip_code_fences)`
-- `auth_utils (get_api_key)`
-- `llm_failover (apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room)`
+- `llm_failover (apply_thinking_suppression, apply_thinking_suppression_anthropic, auth_headers, reply_ran_out_of_room, unauthorized_hint)`
 - `memory_core`
+- `slm_intent (job_api_key)`
 - `slm_intent (load_profile)`
 
 ---
@@ -71,8 +71,8 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 374)
-- `httpx.AsyncClient()` (line 433)
+- `httpx.AsyncClient()` (line 378)
+- `httpx.AsyncClient()` (line 437)
 
 
 ---
@@ -83,7 +83,6 @@ _(none detected)_
 - `importlib`
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
-- `m3_core.secret_store (missing_secret_message)`
 - `memory.backends (dialect)`
 
 ---

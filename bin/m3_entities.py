@@ -66,7 +66,6 @@ if str(_BIN) not in sys.path:
 import httpx  # noqa: E402
 import memory_core as mc  # noqa: E402
 from agent_protocol import strip_code_fences  # noqa: E402
-from auth_utils import get_api_key  # noqa: E402
 from llm_failover import (  # noqa: E402
     LLMUnavailable,
     report_available,
@@ -1085,11 +1084,9 @@ async def _main_async(args: argparse.Namespace) -> int:
             return 0
 
     # Token + smoke
-    token = get_api_key(profile.api_key_service) or ""
-    if not token:
-        from m3_core.secret_store import missing_secret_message
+    from slm_intent import job_api_key
 
-        sys.exit("ERROR: API key not found. " + missing_secret_message(profile.api_key_service))
+    token = job_api_key(profile)
 
     if not args.skip_preflight:
         await _smoke_profile(profile, token, valid_types, valid_predicates)

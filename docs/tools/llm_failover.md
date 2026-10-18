@@ -1,8 +1,8 @@
 ---
 tool: bin/llm_failover.py
-sha1: 61eaadc3cf55
-mtime_utc: 2026-10-18T01:45:14.625785+00:00
-generated_utc: 2026-10-18T01:45:45.938449+00:00
+sha1: 1ed401742d90
+mtime_utc: 2026-10-18T11:56:37.294895+00:00
+generated_utc: 2026-10-18T11:57:06.335427+00:00
 private: false
 ---
 
@@ -46,7 +46,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 320)
+- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 337)
 
 
 ---
@@ -55,6 +55,7 @@ _(none detected)_
 
 - `httpx`
 - `m3_core.config (settings)`
+- `m3_core.secret_store (missing_secret_message)`
 - `m3_core.secret_store (redacted_snippet)`
 
 ---

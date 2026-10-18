@@ -1,8 +1,8 @@
 ---
 tool: bin/run_observer.py
-sha1: cd7192bb965f
-mtime_utc: 2026-10-18T00:43:17.401491+00:00
-generated_utc: 2026-10-18T00:50:17.635344+00:00
+sha1: 27c8a335085e
+mtime_utc: 2026-10-18T11:56:37.966458+00:00
+generated_utc: 2026-10-18T11:57:06.682963+00:00
 private: false
 ---
 
@@ -39,7 +39,7 @@ Status: Phase D Task 3. Pairs with config/slm/observer_local.yaml.
 
 ## Entry points
 
-- `def main()` (line 960)
+- `def main()` (line 964)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -68,9 +68,9 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `agent_protocol (strip_code_fences)`
-- `auth_utils (get_api_key)`
-- `llm_failover (apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room)`
+- `llm_failover (apply_thinking_suppression, apply_thinking_suppression_anthropic, auth_headers, reply_ran_out_of_room, unauthorized_hint)`
 - `memory_core`
+- `slm_intent (job_api_key)`
 - `slm_intent (load_profile)`
 - `unified_ai (async_client_for_profile)`
 
@@ -88,7 +88,6 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
 - `m3_core.runtime (utc_iso)`
-- `m3_core.secret_store (missing_secret_message)`
 - `memory.backends (dialect)`
 
 ---

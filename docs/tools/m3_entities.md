@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities.py
-sha1: ba957a32a131
-mtime_utc: 2026-10-18T00:43:17.400491+00:00
-generated_utc: 2026-10-18T00:50:17.374561+00:00
+sha1: 5c0dd62dc354
+mtime_utc: 2026-10-18T11:56:37.967981+00:00
+generated_utc: 2026-10-18T11:57:06.432434+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 ## Entry points
 
-- `def main()` (line 1215)
+- `def main()` (line 1212)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -89,13 +89,13 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `agent_protocol (strip_code_fences)`
-- `auth_utils (get_api_key)`
 - `llm_failover (LLMUnavailable, report_available, report_unavailable, require_usable_endpoint)`
 - `llm_failover (discover_model_async)`
 - `llm_failover (suppresses_thinking_via_effort)`
 - `m3_sdk (scoped_db_env)`
 - `memory_core`
 - `slm_intent (Profile, _is_loopback, load_profile, localize_endpoint)`
+- `slm_intent (job_api_key)`
 
 ---
 
@@ -103,8 +103,8 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 641)
-- `httpx.AsyncClient()` (line 793)
+- `httpx.AsyncClient()` (line 640)
+- `httpx.AsyncClient()` (line 792)
 
 
 ---
@@ -118,7 +118,6 @@ _(none detected)_
 - `m3_core.paths (configured_main_db, pin_database)`
 - `m3_core.paths (get_m3_backups_root, snapshot_stores)`
 - `m3_core.secret_store (loggable_url)`
-- `m3_core.secret_store (missing_secret_message)`
 - `memory.backends (active_backend)`
 - `memory.entity (entity_extraction_terminal_ids_sql, record_entity_queue_status)`
 

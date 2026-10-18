@@ -228,6 +228,23 @@ def clear_embed_cache() -> None:
     _EMBED_NEG_CACHE_TS = 0.0
 
 
+def unauthorized_hint(status_code: int, service: str | None) -> str:
+    """For an LLM endpoint's 401/403: how to give m3 the key it wants (empty for
+    any other status). A job calls a server without a key when none is stored
+    (Ollama needs none); a server that requires one answers 401, and this is
+    where the user learns what to set."""
+    if status_code not in (401, 403):
+        return ""
+    from m3_core.secret_store import missing_secret_message
+
+    return " The server requires an API key. " + missing_secret_message(service)
+
+
+def auth_headers(token: str | None) -> dict:
+    """The public name of ``_auth_headers``: one helper for every caller."""
+    return _auth_headers(token)
+
+
 def _auth_headers(token: str | None) -> dict:
     """Authorization header, OMITTED ENTIRELY when there is no token.
 

@@ -23,6 +23,16 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **The cognitive loop and the observer, reflector and entity jobs run against a
+  server that needs no API key.** They refused to start without a stored key
+  even when the LLM is a keyless Ollama or an LM Studio without authentication.
+  Now they call without one; a server that requires a key answers 401 and the
+  job names the `m3 secret set` that fixes it. Anthropic-format profiles still
+  require their key.
+  **Affected:** installs whose LLM needs no key (Ollama; LM Studio without
+  authentication) · **Action:** none. With LM Studio authentication on, store
+  its key: `m3 secret set LM_API_TOKEN` · **Data status:** none.
+
 - **Setup says when Hermes cannot load the m3 provider.** It reported the
   plugin "already current" while Hermes' own Python could not import m3 (for
   example a Python 3.11 Hermes venv), so Hermes listed it as not installed; it
