@@ -37,8 +37,9 @@ No pipx yet? `sudo apt install pipx` (Debian, Ubuntu), `brew install pipx` (macO
 `py -m pip install --user pipx` (Windows). If `m3` is not found right after installing,
 open a new terminal.
 
-**Setup connects itself.** `m3 setup` finds your AI agents and local LLM (Ollama, LM Studio) and connects m3 to them. Prepare your system for automatic setup: [Windows](docs/QUICKSTART_WINDOWS.md#before-you-install-an-llm-for-memory-enrichment-optional) · [macOS](docs/QUICKSTART_MACOS.md#before-you-install-an-llm-for-memory-enrichment-optional) · [Linux](docs/QUICKSTART_LINUX.md#before-you-install-an-llm-for-memory-enrichment-optional). That's the whole install. New here? The [5-minute Getting Started guide](docs/GETTING_STARTED.md)
-walks you through your first saved memory.
+**Setup connects itself.** `m3 setup` finds your AI agents and local LLM (Ollama, LM Studio) and connects m3 to them. Prepare your system for automatic setup: [Windows](docs/QUICKSTART_WINDOWS.md#before-you-install-an-llm-for-memory-enrichment-optional) · [macOS](docs/QUICKSTART_MACOS.md#before-you-install-an-llm-for-memory-enrichment-optional) · [Linux](docs/QUICKSTART_LINUX.md#before-you-install-an-llm-for-memory-enrichment-optional). That's the whole install.
+
+New here? The [5-minute Getting Started guide](docs/GETTING_STARTED.md) walks you through your first saved memory.
 
 ---
 
