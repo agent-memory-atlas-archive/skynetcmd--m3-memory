@@ -48,12 +48,12 @@ the policy is forward-going only.
 - **A cloud LLM provider is recognised by its host, not by a substring of the
   URL.** The dashboard chose the API key header from a substring match, so a URL
   that merely contained a provider's name was treated as that provider.
-  **Affected:** dashboard LLM health checks · **Action:** none · **Data
-  status:** none.
+  **Affected:** dashboard LLM health checks · **Action:** none ·
+  **Data status:** none.
 - **Setup masks the PostgreSQL DSN in every reachability error.** One refusal
   path returned its error text unmasked.
-  **Affected:** installs choosing PostgreSQL · **Action:** none · **Data
-  status:** none.
+  **Affected:** installs choosing PostgreSQL · **Action:** none ·
+  **Data status:** none.
 
 ### Fixed
 
