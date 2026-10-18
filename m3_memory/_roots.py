@@ -354,6 +354,14 @@ def lib_root() -> str:
     return os.path.join(base, "lib")
 
 
+def hooks_root() -> str:
+    """The folder of m3's hook launchers, which agent configs point at: ``~/.m3/hooks``
+    by default. Like ``lib_root`` it hangs off the config root's PARENT, so a
+    relocated config root moves it too. m3 owns it: setup and every upgrade
+    rewrite it, so an agent's config line never has to change for a fix."""
+    return os.path.join(os.path.dirname(os.path.abspath(config_root())), "hooks")
+
+
 def models_root() -> str:
     """GGUF weights m3 owns itself. Probed FIRST among model locations: every
     other one belongs to a tool the user may uninstall."""
