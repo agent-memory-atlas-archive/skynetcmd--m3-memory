@@ -80,6 +80,65 @@ def test_git_checkout_names_a_detached_head_by_its_short_commit(tmp_path):
     subprocess.run(["git", "-C", str(repo), "checkout", "-q", "--detach"], check=True)
     got = git_checkout(str(repo))
     assert got is not None and got.branch == sha, f"observed {got!r}, expected branch {sha!r}"
+    assert got.repo == got.root, f"a detached main checkout is its own repository; observed {got!r}"
+
+
+def _commit(repo):
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "-C",
+            str(repo),
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "x",
+        ],
+        check=True,
+    )
+
+
+def _worktree(repo, path, *args):
+    subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q", *args, str(path)], check=True, capture_output=True)
+    return path
+
+
+@needs_git
+def test_git_checkout_names_the_repository_of_a_linked_worktree(tmp_path):
+    """A linked worktree (an agent's isolated copy) has its own top level, but
+    its repository is the main checkout it was added from."""
+    from m3_memory._platform import git_checkout
+
+    repo = _git_repo(tmp_path / "m3-memory")
+    _commit(repo)
+    wt = _worktree(repo, tmp_path / "agent-wt", "-b", "feature")
+    sub = wt / "bin"
+    sub.mkdir()
+    got = git_checkout(str(sub))
+    assert got is not None
+    assert os.path.normcase(got.root) == os.path.normcase(os.path.realpath(wt)), got
+    assert os.path.normcase(got.repo) == os.path.normcase(os.path.realpath(repo)), got
+    assert got.branch == "feature"
+
+    main = git_checkout(str(repo))
+    assert main is not None and main.repo == main.root, main
+
+
+@needs_git
+def test_git_checkout_names_the_repository_of_a_detached_worktree(tmp_path):
+    from m3_memory._platform import git_checkout
+
+    repo = _git_repo(tmp_path / "m3-memory")
+    _commit(repo)
+    wt = _worktree(repo, tmp_path / "detached-wt", "--detach")
+    got = git_checkout(str(wt))
+    assert got is not None and len(got.branch) >= 4, got
+    assert os.path.normcase(got.repo) == os.path.normcase(os.path.realpath(repo)), got
 
 
 def test_git_checkout_is_none_outside_a_repo_for_a_missing_dir_and_without_git(tmp_path, monkeypatch):
@@ -130,6 +189,28 @@ def test_project_fields_inside_a_repo(tmp_path):
     assert got["tree"] == "m3-memory" and got["git_branch"] == "main", got
     assert os.path.normcase(got["git_root"]) == os.path.normcase(os.path.realpath(repo)), got
     assert got["cwd"] == os.path.normpath(str(repo / "bin"))
+
+
+@needs_git
+def test_a_worktree_session_is_named_and_grouped_by_its_repository(tmp_path):
+    import session_recall
+
+    repo = _git_repo(tmp_path / "m3-memory", branch="main")
+    _commit(repo)
+    wt = _worktree(repo, tmp_path / "wcut-wt", "-b", "fix")
+    in_wt = session_recall.project_fields(str(wt))
+    in_main = session_recall.project_fields(str(repo))
+    assert in_wt["tree"] == "m3-memory", f"named after the worktree's directory: {in_wt}"
+    assert in_wt["git_branch"] == "fix"
+    assert os.path.normcase(in_wt["git_root"]) == os.path.normcase(os.path.realpath(wt)), in_wt
+    assert session_recall._project_key(in_wt) == session_recall._project_key(in_main), (in_wt, in_main)
+
+
+def test_project_key_falls_back_to_the_root_for_turns_without_a_repo():
+    import session_recall
+
+    old = {"git_root": "/w/m3-memory", "cwd": "/w/m3-memory/bin"}
+    assert session_recall._project_key(old) == os.path.normcase(os.path.normpath("/w/m3-memory"))
 
 
 def test_project_fields_without_git_name_the_cwd(tmp_path, monkeypatch):

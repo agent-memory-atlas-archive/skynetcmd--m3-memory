@@ -1,8 +1,8 @@
 ---
 tool: bin/session_recall.py
-sha1: 560ba4777ecb
-mtime_utc: 2026-10-18T21:37:40.100123+00:00
-generated_utc: 2026-10-18T21:40:57.204072+00:00
+sha1: cad3ea2f5a25
+mtime_utc: 2026-10-18T22:20:49.966048+00:00
+generated_utc: 2026-10-18T22:22:08.497406+00:00
 private: false
 ---
 
@@ -86,11 +86,11 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()` (line 1021)
+- `subprocess.Popen()` (line 1032)
 
 **http**
 
-- `httpx.AsyncClient()` (line 708)
+- `httpx.AsyncClient()` (line 719)
 
 
 ---

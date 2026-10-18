@@ -169,10 +169,17 @@ def agent_name(host_agent: str) -> str:
     return AGENT_NAMES.get(host_agent, host_agent or "unknown agent")
 
 
+# The project fields a turn and a summary carry, in one place: capture writes
+# them, recall reads them back, and a summary copies them.
+PROJECT_FIELDS = ("cwd", "git_root", "git_repo", "git_branch", "tree")
+
+
 def project_fields(cwd: str) -> dict[str, str]:
     """The project fields capture stores on each turn for a working directory:
-    ``cwd``, and ``git_root`` + ``git_branch`` when it is inside a git checkout,
-    and ``tree`` (the git root's directory name, else the cwd's). Empty when
+    ``cwd``; ``git_root``, ``git_repo`` and ``git_branch`` when it is inside a
+    git checkout; and ``tree``, the repository's directory name (else the
+    cwd's). In a linked worktree ``git_repo`` is the main checkout, so the
+    session is named after the repository, not the worktree's directory. Empty when
     ``cwd`` is empty. One git query pair per call (the OS seam's git_checkout),
     so callers compute it once per run, never per turn."""
     if not cwd:
@@ -183,17 +190,21 @@ def project_fields(cwd: str) -> dict[str, str]:
     out = {"cwd": path}
     checkout = git_checkout(path)
     if checkout is not None:
+        repo = checkout.repo or checkout.root
         out["git_root"] = checkout.root
+        out["git_repo"] = repo
         out["git_branch"] = checkout.branch
-        out["tree"] = os.path.basename(checkout.root) or checkout.root
+        out["tree"] = os.path.basename(repo) or repo
     else:
         out["tree"] = os.path.basename(path) or path
     return out
 
 
 def _project_key(fields: dict[str, Any]) -> str:
-    """The identity of a project for "same tree" tests: the git root, else the cwd."""
-    where = fields.get("git_root") or fields.get("cwd") or ""
+    """The identity of a project for "same tree" tests: the repository (one
+    project across its worktrees), else the git root (turns captured before
+    ``git_repo`` existed), else the cwd."""
+    where = fields.get("git_repo") or fields.get("git_root") or fields.get("cwd") or ""
     return os.path.normcase(os.path.normpath(where)) if where else ""
 
 
@@ -734,7 +745,7 @@ def _compaction_turn(tail_newest_first: list[Turn]) -> Turn | None:
 
 def _project_of(tail_newest_first: list[Turn]) -> dict[str, str]:
     for t in tail_newest_first:
-        fields = {k: str(t.meta[k]) for k in ("cwd", "git_root", "git_branch", "tree") if t.meta.get(k)}
+        fields = {k: str(t.meta[k]) for k in PROJECT_FIELDS if t.meta.get(k)}
         if fields:
             return fields
     return {}
@@ -812,7 +823,7 @@ async def summarize_session(pending: Pending, choice: str) -> str:
         "ready": pending.reason,
         "summary_source": source,
     }
-    for key in ("git_root", "git_branch", "tree", "cwd"):
+    for key in PROJECT_FIELDS:
         meta[key] = project.get(key) or None
     if model_label:
         meta["summary_model"] = model_label

@@ -132,6 +132,13 @@ the policy is forward-going only.
   **Affected:** all installs · **Action:** none · **Data status:** on SQLite,
   migration 061 adds the UTC zone to existing bare-date and zoneless values;
   each keeps the instant it already meant. PostgreSQL stores were already zoned.
+- **A session in a git worktree is named after its repository.** Session recall
+  named a session by the worktree's directory and treated it as a separate
+  project; it now uses the repository the worktree belongs to, so an agent's
+  isolated copy lists with the main checkout. Detached checkouts are included.
+  **Affected:** session recall users working in `git worktree` checkouts ·
+  **Action:** none · **Data status:** none; turns captured earlier keep the name
+  they were stored with.
 
 ### Removed
 

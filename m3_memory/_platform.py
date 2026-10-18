@@ -125,10 +125,16 @@ class GitCheckout:
     """The git working tree holding a directory: its top-level directory (an
     absolute path in this OS's form) and its branch. ``branch`` is the short
     branch name, a short commit id when HEAD is detached, or "" when git could
-    not say (an unborn branch whose name could not be read)."""
+    not say (an unborn branch whose name could not be read).
+
+    ``repo`` is the repository's main working tree: the same as ``root`` in an
+    ordinary checkout, and the checkout the worktree was added from when ``root``
+    is a linked worktree (``git worktree add``, an agent's isolated copy), so a
+    session there is named and grouped by its repository."""
 
     root: str
     branch: str
+    repo: str = ""
 
 
 # Seconds one git query may take. Capture reads the checkout once per ingest,
@@ -165,10 +171,11 @@ def git_checkout(cwd: str) -> GitCheckout | None:
     ``cwd`` is not a directory, it is outside any repository, or git did not
     answer within GIT_QUERY_TIMEOUT_S per query. Never raises.
 
-    Two queries at most: ``rev-parse --show-toplevel`` for the root, then
+    Up to four queries: ``rev-parse --show-toplevel`` for the root,
     ``symbolic-ref`` for the branch, which also names an unborn branch (a new
-    repository with no commit, where ``rev-parse --abbrev-ref HEAD`` fails). A
-    detached HEAD has no symbolic ref; its short commit id stands in."""
+    repository with no commit, where ``rev-parse --abbrev-ref HEAD`` fails), the
+    short commit id when HEAD is detached, and ``rev-parse --git-common-dir`` for
+    the repository (see GitCheckout.repo)."""
     import shutil
 
     if not cwd or not os.path.isdir(cwd):
@@ -183,7 +190,25 @@ def git_checkout(cwd: str) -> GitCheckout | None:
     if not branch:
         branch = _git(git, cwd, "rev-parse", "--short", "HEAD") or ""
     # git prints a forward-slash path on every OS; normpath gives this OS's form.
-    return GitCheckout(root=os.path.normpath(top), branch=branch)
+    root = os.path.normpath(top)
+    return GitCheckout(root=root, branch=branch, repo=_main_tree(git, cwd) or root)
+
+
+def _main_tree(git: str, cwd: str) -> str | None:
+    """The main working tree of the repository holding ``cwd``: the parent of
+    the shared git directory when that is a ``.git`` directory. None otherwise
+    (a bare repository, a submodule's ``.git/modules/<name>``, git not
+    answering), where the caller keeps the checkout's own root.
+
+    ``--git-common-dir`` (git 2.5+) is relative to ``cwd`` unless absolute;
+    ``--path-format=absolute`` would need git 2.31."""
+    common = _git(git, cwd, "rev-parse", "--git-common-dir")
+    if not common:
+        return None
+    common = os.path.normpath(os.path.join(cwd, common))
+    if os.path.basename(common) != ".git":
+        return None
+    return os.path.dirname(common)
 
 
 # System.Volume.BitLockerProtection, as Windows' Shell reports it to any user
