@@ -963,6 +963,45 @@ def background_log() -> Any:
     return open(path, "a", encoding="utf-8")  # noqa: SIM115 -- handed to Popen; the caller closes it
 
 
+# An ERROR/CRITICAL line in the background log: the worker's own lines (UTC,
+# "2026-10-18T21:05:09Z ERROR ...") or a capture child's (chatlog_ingest's local
+# "2026-10-18 17:05:09,123 - name - ERROR - ...").
+_BG_ERROR_UTC = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) (?:ERROR|CRITICAL)\b")
+_BG_ERROR_LOCAL = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d),\d+ (?:- \S+ - )?(?:ERROR|CRITICAL)\b")
+
+
+def recent_background_failures(hours: int = 24, now: datetime | None = None) -> tuple[int, str, str]:
+    """(count, newest failure line, log path) for background session-end
+    captures and summaries that failed within ``hours``; (0, "", path) when none
+    or the log does not exist. Reads the log's tail only."""
+    from m3_core.paths import get_m3_logs_root
+
+    path = os.path.join(get_m3_logs_root(), BACKGROUND_LOG)
+    now = now or datetime.now(UTC)
+    since = now - timedelta(hours=hours)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 256_000))
+            lines = f.read().splitlines()
+    except OSError:
+        return 0, "", path
+    count, newest = 0, ""
+    for line in lines:
+        m = _BG_ERROR_UTC.match(line)
+        if m:
+            at = datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+        else:
+            m = _BG_ERROR_LOCAL.match(line)
+            if not m:
+                continue
+            at = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S").astimezone(UTC)  # written in local time
+        if at >= since:
+            count += 1
+            newest = line.strip()[:300]
+    return count, newest, path
+
+
 def start_background_summary(conversation_id: str) -> str | None:
     """Start a detached process that summarizes ``conversation_id`` now. Returns
     None when started, else why not. Its output goes to the logs root's
@@ -1017,7 +1056,10 @@ def _background_main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Summarize one chat session now (started by capture).")
     ap.add_argument("--summarize", required=True, metavar="CONVERSATION_ID")
     args = ap.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%Y-%m-%dT%H:%M:%SZ"
+    )
+    logging.Formatter.converter = time.gmtime  # UTC, as every timestamp m3 writes
     try:
         outcome = asyncio.run(summarize_conversation(args.summarize))
     except Exception as e:  # noqa: BLE001 -- a detached worker reports to its log and exits

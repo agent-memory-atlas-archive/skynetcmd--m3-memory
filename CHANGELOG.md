@@ -105,7 +105,8 @@ the policy is forward-going only.
   `session_summary` model profile, which reads the session's latest compaction
   summary and its last turns and names the session by its main work; a summary
   is superseded when the session grows. When recent sessions have waited over an
-  hour with no summary, the session-start line says so.
+  hour with no summary, the session-start line says so, and `m3 doctor` reports
+  background session-end captures or summaries that failed in the last 24 hours.
   Captured turns now record `cwd`, `git_root`, `git_branch` and `tree`; earlier
   turns show as "(no project)". Settings live under `[recall]`;
   `recall.summary_profile` other than `local` sends the session's tail to that

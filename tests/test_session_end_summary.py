@@ -110,3 +110,28 @@ def test_unsummarized_line_speaks_only_when_a_ready_session_is_late(monkeypatch)
 
     monkeypatch.setattr(session_recall, "recall_settings", lambda: {"enabled": False})
     assert session_recall.unsummarized_line(now) == ""  # recall off: quiet
+
+
+def test_recent_background_failures_counts_only_recent_errors(monkeypatch, tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    import m3_core.paths
+
+    now = datetime(2026, 10, 18, 21, 0, tzinfo=UTC)
+    monkeypatch.setattr(m3_core.paths, "get_m3_logs_root", lambda: str(tmp_path))
+    assert session_recall.recent_background_failures(24, now=now)[0] == 0  # no log yet: quiet
+
+    recent_local = (now - timedelta(hours=2)).astimezone().strftime("%Y-%m-%d %H:%M:%S") + ",123"
+    lines = [
+        (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        + " ERROR session_recall: observed: background summary failed",
+        f"{recent_local} - chatlog_ingest - ERROR - could not write a turn",
+        (now - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        + " INFO session_recall: background summary: written:model",
+        (now - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ") + " ERROR session_recall: an old failure",
+        '{"written": 2}',
+    ]
+    (tmp_path / session_recall.BACKGROUND_LOG).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    count, newest, path = session_recall.recent_background_failures(24, now=now)
+    assert count == 2, (count, newest)
+    assert "could not write a turn" in newest and path.endswith(session_recall.BACKGROUND_LOG)

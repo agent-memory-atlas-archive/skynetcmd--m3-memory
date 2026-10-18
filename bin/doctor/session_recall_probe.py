@@ -109,9 +109,19 @@ def run(brief: bool = False, now: datetime | None = None) -> int:
     else:
         verdict = f"no chat sessions in the {window}, so nothing to summarize ({newest_txt})"
 
+    failed, newest_failure, bg_log = session_recall.recent_background_failures(24, now=now)
+    background = (
+        f"{failed} background session-end capture/summary failure(s) in the last 24 h; newest: "
+        f"{newest_failure}. inspect: {bg_log}"
+        if failed
+        else ""
+    )
+
     if brief:
         glyph = "⚠️ " if lagging else "✅"
         print(f"{glyph} session recall: {verdict}" + (f" · {note}" if note else ""))
+        if background:
+            print(f"⚠️  session recall: {background}")
         return 0
 
     print()
@@ -126,6 +136,7 @@ def run(brief: bool = False, now: datetime | None = None) -> int:
     else:
         print(f"  project  : no turns captured in the {window}")
     print(f"  status   : {'WARN' if lagging else 'OK'}: {verdict}")
+    print(f"  background: {'WARN: ' + background if background else 'no session-end failures in the last 24 h'}")
     if note:
         print(f"  note     : {note}")
     return 0
