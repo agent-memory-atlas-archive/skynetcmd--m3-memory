@@ -73,7 +73,7 @@ def ollama_url(host: str) -> str:
         h = "http://" + h
     u = urlparse(h)
     name = u.hostname or ""
-    if name in ("", "0.0.0.0", "::"):
+    if name in ("", "0.0.0.0", "::"):  # nosec B104 -- comparison, not a bind
         name = "localhost"
     port = u.port or (443 if u.scheme == "https" and name.endswith(OLLAMA_CLOUD_HOST) else 11434)
     shown = f"[{name}]" if ":" in name else name

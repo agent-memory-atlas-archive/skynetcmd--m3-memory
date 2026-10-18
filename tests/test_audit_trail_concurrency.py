@@ -30,10 +30,22 @@ def test_concurrent_processes_keep_one_unbroken_chain(tmp_path, monkeypatch):
     log = str(tmp_path / "audit.jsonl")
     n_procs, per = 4, 40
     env = dict(os.environ)
-    procs = [
-        subprocess.Popen([sys.executable, "-c", _CHILD, BIN, log, str(per), f"p{k}"], env=env) for k in range(n_procs)
-    ]
-    assert all(p.wait(timeout=180) == 0 for p in procs)
+    # Each child's stderr goes to a file (a pipe left undrained can block a child),
+    # so a child that dies says why: under pytest's capture it was otherwise lost.
+    errs = [tmp_path / f"p{k}.err" for k in range(n_procs)]
+    procs = []
+    for k, err in enumerate(errs):
+        with err.open("w", encoding="utf-8") as fh:
+            procs.append(
+                subprocess.Popen([sys.executable, "-c", _CHILD, BIN, log, str(per), f"p{k}"], env=env, stderr=fh)
+            )
+    codes = [p.wait(timeout=180) for p in procs]
+    failed = {
+        f"p{k}": (rc, errs[k].read_text(encoding="utf-8", errors="replace")[-2000:])
+        for k, rc in enumerate(codes)
+        if rc != 0
+    }
+    assert not failed, f"writer processes failed (exit code, stderr tail): {failed}"
     with open(log, encoding="utf-8") as f:
         entries = [json.loads(line) for line in f if line.strip()]
     assert len(entries) == n_procs * per, "entries were lost"
