@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_agent_plugins.py
-sha1: 244a8a28fd83
-mtime_utc: 2026-10-18T17:35:40.423565+00:00
-generated_utc: 2026-10-18T17:56:58.082831+00:00
+sha1: 62eaf8d41c80
+mtime_utc: 2026-10-18T18:31:43.723839+00:00
+generated_utc: 2026-10-18T18:31:49.678622+00:00
 private: false
 ---
 
@@ -38,7 +38,7 @@ byte-identical.
 
 ## Entry points
 
-- `def main()` (line 144)
+- `def main()` (line 146)
 - `if __name__ == "__main__"` guard
 
 ---

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -135,10 +136,11 @@ def build() -> dict[Path, str]:
 
 def _orphans(outputs: dict[Path, str]) -> list[Path]:
     """Skill folders in the Codex plugin that no source produces any more."""
-    if not CODEX_SKILLS.is_dir():
+    # os.path: Path.is_dir raises on Python 3.12/3.13 for some paths (test_python_version_seam).
+    if not os.path.isdir(CODEX_SKILLS):
         return []
     wanted = {p.parent for p in outputs if p.parent.parent == CODEX_SKILLS}
-    return sorted(d for d in CODEX_SKILLS.iterdir() if d.is_dir() and d not in wanted)
+    return sorted(d for d in CODEX_SKILLS.iterdir() if os.path.isdir(d) and d not in wanted)
 
 
 def main(argv: list[str] | None = None) -> int:

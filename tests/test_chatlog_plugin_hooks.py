@@ -87,7 +87,9 @@ def test_claude_plugin_capture_falls_back_on_an_older_m3(tmp_path):
     exit code stands; a missing m3 says capture did not happen."""
     cmd = _capture_commands(ROOT / "hooks" / "claude.json")[0]
     script = tmp_path / "old_capture.sh"
-    script.write_bytes(b'cat > "$(dirname "$0")/got_stdin"\nexit 0\n')
+    # An absolute target: the test's PATH holds only the stubs and sh's own folder,
+    # and on macOS `dirname` lives in /usr/bin, not beside /bin/sh.
+    script.write_bytes(f"cat > '{(tmp_path / 'got_stdin').as_posix()}'\nexit 0\n".encode())
 
     old = tmp_path / "old"
     old.mkdir()
