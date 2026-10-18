@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_cognitive_loop.py
-sha1: 9e12b0ae1a49
-mtime_utc: 2026-10-16T17:58:23.240122+00:00
-generated_utc: 2026-10-16T19:03:59.405087+00:00
+sha1: d3e064c31ccd
+mtime_utc: 2026-10-18T17:44:13.832898+00:00
+generated_utc: 2026-10-18T17:45:16.169136+00:00
 private: false
 ---
 
@@ -30,7 +30,7 @@ for m3_enrich and m3_entities.
 
 ## Entry points
 
-- `def main()` (line 2277)
+- `def main()` (line 2352)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -65,6 +65,7 @@ for m3_enrich and m3_entities.
 | `--distill-stale-days` | Only distill tasks completed > N days ago (default: 3) | `3` |  | int |  |
 | `--distill-max-procedures` | Max procedures written per distillation run (default: 20) | `20` |  | int |  |
 | `--skip-chatlog-prune` | Skip the chatlog noise-prune pass | `False` |  | store_true |  |
+| `--skip-summarize-sessions` | Skip the session-summary pass (session recall's menu then gets no new summaries) | `False` |  | store_true |  |
 | `--chatlog-prune-threshold` | Min aged prune-eligible chat_log rows before a sweep (default: 2000) | `2000` |  | int |  |
 | `--chatlog-prune-fresh-days` | Keep noise newer than N days untouched (default: 14) | `14.0` |  | float |  |
 | `--chatlog-prune-days` | Soft-delete aged noise older than N days (default: 45) | `45.0` |  | float |  |
@@ -92,6 +93,7 @@ _(none detected)_
 - `chatlog_embed_sweeper`
 - `chatlog_prune`
 - `consolidate_beliefs`
+- `consolidate_beliefs (_should_yield_to_user)`
 - `distill_procedures`
 - `embed_backfill`
 - `m3_enrich`
@@ -102,6 +104,7 @@ _(none detected)_
 - `memory_core (ctx)`
 - `memory_maintenance`
 - `memory_maintenance (undistilled_task_clause)`
+- `session_recall`
 - `slm_intent (load_profile)`
 - `sqlite_pragmas (apply_pragmas, profile_for_db)`
 - `sync_all`

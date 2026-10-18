@@ -4,4 +4,4 @@ The SHA-256 of the shipped default config's content (line endings read as LF),
 checked by m3_core.config.default_file before m3 copies the file into a config root.
 """
 
-SHA256 = "368b86e92eeca6687307401de8f94c898e41123d48109423f2d663fbbfedebf8"
+SHA256 = "2c3e4f4a8af53e180fa7f145e52f531a4acf45e79e892d83fdf95b2012ff0aa0"

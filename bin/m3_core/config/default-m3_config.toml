@@ -1261,6 +1261,43 @@ schema_version = 1
 # type: string; restart to apply
 # llm_url = "http://localhost:1234/v1/chat/completions"
 
+[recall]
+
+# A session whose last turn is newer than this is marked (active): its summary is
+# partial.
+# type: integer
+# active_minutes = 10
+
+# Offer the recent-sessions menu at session start (session_brief and the session-start
+# hook).
+# type: boolean
+# enabled = true
+
+# Other agents offered in the menu, one line each with that agent's most recent session
+# (0: none).
+# type: integer
+# other_agents = 3
+
+# The loop summarizes a session once it has been quiet this long (a compaction or exit
+# sooner).
+# type: integer
+# quiet_minutes = 20
+
+# Menu lines for the current agent's own recent sessions (0: none).
+# type: integer
+# same_agent_sessions = 3
+
+# Who writes the loop's session summaries: local (the session_summary SLM profile; the
+# text stays on this machine), session (the session's own model when m3 holds that
+# provider's API key, else local), or an SLM profile name. Anything but local sends the
+# session's tail to that provider.
+# type: string
+# summary_profile = "local"
+
+# How many days back a session may have ended and still be offered in the menu.
+# type: integer
+# window_days = 2
+
 [reflector]
 
 # SLM profile the reflector uses.

@@ -335,6 +335,7 @@ def main() -> int:
 
     session_id = ""
     transcript = ""
+    cwd = ""
     event_name = "command:reset"
 
     # Accept an envelope if one is ever provided, so this hook does not need
@@ -346,6 +347,7 @@ def main() -> int:
                 session_id = envelope.get("session_id", "") or ""
                 transcript = envelope.get("transcript_path", "") or ""
                 event_name = envelope.get("hook_event_name", event_name)
+                cwd = envelope.get("cwd", "") or ""
         except json.JSONDecodeError:
             pass  # OpenClaw sends nothing today — discover below
 
@@ -377,6 +379,8 @@ def main() -> int:
     args = ["--format", FORMAT, "--transcript-path", transcript, "--variant", variant]
     if session_id:
         args += ["--session-id", session_id]
+    if cwd:
+        args += ["--cwd", cwd]  # the session's project, stored with each turn
 
     res = run_ingest(py, ingest, args)
     failure = failure_reason(res, transcript)

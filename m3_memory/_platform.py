@@ -112,6 +112,72 @@ def _probe(argv: list[str]) -> tuple[int, str]:
     return cp.returncode, (cp.stdout or "").strip()
 
 
+@dataclass(frozen=True, slots=True)
+class GitCheckout:
+    """The git working tree holding a directory: its top-level directory (an
+    absolute path in this OS's form) and its branch. ``branch`` is the short
+    branch name, a short commit id when HEAD is detached, or "" when git could
+    not say (an unborn branch whose name could not be read)."""
+
+    root: str
+    branch: str
+
+
+# Seconds one git query may take. Capture reads the checkout once per ingest,
+# inside a hook the client waits on: a hung git (a network filesystem, a
+# credential prompt) must cost a bounded delay, never a stalled session.
+GIT_QUERY_TIMEOUT_S = 3.0
+
+
+def _git(git: str, cwd: str, *args: str) -> str | None:
+    """One read-only git query in ``cwd``; its stripped stdout, or None on any
+    failure (non-zero exit, timeout, OS error). No shell; no console window."""
+    import subprocess
+
+    try:
+        cp = subprocess.run(  # nosec B603 - argv list, no shell
+            [git, "-C", cwd, *args],
+            capture_output=True,
+            text=True,
+            timeout=GIT_QUERY_TIMEOUT_S,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            **hidden_window_kwargs(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if cp.returncode != 0:
+        return None
+    return (cp.stdout or "").strip()
+
+
+def git_checkout(cwd: str) -> GitCheckout | None:
+    """The git working tree that holds ``cwd``, or None when there is none:
+    git is not installed (the capability: an executable on PATH, not the OS),
+    ``cwd`` is not a directory, it is outside any repository, or git did not
+    answer within GIT_QUERY_TIMEOUT_S per query. Never raises.
+
+    Two queries at most: ``rev-parse --show-toplevel`` for the root, then
+    ``symbolic-ref`` for the branch, which also names an unborn branch (a new
+    repository with no commit, where ``rev-parse --abbrev-ref HEAD`` fails). A
+    detached HEAD has no symbolic ref; its short commit id stands in."""
+    import shutil
+
+    if not cwd or not os.path.isdir(cwd):
+        return None
+    git = shutil.which("git")
+    if git is None:
+        return None
+    top = _git(git, cwd, "rev-parse", "--show-toplevel")
+    if not top:
+        return None
+    branch = _git(git, cwd, "symbolic-ref", "--short", "-q", "HEAD")
+    if not branch:
+        branch = _git(git, cwd, "rev-parse", "--short", "HEAD") or ""
+    # git prints a forward-slash path on every OS; normpath gives this OS's form.
+    return GitCheckout(root=os.path.normpath(top), branch=branch)
+
+
 # System.Volume.BitLockerProtection, as Windows' Shell reports it to any user
 # (manage-bde needs admin). Undocumented by Microsoft: only the two values
 # relied on are mapped; anything else is reported, not guessed.

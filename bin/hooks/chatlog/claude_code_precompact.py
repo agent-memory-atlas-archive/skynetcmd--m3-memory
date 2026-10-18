@@ -307,6 +307,7 @@ def main() -> int:
     transcript = envelope.get("transcript_path", "")
     session_id = envelope.get("session_id", "")
     event_name = envelope.get("hook_event_name", "")
+    cwd = envelope.get("cwd") or ""
 
     if not transcript:
         print(f"{AGENT} hook: envelope missing transcript_path", file=sys.stderr)
@@ -326,6 +327,8 @@ def main() -> int:
     args = ["--format", FORMAT, "--transcript-path", transcript, "--variant", variant]
     if session_id:
         args += ["--session-id", session_id]
+    if cwd:
+        args += ["--cwd", cwd]  # the session's project, stored with each turn
 
     res = run_ingest(py, ingest, args)
     failure = failure_reason(res, transcript)

@@ -1395,6 +1395,47 @@
         }
       }
     },
+    "recall": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_minutes": {
+          "type": "integer",
+          "description": "A session whose last turn is newer than this is marked (active): its summary is partial.",
+          "default": 10
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Offer the recent-sessions menu at session start (session_brief and the session-start hook).",
+          "default": true
+        },
+        "other_agents": {
+          "type": "integer",
+          "description": "Other agents offered in the menu, one line each with that agent's most recent session (0: none).",
+          "default": 3
+        },
+        "quiet_minutes": {
+          "type": "integer",
+          "description": "The loop summarizes a session once it has been quiet this long (a compaction or exit sooner).",
+          "default": 20
+        },
+        "same_agent_sessions": {
+          "type": "integer",
+          "description": "Menu lines for the current agent's own recent sessions (0: none).",
+          "default": 3
+        },
+        "summary_profile": {
+          "type": "string",
+          "description": "Who writes the loop's session summaries: local (the session_summary SLM profile; the text stays on this machine), session (the session's own model when m3 holds that provider's API key, else local), or an SLM profile name. Anything but local sends the session's tail to that provider.",
+          "default": "local"
+        },
+        "window_days": {
+          "type": "integer",
+          "description": "How many days back a session may have ended and still be offered in the menu.",
+          "default": 2
+        }
+      }
+    },
     "reflector": {
       "type": "object",
       "additionalProperties": false,

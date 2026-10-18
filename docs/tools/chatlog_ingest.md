@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: 68a9cec5c766
-mtime_utc: 2026-10-18T17:53:56.255396+00:00
-generated_utc: 2026-10-18T17:54:57.161150+00:00
+sha1: a50077e27d31
+mtime_utc: 2026-10-18T18:08:38.691243+00:00
+generated_utc: 2026-10-18T18:08:56.760378+00:00
 private: false
 ---
 
@@ -21,7 +21,7 @@ hypothetical canonical format.
 CLI:
   python bin/chatlog_ingest.py --format {claude-code,gemini-cli}
                                --transcript-path FILE
-                               [--session-id ID] [--variant LABEL]
+                               [--session-id ID] [--variant LABEL] [--cwd DIR]
 
 A per-session cursor at <engine_root>/.chatlog_ingest_cursor.json records which
 message ids / indices have been ingested so re-invoking on the same transcript
@@ -36,7 +36,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 
 ## Entry points
 
-- `async def main()` (line 1100)
+- `async def main()` (line 1148)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -49,6 +49,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 | `--transcript-path` | Path to the transcript file on disk | — | Reads transcript file at specified path | str | Uses the provided file path as transcript source |
 | `--session-id` | Override conversation_id (defaults to parsed sessionId) | `` | Uses conversation_id parsed from transcript | str | Overrides conversation_id; used if transcript lacks sessionId |
 | `--variant` | Provenance tag (e.g. pre_compact, stop, session_end, test) | None | No variant tag added to rows | str | Tags each ingested row with provided variant value |
+| `--cwd` | The session's working directory (from the hook envelope); stored with each turn with its git root, branch and tree. Default: the directory the transcript records, if any. | `` |  | str |  |
 | `--db` | Deprecated: chatlog-only override. Prefer --database. Pins the chatlog store for this process. | None | Deprecated alias for --database / CHATLOG_DB_PATH | str | Deprecated alias for --database / CHATLOG_DB_PATH |
 | `--spill-dir` | Override spill directory for this run (dev smoke tests). Prevents stale spill files from polluting production. | None | Uses configured spill directory | str | Routes spill writes to PATH instead of configured dir (dev smoke tests only) |
 | `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
@@ -75,6 +76,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 - `chatlog_core`
 - `m3_sdk (add_database_arg)`
 - `memory_core`
+- `session_recall (project_fields)`
 
 ---
 
@@ -82,7 +84,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 
 **sqlite**
 
-- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 712)
+- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 745)
 
 
 ---

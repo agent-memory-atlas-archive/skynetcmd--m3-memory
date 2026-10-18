@@ -281,6 +281,7 @@ def main() -> int:
         raw = ""  # no stdin attached
     session_id = ""
     transcript = ""
+    cwd = ""
     event_name = "SessionEnd"
 
     # OpenCode envelope is optional
@@ -290,6 +291,7 @@ def main() -> int:
             session_id = envelope.get("session_id", "")
             transcript = envelope.get("transcript_path", "")
             event_name = envelope.get("hook_event_name", "SessionEnd")
+            cwd = envelope.get("cwd", "") or ""
         except json.JSONDecodeError:
             pass  # OpenCode may not send JSON — proceed with defaults
 
@@ -313,6 +315,8 @@ def main() -> int:
     args = ["--format", FORMAT, "--transcript-path", transcript, "--variant", variant]
     if session_id:
         args += ["--session-id", session_id]
+    if cwd:
+        args += ["--cwd", cwd]  # the session's project, stored with each turn
 
     res = run_ingest(py, ingest, args)
     failure = failure_reason(res, transcript)

@@ -319,7 +319,7 @@ Call `memory_write` to persist any fact, decision, preference, observation, or k
 
 | Parameter | Required | Notes |
 |-----------|----------|-------|
-| `type` | Yes | One of (36 canonical, alphabetical): `auto`, `belief`, `chat_log`, `code`, `config`, `conversation`, `decision`, `event_extraction`, `fact`, `fact_enriched`, `home`, `home_automation`, `infrastructure`, `knowledge`, `linux_only`, `local_device`, `log`, `macos_only`, `message`, `migration-log`, `network_config`, `note`, `observation`, `plan`, `preference`, `procedure`, `reference`, `scratchpad`, `security`, `snippet`, `summary`, `synthesis`, `task`, `to_do`, `user_fact`, `windows_only`. Live source of truth: `bin/catalog/spec.py:VALID_MEMORY_TYPES` (re-exported from `bin/mcp_tool_catalog.py`). |
+| `type` | Yes | One of (38 canonical, alphabetical): `auto`, `belief`, `chat_log`, `code`, `config`, `conversation`, `decision`, `event_extraction`, `fact`, `fact_enriched`, `home`, `home_automation`, `infrastructure`, `knowledge`, `linux_only`, `local_device`, `log`, `macos_only`, `message`, `migration-log`, `network_config`, `note`, `observation`, `plan`, `preference`, `procedure`, `reference`, `scratchpad`, `security`, `session_note`, `session_summary`, `snippet`, `summary`, `synthesis`, `task`, `to_do`, `user_fact`, `windows_only`. Live source of truth: `bin/catalog/spec.py:VALID_MEMORY_TYPES` (re-exported from `bin/mcp_tool_catalog.py`). |
 | `content` | Yes | The memory content (max 50,000 chars) |
 | `title` | No | Short descriptive title — used for contradiction matching |
 | `importance` | No | 0.0–1.0 (default 0.5). Higher = slower decay, higher search ranking |

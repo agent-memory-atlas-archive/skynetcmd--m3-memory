@@ -50,9 +50,27 @@ the policy is forward-going only.
   hooks are now one line each (`m3 hook claude-session-start`,
   `m3 hook claude-capture`), and its session start reports capture status and
   the version.
-  **Affected:** Claude Code plugin users · **Action:** update the plugin and
-  m3 together (`m3 upgrade`); an older m3 answers `invalid choice: 'hook'` ·
+  **Affected:** Claude Code plugin users · **Action:** update m3 with the
+  plugin (`m3 upgrade`); on an older m3 the capture hooks fall back to its
+  previous command, and only the session-start line waits for the upgrade ·
   **Data status:** none.
+- **Session recall: a menu of your recent sessions at session start.**
+  `session_brief` (MCP tool and `m3 memory session_brief`) lists numbered
+  one-line summaries: this agent's recent sessions first, then each other
+  agent's latest, sessions from the current git tree first, each with local time,
+  tree and branch. The server instructions ask agents to show it once; a chosen
+  line loads with `memory_get`. The cognitive loop's new `summarize_sessions`
+  pass writes one `session_summary` memory per session once it is quiet
+  (`recall.quiet_minutes`) or compacted/ended, from the agent's own
+  `session_note`, Claude Code's compaction summary, or the local
+  `session_summary` model profile, and supersedes it when the session grows.
+  Captured turns now record `cwd`, `git_root`, `git_branch` and `tree`; earlier
+  turns show as "(no project)". Settings live under `[recall]`;
+  `recall.summary_profile` other than `local` sends the session's tail to that
+  provider. `m3 doctor` reports how far behind the summary pass is.
+  **Affected:** all installs · **Action:** none; turn off with
+  `m3 config set recall.enabled false` · **Data status:** new
+  `session_summary` memories (scope user); chat turns gain four metadata fields.
 
 ### Security
 
@@ -84,6 +102,9 @@ the policy is forward-going only.
   **Affected:** installs whose LLM needs no key (Ollama; LM Studio without
   authentication) · **Action:** none. With LM Studio authentication on, store
   its key: `m3 secret set LM_API_TOKEN` · **Data status:** none.
+- **`chatlog_list_conversations` works on PostgreSQL.** It failed with a
+  grouping error on every call there.
+  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
 
 - **Setup says when Hermes cannot load the m3 provider.** It reported the
   plugin "already current" while Hermes' own Python could not import m3 (for

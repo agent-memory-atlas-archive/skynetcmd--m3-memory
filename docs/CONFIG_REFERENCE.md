@@ -436,6 +436,18 @@ Precedence for each setting: a command-line flag (`--set KEY=VALUE`), then this 
 | `llm_model` | string | `google/gemma-4-26b-a4b` | `M3_LM_MODEL`, `LM_MODEL` | restart to apply; Model promote_pipeline requests. |
 | `llm_url` | string | `http://localhost:1234/v1/chat/completions` | `M3_LM_URL`, `LM_URL` | restart to apply; Chat-completions URL (full path) promote_pipeline calls. |
 
+## [recall]
+
+| Key | Type | Default | Former environment names (not read) | Notes |
+|---|---|---|---|---|
+| `active_minutes` | integer | `10` | (none) | A session whose last turn is newer than this is marked (active): its summary is partial. |
+| `enabled` | boolean | `true` | (none) | Offer the recent-sessions menu at session start (session_brief and the session-start hook). |
+| `other_agents` | integer | `3` | (none) | Other agents offered in the menu, one line each with that agent's most recent session (0: none). |
+| `quiet_minutes` | integer | `20` | (none) | The loop summarizes a session once it has been quiet this long (a compaction or exit sooner). |
+| `same_agent_sessions` | integer | `3` | (none) | Menu lines for the current agent's own recent sessions (0: none). |
+| `summary_profile` | string | `local` | (none) | Who writes the loop's session summaries: local (the session_summary SLM profile; the text stays on this machine), session (the session's own model when m3 holds that provider's API key, else local), or an SLM profile name. Anything but local sends the session's tail to that provider. |
+| `window_days` | integer | `2` | (none) | How many days back a session may have ended and still be offered in the menu. |
+
 ## [reflector]
 
 | Key | Type | Default | Former environment names (not read) | Notes |

@@ -51,6 +51,7 @@ def get_category_map():
         "memory_search_multi_db": "Memory Operations",
         "memory_suggest": "Memory Operations",
         "memory_get": "Memory Operations",
+        "session_brief": "Memory Operations",
         "memory_update": "Memory Operations",
         "memory_delete": "Memory Operations",
         "memory_delete_bulk": "Memory Operations",
@@ -333,7 +334,7 @@ def main():
     # 115 = 126 - the 11 PROTOCOL_TOOLS/DEBUG_TOOLS the mcp_proxy served from
     # custom_tool_bridge and debug_agent_bridge, both deleted 2026-09-17 (never
     # part of m3).
-    EXPECTED_TOOL_COUNT = 119  # + notifications_peek, - chatlog_set_redaction (CLI-only) (2026-10-11)
+    EXPECTED_TOOL_COUNT = 120  # + session_brief (session recall, 2026-10-18)
     if len(all_tools) != EXPECTED_TOOL_COUNT:
         import sys
 

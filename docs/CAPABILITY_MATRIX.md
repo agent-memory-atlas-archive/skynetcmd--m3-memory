@@ -2,13 +2,13 @@
 
 > **Generated** by `bin/gen_capability_matrix.py` from `docs/tools/MCP_CATALOG.json` — do not edit by hand; re-run after any tool-catalog change. This is the single scannable index of *what M3 can do* and *which tool does it*, for humans, search engines, and AI agents.
 
-**119 tools across 9 capability groups.** The **Consent** column reflects the dispatch gate: a ⚠️ tool will not run until it is explicitly allowed (it deletes, exports, or runs a bulk/long operation), while a default-allowed tool runs without extra opt-in. It is **not** a read/write distinction — `memory_write` is default-allowed, and read-only `memory_export` is not.
+**120 tools across 9 capability groups.** The **Consent** column reflects the dispatch gate: a ⚠️ tool will not run until it is explicitly allowed (it deletes, exports, or runs a bulk/long operation), while a default-allowed tool runs without extra opt-in. It is **not** a read/write distinction — `memory_write` is default-allowed, and read-only `memory_export` is not.
 
 > **Beyond MCP tools:** M3 also ships a **storage backend** choice (SQLite default; PostgreSQL as a first-class primary via `[db] backend = "postgres"`) and native **framework adapters** — LangChain/LangGraph, CrewAI, and PydanticAI. These are deployment/framework facts, not MCP tools, so they don't appear in the table below. See [CORE_FEATURES](CORE_FEATURES.md) and [COMPARISON](COMPARISON.md).
 
 ## Capability groups
 
-- [🧠 Memory](#memory) — Write, retrieve, version, and reconcile long-term agent memory. (42 tools)
+- [🧠 Memory](#memory) — Write, retrieve, version, and reconcile long-term agent memory. (43 tools)
 - [💬 Chat Log](#chat-log) — Capture verbatim conversation turns before compaction; audit and replay. (9 tools)
 - [📁 Files Memory](#files-memory) — Index, search, and recall project files as memory. (25 tools)
 - [🕸️ Entity Graph](#entity-graph) — Extract and query entities and their relationships across sessions. (3 tools)
@@ -66,6 +66,7 @@ _Write, retrieve, version, and reconcile long-term agent memory._
 | `memory_write` | Store a new memory and, by default, embed it for semantic search. | default-allowed |
 | `memory_write_from_file` | Write a memory whose content is read from a file on disk. | default-allowed |
 | `memory_write_slim` | Write a memory. | default-allowed |
+| `session_brief` | Recent-sessions menu for the start of a session: numbered one-line summaries of this agent's recent… | default-allowed |
 
 ## 💬 Chat Log
 

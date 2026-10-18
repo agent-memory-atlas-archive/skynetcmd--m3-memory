@@ -409,9 +409,9 @@ The MMR balance (λ = 0.7) is fixed in code, not a setting.
 
 Always-on: when `metadata.temporal_anchors` is supplied, resolved ISO dates are prefixed to the embed text as `[YYYY-MM-DD] …` so absolute-date queries hit rows even when the source text says "yesterday". No flag; no-op when anchors are absent.
 
-### Valid Memory Types (35 + `auto`)
+### Valid Memory Types (37 + `auto`)
 
-`note`, `fact`, `fact_enriched`, `decision`, `preference`, `conversation`, `message`, `chat_log`, `task`, `to_do`, `code`, `config`, `observation`, `plan`, `summary`, `snippet`, `reference`, `log`, `migration-log`, `home`, `home_automation`, `user_fact`, `scratchpad`, `knowledge`, `event_extraction`, `security`, `local_device`, `network_config`, `infrastructure`, `windows_only`, `macos_only`, `linux_only`, `belief`, `procedure`, `synthesis`, plus `auto` (triggers LLM classification). Source of truth: `VALID_MEMORY_TYPES` in `bin/catalog/spec.py`.
+`note`, `fact`, `fact_enriched`, `decision`, `preference`, `conversation`, `message`, `chat_log`, `task`, `to_do`, `code`, `config`, `observation`, `plan`, `summary`, `snippet`, `reference`, `log`, `migration-log`, `home`, `home_automation`, `user_fact`, `scratchpad`, `knowledge`, `event_extraction`, `security`, `local_device`, `network_config`, `infrastructure`, `windows_only`, `macos_only`, `linux_only`, `belief`, `procedure`, `synthesis`, `session_summary`, `session_note`, plus `auto` (triggers LLM classification). Source of truth: `VALID_MEMORY_TYPES` in `bin/catalog/spec.py`.
 
 ### Valid Relationship Types (11)
 

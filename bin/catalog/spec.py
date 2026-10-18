@@ -87,6 +87,15 @@ VALID_MEMORY_TYPES = frozenset(
         # to sources via 'consolidates' (a compiled page) or 'distills_from' (a
         # query answer filed back into the wiki).
         "synthesis",
+        # Session recall. A 'session_summary' is the one-line menu text plus a
+        # short summary of one chat session's tail, written by the cognitive
+        # loop's summarize_sessions pass and listed by session_brief; metadata
+        # carries host_agent, conversation_id, git_root/git_branch/tree and the
+        # first/last turn times. A 'session_note' is what an agent writes itself
+        # when the user wraps up (conversation_id set): when it is newer than the
+        # session's last turn the loop uses it instead of calling a model.
+        "session_summary",
+        "session_note",
     }
 )
 

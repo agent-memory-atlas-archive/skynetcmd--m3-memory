@@ -9,7 +9,7 @@ hypothetical canonical format.
 CLI:
   python bin/chatlog_ingest.py --format {claude-code,gemini-cli}
                                --transcript-path FILE
-                               [--session-id ID] [--variant LABEL]
+                               [--session-id ID] [--variant LABEL] [--cwd DIR]
 
 A per-session cursor at <engine_root>/.chatlog_ingest_cursor.json records which
 message ids / indices have been ingested so re-invoking on the same transcript
@@ -123,19 +123,24 @@ def _parse_claude_code(raw: str) -> tuple[list[dict], str | None]:
         usage = msg.get("usage") or {}
         if session_id is None:
             session_id = obj.get("sessionId")
-        items.append(
-            {
-                "content": content,
-                "role": role,
-                "model_id": model or "unknown",
-                "conversation_id": obj.get("sessionId", ""),
-                "provider": infer_provider(model),
-                "tokens_in": usage.get("input_tokens"),
-                "tokens_out": usage.get("output_tokens"),
-                "timestamp": obj.get("timestamp", ""),
-                "uuid": obj.get("uuid"),
-            }
-        )
+        item = {
+            "content": content,
+            "role": role,
+            "model_id": model or "unknown",
+            "conversation_id": obj.get("sessionId", ""),
+            "provider": infer_provider(model),
+            "tokens_in": usage.get("input_tokens"),
+            "tokens_out": usage.get("output_tokens"),
+            "timestamp": obj.get("timestamp", ""),
+            "uuid": obj.get("uuid"),
+            "cwd": obj.get("cwd") or "",
+        }
+        # After a compaction Claude Code writes its summary of the earlier
+        # conversation as a user record flagged isCompactSummary. Session recall
+        # uses it instead of asking a model, so the flag is kept on the turn.
+        if obj.get("isCompactSummary"):
+            item["metadata"] = {"compact_summary": True}
+        items.append(item)
     return items, session_id
 
 
@@ -367,8 +372,14 @@ def _commit_cursor(items: list[dict], session_id: str, cursor: dict) -> None:
 # ─── Normalization ────────────────────────────────────────────────────────────
 
 
+def capture_user_id() -> str:
+    """The user_id capture stamps on every turn: the OS login name. Session
+    recall filters on it, so both read it here."""
+    return os.environ.get("USER") or os.environ.get("USERNAME", "unknown")
+
+
 def _make_agent_id(host_agent: str) -> str:
-    user = os.environ.get("USER") or os.environ.get("USERNAME", "unknown")
+    user = capture_user_id()
     host = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node()
     # Windows hostnames are case-insensitive and COMPUTERNAME is the canonical
     # uppercase form. Ingestion under shells that don't inherit COMPUTERNAME
@@ -380,9 +391,15 @@ def _make_agent_id(host_agent: str) -> str:
     return f"{host_agent}:{user}@{host}"
 
 
-def _normalize(items: list[dict], host_agent: str, variant: str | None, session_override: str) -> list[dict]:
+def _normalize(
+    items: list[dict],
+    host_agent: str,
+    variant: str | None,
+    session_override: str,
+    project: dict[str, str] | None = None,
+) -> list[dict]:
     agent_id = _make_agent_id(host_agent)
-    user_id = os.environ.get("USER") or os.environ.get("USERNAME", "unknown")
+    user_id = capture_user_id()
     out: list[dict] = []
     for item in items:
         if session_override and not item.get("conversation_id"):
@@ -395,8 +412,24 @@ def _normalize(items: list[dict], host_agent: str, variant: str | None, session_
         if variant:
             item["variant"] = variant
         item.pop("uuid", None)  # internal; not part of write schema
+        item.pop("cwd", None)  # read once per run into `project` (below)
+        if project:
+            meta = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            item["metadata"] = {**project, **meta}
         out.append(item)
     return out
+
+
+def _run_project(cwd_arg: str, items: list[dict]) -> dict[str, str]:
+    """The project fields for this ingest run, read ONCE (never per turn): the
+    hook's --cwd, else the working directory the transcript records on its newest
+    turn. Empty when neither names one; such turns show as "(no project)"."""
+    cwd = cwd_arg or next((str(it["cwd"]) for it in reversed(items) if it.get("cwd")), "")
+    if not cwd:
+        return {}
+    from session_recall import project_fields
+
+    return project_fields(cwd)
 
 
 def _openclaw_content_to_text(content) -> str:
@@ -861,6 +894,7 @@ def _parse_codex(raw: str) -> tuple[list[dict], str | None]:
     items: list[dict] = []
     session_id: str | None = None
     model = ""
+    cwd = ""
     for line in raw.splitlines():
         line = line.strip()
         if not line:
@@ -877,6 +911,7 @@ def _parse_codex(raw: str) -> tuple[list[dict], str | None]:
             continue
         if kind == "session_meta":
             session_id = session_id or payload.get("session_id") or payload.get("id")
+            cwd = cwd or str(payload.get("cwd") or "")
             continue
         if kind == "turn_context":
             model = payload.get("model") or model
@@ -912,6 +947,8 @@ def _parse_codex(raw: str) -> tuple[list[dict], str | None]:
     for item in items:
         if not item["conversation_id"] and session_id:
             item["conversation_id"] = session_id
+        if cwd:
+            item["cwd"] = cwd
     return items, session_id
 
 
@@ -931,7 +968,9 @@ PARSERS = {
 _PATH_PARSERS = frozenset({"opencode"})
 
 
-async def _ingest(format_name: str, transcript_path: str, session_override: str, variant: str | None) -> dict:
+async def _ingest(
+    format_name: str, transcript_path: str, session_override: str, variant: str | None, cwd: str = ""
+) -> dict:
     parser = PARSERS.get(format_name)
     if parser is None:
         return {"written": 0, "skipped": 0, "failed": 1, "error": f"unknown format: {format_name}"}
@@ -977,18 +1016,27 @@ async def _ingest(format_name: str, transcript_path: str, session_override: str,
 
     from m3_core.locking import file_lock
 
+    # Read before the lock: it may run git, which must not hold up a concurrent
+    # hook fire waiting on the cursor.
+    project = _run_project(cwd, items)
+
     # One lock spans load -> filter -> write -> drain -> commit: two hooks firing
     # together (Stop + PreCompact) otherwise both read the old cursor, both write
     # the same turns, and the later save drops the earlier one's uuids.
     try:
         with file_lock(_cursor_lock_path(), purpose="chatlog ingest cursor"):
-            return await _ingest_locked(items, session_id, format_name, variant, transcript_path)
+            return await _ingest_locked(items, session_id, format_name, variant, transcript_path, project)
     except CursorUnreadable as e:
         return {"written": 0, "skipped": 0, "failed": 0, "error": str(e), "session_id": session_id}
 
 
 async def _ingest_locked(
-    items: list[dict], session_id: str, format_name: str, variant: str | None, transcript_path: str
+    items: list[dict],
+    session_id: str,
+    format_name: str,
+    variant: str | None,
+    transcript_path: str,
+    project: dict[str, str] | None = None,
 ) -> dict:
     cursor = _load_cursor()
     new_items = _filter_new_items(items, session_id, cursor)
@@ -1004,7 +1052,7 @@ async def _ingest_locked(
 
     # Capture uuids before _normalize strips them — the cursor needs them.
     uuids = [it.get("uuid") for it in new_items]
-    normalized = _normalize(new_items, format_name, variant, session_id)
+    normalized = _normalize(new_items, format_name, variant, session_id, project)
 
     # Enqueue one item per call so each transcript uuid maps to exactly one row
     # id (the bulk result's id list skips validation failures, losing alignment).
@@ -1110,6 +1158,12 @@ async def main() -> int:
     parser.add_argument("--session-id", default="", help="Override conversation_id (defaults to parsed sessionId)")
     parser.add_argument("--variant", default=None, help="Provenance tag (e.g. pre_compact, stop, session_end, test)")
     parser.add_argument(
+        "--cwd",
+        default="",
+        help="The session's working directory (from the hook envelope); stored with each turn with its git "
+        "root, branch and tree. Default: the directory the transcript records, if any.",
+    )
+    parser.add_argument(
         "--db",
         default=None,
         help="Deprecated: chatlog-only override. Prefer --database. Pins the chatlog store for this process.",
@@ -1143,7 +1197,7 @@ async def main() -> int:
             logger.info("Overriding spill dir: %s", args.spill_dir)
         chatlog_config.invalidate_cache()
 
-    result = await _ingest(args.format, args.transcript_path, args.session_id, args.variant)
+    result = await _ingest(args.format, args.transcript_path, args.session_id, args.variant, args.cwd)
 
     # Phase E1: Auto-enqueue this conversation for Mastra Observer enrichment
     # if chatlog.auto_enrich is on. The drainer (m3_enrich --drain-queue) consumes

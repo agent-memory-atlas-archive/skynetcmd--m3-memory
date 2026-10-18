@@ -1201,11 +1201,14 @@ def chatlog_list_conversations_impl(
         clauses.append(f"{_je_ha}={_p}")
         params.append(host_agent)
     where = " AND ".join(clauses)
+    # MAX() over the per-turn fields: a bare non-grouped column is accepted by
+    # SQLite (any row's value) but is a GroupingError on PostgreSQL, which made
+    # this tool fail there on every call.
     sql = (
         "SELECT conversation_id, COUNT(*) AS turns, "
         "MIN(created_at) AS first_at, MAX(created_at) AS last_at, "
-        f"{_je_ha} AS host_agent, "
-        f"{_je_mid} AS model_id "
+        f"MAX({_je_ha}) AS host_agent, "
+        f"MAX({_je_mid}) AS model_id "
         f"FROM {_T} WHERE {where} "
         "GROUP BY conversation_id "
         f"ORDER BY last_at DESC LIMIT {_p} OFFSET {_p}"

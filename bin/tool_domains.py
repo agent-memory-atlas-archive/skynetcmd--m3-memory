@@ -58,6 +58,8 @@ _DOMAIN_PREFIXES: list[tuple[str, str]] = [
     # Core domain catch-alls (first prefix match wins)
     ("memory", "memory"),
     ("curate_memory", "memory"),
+    # Session recall's menu reads session_summary memories.
+    ("session_brief", "memory"),
     ("curate_chatlog", "chatlog"),
     ("chatlog", "chatlog"),
     ("files", "files"),

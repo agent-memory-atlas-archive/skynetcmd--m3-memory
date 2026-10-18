@@ -129,6 +129,8 @@ async def _auto_classify(content: str, title: str) -> str:
         "to_do",
         "procedure",
         "synthesis",
+        "session_summary",
+        "session_note",
     }
 
     token = _ctx().get_secret("LM_API_TOKEN") or "lm-studio"

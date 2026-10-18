@@ -195,6 +195,12 @@ def main() -> int:
         help="Skip the cognitive-loop dormancy check (installed + running + entities extracted?).",
     )
     parser.add_argument(
+        "--skip-session-recall",
+        action="store_true",
+        help="Skip the session-recall check (are session summaries being written, how far behind, "
+        "and do recent turns carry their project?).",
+    )
+    parser.add_argument(
         "--skip-claude-mcp",
         action="store_true",
         help="Skip the Claude single-server check (is exactly ONE m3 memory "
@@ -597,6 +603,14 @@ def main() -> int:
         # It surfaces what nothing else does — the loop being uninstalled, loaded
         # but dead, or live-but-zero-entities (see m3-coalescing-daemon-dormant).
         cognitive_loop_probe.run(brief=brief)
+
+    if not args.skip_session_recall:
+        from doctor import session_recall_probe
+
+        # Report-only and exit-code-neutral, like the loop probe it depends on:
+        # the start-of-session menu lists summaries only the loop writes, so an
+        # empty menu needs a cause. Warns only on a measured backlog.
+        session_recall_probe.run(brief=brief)
 
     if not args.skip_claude_mcp:
         from doctor import claude_mcp_probe

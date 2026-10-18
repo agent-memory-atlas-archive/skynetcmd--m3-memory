@@ -14,6 +14,7 @@ from .keys_embed import EMBED
 from .keys_enrich import ENRICH
 from .keys_files import FILES
 from .keys_llm import LLM
+from .keys_recall import RECALL
 from .keys_runtime import RUNTIME
 from .keys_search import SEARCH
 from .registry import Key, KeyClass, Registry, Scope, in_range, one_of, parse_int, parse_list, parse_path, parse_str
@@ -265,7 +266,21 @@ SECRETS: list[Key] = [
 ]
 
 REGISTRY = Registry(
-    [*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, *ENRICH, *CHATLOG, *RUNTIME, SECRETS_FILE, *SECRETS]
+    [
+        *DB,
+        *DB_POSTGRES,
+        *PATHS,
+        *EMBED,
+        *FILES,
+        *SEARCH,
+        *LLM,
+        *ENRICH,
+        *CHATLOG,
+        *RECALL,
+        *RUNTIME,
+        SECRETS_FILE,
+        *SECRETS,
+    ]
 )
 
 # Env names m3 code reads that are deliberately NOT settings, with the reason.

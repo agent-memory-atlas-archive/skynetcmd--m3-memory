@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_doctor.py
-sha1: 301a706b35f5
-mtime_utc: 2026-10-17T15:21:02.748410+00:00
-generated_utc: 2026-10-17T15:21:03.715622+00:00
+sha1: 411ca17447a5
+mtime_utc: 2026-10-18T17:47:22.301881+00:00
+generated_utc: 2026-10-18T17:56:08.079839+00:00
 private: false
 ---
 
@@ -59,6 +59,7 @@ tested in isolation.
 | `--fix-hooks` | With --fix: also re-wire broken m3 hook entries in ~/.claude/settings.json. OFF by default because that file is the user's own — it holds non-m3 hooks. Backs it up first and touches only m3-owned entries. | `False` |  | store_true |  |
 | `--skip-dashboard` | Skip the web-dashboard liveness check (registry + port probe). | `False` |  | store_true |  |
 | `--skip-cognitive-loop` | Skip the cognitive-loop dormancy check (installed + running + entities extracted?). | `False` |  | store_true |  |
+| `--skip-session-recall` | Skip the session-recall check (are session summaries being written, how far behind, and do recent turns carry their project?). | `False` |  | store_true |  |
 | `--skip-claude-mcp` | Skip the Claude single-server check (is exactly ONE m3 memory server live — not the direct server AND the plugin's together?). | `False` |  | store_true |  |
 | `--verbose` | Show the full detail (DB-repair steps + each probe's expanded report + model-load logs). Default is a compact one-line-per-check summary of high-yield verdicts. | `False` |  | store_true |  |
 | `--fix` | Run quick-repair mode to auto-fix common deployment issues. | `False` |  | store_true |  |
@@ -114,6 +115,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `doctor (oxidation_probe)`
 - `doctor (plugin_version_probe)`
 - `doctor (schedule_probe)`
+- `doctor (session_recall_probe)`
 - `doctor (shared_embedder_probe)`
 - `doctor (startup_tools_probe)`
 - `doctor (touchid_probe)`

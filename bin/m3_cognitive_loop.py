@@ -1774,6 +1774,62 @@ async def run_chatlog_prune_pass(args):
         logger.error(f"Chatlog-prune pass error: {type(e).__name__}: {e}")
 
 
+def has_summarize_work() -> bool:
+    """Work gate for the session-summary pass: recall is on and some chat session
+    is ready (quiet for recall.quiet_minutes, or captured by a compaction/exit
+    hook) with no summary covering its latest turn. Fails closed, loudly."""
+    try:
+        import session_recall
+
+        return session_recall.has_pending()
+    except Exception as e:  # noqa: BLE001 — conservative gate; don't spin on error
+        logger.warning(
+            "observed: session-summary work gate failed (%s: %s). possible: the chat store or the main "
+            "store is unreachable, or a migration has not run. inspect: `m3 doctor`. Assuming NO "
+            "session-summary work this cycle.",
+            type(e).__name__,
+            e,
+        )
+        return False
+
+
+async def run_summarize_sessions_pass(args):
+    """Session recall: write one session_summary memory per ready chat session
+    (bin/session_recall.py), oldest first, at most --limit-per-pass per cycle.
+
+    The model is recall.summary_profile (the local session_summary profile by
+    default). Behind the loop's governor like every LLM pass, and it yields to
+    an active user or a halted host between sessions (the same check belief
+    consolidation uses). A model that is unavailable stops the pass; the
+    sessions stay ready for the next sweep, never dropped."""
+    if not has_summarize_work():
+        logger.debug("No session-summary work. Skipping pass.")
+        return
+    import session_recall
+    from consolidate_beliefs import _should_yield_to_user
+
+    logger.info("Starting session-summary pass...")
+    try:
+        out = await session_recall.run_summary_pass(int(args.limit_per_pass), should_yield=_should_yield_to_user)
+    except Exception as e:  # noqa: BLE001 — a pass error must not stop the loop
+        logger.error(
+            "observed: session-summary pass failed (%s: %s). The ready sessions stay ready for the next "
+            "sweep. inspect: the trace below; `m3 doctor`.",
+            type(e).__name__,
+            e,
+            exc_info=True,
+        )
+        return
+    logger.info(
+        "Session-summary pass: summarized=%s skipped=%s failed=%s of %s ready%s",
+        out.get("summarized"),
+        out.get("skipped"),
+        out.get("failed"),
+        out.get("pending"),
+        f" (stopped: {out['stopped']})" if out.get("stopped") else "",
+    )
+
+
 async def run_sync_pass(args):
     """Warehouse sync (SQLite -> CDW PostgreSQL) — governor-paced, time-gated.
 
@@ -2019,6 +2075,15 @@ async def main_loop(args):
         # but treating it as local here only makes the loop slightly more
         # conservative under GPU load, never wrong.
         distill_local = True
+        # Session summaries: local unless recall.summary_profile names a cloud
+        # profile (`session` may fall back to local, so it counts as local).
+        try:
+            import session_recall
+
+            summary_local = _profile_is_local(session_recall.gpu_profile_name())
+        except Exception as e:  # noqa: BLE001 — unknown: treat as local (more conservative)
+            log_swallowed(logger, e, f"session-summary profile probe failed (treating it as local): {e}")
+            summary_local = True
 
         def _effective_limit(pace: dict) -> int:
             return _THROTTLED_LIMIT if pace["background"] == "THROTTLED" else _full_limit
@@ -2084,6 +2149,15 @@ async def main_loop(args):
                 "sets_limit": False,
                 "run": run_distill_pass,
             },
+            # Session recall: one session_summary per ready chat session. An LLM
+            # pass (local profile by default), so GPU-gated + batch-shrunk.
+            {
+                "name": "summarize_sessions",
+                "skip": args.skip_summarize_sessions,
+                "gpu": summary_local,
+                "sets_limit": True,
+                "run": run_summarize_sessions_pass,
+            },
             {
                 "name": "prune",
                 "skip": args.skip_chatlog_prune,
@@ -2137,6 +2211,7 @@ async def main_loop(args):
                 and has_distill_work(args.database, args.distill_threshold, args.distill_stale_days),
                 "prune": not args.skip_chatlog_prune
                 and has_chatlog_prune_work(args.chatlog_db, args.chatlog_prune_days, args.chatlog_prune_threshold),
+                "summarize_sessions": not args.skip_summarize_sessions and has_summarize_work(),
             }
         order = _select_pass_order(passes, _cycle, active, work_map)
         _cycle += 1
@@ -2368,6 +2443,11 @@ def main():
     # Chatlog aged noise-prune pass. Governor-gated + event-driven; real
     # writes require M3_CHATLOG_PRUNE_AUTO=1 (else dry-run). Replaces a fixed cron.
     parser.add_argument("--skip-chatlog-prune", action="store_true", help="Skip the chatlog noise-prune pass")
+    parser.add_argument(
+        "--skip-summarize-sessions",
+        action="store_true",
+        help="Skip the session-summary pass (session recall's menu then gets no new summaries)",
+    )
     parser.add_argument(
         "--chatlog-prune-threshold",
         type=int,
