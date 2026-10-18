@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import subprocess
 import sys
@@ -182,7 +183,10 @@ async def get_os_health():
             health["local_memory_items"] = count
     except Exception as e:
         health["status"] = "degraded"
-        health["local_memory_error"] = str(e)
+        # The detail (a connection error can name host, user and database) goes to
+        # the server log, not to an unauthenticated client.
+        logging.getLogger(__name__).warning("health: local_memory: %s", e)
+        health["local_memory_error"] = type(e).__name__
 
     # Check PG Data Warehouse
     try:
@@ -192,7 +196,10 @@ async def get_os_health():
         health["data_warehouse"] = "online"
     except Exception as e:
         health["status"] = "degraded"
-        health["data_warehouse_error"] = str(e)
+        # The detail (a connection error can name host, user and database) goes to
+        # the server log, not to an unauthenticated client.
+        logging.getLogger(__name__).warning("health: data_warehouse: %s", e)
+        health["data_warehouse_error"] = type(e).__name__
 
     return health
 

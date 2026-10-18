@@ -1182,7 +1182,9 @@ def _pg_reachable(dsn: str) -> tuple[bool, str]:
         # the guard rather than crash; the runtime enforces it on first connect.
         pass
     except Exception as e:  # noqa: BLE001 — the forbidden-host refusal
-        return False, str(e)
+        # Masked like the connect failure below: a DSN that does not parse is
+        # caught here too, and its error text can echo the DSN.
+        return False, _mask_dsn(str(e).strip())
     try:
         from m3_core.pgconn import pg_connect  # FIPS transport check, one owner
 

@@ -293,16 +293,20 @@ def _llm_token() -> str:
         return "lm-studio"
 
 
-_CLOUD_HOST_HINTS = (
+# Hosted providers, matched on the URL's host (m3_core.urls.host_is), never as a
+# substring of the URL.
+_CLOUD_HOSTS = (
     "anthropic.com",
     "googleapis.com",
     "openai.com",
     "x.ai",
     "mistral.ai",
-    "cohere.",
+    "cohere.com",
+    "cohere.ai",
     "groq.com",
-    "together.",
-    "openrouter.",
+    "together.ai",
+    "together.xyz",
+    "openrouter.ai",
 )
 
 
@@ -323,29 +327,30 @@ def _is_cloud_url(url: str) -> bool:
     an https, non-loopback host, or a known cloud host. Cloud gets a PING check
     only (reachable + key present); NEVER a billed completion smoke, and none of
     the local 'is a model loaded' signals apply (cloud is always warm)."""
+    from m3_core.urls import host_is
+
     u = (url or "").lower()
-    if any(h in u for h in _CLOUD_HOST_HINTS):
+    if any(host_is(u, h) for h in _CLOUD_HOSTS):
         return True
     # https + not loopback → treat as remote/cloud (LAN https is rare; safe to ping).
     return u.startswith("https://") and not _is_loopback_url(url)
 
 
 def _cloud_backend_label(url: str) -> str:
-    u = (url or "").lower()
-    if "anthropic.com" in u:
-        return "Anthropic"
-    if "googleapis.com" in u:
-        return "Google Gemini"
-    if "openai.com" in u:
-        return "OpenAI"
-    if "x.ai" in u:
-        return "xAI"
-    if "mistral.ai" in u:
-        return "Mistral"
-    if "groq.com" in u:
-        return "Groq"
-    if "openrouter." in u:
-        return "OpenRouter"
+    from m3_core.urls import host_is
+
+    u = url or ""
+    for domain, label in (
+        ("anthropic.com", "Anthropic"),
+        ("googleapis.com", "Google Gemini"),
+        ("openai.com", "OpenAI"),
+        ("x.ai", "xAI"),
+        ("mistral.ai", "Mistral"),
+        ("groq.com", "Groq"),
+        ("openrouter.ai", "OpenRouter"),
+    ):
+        if host_is(u, domain):
+            return label
     from urllib.parse import urlparse
 
     return urlparse(url).hostname or "cloud endpoint"
@@ -403,7 +408,10 @@ def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: 
         f" (fell back from {api_key_service}, which is blank)" if api_key_service and used != api_key_service else ""
     )
 
-    is_anthropic = "anthropic.com" in endpoint.lower()
+    from m3_core.urls import host_is
+
+    # The host decides the auth header the key travels in, so match the host.
+    is_anthropic = host_is(endpoint, "anthropic.com")
     # /models base: strip a trailing chat path to reach the provider root's /models.
     base = re.sub(r"/(v1|v1beta)(/openai)?/(chat/completions|messages).*$", r"/\1\2", endpoint)
     base = base.rstrip("/")

@@ -48,10 +48,12 @@ from . import config
 # Temporal & Entity patterns (hoisted from search.py to break cycles)
 # ──────────────────────────────────────────────────────────────────────────────
 _DATE_RE_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+# The year part is `\s+(?:,\s*)?`, not `\s+,?\s*`: two adjacent whitespace runs made
+# a search query of a month plus many spaces quadratic (40k chars: 7 s; now ms).
 _DATE_RE_LONG = re.compile(
     r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|"
     r"apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|"
-    r"nov(?:ember)?|dec(?:ember)?)(?:\s+,?\s*(\d{4}))?\b",
+    r"nov(?:ember)?|dec(?:ember)?)(?:\s+(?:,\s*)?(\d{4}))?\b",
     re.IGNORECASE,
 )
 _DATE_MONTHS = {

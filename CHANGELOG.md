@@ -36,6 +36,25 @@ the policy is forward-going only.
   **Affected:** all installs · **Action:** none; to choose an LLM later, run
   `m3 setup` · **Data status:** none.
 
+### Security
+
+- **The dashboard escapes every stored value and error message it renders.** A
+  memory history row's field and event names, and the text of four error
+  replies, reached the page as HTML.
+  **Affected:** dashboard users · **Action:** none · **Data status:** none.
+- **A search query no longer takes quadratic time.** A query holding a date such
+  as "1 jan" followed by a long run of spaces took seconds of CPU per search.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+- **A cloud LLM provider is recognised by its host, not by a substring of the
+  URL.** The dashboard chose the API key header from a substring match, so a URL
+  that merely contained a provider's name was treated as that provider.
+  **Affected:** dashboard LLM health checks · **Action:** none · **Data
+  status:** none.
+- **Setup masks the PostgreSQL DSN in every reachability error.** One refusal
+  path returned its error text unmasked.
+  **Affected:** installs choosing PostgreSQL · **Action:** none · **Data
+  status:** none.
+
 ### Fixed
 
 - **The cognitive loop and the observer, reflector and entity jobs run against a

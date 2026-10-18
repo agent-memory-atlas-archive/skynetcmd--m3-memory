@@ -2790,15 +2790,16 @@ def render_audit_card(memory_id: str, db: Any) -> str:
         actor = r["actor_id"] or "system"
         ts = (r["created_at"] or "").replace("T", " ")[:16]
 
-        badge_cls = f"badge-{event.lower()}"
-        icon = event[0] if event else "U"
+        # event and field are stored row values: escaped like every other one here.
+        badge_cls = _h(f"badge-{event.lower()}")
+        icon = _h(event[0] if event else "U")
 
         diff_html = ""
         if event in ("UPDATE", "SUPERSEDE", "CONTRADICTION"):
             diff_block = make_html_diff(prev_v, new_v)
             diff_html = f"""
             <div style="margin-top: 0.5rem;">
-                <span style="font-size: 0.75rem; font-weight: 600; color: hsl(210, 10%, 60%);">Diff ({field}):</span>
+                <span style="font-size: 0.75rem; font-weight: 600; color: hsl(210, 10%, 60%);">Diff ({_h(field)}):</span>
                 <div class="diff-text">{diff_block}</div>
             </div>
             """
@@ -3012,7 +3013,7 @@ async def get_audit_timeline(request: Request, q: str = "", limit: int = 25):
         import traceback
 
         traceback.print_exc()
-        return f'<p style="color: var(--m3-neon-amber); text-align: center; font-size: 0.85rem; padding: 2rem 0;">Failed to scan timelines: {e!s}</p>'
+        return f'<p style="color: var(--m3-neon-amber); text-align: center; font-size: 0.85rem; padding: 2rem 0;">Failed to scan timelines: {_h(e)}</p>'
 
 
 @app.post("/api/audit/override/{memory_id}", response_class=HTMLResponse)
@@ -3264,7 +3265,7 @@ async def trigger_maintenance_task(action: str):
     if action in ("decay_dry", "decay_apply") and not chatlog_db:
         _log.warning("refused maintenance %s: chatlog store did not resolve: %s", action, chatlog_err)
         return HTMLResponse(
-            content=f"[Error] Refused '{action}': the chatlog store could not be resolved ({chatlog_err}), "
+            content=f"[Error] Refused '{action}': the chatlog store could not be resolved ({_h(chatlog_err)}), "
             "and running chatlog decay against the main store would delete the wrong rows. "
             "Inspect: m3 chatlog status (and the .chatlog_config.json under the config root).",
             status_code=500,
@@ -3331,7 +3332,7 @@ async def trigger_maintenance_task(action: str):
             f.write(f"[System] Expected wait time: {expected_wait}\n")
             f.write(f"[System] Command: {' '.join(cmd)}\n\n")
     except Exception as e:
-        return HTMLResponse(content=f"[Error] Failed to initialize log: {e!s}", status_code=500)
+        return HTMLResponse(content=f"[Error] Failed to initialize log: {_h(e)}", status_code=500)
 
     # Open log file in append mode for child process redirection
     log_file_handle = open(log_path, "a", encoding="utf-8", errors="replace")  # noqa: SIM115, ASYNC230 — the child's stdout; closed when the task ends
@@ -3370,7 +3371,7 @@ async def trigger_maintenance_task(action: str):
             log_file_handle.close()
         except Exception:
             pass
-        return HTMLResponse(content=f"[Error] Failed to spawn process: {e!s}", status_code=500)
+        return HTMLResponse(content=f"[Error] Failed to spawn process: {_h(e)}", status_code=500)
 
 
 def _read_log(path: str) -> str:

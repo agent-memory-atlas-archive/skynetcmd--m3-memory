@@ -75,9 +75,19 @@ def ollama_url(host: str) -> str:
     name = u.hostname or ""
     if name in ("", "0.0.0.0", "::"):  # nosec B104 -- comparison, not a bind
         name = "localhost"
-    port = u.port or (443 if u.scheme == "https" and name.endswith(OLLAMA_CLOUD_HOST) else 11434)
+    port = u.port or (443 if u.scheme == "https" and _host_is(h, OLLAMA_CLOUD_HOST) else 11434)
     shown = f"[{name}]" if ":" in name else name
     return f"{u.scheme}://{shown}:{port}/v1"
+
+
+def _host_is(url: str, domain: str) -> bool:
+    """``m3_core.urls.host_is`` (the one owner), reached from the package side."""
+    from m3_memory import _bin
+
+    _bin.ensure_on_path()
+    from m3_core.urls import host_is
+
+    return host_is(url, domain)
 
 
 def _base(url: str) -> str:
@@ -102,7 +112,7 @@ def find_candidates(found: list | None = None) -> list[Candidate]:
     cands: list[Candidate] = []
     if "OLLAMA_HOST" in first:
         url = ollama_url(first["OLLAMA_HOST"])
-        cloud = (urlparse(url).hostname or "").endswith(OLLAMA_CLOUD_HOST)
+        cloud = _host_is(url, OLLAMA_CLOUD_HOST)  # the cloud key goes to ollama.com only
         key = first.get("OLLAMA_API_KEY") if cloud else None
         cands.append(
             Candidate("Ollama", url, f"OLLAMA_HOST in {where['OLLAMA_HOST']}", "OLLAMA_API_KEY" if key else None, key)
