@@ -114,6 +114,16 @@ Add to `opencode.json` (project root) or `~/.config/opencode/opencode.json`:
 }
 ```
 
+### Codex CLI
+
+`m3 setup` finds Codex and adds m3 to `~/.codex/config.toml`, with two hooks in
+`~/.codex/hooks.json` (session start and chat capture). Approve the hooks once in
+Codex with `/hooks`.
+
+Prefer a plugin? `codex plugin marketplace add skynetcmd/m3-memory`, then install
+**m3** from `/plugins`. Setup then leaves Codex's own files alone, so you never run two
+m3 servers. ([Codex plugin](codex_plugin.md))
+
 ### Cursor
 
 `m3 setup` already wrote the entry into `~/.cursor/mcp.json` (when Cursor is installed). Restart Cursor. Manual:

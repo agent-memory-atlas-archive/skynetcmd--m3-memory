@@ -353,7 +353,7 @@ judge: agentmemory calls it R@k; m3 calls it session hit rate.
 
 ### When to choose agentmemory (rohitg00) over m3-Memory
 - You want capture with zero agent cooperation: hooks record every tool call and session without the agent deciding to remember.
-- Your agent is on its list and not on m3's (Codex CLI, Copilot CLI, Zed, Warp, Continue, Kiro, Goose, Roo, Kilo and others).
+- Your agent is on its list and not on m3's (Copilot CLI, Zed, Warp, Continue, Kiro, Goose, Roo, Kilo and others).
 - A Node / TypeScript stack suits you better than Python.
 
 ---

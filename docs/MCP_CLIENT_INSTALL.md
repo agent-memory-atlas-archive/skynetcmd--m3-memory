@@ -255,6 +255,10 @@ when the agent needs many of its tools.
 
 ### Sandboxed OpenClaw via Docker
 
+Grok (xAI API), the OpenAI API and other remote clients: see
+[Remote MCP clients](REMOTE_MCP_CLIENTS.md) for verified request examples and
+which apps work today.
+
 `examples/sandbox-openclaw/` runs OpenClaw in a container against m3 on the
 **host**, over `streamable-http` rather than stdio — the image ships OpenClaw
 alone, so a stdio `command` would have nothing to launch.

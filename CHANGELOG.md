@@ -19,10 +19,35 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
-## [2026.10.18.0] — 2026-10-18 — an LLM for enrichment, upgrades that finish, quieter doctor
+## [2026.10.18.0] — 2026-10-18 — Codex, session recall, an LLM for enrichment, hooks that update with m3
 
 ### Added
 
+- **Codex CLI support.** `m3 setup` finds Codex, adds m3 to
+  `~/.codex/config.toml` and wires two hooks into `~/.codex/hooks.json`: session
+  start, and chat capture after every turn (`chatlog_ingest --format codex` reads
+  Codex's session files). Upgrades and `m3 doctor --fix` repoint a stale entry.
+  With the m3 Codex plugin installed, setup leaves these files alone.
+  **Affected:** Codex users · **Action:** run `m3 setup`, then approve the hooks
+  once in Codex with `/hooks` · **Data status:** none.
+- **One session-start hook for Claude Code, Codex and Gemini CLI.** It shows
+  whether chat capture is working and which m3 is running against the newest
+  release, and offers the session-recall menu on a fresh start. Gemini CLI gains
+  the hook too.
+  **Affected:** Claude Code, Codex and Gemini CLI users · **Action:** none; it is
+  wired by `m3 setup` and on upgrade · **Data status:** none.
+- **A daily version check.** m3 asks pypi.org for the newest release at most
+  once a day, keeps the answer on this machine, and every agent's session-start
+  line shows it. Setup asks once whether to turn it on (default yes;
+  `--update-check` / `--no-update-check` for unattended installs); when it is
+  off, the line says so.
+  **Affected:** all installs · **Action:** answer the setup question, or
+  `m3 config set updates.check true` · **Data status:** none.
+- **A guide for remote MCP clients.** docs/REMOTE_MCP_CLIENTS.md shows verified
+  requests for the xAI API (Grok) and the OpenAI Responses API against
+  `m3 serve`, and which apps work today.
+  **Affected:** users connecting cloud models to m3 · **Action:** none ·
+  **Data status:** none.
 - **Setup finds the LLM you already use for memory enrichment and asks.** It
   looks at Ollama's `OLLAMA_HOST`, `OPENAI_BASE_URL`/`OPENAI_API_BASE`, and
   Ollama and LM Studio on this machine, with their keys (`LM_API_TOKEN`,
@@ -72,6 +97,23 @@ the policy is forward-going only.
   `m3 config set recall.enabled false` · **Data status:** new
   `session_summary` memories (scope user); chat turns gain four metadata fields.
 
+### Changed
+
+- **Agent hook lines run m3's launchers in `~/.m3/hooks`.** Each agent's config
+  holds one line pointing at a launcher there; m3 rewrites the launchers on every
+  upgrade, so a hook fix no longer edits your agent configs, and a line survives
+  the package moving to a new Python. Existing installs are repointed once, on
+  upgrade.
+  **Affected:** Claude Code, Codex, Gemini CLI, OpenCode and OpenClaw users ·
+  **Action:** none · **Data status:** none.
+
+### Removed
+
+- **`M3_HOME` is no longer read.** Hooks find m3 from their own location;
+  `m3 doctor` names the variable if it is still set.
+  **Affected:** installs that set `M3_HOME` · **Action:** none; unset it at will ·
+  **Data status:** none.
+
 ### Security
 
 - **The dashboard escapes every stored value and error message it renders.** A
@@ -93,6 +135,17 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Semantic search works on installs without the native core.** With no Rust
+  core loaded, m3 treated the embed server as unavailable: writes skipped their
+  vectors and searches dropped to keyword-only, so a semantic search returned
+  nothing, with a healthy embed server running. The warning also blamed failures
+  that never happened; it now names the real cause.
+  **Affected:** installs running m3 without the native core (pure Python), or
+  with a second m3 without it first on PATH · **Action:** upgrade; vectors for
+  earlier writes are filled in by the cognitive loop · **Data status:** none.
+- **`m3 setup --agents` names an unknown agent.** It failed with a Python
+  traceback; it now lists the valid names.
+  **Affected:** unattended installs · **Action:** none · **Data status:** none.
 - **The cognitive loop and the observer, reflector and entity jobs run against a
   server that needs no API key.** They refused to start without a stored key
   even when the LLM is a keyless Ollama or an LM Studio without authentication.
