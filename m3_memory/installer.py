@@ -653,6 +653,12 @@ def _codex_config_path() -> Path:
     return (Path(home).expanduser() if home else Path.home() / ".codex") / "config.toml"
 
 
+def _codex_plugin_installed() -> bool:
+    """True when Codex has installed m3's own plugin (marketplace ``skynetcmd``,
+    plugin ``m3``), which brings the MCP server and the hooks itself."""
+    return os.path.isdir(_codex_config_path().parent / "plugins" / "cache" / "skynetcmd" / "m3")
+
+
 def _register_codex_mcp(*, repair_only: bool = False) -> str | None:
     """Register/repoint m3's ``memory`` MCP server in Codex's config.toml.
 
@@ -666,6 +672,18 @@ def _register_codex_mcp(*, repair_only: bool = False) -> str | None:
     and never adds one: those paths repair what already uses m3, they add nothing."""
     cfg = _codex_config_path()
     if not (shutil.which("codex") or os.path.isdir(cfg.parent)):
+        return None
+    if _codex_plugin_installed():
+        # The plugin serves m3; a config.toml entry as well would start a second server.
+        try:
+            text = cfg.read_text(encoding="utf-8") if os.path.isfile(cfg) else ""
+        except OSError:
+            text = ""
+        if "[mcp_servers.memory]" in text:
+            return (
+                f"[!] Codex has both m3's plugin and a [mcp_servers.memory] entry in {cfg}, so it starts "
+                "two m3 servers. fix: delete that table from the file (the plugin provides the server)"
+            )
         return None
     import tomlkit
     from tomlkit.exceptions import TOMLKitError
@@ -729,6 +747,8 @@ def _register_codex_hooks(*, repair_only: bool = False) -> str | None:
     cfg = _codex_config_path()
     if not (shutil.which("codex") or os.path.isdir(cfg.parent)):
         return None
+    if _codex_plugin_installed():
+        return None  # the plugin carries the same hooks; both would capture every turn twice
     path = cfg.parent / "hooks.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8")) if os.path.isfile(path) else {}

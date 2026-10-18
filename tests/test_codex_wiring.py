@@ -135,3 +135,48 @@ def test_codex_home_moves_the_config(monkeypatch, tmp_path):
     assert inst._codex_config_path() == tmp_path / "ch" / "config.toml"
     monkeypatch.setattr(es, "scan", lambda names: [])
     assert inst._codex_config_path().parent.name == ".codex"
+
+
+def test_with_the_m3_codex_plugin_setup_writes_neither_server_nor_hooks(codex):
+    """The plugin brings the server and the hooks; config.toml/hooks.json entries
+    as well would start a second server and capture every turn twice."""
+    inst, home, _ = codex
+    (home / "plugins" / "cache" / "skynetcmd" / "m3" / "2026.10.18.0").mkdir(parents=True)
+    assert inst._register_codex_mcp() is None
+    assert inst._register_codex_hooks() is None
+    assert not (home / "config.toml").exists() and not (home / "hooks.json").exists()
+
+
+def test_a_leftover_entry_beside_the_plugin_is_reported_with_its_fix(codex):
+    inst, home, _ = codex
+    (home / "plugins" / "cache" / "skynetcmd" / "m3").mkdir(parents=True)
+    (home / "config.toml").write_text('[mcp_servers.memory]\ncommand = "m3"\n', encoding="utf-8")
+    msg = inst._register_codex_mcp()
+    assert msg and msg.startswith("[!]") and "two m3 servers" in msg and "delete that table" in msg
+
+
+def test_codex_hooks_are_launcher_lines_and_keep_the_users_entries(codex):
+    import json
+
+    from m3_memory import hook_launchers
+
+    inst, home, _ = codex
+    home.mkdir()
+    mine = {"hooks": [{"type": "command", "command": "my-own-hook"}]}
+    (home / "hooks.json").write_text(json.dumps({"hooks": {"Stop": [mine]}}), encoding="utf-8")
+    msg = inst._register_codex_hooks()
+    assert msg and msg.startswith("[+]") and "/hooks" in msg
+    data = json.loads((home / "hooks.json").read_text(encoding="utf-8"))
+    start = data["hooks"]["SessionStart"][-1]["hooks"][0]["command"]
+    stop = data["hooks"]["Stop"]
+    assert hook_launchers.is_launcher_command(start) and start.endswith("codex-session-start.py")
+    assert stop[0] == mine and stop[-1]["hooks"][0]["command"].endswith("codex-capture.py")
+    assert "SessionEnd" not in data["hooks"], "Codex caps SessionEnd at 3 s: too short for an ingest"
+    assert inst._register_codex_hooks() is None, "a current file is left alone"
+
+
+def test_codex_hooks_repair_only_adds_nothing(codex):
+    inst, home, _ = codex
+    home.mkdir()
+    assert inst._register_codex_hooks(repair_only=True) is None
+    assert not (home / "hooks.json").exists()
