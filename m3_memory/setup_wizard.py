@@ -329,6 +329,9 @@ class SetupPlan:
     use_shared_embedder: bool = True
     endpoint: str | None = None
     cognitive_loop: bool = False
+    # Daily version check (updates.check). None: not asked this run; the file's
+    # value stands (an upgrade never asks, and the session line says when it is off).
+    update_check: bool | None = None
     # "Keep the current settings": targets is empty because wiring is left as
     # it is, not because no agent is wired. Output must not say "none".
     agents_kept: bool = False
@@ -375,6 +378,7 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     # --cognitive-loop forces on; --no-cognitive-loop forces off. The interactive
     # branch below re-asks (default yes) unless a flag already pinned the choice.
     plan.cognitive_loop = bool(args.cognitive_loop) and not bool(getattr(args, "no_cognitive_loop", False))
+    plan.update_check = getattr(args, "update_check", None)
 
     if args.non_interactive:
         # Honor explicit --agent flags; otherwise wire whatever we detected.
@@ -742,8 +746,54 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     # schtasks). Skipped when a flag already pinned the choice.
     if not (args.cognitive_loop or getattr(args, "no_cognitive_loop", False)):
         plan.cognitive_loop = _ask_cognitive_loop()
+    if plan.update_check is None and _update_check_unanswered():
+        plan.update_check = _ask_update_check()
 
     return plan
+
+
+def _update_check_unanswered() -> bool:
+    """True while m3_config.toml has never recorded ``updates.check``: the question
+    is asked once, not on every setup."""
+    try:
+        _m3bin.ensure_on_path()
+        from m3_core.config.settings import origin_of
+
+        return bool(origin_of("updates.check") == "default")
+    except Exception:  # noqa: BLE001 -- unknown: ask, the answer is then recorded
+        return True
+
+
+def _ask_update_check() -> bool:
+    """The version-check question (default yes)."""
+    print()
+    print("  Version check (recommended):")
+    print("    Once a day m3 asks pypi.org for the newest m3 and shows it in each")
+    print("    agent's session-start line, so you know when an upgrade is out.")
+    print("    That one request is all it sends. Off: the line says checking is")
+    print("    off, and update alerts are yours to watch.")
+    return _ask_yes_no("  Check for a newer m3 once a day?", default=True)
+
+
+def _record_update_check(plan: SetupPlan) -> None:
+    """Save the version-check answer in m3_config.toml (updates.check)."""
+    if plan.update_check is None:
+        return
+    try:
+        _m3bin.ensure_on_path()
+        from m3_core.config import locate
+        from m3_core.config.keys import REGISTRY
+        from m3_core.config.writer import set_values
+
+        key = REGISTRY.get("updates.check")
+        if key is None:
+            raise ValueError("updates.check is not a registry key")
+        path = set_values(locate(), {key: bool(plan.update_check)})
+    except Exception as e:  # noqa: BLE001 -- said with the manual step
+        state = "true" if plan.update_check else "false"
+        _warn(f"  could not record updates.check ({type(e).__name__}: {e}). fix: m3 config set updates.check {state}")
+        return
+    _ok(f"  version check {'on' if plan.update_check else 'off'} (updates.check in {path})")
 
 
 def _ask_cognitive_loop() -> bool:
@@ -1923,6 +1973,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     # silently get an unreachable default — and doesn't pay a probe for a
     # provider they don't run.
     _probe_llm_endpoints(plan, args)
+    _record_update_check(plan)
 
     return ok
 
@@ -4668,6 +4719,10 @@ def _print_plan(plan) -> None:
         print(f"  LLM endpoint : {plan.endpoint}")
     if plan.cognitive_loop:
         print("  background   : on (builds links between memories over time)")
+    if plan.update_check is not None:
+        print(
+            f"  updates      : {'checked once a day' if plan.update_check else 'not checked (you watch for upgrades)'}"
+        )
     if plan.decouple_roots:
         print(f"  settings     : {plan.config_root}")
         print(f"  memory files : {plan.engine_root}")
@@ -4951,6 +5006,21 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "--no-cognitive-loop",
         action="store_true",
         help="Do not install the background service.",
+    )
+    parser.add_argument(
+        "--update-check",
+        dest="update_check",
+        action="store_const",
+        const=True,
+        default=None,
+        help="Check pypi.org once a day for a newer m3 (shown at each session start).",
+    )
+    parser.add_argument(
+        "--no-update-check",
+        dest="update_check",
+        action="store_const",
+        const=False,
+        help="Never check for a newer m3; the session-start line says checking is off.",
     )
     parser.add_argument(
         "--decouple-roots",

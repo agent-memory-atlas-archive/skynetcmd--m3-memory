@@ -87,7 +87,7 @@ def _host_is(url: str, domain: str) -> bool:
     _bin.ensure_on_path()
     from m3_core.urls import host_is
 
-    return host_is(url, domain)
+    return bool(host_is(url, domain))
 
 
 def _base(url: str) -> str:

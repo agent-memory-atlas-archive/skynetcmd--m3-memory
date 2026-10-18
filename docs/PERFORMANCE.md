@@ -47,7 +47,9 @@ than a hardware one: when no fast embedder is reachable, m3 persists the row
 verbatim and defers the vector to the [Cognitive
 Loop](ARCHITECTURE.md#-the-cognitive-loop) instead of making the caller wait.
 The row is full-text searchable immediately either way, and vector search picks
-it up once the `embed` pass has run.
+it up once the `embed` pass has run. Measured 2026-10-18 on the Windows host with
+the cognitive loop running: a deferred write was keyword-searchable at once and
+semantically searchable 14 s later (the README rounds this to "under 30 seconds").
 
 Single-threaded, that is roughly **32 writes/second** with inline embedding and
 **460/second** deferred.
