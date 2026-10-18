@@ -273,6 +273,33 @@ _REBOOT = (
 )
 
 
+def test_a_quoted_execstart_names_a_program_that_exists(tmp_path, monkeypatch):
+    """The Rust installer quotes every word of ExecStart. A plain split kept the
+    quotes, so the program "did not exist" and setup removed the working embed
+    service as dangling (upgrade rehearsal, 2026-10-18)."""
+    from doctor import job_inventory as ji
+
+    units = tmp_path / "systemd"
+    units.mkdir()
+    server = tmp_path / "core dir" / "m3-embed-server"  # a space too: quoting is the point
+    server.parent.mkdir()
+    server.write_text("", encoding="utf-8")
+    monkeypatch.setattr(ji, "_SYSTEMD_USER", str(units))
+    (units / "m3-embed-server.service").write_text(
+        f'[Service]\nExecStart="{server.as_posix()}" "--config" "/c/m3_config.toml"\n', encoding="utf-8"
+    )
+    (job,) = ji._systemd_jobs()
+    assert job.program == server.as_posix()
+    assert os.path.exists(job.program)
+
+
+def test_a_quoted_cron_command_names_its_program():
+    from doctor import job_inventory as ji
+
+    line = '@reboot "/opt/core dir/m3-embed-server" --config "/c/m3_config.toml"'
+    assert ji._cron_command(line)[0] == "/opt/core dir/m3-embed-server"
+
+
 def test_cron_lines_name_their_program_after_any_schedule_form():
     """An @reboot schedule is one field; five were skipped, so the embedder line
     read as some other program (measured on a 2026.6 install)."""

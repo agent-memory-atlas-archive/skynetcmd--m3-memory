@@ -110,7 +110,7 @@ def test_a_rust_unit_is_pointed_at_m3_config(monkeypatch, tmp_path):
     unit.write_text(_RUST_UNIT.format(env='Environment="M3_EMBED_SERVER_PORT=8083"'), encoding="utf-8")
     assert sched.pin_embed_port(8083) is True
     text = unit.read_text(encoding="utf-8")
-    assert f'ExecStart=/v/m3_core_rs/m3-embed-server --config "{_config_file()}"' in text
+    assert f'ExecStart="/v/m3_core_rs/m3-embed-server" "--config" "{_config_file()}"' in text
     assert "M3_EMBED_SERVER_PORT" not in text
     assert sched.registered_embed_port() is None, "the port is the file's now"
     assert sched.pin_embed_port(8085) is True
@@ -202,3 +202,24 @@ def test_a_port_moved_back_is_followed_but_a_hand_edit_is_kept(tmp_path, m3_sett
     m3_settings({"embed.server.port": 8093})
     embedder_admin.seed_shared_config(str(tmp_path))
     assert url() == "http://127.0.0.1:9999"
+
+
+def test_a_quoted_config_unit_is_read_as_configured_and_never_given_a_second(monkeypatch, tmp_path):
+    """The Rust installer writes every ExecStart word quoted. Read unquoted-only, a
+    unit with "--config" looked unconfigured, setup added a second --config, and
+    the server refused to start at the next restart (upgrade rehearsal, 2026-10-18)."""
+    import install_schedules as sched
+
+    simulate_os(monkeypatch, "Linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr(sched, "_run", lambda *a, **k: None)
+    unit = tmp_path / "systemd" / "user" / "m3-embed-server.service"
+    unit.parent.mkdir(parents=True)
+    unit.write_text(
+        '[Service]\nExecStart="/v/m3_core_rs/m3-embed-server" "--config" "/old/m3_config.toml"\n', encoding="utf-8"
+    )
+    assert sched.registered_embed_port() is None, "a quoted --config is a --config"
+    assert sched.pin_embed_port(8083) is True
+    text = unit.read_text(encoding="utf-8")
+    assert text.count("--config") == 1, text
+    assert "/old/m3_config.toml" not in text

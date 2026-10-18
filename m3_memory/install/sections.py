@@ -955,7 +955,7 @@ def _secrets_in_env_section(brief: bool = False) -> None:
     for f in found:
         if not f.value.strip():
             continue
-        if f.kind == "mcp" and not f.m3_server:
+        if not f.m3_surface:
             others.append(f)
             continue
         key = REGISTRY.by_env(f.name)
@@ -1021,7 +1021,8 @@ def config_root_section(brief: bool = False) -> int:
         from m3_memory.install.env_sources import _server_entries, is_m3_server, mcp_config_files, scan
 
         loc = locate()
-        found = scan(["M3_CONFIG_ROOT"])
+        unchecked: list[str] = []
+        found = scan(["M3_CONFIG_ROOT"], unchecked=unchecked)
     except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
         print()
         print(f"  [!] could not check which m3_config.toml is authoritative: {e}")
@@ -1031,7 +1032,7 @@ def config_root_section(brief: bool = False) -> int:
     non_default = not same_dir(root, default)
     problems: list[str] = []
     for f in found:
-        if f.kind == "mcp" and not f.m3_server:
+        if not f.m3_surface:
             continue  # another tool's entry: not a surface m3 runs from
         value = os.path.expanduser(f.value.strip())
         if value and not same_dir(value, root):
@@ -1072,8 +1073,11 @@ def config_root_section(brief: bool = False) -> int:
     print(f"config: {loc.file} (located by {locator})")
     for line in problems:
         print(f"  [!] {line}")
+    for u in sorted(set(unchecked)):
+        print(f"  [i] could not check {u} for M3_CONFIG_ROOT; inspect it by hand")
     if non_default and not problems:
-        print(f"  [i] every m3 surface found names {root}")
+        scope = "readable " if unchecked else ""
+        print(f"  [i] every {scope}m3 surface found names {root}")
     if non_default:
         print(
             f"  [i] set M3_CONFIG_ROOT={root} wherever m3 runs (your shell or user environment, each agent's "
@@ -1111,7 +1115,7 @@ def m3_env_settings_section(brief: bool = False) -> int:
     by_name: dict[str, set[str]] = {}
     config_root_places: set[str] = set()
     for f in found:
-        if not f.value.strip() or (f.kind == "mcp" and not f.m3_server):
+        if not f.value.strip() or not f.m3_surface:
             continue
         if f.name == "M3_CONFIG_ROOT":
             value = os.path.expanduser(f.value)
@@ -1187,18 +1191,23 @@ def _deprecated_env_section() -> None:
 
         renames = all_env_renames()
         old = [n for n in renames if not n.startswith("M3_")]
-        found = scan(old)
+        unchecked: list[str] = []
+        found = scan(old, unchecked=unchecked)
     except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
         print()
         print(f"  [!] could not check for old env names: {e}")
         return
     by_name: dict[str, set[str]] = {}
     for f in found:
-        if f.value.strip() and (f.kind != "mcp" or f.m3_server):
+        if f.value.strip() and f.m3_surface:
             by_name.setdefault(f.name, set()).add(f.place)
-    if not by_name:
+    if not by_name and not unchecked:
         return  # clean -- say nothing rather than add noise
     print()
+    for u in sorted(set(unchecked)):
+        print(f"  [i] could not check {u} for old env names; inspect it by hand")
+    if not by_name:
+        return
     print("  [!] old env names m3 does not read (delete them where they are set):")
     for name in sorted(by_name):
         print(f"        {name}: set in {', '.join(sorted(by_name[name]))}")

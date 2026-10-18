@@ -88,6 +88,20 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Upgrades keep the embedder running.** On Linux, setup no longer removes a
+  working embedder service whose command line is quoted (it read the program
+  as missing), no longer gives it a second `--config` (the server then refused
+  to start at the next restart), and no longer replaces a port it just imported
+  with another. A service registered without `--config` is pointed at
+  `m3_config.toml`, so its port follows `embed.server.port`.
+  **Affected:** Linux installs with the embedder as a systemd user service;
+  embedder ports other than 8082 · **Action:** none; `m3 upgrade` repairs it ·
+  **Data status:** none.
+- **The LLM choice setup records takes effect.** Setup and
+  `m3 install --llm-endpoint` record it in `m3_config.toml` `[llm]`; they wrote
+  `.llm_config.json`, which m3 no longer reads.
+  **Affected:** installs that chose an LLM runtime or endpoint during setup ·
+  **Action:** none; the setup `m3 upgrade` runs records it · **Data status:** none.
 - **Audit trail: concurrent writers no longer lose entries or fork the chain.**
   Appends take a cross-process lock; a corrupt last line is reported instead of
   starting a new chain. On Windows, releasing m3's file locks no longer leaves

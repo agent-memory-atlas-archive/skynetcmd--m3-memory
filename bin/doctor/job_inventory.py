@@ -131,6 +131,13 @@ def _read_plist(path: str) -> dict:
 _EXECSTART = re.compile(r"^\s*ExecStart\s*=\s*(.+?)\s*$", re.MULTILINE)
 
 
+def _words(command: str) -> list[str]:
+    """A command line's words: install_schedules' reading, the one owner."""
+    import install_schedules as sched
+
+    return sched._unit_words(command)
+
+
 def _systemd_jobs() -> list[Job]:
     jobs: list[Job] = []
     base = os.path.expanduser(_SYSTEMD_USER)
@@ -142,7 +149,7 @@ def _systemd_jobs() -> list[Job]:
         except OSError:
             continue
         m = _EXECSTART.search(text)
-        toks = m.group(1).lstrip("-@+!:").split() if m else []
+        toks = _words(m.group(1).lstrip("-@+!:")) if m else []
         program = toks[0] if toks else None
         script = next((t for t in toks[1:] if t.endswith(".py")), None)
         if name.startswith("m3-") or _is_m3(program, script):
@@ -172,7 +179,7 @@ def _cron_command(line: str) -> tuple[str | None, str | None]:
     """(program, script) of a crontab line. An @reboot-style schedule is one field,
     not five; leading VAR=value assignments and wrappers (nohup, env) are not the
     program. Reading five fields made an @reboot embedder line unrecognisable."""
-    toks = line.split()
+    toks = _words(line)
     toks = toks[1:] if toks and toks[0].startswith("@") else toks[5:]
     while toks and (toks[0] in _CRON_WRAPPERS or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[0])):
         toks = toks[1:]

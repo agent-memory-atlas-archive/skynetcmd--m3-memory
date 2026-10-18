@@ -3660,6 +3660,15 @@ def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool
             _repair_kept_wiring()
         else:
             _step(4, "no agents selected — skipping wiring")
+            # The install record still names this payload's bridge: without it the
+            # verification below reported a stale bridge_path on every such setup.
+            try:
+                from m3_memory.installer import _heal_config_bridge_path
+
+                for line in _heal_config_bridge_path(apply=True):
+                    print(f"  {line}")
+            except Exception as e:  # noqa: BLE001 -- a record repair must not fail setup
+                _warn(f"  recording the bridge path skipped: {type(e).__name__}: {e}. inspect: m3 doctor")
         return True
     _step(4, "wiring selected agents")
     if plan.targets.claude:

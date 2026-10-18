@@ -147,3 +147,26 @@ def test_a_new_file_in_a_shared_directory_is_refused(tmp_path):
     with pytest.raises(ConfigWriteError, match="NOT written"):
         set_values(loc, {_key("db.pool_size"): 3})
     assert [p.name for p in shared.iterdir() if not p.name.endswith(".lock")] == []
+
+
+def test_the_writer_reads_back_a_non_reloadable_key_it_wrote():
+    """A daemon keeps a non-reloadable key at its startup value; the process that
+    WRITES the file must not. Setup imported embed.server.port into a new file,
+    kept reading the startup default, and wrote another port over the import."""
+    from m3_core.config import locate, settings
+    from m3_core.config.writer import set_values
+
+    key = _key("embed.server.port")
+    assert key.reloadable is False, "precondition: the case the freeze applies to"
+    before = settings.setting("embed.server.port")  # builds the snapshot first
+    set_values(locate(), {key: before + 11})
+    assert settings.setting("embed.server.port") == before + 11
+
+
+def test_the_writer_leaves_a_test_installed_snapshot_alone(m3_settings):
+    from m3_core.config import locate, settings
+    from m3_core.config.writer import set_values
+
+    m3_settings({"embed.server.port": 9123})
+    set_values(locate(), {_key("embed.server.port"): 9124})
+    assert settings.setting("embed.server.port") == 9123

@@ -24,7 +24,7 @@ def surfaces(tmp_path, monkeypatch):
     custom.mkdir()
     default.mkdir()
     (custom / "m3_config.toml").write_text("schema_version = 1\n", encoding="utf-8")
-    state = SimpleNamespace(custom=custom, default=default, found=[], mcp_files=[])
+    state = SimpleNamespace(custom=custom, default=default, found=[], mcp_files=[], unchecked=[])
 
     cfg = importlib.import_module("m3_core.config")
     roots = importlib.import_module("m3_memory._roots")
@@ -35,7 +35,13 @@ def surfaces(tmp_path, monkeypatch):
         lambda: SimpleNamespace(root=custom, file=custom / "m3_config.toml", tier="env:M3_CONFIG_ROOT"),
     )
     monkeypatch.setattr(roots, "default_config_root", lambda: str(default))
-    monkeypatch.setattr(es, "scan", lambda names: list(state.found))
+
+    def fake_scan(names, unchecked=None):
+        if unchecked is not None:
+            unchecked.extend(state.unchecked)
+        return list(state.found)
+
+    monkeypatch.setattr(es, "scan", fake_scan)
     monkeypatch.setattr(es, "mcp_config_files", lambda: list(state.mcp_files))
     return state
 
@@ -102,3 +108,13 @@ def test_at_the_default_root_no_locator_is_needed(surfaces, capsys, monkeypatch,
     assert n == 0
     assert "located by the default location" in out
     assert "set M3_CONFIG_ROOT" not in out
+
+
+def test_an_unreadable_place_is_named_and_the_all_clear_is_qualified(surfaces, capsys):
+    """A place the sweep could not read is said, never folded into "every surface
+    names the root" (an all-clear the check did not earn, §3)."""
+    surfaces.unchecked.append("/home/u/.zshrc (PermissionError)")
+    n, out = _run(capsys)
+    assert n == 0
+    assert "could not check /home/u/.zshrc (PermissionError)" in out
+    assert "every readable m3 surface found names" in out

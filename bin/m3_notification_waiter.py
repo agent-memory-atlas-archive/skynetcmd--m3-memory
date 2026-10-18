@@ -618,6 +618,7 @@ def _has_change_signal(probe_store: str) -> bool:
 
         return dialect().store_change_token(probe_store) is not None
     except Exception as exc:
+        assumed = False
         try:
             from m3_core.paths import resolve_backend_name  # the selector's single owner
 
@@ -626,11 +627,13 @@ def _has_change_signal(probe_store: str) -> bool:
             # Without m3_core neither the registry nor the seams that locate
             # m3_config.toml exist; take the registry's default, as documented.
             env = "sqlite"
+            assumed = True
         except ValueError as sel_exc:  # an unrecognised name; the selector says which
             env = f"unrecognised ({sel_exc})"
+        how = "assumed (m3_core is not importable, so the config cannot be read)" if assumed else "configured"
         _warn(
             f"could not ask the backend seam for a change signal "
-            f"(observed: {exc!r}); falling back to backend={env!r}. "
+            f"(observed: {exc!r}); falling back to backend={env!r}, {how}. "
             f"inspect: memory.backends.dialect().store_change_token"
         )
         return env == "sqlite"

@@ -82,7 +82,7 @@ def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *, 
             atomic_write(path, new)
     from .settings import _CACHE  # lazy: settings sits above the writer
 
-    _CACHE.mark_stale()
+    _CACHE.adopt_written(path)
     return path
 
 

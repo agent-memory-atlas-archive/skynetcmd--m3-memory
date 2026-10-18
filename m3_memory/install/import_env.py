@@ -177,7 +177,8 @@ def _plan(
             )
             continue
         chosen[c.key] = c.parsed[shown]
-        lines.append(f"  [+] {verb} {name} = {shown}  (from {_where(c.values[shown])})")
+        mark = "[+]" if verb in ("imported", "would import") else "[i]"  # "not imported" adds nothing
+        lines.append(f"  {mark} {verb} {name} = {shown}  (from {_where(c.values[shown])})")
         if all(f.kind == "rc" for f in c.values[shown]):
             # A value only shell startup files set reached terminals, never the
             # services (launchd/systemd do not read them); from the file, it does.

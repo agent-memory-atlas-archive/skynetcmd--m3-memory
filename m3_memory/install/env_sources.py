@@ -39,6 +39,12 @@ class EnvFound:
     computed: bool = False  # kind "rc": the shell works the value out at startup; ``value`` is the text
 
     @property
+    def m3_surface(self) -> bool:
+        """A place m3 runs from: anything but another tool's MCP entry (a server
+        that is not m3 may set M3_* names of its own; they are not m3's)."""
+        return self.kind != "mcp" or self.m3_server
+
+    @property
     def place(self) -> str:
         """``where``, plus the server for an MCP entry: for a person reading."""
         return f"{self.where} (server {self.server!r})" if self.server else self.where

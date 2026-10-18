@@ -657,10 +657,12 @@ def pin_embed_port(port: int) -> bool:
         except (OSError, StopIteration):
             return False
         prefix, _, command = lines[at].partition("=")
-        parts = command.strip().split(None, 1)
-        rest = parts[1] if len(parts) > 1 else ""
-        rest = re.sub(r"--config(?:=|\s+)(\"[^\"]*\"|\S+)\s*", "", rest).strip()
-        lines[at] = f'{prefix}={parts[0]} --config "{cfg}"' + (f" {rest}" if rest else "")
+        words = _unit_words(command.strip())
+        if not words:
+            return False
+        lines[at] = f"{prefix}=" + " ".join(
+            _unit_quote(w) for w in [words[0], "--config", cfg, *_drop_config(words[1:])]
+        )
         with open(unit, "w", encoding="utf-8", newline="\n") as f:
             f.write("\n".join(lines) + "\n")
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=60)
@@ -675,17 +677,7 @@ def pin_embed_port(port: int) -> bool:
         args = [str(a) for a in data.get("ProgramArguments") or []]
         if not args:
             return False
-        rest, skip = [], False
-        for a in args[1:]:
-            if skip:
-                skip = False
-                continue
-            if a == "--config":
-                skip = True
-                continue
-            if not a.startswith("--config="):
-                rest.append(a)
-        data["ProgramArguments"] = [args[0], "--config", cfg, *rest]
+        data["ProgramArguments"] = [args[0], "--config", cfg, *_drop_config(args[1:])]
         env = data.get("EnvironmentVariables")
         if isinstance(env, dict):
             env.pop("M3_EMBED_SERVER_PORT", None)
@@ -693,6 +685,42 @@ def pin_embed_port(port: int) -> bool:
             plistlib.dump(data, f)
         return _definition_names_config(cfg)
     return False
+
+
+def _unit_words(command: str) -> list[str]:
+    """A service command line's words (systemd ExecStart, a crontab command),
+    unquoted as systemd and the shell read them: the one reading, for the
+    installer and the job inventory. A plain split kept the quotes, so the Rust
+    installer's `ExecStart="…/m3-embed-server" "--config" "…"` named a program
+    that "did not exist". A line without quotes is split on whitespace only (a
+    Windows path's backslashes kept as written); unbalanced quotes fall back too."""
+    if '"' not in command and "'" not in command:
+        return command.split()
+    import shlex
+
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return command.split()
+
+
+def _unit_quote(word: str) -> str:
+    """One ExecStart word, double-quoted as the Rust installer writes them."""
+    return '"' + word.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _drop_config(args: list[str]) -> list[str]:
+    """``args`` without any ``--config X`` / ``--config=X``: the server refuses a
+    repeated --config, so the one being written must be the only one."""
+    out, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+        elif a == "--config":
+            skip = True
+        elif not a.startswith("--config="):
+            out.append(a)
+    return out
 
 
 def _definition_names_config(cfg: str) -> bool:
@@ -753,7 +781,10 @@ def registered_embed_port() -> "int | None":
             text = "\n".join(ln for ln in f.read().splitlines() if not ln.lstrip().startswith("#"))
     except OSError:
         return None
-    if re.search(r"(^|[\s>])--config([\s<=]|$)", text):
+    # Quoted too: the Rust installer writes ExecStart="…" "--config" "…", and an
+    # unquoted-only match read such a unit as having no --config (a second one
+    # was then added, and the server refuses a repeated --config at its next start).
+    if re.search(r"(^|[\s>\"'])--config([\"'\s<=]|$)", text):
         # Started with --config <m3_config.toml>: the port is that file's
         # embed.server.port, read at each start, not part of the definition.
         return None

@@ -20,6 +20,7 @@ import threading
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -174,11 +175,29 @@ class _Cache:
     def last_error(self) -> str | None:
         return self._last_error
 
-    def mark_stale(self) -> None:
-        """The next read re-checks the file's identity (keeping --set values): a
-        writer in this process must read back what it wrote, not wait out the TTL."""
+    def adopt_written(self, path: Path) -> None:
+        """This process just wrote ``path``: read it back now, every key included.
+
+        A running process keeps a non-reloadable key at its startup value (a
+        daemon must restart to pick one up), but the WRITER is the one process
+        that must see what it wrote: setup imported embed.server.port into a new
+        m3_config.toml, kept reading the startup default, found that port busy
+        and wrote another one over the import (upgrade rehearsal, 2026-10-18).
+        Daemons never write the file, so the freeze still holds for them. --set
+        values are kept; a test's installed snapshot is left alone."""
         with self._lock:
-            self._checked_at = 0.0
+            if self._checked_at == float("inf") or self._settings is None:
+                return  # a test-installed snapshot, or none built yet (the next read builds fresh)
+            if Path(self._settings.location.file) != Path(path):
+                self._checked_at = 0.0  # another file: the next read re-checks
+                return
+            try:
+                fresh = build(self._settings.location)
+            except Exception:  # noqa: BLE001 -- the writer validated it; keep the old snapshot, re-check later
+                self._checked_at = 0.0
+                return
+            self._settings = self._with_cli(fresh)
+            self._checked_at = time.monotonic()
 
     def reset(self) -> None:
         with self._lock:
