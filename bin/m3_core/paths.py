@@ -470,6 +470,10 @@ def resolve_engine_file(filename: str) -> str:
     import it from here so the resolution rule lives in exactly one place.
     """
     new_path = os.path.join(get_m3_engine_root(), filename)
+    # A chosen engine root (m3_config.toml [paths] engine_root) is used as
+    # written: a leftover legacy copy must not replace it.
+    if _roots.engine_root_chosen():
+        return new_path
     legacy_path = os.path.join(get_m3_legacy_root(), "memory", filename)
     if os.path.exists(legacy_path) and not os.path.exists(new_path):
         return legacy_path
@@ -687,6 +691,8 @@ def resolve_config_file(filename: str) -> str:
     :func:`resolve_engine_file`; see that docstring for the de-duplication note.
     """
     new_path = os.path.join(get_m3_config_root(), filename)
+    if _roots.config_root_chosen():  # --config / M3_CONFIG_ROOT: used as written
+        return new_path
     legacy_path = os.path.join(get_m3_legacy_root(), "memory", filename)
     if os.path.exists(legacy_path) and not os.path.exists(new_path):
         return legacy_path
@@ -727,16 +733,18 @@ def _db_is_populated(path: str) -> bool:
 
 
 def _default_db_path() -> str:
-    # Precedence: explicit M3_ENGINE_ROOT (honored as-is) > a *populated* derived
-    # engine root > a populated ~/.m3/engine default > populated sibling memory/
-    # (dev clone) > the derived engine path as a last resort (fresh install).
+    # Precedence: a CHOSEN engine root (m3_config.toml [paths] engine_root, or the
+    # legacy M3_ENGINE_ROOT pin), honored as-is > a *populated* derived engine root
+    # > a populated ~/.m3/engine default > populated sibling memory/ (dev clone) >
+    # the derived engine path as a last resort (fresh install). The populated-file
+    # probes below are only for installs that chose nothing.
     #
     # The key fix over the naive "any env var set -> engine path" rule: when only
     # M3_MEMORY_ROOT is set, the engine path is DERIVED, not chosen. If that
     # derived DB is missing or an empty stub, we must not let it shadow a
     # populated legacy memory/ DB — see _db_is_populated.
-    if _roots.pinned(_roots.ENGINE_ROOT_ENV):  # env-owner: the approved root locators
-        # Explicit engine root is a deliberate operator choice; honor it verbatim
+    if _roots.engine_root_chosen():
+        # A chosen engine root is a deliberate operator choice; honor it verbatim
         # even if empty (a fresh deployment legitimately starts empty here).
         return os.path.join(get_m3_engine_root(), "agent_memory.db")
 

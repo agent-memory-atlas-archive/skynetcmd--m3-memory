@@ -54,6 +54,12 @@ the policy is forward-going only.
     (clients received bare types before), and tool descriptions say what each
     returns and when to use it instead of its neighbours.
     `bin/tool_quality_check.py` checks the catalog and the listed schemas.
+  - SQLite: a bulk write (such as `memory_import`) right after a maintenance
+    run could fail at once with "database is locked" while other agents were
+    writing; write transactions now take the lock when they begin, so they
+    wait for it instead. Agent writes through `memory_write` were not affected.
+    `bin/bench_concurrent_writes.py` measures concurrent writers with ingestion
+    running alongside.
   - `m3 doctor` checks other agents' capture when Claude Code is absent
     (without `~/.claude/settings.json` it stopped before them).
   - Three `m3 doctor` false alarms are gone: a folder in the spill quarantine
@@ -73,6 +79,18 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **An engine root set in `m3_config.toml` is always used.** When a populated
+  `~/.m3/engine/agent_memory.db` also existed, m3 used that store instead of
+  the `[paths] engine_root` you set (only the deprecated `M3_ENGINE_ROOT`
+  variable counted as a choice). Legacy copies of state and config files no
+  longer replace files under a chosen engine or config root either, and a
+  `[paths] memory_root` in the file now outranks `M3_MEMORY_ROOT`.
+  **Affected:** installs that set `[paths] engine_root` to a non-default place
+  while a store also exists at `~/.m3/engine` · **Action:** run `m3 doctor`
+  and check the store path it reports · **Data status:** memories written
+  before this release went to `~/.m3/engine/agent_memory.db`, not the chosen
+  root; nothing was lost, and they can be moved with `memory_export` and
+  `memory_import`.
 - **FIPS mode: a PostgreSQL connection string without `verify-full` is named,
   with the fix.** Since 2026.10.17.1, FIPS mode refuses a networked PostgreSQL
   connection that does not verify the server, so warehouse sync stopped for

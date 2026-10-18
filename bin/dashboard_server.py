@@ -1187,7 +1187,7 @@ def _wiki_html_path() -> str:
         from m3_core.paths import get_m3_engine_root
 
         engine_root = get_m3_engine_root()
-    except Exception:
+    except ImportError:  # no payload on the path; a resolver error must surface
         engine_root = os.path.join(os.path.expanduser("~"), ".m3", "engine")
     return os.path.join(engine_root, "wiki", "wiki.html")
 

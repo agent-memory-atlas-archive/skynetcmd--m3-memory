@@ -280,3 +280,51 @@ if __name__ == "__main__":
 
     print(f"\n  {len(PASS)} passed, {len(FAIL)} failed")
     sys.exit(1 if FAIL else 0)
+
+
+# ---------------------------------------------------------------------------
+# Write transactions begin IMMEDIATE
+# ---------------------------------------------------------------------------
+
+
+def test_write_transactions_take_the_lock_at_begin(tmp_path):
+    """A DEFERRED write transaction that reads first holds a WAL snapshot; once
+    another connection commits, its first write fails at once with "database is
+    locked" (busy_timeout does not apply). memory_import after a maintenance
+    VACUUM hit this beside a concurrent writer (2026-10-17). apply_pragmas makes
+    the implicit BEGIN an IMMEDIATE one, so the lock is taken before any read."""
+    db = str(tmp_path / "t.db")
+    conn = _new_conn(db)
+    apply_pragmas(conn, "production")
+    conn.execute("CREATE TABLE t (x)")
+    conn.commit()
+    seen: list[str] = []
+    conn.set_trace_callback(seen.append)
+    conn.execute("INSERT INTO t VALUES (1)")
+    conn.commit()
+    assert conn.isolation_level == "IMMEDIATE"
+    assert seen[0].upper().startswith("BEGIN IMMEDIATE"), seen
+
+
+def test_the_deferred_failure_it_prevents_is_real(tmp_path):
+    """The mechanism, reproduced deterministically: read, another commit, write."""
+    db = str(tmp_path / "t.db")
+    a, b = _new_conn(db), _new_conn(db)
+    for c in (a, b):
+        apply_pragmas(c, "production")
+    a.execute("CREATE TABLE t (x)")
+    a.commit()
+    a.isolation_level = None  # manage the DEFERRED transaction by hand
+    a.execute("BEGIN DEFERRED")
+    a.execute("SELECT COUNT(*) FROM t").fetchone()  # snapshot taken
+    b.execute("INSERT INTO t VALUES (1)")
+    b.commit()
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        a.execute("INSERT INTO t VALUES (2)")
+    a.execute("ROLLBACK")
+
+
+def test_an_autocommit_connection_keeps_autocommit(tmp_path):
+    conn = sqlite3.connect(str(tmp_path / "t.db"), isolation_level=None)
+    apply_pragmas(conn, "production")
+    assert conn.isolation_level is None

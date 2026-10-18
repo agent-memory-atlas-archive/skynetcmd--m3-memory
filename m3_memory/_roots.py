@@ -107,22 +107,31 @@ def memory_root_migrated() -> bool:
 
 
 def memory_root() -> str:
-    """The memory root: ``M3_MEMORY_ROOT``; else ``~/.m3`` once the legacy state has
-    been migrated there; else the legacy ``~/.m3-memory``.
+    """The memory root: ``[paths] memory_root`` in m3_config.toml; else
+    ``M3_MEMORY_ROOT``; else ``~/.m3`` once the legacy state has been migrated
+    there; else the legacy ``~/.m3-memory``.
 
     Root-1: the default moves to
     ``~/.m3`` only AFTER the migration ran, so an un-migrated install keeps its old
     root instead of splitting its audit trail and config across two directories."""
+    chosen = _file_root("memory_root")  # the file outranks the env name, as for every root
+    if chosen:
+        return chosen
     if memory_root_pin() or not memory_root_migrated():
         return legacy_memory_root()  # the pin, or the un-migrated ~/.m3-memory
     return _home(".m3")
 
 
-def _derived(env_name: str, sub: str) -> str:
-    """``M3_X_ROOT`` > ``M3_MEMORY_ROOT/<sub>`` > ``~/.m3/<sub>``."""
+def _derived(env_name: str, sub: str, *, file_memory_root: bool = True) -> str:
+    """``M3_X_ROOT`` > ``<memory root>/<sub>`` > ``~/.m3/<sub>``, where the memory
+    root is ``[paths] memory_root`` in the file, else ``M3_MEMORY_ROOT``. The config
+    root passes ``file_memory_root=False``: the file's location depends on it."""
     root = _env(env_name)  # env-owner: the approved root locators
     if root:
         return abs_root(root)
+    mem_file = _file_root("memory_root") if file_memory_root else None
+    if mem_file:
+        return posixpath.join(mem_file, sub)
     mem = _env(MEMORY_ROOT_ENV)  # env-owner: the approved root locators
     if mem:
         return posixpath.join(abs_root(mem), sub)
@@ -210,18 +219,18 @@ def config_root_with_tier() -> tuple[str, str]:
         return posixpath.dirname(_pinned_config), CONFIG_ROOT_ARG
     if _env(CONFIG_ROOT_ENV_NAME):  # env-owner: the approved root locators
         # env-owner: the approved root locators
-        return _derived(CONFIG_ROOT_ENV_NAME, "config"), CONFIG_ROOT_ENV
+        return _derived(CONFIG_ROOT_ENV_NAME, "config", file_memory_root=False), CONFIG_ROOT_ENV
     if _env(MEMORY_ROOT_ENV):  # env-owner: the approved root locators
         # env-owner: the approved root locators
-        return _derived(CONFIG_ROOT_ENV_NAME, "config"), CONFIG_ROOT_LEGACY
+        return _derived(CONFIG_ROOT_ENV_NAME, "config", file_memory_root=False), CONFIG_ROOT_LEGACY
     # env-owner: the approved root locators
-    return _derived(CONFIG_ROOT_ENV_NAME, "config"), CONFIG_ROOT_DEFAULT
+    return _derived(CONFIG_ROOT_ENV_NAME, "config", file_memory_root=False), CONFIG_ROOT_DEFAULT
 
 
 def config_root() -> str:
     if _pinned_config is not None:
         return posixpath.dirname(_pinned_config)
-    return _derived(CONFIG_ROOT_ENV_NAME, "config")  # env-owner: the approved root locators
+    return _derived(CONFIG_ROOT_ENV_NAME, "config", file_memory_root=False)  # env-owner: the approved root locators
 
 
 def config_file() -> str:
@@ -255,7 +264,7 @@ def _file_paths() -> dict[str, str]:
         with open(path, "rb") as fh:
             table = tomllib.load(fh).get("paths") or {}
         paths: dict[str, str] = {}
-        for name in ("engine_root", "logs_root", "models_root"):
+        for name in ("memory_root", "engine_root", "logs_root", "models_root"):
             if name not in table:
                 continue
             value = table[name]
@@ -276,6 +285,26 @@ def _file_root(name: str) -> str | None:
 def engine_root() -> str:
     # env-owner: the approved root locators
     return _file_root("engine_root") or _derived(ENGINE_ROOT_ENV, "engine")
+
+
+def engine_root_chosen() -> bool:
+    """Whether the user chose the engine root: ``[paths] engine_root`` in
+    m3_config.toml (or the legacy ``M3_ENGINE_ROOT`` pin). A chosen root is used as
+    written; resolvers must not second-guess it by which files happen to exist
+    elsewhere (a populated default store must not win over it)."""
+    # A value equal to the default is not a choice: setup writes the default into
+    # the file, and that must not switch off the legacy fallbacks for old layouts.
+    root = _file_root("engine_root") or pinned(ENGINE_ROOT_ENV)  # env-owner: the approved root locators
+    return bool(root) and not same_dir(root, _home(".m3", "engine"))
+
+
+def config_root_chosen() -> bool:
+    """Whether the config root was chosen explicitly (``--config`` or
+    ``M3_CONFIG_ROOT``), so a legacy copy of a config file elsewhere must not
+    replace it. A root derived from the legacy ``M3_MEMORY_ROOT`` is not: that is
+    the pre-Homecoming layout the legacy fallback exists for."""
+    root, tier = config_root_with_tier()
+    return tier in (CONFIG_ROOT_ARG, CONFIG_ROOT_ENV) and not same_dir(root, default_config_root())
 
 
 def logs_root() -> str:

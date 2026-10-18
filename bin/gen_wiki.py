@@ -36,7 +36,7 @@ def _engine_root() -> str:
         from m3_core.paths import get_m3_engine_root
 
         return get_m3_engine_root()
-    except Exception:
+    except ImportError:  # no payload on the path; a resolver error must surface
         return os.path.join(os.path.expanduser("~"), ".m3", "engine")
 
 

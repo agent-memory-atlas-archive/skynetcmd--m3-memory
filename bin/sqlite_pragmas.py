@@ -211,6 +211,18 @@ def apply_pragmas(
     for pragma, value in knobs.items():
         conn.execute(f"PRAGMA {pragma} = {value}")
 
+    # Write transactions take the write lock when they begin (BEGIN IMMEDIATE),
+    # not at their first write. A DEFERRED transaction that reads first (an FTS5
+    # trigger re-reading its config after a VACUUM did exactly that) holds a read
+    # snapshot; if another process commits before its write, WAL cannot upgrade
+    # the snapshot and returns "database is locked" at once — busy_timeout never
+    # applies (seen after a maintenance VACUUM, 2026-10-17).
+    # Python's sqlite3 begins a transaction only before INSERT/UPDATE/DELETE, so
+    # reads are unaffected. A connection opened in autocommit mode
+    # (isolation_level=None) manages its own transactions and keeps it.
+    if conn.isolation_level is not None:
+        conn.isolation_level = "IMMEDIATE"
+
     # Try to load sqlite-vec dynamically if available
     try:
         import sqlite_vec

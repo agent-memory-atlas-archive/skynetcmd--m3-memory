@@ -1,4 +1,4 @@
-"""Roots resolve FILE first, then the env var read LIVE, then the derived default, for the engine, logs and models roots.
+"""Roots resolve FILE first, then the env var read LIVE, then the derived default, for the memory, engine, logs and models roots.
 ``_roots`` reads ``[paths]`` itself with stdlib tomllib: it sits beside the OS seam
 and must not import the registry above it."""
 
@@ -78,3 +78,20 @@ def test_a_posix_root_reads_the_same_under_a_simulated_os(tmp_path, monkeypatch)
     _write_config('[paths]\nengine_root = "/data/m3/engine"\n')
     monkeypatch.setattr(sys, "platform", "linux")
     assert _roots.engine_root() == "/data/m3/engine"
+
+
+def test_the_memory_root_in_the_file_wins_over_env(tmp_path, monkeypatch):
+    """`[paths] memory_root` was read by the registry (and doctor) but not by
+    _roots, which kept following M3_MEMORY_ROOT: doctor called the variable
+    ignored while the audit trail followed it (2026-10-17). The roots derived from
+    it follow the file too; the config root cannot (the file lives under it)."""
+    from m3_memory import _roots
+
+    monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path / "from-env"))
+    monkeypatch.delenv("M3_MODELS_ROOT", raising=False)
+    config_before = _roots.config_root()
+    target = (tmp_path / "from-file").as_posix()
+    _write_config(f'[paths]\nmemory_root = "{target}"\n')
+    assert Path(_roots.memory_root()) == Path(target)
+    assert Path(_roots.models_root()) == Path(target) / "models"
+    assert _roots.config_root() == config_before

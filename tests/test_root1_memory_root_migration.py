@@ -18,6 +18,7 @@ def home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))  # the home on Windows
     monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)  # the sandbox pins it; Root-1 needs it unpinned
+    monkeypatch.delenv("M3_ENGINE_ROOT", raising=False)  # likewise: a pre-Homecoming user chose no engine root
     old = tmp_path / ".m3-memory"
     (old / "backups").mkdir(parents=True)
     (old / "audit_trail.log.jsonl").write_text('{"old": 1}\n', encoding="utf-8")

@@ -189,7 +189,7 @@ def install_unix_crontab(m3_memory_root, *, block: bool = True):
         from m3_sdk import get_m3_engine_root
 
         _bak_dir = get_m3_engine_root()
-    except Exception:
+    except ImportError:  # no payload on the path; a resolver error must surface
         _bak_dir = os.path.expanduser(os.path.join("~", ".m3", "engine"))
     from m3_core.atomic_io import GuardedRewrite
 

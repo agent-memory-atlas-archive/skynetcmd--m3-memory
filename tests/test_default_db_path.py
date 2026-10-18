@@ -159,3 +159,52 @@ def test_relative_path_is_still_absolutised(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("M3_DATABASE", "rel/agent_memory.db")
     assert os.path.isabs(m3_sdk.resolve_db_path(None))
+
+
+def _chosen_engine_root(tmp_path, monkeypatch):
+    """A home with a POPULATED default store, and a config file choosing another
+    engine root. Returns (default_db, chosen_root)."""
+    home = tmp_path / "home"
+    default_db = home / ".m3" / "engine" / "agent_memory.db"
+    _make_db(str(default_db), populated=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    chosen = tmp_path / "chosen-engine"
+    cfg = tmp_path / "cfg-chosen"
+    cfg.mkdir()
+    (cfg / "m3_config.toml").write_text(
+        f'[paths]\nengine_root = "{chosen.as_posix()}"\n', encoding="utf-8", newline="\n"
+    )
+    monkeypatch.setenv("M3_CONFIG_ROOT", str(cfg))
+    return default_db, chosen
+
+
+def test_a_config_chosen_engine_root_wins_over_a_populated_default(tmp_path, monkeypatch):
+    """Only the env pin counted as a choice: a root set in m3_config.toml lost to a
+    populated ~/.m3/engine/agent_memory.db, so m3 used a store it was told not to
+    (2026-10-17). A fresh chosen root is honoured even while empty."""
+    default_db, chosen = _chosen_engine_root(tmp_path, monkeypatch)
+    resolved = os.path.abspath(m3_sdk._default_db_path())
+    assert resolved == os.path.abspath(str(chosen / "agent_memory.db")), resolved
+    assert resolved != os.path.abspath(str(default_db))
+
+
+def test_a_chosen_engine_root_is_not_replaced_by_a_legacy_file(tmp_path, monkeypatch):
+    from m3_core import paths
+
+    _default_db, chosen = _chosen_engine_root(tmp_path, monkeypatch)
+    legacy = tmp_path / "home" / ".m3-memory" / "memory" / "state.json"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("{}", encoding="utf-8")
+    assert os.path.abspath(paths.resolve_engine_file("state.json")) == os.path.abspath(str(chosen / "state.json"))
+
+
+def test_a_chosen_config_root_is_not_replaced_by_a_legacy_file(tmp_path, monkeypatch):
+    from m3_core import paths
+
+    _chosen_engine_root(tmp_path, monkeypatch)
+    legacy = tmp_path / "home" / ".m3-memory" / "memory" / ".chatlog_config.json"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("{}", encoding="utf-8")
+    got = paths.resolve_config_file(".chatlog_config.json")
+    assert os.path.abspath(got) == os.path.abspath(str(tmp_path / "cfg-chosen" / ".chatlog_config.json")), got
