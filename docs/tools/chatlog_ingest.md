@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: 08bfea76386e
-mtime_utc: 2026-10-18T01:45:14.626781+00:00
-generated_utc: 2026-10-18T01:45:45.621207+00:00
+sha1: 43d116824eed
+mtime_utc: 2026-10-18T16:57:11.199455+00:00
+generated_utc: 2026-10-18T17:01:58.236853+00:00
 private: false
 ---
 
@@ -36,7 +36,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 
 ## Entry points
 
-- `async def main()` (line 1023)
+- `async def main()` (line 1100)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,7 +82,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 
 **sqlite**
 
-- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 711)
+- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 712)
 
 
 ---

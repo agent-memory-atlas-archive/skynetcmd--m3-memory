@@ -87,6 +87,7 @@ _Names1 = Literal[
     "search.two_stage_observations",
     "slm.classifier",
     "tools.lazy",
+    "updates.check",
 ]
 
 _Names2 = Literal["llm.lmstudio_failover"]

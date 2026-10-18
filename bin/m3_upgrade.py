@@ -60,6 +60,7 @@ from collections.abc import Sequence
 from typing import TextIO
 
 from m3_core.seams import is_windows
+from m3_core.version_check import fetch_latest, version_key
 
 # How m3_memory got onto this machine. The upgrade command differs per method.
 PIPX = "pipx"
@@ -356,22 +357,6 @@ def _entry_point_names(pkg: pathlib.Path | None) -> list[str]:
     return names or ["m3", "m3-team", "mcp-memory"]
 
 
-def _version_key(v: str) -> tuple:
-    """Sort key for a version string. packaging when importable; otherwise the
-    leading numeric release (a string sort puts 3.9 above 3.10)."""
-    try:
-        from packaging.version import InvalidVersion, Version
-
-        try:
-            return (1, Version(v))
-        except InvalidVersion:
-            pass
-    except ImportError:
-        pass
-    nums = re.match(r"\d+(?:\.\d+)*", v)
-    return (0, tuple(int(n) for n in nums.group(0).split(".")) if nums else (), v)
-
-
 def installed_version(pkg: pathlib.Path | None) -> str | None:
     """The installed m3-memory version, from its dist-info directory name.
 
@@ -382,7 +367,7 @@ def installed_version(pkg: pathlib.Path | None) -> str | None:
     found = [d.name[len("m3_memory-") : -len(".dist-info")] for d in pkg.parent.glob("m3_memory-*.dist-info")]
     if not found:
         return None
-    found.sort(key=_version_key)
+    found.sort(key=version_key)
     if len(found) > 1:
         print(
             f"  [!] {len(found)} m3-memory dist-info directories in {pkg.parent} ({', '.join(found)}); "
@@ -759,14 +744,9 @@ def should_retry_uncached(*, unchanged: bool, local_source: bool, latest: str | 
 
 def pypi_latest() -> str | None:
     """The newest m3-memory version PyPI serves right now (uncached), or None
-    when PyPI cannot be asked."""
-    import json
-    import urllib.request
-
+    when PyPI cannot be asked. The one owner is m3_core.version_check."""
     try:
-        req = urllib.request.Request("https://pypi.org/pypi/m3-memory/json", headers={"Cache-Control": "no-cache"})
-        with urllib.request.urlopen(req, timeout=10) as r:  # nosec B310 — fixed https URL
-            return str(json.load(r)["info"]["version"])
+        return fetch_latest(timeout=10)
     except (OSError, ValueError, KeyError):
         return None
 

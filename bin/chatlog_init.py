@@ -122,6 +122,7 @@ def get_hook_path_for_agent(agent: str) -> tuple[str, str, str]:
         return ("", "", f"no hook: {agent} is a library integration; the application submits turns through m3's API")
     agent_map = {
         "claude-code": ("claude_code_precompact", "claude-code pre-compaction hook"),
+        "codex": ("codex_stop", "Codex CLI stop hook"),
         "gemini-cli": ("gemini_cli_onexit", "Gemini CLI session exit hook"),
         "antigravity-cli": ("gemini_cli_onexit", "Antigravity CLI session exit hook"),
         "opencode": ("opencode_session_end", "OpenCode session end hook"),

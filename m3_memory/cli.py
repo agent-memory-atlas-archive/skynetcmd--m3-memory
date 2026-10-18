@@ -242,21 +242,12 @@ def _warn_if_pypi_newer() -> None:
     does NOT upgrade the package (a common surprise for pipx installs). Best-effort:
     silent on any network/parse error, short timeout so it never stalls the command."""
     try:
-        import json as _json
-        import urllib.request as _url
-        from importlib.metadata import version as _pkgver
+        _bin.ensure_on_path()
+        from m3_core.version_check import fetch_latest, installed_version, is_newer
 
-        installed = _pkgver("m3-memory")
-        # Hardcoded https:// literal — no user input, so no file:/custom scheme
-        # can reach urlopen. Same justification (and marker) as every other
-        # urlopen in this repo; see bin/doctor/*_probe.py.
-        with _url.urlopen("https://pypi.org/pypi/m3-memory/json", timeout=2.5) as r:  # noqa: S310  # nosec B310
-            latest = _json.load(r)["info"]["version"]
-
-        def _key(v: str) -> list:
-            return [int(p) for p in v.split(".") if p.isdigit()]
-
-        if _key(latest) > _key(installed):
+        installed = installed_version()
+        latest = fetch_latest(timeout=2.5)
+        if is_newer(latest, installed):
             # The upgrade line is OS-specific ON PURPOSE. A bare
             # `pipx upgrade m3-memory` is unsafe on Windows in two ways, both
             # observed on a real install (2026-08-10):

@@ -31,7 +31,7 @@ import os
 import sys
 
 HOOK_DIR = os.path.join(os.path.dirname(__file__), "..", "bin", "hooks", "chatlog")
-HOOKS = ("claude_code_precompact", "gemini_cli_onexit", "opencode_session_end", "openclaw_session_end")
+HOOKS = ("claude_code_precompact", "gemini_cli_onexit", "opencode_session_end", "openclaw_session_end", "codex_stop")
 
 
 def _load(name):
@@ -201,6 +201,7 @@ class _StdinStub:
             "gemini_cli_onexit": "SessionEnd",
             "opencode_session_end": "SessionEnd",
             "openclaw_session_end": "command:reset",
+            "codex_stop": "Stop",
         }[name]
         self._raw = json.dumps(
             {

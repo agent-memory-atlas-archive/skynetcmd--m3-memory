@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: 427163bf99da
-mtime_utc: 2026-10-18T05:35:31.939568+00:00
-generated_utc: 2026-10-18T05:35:32.791981+00:00
+sha1: 12117fbeb2ec
+mtime_utc: 2026-10-18T16:59:11.099955+00:00
+generated_utc: 2026-10-18T17:01:58.697208+00:00
 private: false
 ---
 
@@ -59,8 +59,8 @@ is stopped or replaced.
 
 ## Entry points
 
-- `def run()` (line 622)
-- `def main()` (line 875)
+- `def run()` (line 607)
+- `def main()` (line 855)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -97,14 +97,14 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 575)
-- `subprocess.Popen()  → `cmd`` (line 631)
-- `subprocess.run()  → `[exe, '--version']`` (line 111)
-- `subprocess.run()  → `[sys.executable, '-c', code]`` (line 190)
-- `subprocess.run()  → `cmd`` (line 648)
-- `subprocess.run()  → `cmd`` (line 668)
-- `subprocess.run()` (line 136)
-- `subprocess.run()` (line 718)
+- `subprocess.Popen()  → `cmd`` (line 560)
+- `subprocess.Popen()  → `cmd`` (line 616)
+- `subprocess.run()  → `[exe, '--version']`` (line 112)
+- `subprocess.run()  → `[sys.executable, '-c', code]`` (line 191)
+- `subprocess.run()  → `cmd`` (line 633)
+- `subprocess.run()  → `cmd`` (line 653)
+- `subprocess.run()` (line 137)
+- `subprocess.run()` (line 703)
 
 
 ---
@@ -116,7 +116,7 @@ _(none detected)_
 - `m3_core.config.env (secret_env_names)`
 - `m3_core.seams (childenv)`
 - `m3_core.seams (is_windows)`
-- `packaging.version (InvalidVersion, Version)`
+- `m3_core.version_check (fetch_latest, version_key)`
 - `psutil`
 - `site`
 

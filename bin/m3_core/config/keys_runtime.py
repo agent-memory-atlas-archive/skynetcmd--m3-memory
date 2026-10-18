@@ -80,6 +80,14 @@ def _sha256_hex(value: str) -> None:
 
 
 RUNTIME: list[Key] = [
+    # ── [updates] (m3_core/version_check.py; setup asks, default yes) ──
+    _flag(
+        "updates.check",
+        (),
+        False,
+        "Check PyPI at most once a day for a newer m3 and show it in each agent's session-start "
+        "line (the only request: GET pypi.org/pypi/m3-memory/json). Off: the line says checking is off.",
+    ),
     # ── [crypto] (crypto_provider.py; read at import) ──
     _flag(
         "crypto.fips_mode",

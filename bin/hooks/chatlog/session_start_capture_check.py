@@ -232,11 +232,13 @@ def _primary_is_sqlite() -> bool:
         return True
 
 
-def main() -> None:
+def capture_status() -> tuple[str, bool]:
+    """The capture verdict as (message, quiet): ``quiet`` is False only when the
+    check itself failed, so the host shows that line even if it hides others.
+    Also used by bin/hooks/session_start.py, every agent's session-start hook."""
     verdict = _state_verdict()
     if verdict is not None:
-        print(json.dumps({"systemMessage": verdict, "suppressOutput": True}))
-        return
+        return verdict, True
     dbs = _candidate_dbs()
     try:
         _sql, _params = _recent_window_sql()
@@ -262,27 +264,31 @@ def main() -> None:
         if errors and len(errors) == len(dbs):
             raise RuntimeError("; ".join(errors))
     except Exception as exc:  # noqa: BLE001 — never break session start
-        msg = (
+        return (
             f"\U0001f6a8 m3 chatlog check FAILED to query DB: {exc} "
             "— capture status UNKNOWN. Verify before trusting memory."
-        )
-        print(json.dumps({"systemMessage": msg}))
-        return
+        ), False
 
     age = _age_minutes(newest) if count == 0 else None
     if count > 0:
-        msg = f"✅ m3 chatlog capture: WORKING ({count} rows/{WINDOW_MIN}min)"
-    elif age is not None:
-        msg = _verdict_for_age(age, newest)
-    else:
-        msg = (
-            f"\U0001f6a8 WARNING: m3 chatlog capture NOT writing "
-            f"(0 rows in last {WINDOW_MIN}min). Turns from this session are NOT "
-            "being preserved. Run `m3 chatlog doctor` before continuing "
-            "substantive work. (Note: an MCP disconnect does NOT cause this — "
-            "capture writes to the DB directly, independent of that connection.)"
-        )
-    print(json.dumps({"systemMessage": msg, "suppressOutput": True}))
+        return f"✅ m3 chatlog capture: WORKING ({count} rows/{WINDOW_MIN}min)", True
+    if age is not None:
+        return _verdict_for_age(age, newest), True
+    return (
+        f"\U0001f6a8 WARNING: m3 chatlog capture NOT writing "
+        f"(0 rows in last {WINDOW_MIN}min). Turns from this session are NOT "
+        "being preserved. Run `m3 chatlog doctor` before continuing "
+        "substantive work. (Note: an MCP disconnect does NOT cause this — "
+        "capture writes to the DB directly, independent of that connection.)"
+    ), True
+
+
+def main() -> None:
+    msg, quiet = capture_status()
+    out: dict = {"systemMessage": msg}
+    if quiet:
+        out["suppressOutput"] = True
+    print(json.dumps(out))
 
 
 if __name__ == "__main__":

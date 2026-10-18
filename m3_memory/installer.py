@@ -682,7 +682,8 @@ def _register_codex_mcp(*, repair_only: bool = False) -> str | None:
     elif not isinstance(servers, dict):
         return f"[!] {cfg}: `mcp_servers` is not a table; Codex was not wired. inspect: that file"
     existing = servers.get("memory")
-    current = existing.unwrap() if hasattr(existing, "unwrap") else existing
+    unwrap = getattr(existing, "unwrap", None)  # tomlkit item -> plain dict
+    current = unwrap() if callable(unwrap) else existing
     if current is None and repair_only:
         return None
     if current is not None and not _memory_entry_needs_repoint(current):

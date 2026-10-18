@@ -256,6 +256,7 @@ def record_spill_state() -> dict:
 VALID_HOST_AGENTS: frozenset[str] = frozenset(
     (
         "claude-code",
+        "codex",
         "gemini-cli",
         "antigravity-cli",
         "opencode",

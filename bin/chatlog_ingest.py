@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -839,8 +840,84 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+# ─── Codex CLI ────────────────────────────────────────────────────────────────
+
+# Context Codex injects as a user-role message; it is not something the person
+# said, so it is not a chat turn.
+_CODEX_INJECTED_PREFIXES = ("<environment_context>", "<user_instructions>")
+
+
+def _parse_codex(raw: str) -> tuple[list[dict], str | None]:
+    """Parse a Codex CLI rollout (``~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl``).
+
+    One JSON object per line: ``{"timestamp", "type", "payload"}``. The
+    ``session_meta`` line carries the session id; a chat turn is a
+    ``response_item`` whose payload is a ``message`` with role user (content
+    ``input_text``) or assistant (``output_text``). Reasoning, tool calls,
+    developer messages and context Codex injects as a user message are skipped.
+    The legacy ``event_msg`` copies are not read: Codex writes them only in its
+    legacy history mode, and reading both would store each turn twice.
+    """
+    items: list[dict] = []
+    session_id: str | None = None
+    model = ""
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Malformed Codex rollout line, skipping: {e}")
+            continue
+        if not isinstance(obj, dict):
+            continue
+        kind, payload = obj.get("type"), obj.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        if kind == "session_meta":
+            session_id = session_id or payload.get("session_id") or payload.get("id")
+            continue
+        if kind == "turn_context":
+            model = payload.get("model") or model
+            continue
+        if kind != "response_item" or payload.get("type") != "message":
+            continue
+        role = payload.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        wanted = "input_text" if role == "user" else "output_text"
+        text = "\n".join(
+            str(c.get("text", ""))
+            for c in payload.get("content") or []
+            if isinstance(c, dict) and c.get("type") == wanted and c.get("text")
+        ).strip()
+        if not text or (role == "user" and text.startswith(_CODEX_INJECTED_PREFIXES)):
+            continue
+        stamp = str(obj.get("timestamp") or "")
+        # Stop re-reads the whole rollout every turn: the id must be the same on
+        # each read, so it is the line's own id or one built from its stamp.
+        uid = payload.get("id") or f"{stamp}:{role}:{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}"
+        items.append(
+            {
+                "content": text,
+                "role": role,
+                "model_id": (model or "unknown") if role == "assistant" else "unknown",
+                "conversation_id": session_id or "",
+                "provider": "openai",
+                "timestamp": stamp,
+                "uuid": uid,
+            }
+        )
+    for item in items:
+        if not item["conversation_id"] and session_id:
+            item["conversation_id"] = session_id
+    return items, session_id
+
+
 PARSERS = {
     "claude-code": _parse_claude_code,
+    "codex": _parse_codex,
     "gemini-cli": _parse_gemini_cli,
     "antigravity-cli": _parse_gemini_cli,
     "openclaw": _parse_openclaw,

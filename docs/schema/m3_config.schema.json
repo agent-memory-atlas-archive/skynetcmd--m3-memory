@@ -1620,6 +1620,17 @@
         }
       }
     },
+    "updates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "type": "boolean",
+          "description": "Check PyPI at most once a day for a newer m3 and show it in each agent's session-start line (the only request: GET pypi.org/pypi/m3-memory/json). Off: the line says checking is off.",
+          "default": false
+        }
+      }
+    },
     "wiki": {
       "type": "object",
       "additionalProperties": false,

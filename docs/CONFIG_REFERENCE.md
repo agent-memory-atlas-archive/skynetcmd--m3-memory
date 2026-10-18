@@ -508,6 +508,12 @@ Precedence for each setting: a command-line flag (`--set KEY=VALUE`), then this 
 | `startup` | list of strings | (none) | `M3_TOOLS_STARTUP` | restart to apply; MCP tools registered at session start (must include the escape hatch). Unset: .tools_config.json startup_tools, else the shipped set. |
 | `timeout_s` | number | (none) | `M3_TOOL_TIMEOUT` | restart to apply; Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30. |
 
+## [updates]
+
+| Key | Type | Default | Former environment names (not read) | Notes |
+|---|---|---|---|---|
+| `check` | boolean | `false` | (none) | restart to apply; Check PyPI at most once a day for a newer m3 and show it in each agent's session-start line (the only request: GET pypi.org/pypi/m3-memory/json). Off: the line says checking is off. |
+
 ## [wiki.compile]
 
 | Key | Type | Default | Former environment names (not read) | Notes |
