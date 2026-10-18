@@ -162,10 +162,15 @@ def test_the_flusher_does_not_sleep_on_the_shared_time_module(monkeypatch):
         db._read_log_loop()
 
 
-def test_a_superseded_flusher_ends(monkeypatch):
+def test_a_superseded_flusher_ends():
     """A rebuilt memory package starts its own flusher; the old one must stop once
-    its module is not the live one and its queue is empty."""
+    its module is not the live one and its queue is empty.
+
+    The loop runs against a private copy of the module's globals: a live flusher
+    thread started by an earlier test reads the real module's, and swapping them
+    under it raised in that thread (Windows, Python 3.14 lane)."""
     import importlib
+    import types
 
     db = importlib.import_module("memory.db")
 
@@ -173,11 +178,15 @@ def test_a_superseded_flusher_ends(monkeypatch):
         def wait(self, _timeout):
             return None
 
-    monkeypatch.setattr(db, "_read_log_tick", _Tick())
-    monkeypatch.setattr(db, "flush_read_log", lambda: 0)
-    monkeypatch.setattr(db, "_read_log_pending", [])
-    monkeypatch.setattr(db, "_THIS_MODULE", object())  # as if a newer module took over
-    db._read_log_loop()  # returns instead of looping for ever
+    scope = dict(db.__dict__)
+    scope.update(
+        _read_log_tick=_Tick(),
+        flush_read_log=lambda: 0,
+        _read_log_pending=[],
+        _THIS_MODULE=object(),  # as if a newer module took over
+    )
+    loop = types.FunctionType(db._read_log_loop.__code__, scope)
+    loop()  # returns instead of looping for ever
 
 
 def test_a_store_without_the_table_is_reported_once_not_retried(tmp_path, monkeypatch, caplog):

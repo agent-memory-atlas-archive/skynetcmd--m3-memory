@@ -887,8 +887,8 @@ def _read_log_loop() -> None:
         # Not time.sleep: that is the process-wide time module, which code and
         # tests patch (test_m3_halt's sleep stub raised inside this thread and
         # killed it, 2026-10-11). An Event wait is this thread's alone.
-        _read_log_tick.wait(_READ_LOG_FLUSH_S)
         try:
+            _read_log_tick.wait(_READ_LOG_FLUSH_S)
             flush_read_log()
         except Exception as e:  # noqa: BLE001 — the flusher must outlive any one failure
             logger.error("read-access log: flush failed (%s); queued reads kept for the next flush", e)
