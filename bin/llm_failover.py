@@ -149,9 +149,8 @@ def is_lmstudio_url(url: str) -> bool:
 
 
 def endpoints_from_settings() -> list[str]:
-    """The failover list from the [llm] keys. The registry also reads the legacy
-    <config_root>/.llm_config.json (below env and .env), which is what a
-    launchd/systemd daemon can see: it never reads the shell rc."""
+    """The failover list from the [llm] keys of m3_config.toml (what a
+    launchd/systemd daemon sees too: no environment variable is read)."""
     explicit = _m3cfg.setting("llm.endpoints")
     if explicit:
         # Explicit ordered list — full control, overrides everything below.

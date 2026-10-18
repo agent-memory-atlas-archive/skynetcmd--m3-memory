@@ -2354,7 +2354,11 @@ def m3_sandbox(monkeypatch, tmp_path):
     # process would reach every child a test spawns and every env sweep it runs.
     # The [crypto] legacy names as well (the security seam lists them): a FIPS
     # test sets its tier with m3_settings, never through the developer's shell.
-    for _var in (*_SANDBOX_CLEAR_ENV, *_registry_secret_names(), *_crypto_policy_env_names()):
+    # Other programs' LLM variables setup reads to offer an endpoint (OLLAMA_HOST,
+    # OPENAI_BASE_URL, ...): a developer's would send tests to a real server.
+    from m3_memory.install.llm_detect import SIGNAL_NAMES as _LLM_SIGNALS
+
+    for _var in (*_SANDBOX_CLEAR_ENV, *_registry_secret_names(), *_crypto_policy_env_names(), *_LLM_SIGNALS):
         monkeypatch.delenv(_var, raising=False)
     # 3. Prove it: every root a test can write through resolves inside pytest's
     # temp area. A sandbox that only LOOKS isolated sent one probe's writes into

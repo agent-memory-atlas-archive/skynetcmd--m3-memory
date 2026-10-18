@@ -12,10 +12,11 @@ from __future__ import annotations
 
 def run(brief: bool = True) -> int:
     try:
-        from m3_memory.install.sections import config_root_section, m3_env_settings_section
+        from m3_memory.install.sections import config_root_section, llm_enrichment_section, m3_env_settings_section
     except ImportError as e:
         print(f"M3_* environment variables: not checked (m3_memory not importable: {e})")
         return 0
+    llm_enrichment_section(brief=brief)
     config_root_section(brief=brief)
     m3_env_settings_section(brief=brief)
     return 0

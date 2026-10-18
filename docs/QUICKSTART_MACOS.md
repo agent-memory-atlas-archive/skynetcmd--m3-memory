@@ -6,6 +6,26 @@ Get persistent memory + directory ingestion running on macOS in under five minut
 
 ## 1. Install
 
+### Before you install: an LLM for memory enrichment (optional)
+
+m3 stores and searches memories without one. With a chat model, it also
+enriches them (summaries, entities, links). If you use **Ollama** or
+**LM Studio**, set it up first: `m3 setup` finds it and asks whether to use it.
+
+- **Ollama** on this machine needs nothing. On another machine, set its address
+  before installing: `export OLLAMA_HOST=gpu-box:11434`. A local Ollama needs no
+  key (`OLLAMA_API_KEY` is only for Ollama's cloud).
+- **LM Studio**: start its server (default port 1234). If you turned on
+  "Require Authentication", have its token ready: `export LM_API_TOKEN=<token>`.
+- **Any OpenAI-compatible server**: `export OPENAI_BASE_URL=http://host:port/v1`
+  (and `OPENAI_API_KEY` if it needs one).
+
+Setup lists what it finds (a cloud endpoint is marked as one) and writes your
+choice to `m3_config.toml`; a key that worked is stored in m3's secrets file.
+m3 does not read these variables after that. Later, or after an upgrade:
+`m3 config set llm.endpoints <url>` and, if the server needs a key,
+`m3 secret set LM_API_TOKEN`. `m3 doctor` shows whether enrichment has an LLM.
+
 **One-liner** (handles prerequisites + install + setup in one shot):
 
 ```bash

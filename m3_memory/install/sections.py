@@ -1004,6 +1004,77 @@ def _secrets_in_env_section(brief: bool = False) -> None:
         print(f"  [i] could not check {u} for secrets; inspect it by hand.")
 
 
+def llm_enrichment_section(brief: bool = False) -> int:
+    """Is an LLM set up for memory enrichment, and does it answer? The endpoints
+    are the ones m3's jobs call (``llm_failover.endpoints_from_settings``), each
+    probed with the stored LM_API_TOKEN when the server asks for a key.
+
+    - one answers: an OK line (with its model);
+    - one is set but needs a key m3 does not have, or does not answer: a warning
+      naming the fix;
+    - none is set up: an advisory, also under --brief, naming the setting
+      (``llm.endpoints``), the secret (``LM_API_TOKEN``, only for a server that
+      wants one), and any server found on this machine. Advisory, not a failure:
+      memories are stored and searched without one.
+    Returns the number of problems (exit-code neutral)."""
+    try:
+        _bin.ensure_on_path()
+        from llm_failover import endpoints_from_settings
+        from m3_core.config import settings as _m3cfg
+
+        from m3_memory.install import llm_detect as D
+
+        endpoints = endpoints_from_settings()
+        explicit = bool(_m3cfg.setting("llm.endpoints") or _m3cfg.setting("llm.url"))
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print(f"  [!] could not check the memory-enrichment LLM: {type(e).__name__}: {e}")
+        return 0
+    try:
+        from auth_utils import get_api_key
+
+        stored = get_api_key(D.LLM_SECRET) or None
+    except Exception:  # noqa: BLE001 -- no secret chain here: probe without a key
+        stored = None
+    probes = [
+        D.probe(D.Candidate("configured", u, "m3_config.toml", D.LLM_SECRET if stored else None, stored))
+        for u in endpoints
+    ]
+    usable = [p for p in probes if p.usable]
+    if usable:
+        p = usable[0]
+        model = p.models[0] if p.models else "no model loaded"
+        print(f"✅ memory enrichment: {p.candidate.url} ({model})")
+        return 0
+    problems = 0
+    if explicit:
+        for p in probes:
+            if p.state == "needs-key":
+                problems += 1
+                print(
+                    f"⚠️  memory enrichment: {p.candidate.url} requires an API key ({p.detail}). "
+                    f"fix: `m3 secret set {D.LLM_SECRET}` (the key from that server's settings)"
+                )
+            else:
+                problems += 1
+                print(
+                    f"⚠️  memory enrichment: {p.candidate.url} does not answer ({p.state}"
+                    f"{': ' + p.detail if p.detail else ''}); enrichment pauses until it does. "
+                    "change it: `m3 config set llm.endpoints <url>`"
+                )
+        return problems
+    found = [p for p in (D.probe(c) for c in D.find_candidates()) if p.state in ("ok", "works-with-key", "needs-key")]
+    print("ℹ️  memory enrichment: no LLM set up — memories are stored and searched, but not enriched.")
+    print("    To use one: `m3 config set llm.endpoints <url>`  (OpenAI-compatible, e.g. http://localhost:11434/v1)")
+    print(f"    and, if that server requires a key: `m3 secret set {D.LLM_SECRET}`")
+    for p in found:
+        print(f"    found: {D.describe(p)}")
+        fix = f"`m3 config set llm.endpoints {p.candidate.url}`"
+        if p.state != "ok":
+            fix += f" and `m3 secret set {D.LLM_SECRET}`"
+        print(f"           use it: {fix}   (or run `m3 setup`, which offers it)")
+    return 1
+
+
 def config_root_section(brief: bool = False) -> int:
     """Which m3_config.toml is authoritative, and every place that would read a
     different one. Locator order: --config > M3_CONFIG_ROOT > ~/.m3/config.

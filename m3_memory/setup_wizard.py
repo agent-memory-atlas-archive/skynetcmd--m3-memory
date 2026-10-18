@@ -1932,8 +1932,15 @@ def _endpoint_reachable(base_url: str, timeout: float = 0.4) -> bool:
 
 
 def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
-    """Detect the reachable local LLM runtime(s) and record the failover switches
-    to match in m3_config.toml [llm]."""
+    """Set up the LLM that enriches memories, in m3_config.toml [llm].
+
+    An endpoint already set is kept and checked (a key it wants, or no answer, is
+    said with the fix). With none set, servers this machine already uses are
+    found (``install.llm_detect``: OLLAMA_HOST, OPENAI_BASE_URL/OPENAI_API_BASE,
+    the runtimes' local ports, their key variables) and probed. An interactive
+    setup asks which one to use and writes ``llm.endpoints``, storing a key that
+    worked as LM_API_TOKEN; an upgrade or unattended install only reports them
+    with the commands, never writing, then keeps the local-port switches below."""
     # If the user already pinned a custom server, honor it — just confirm.
     custom = (_config.setting("llm.url") or "").strip()
     # llm.endpoints: m3_config.toml (where `m3 install --llm-endpoint` records it).
@@ -1941,11 +1948,17 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     if csv:
         _ok(f"  LLM endpoints pinned ({csv}); leaving as-is")
         _record_llm_switch("M3_LLM_ENDPOINTS_CSV", csv)
+        _check_pinned_llm(list(_config.setting("llm.endpoints") or []))
         return
     if custom:
         live = _endpoint_reachable(custom)
         _ok(f"  llm.url set ({custom}) — {'reachable' if live else 'NOT reachable yet'}")
         _record_llm_switch("M3_LLM_URL", custom)
+        _check_pinned_llm([custom])
+        return
+    # An upgrade reports only changes: its doctor step says whether enrichment has
+    # an LLM (sections.llm_enrichment_section), so detection is for setup proper.
+    if not _called_by_upgrade() and _offer_detected_llm(args):
         return
 
     reachable = [(label, url, var, val) for (label, url, var, val) in _LLM_RUNTIMES if _endpoint_reachable(url)]
@@ -1961,11 +1974,14 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
                     "now; enrichment pauses until it is running again"
                 )
             return
-        _say("  no local LLM runtime detected on :1234 (LM Studio) or :11434 (Ollama)")
+        _say("  no LLM found (Ollama/LM Studio on this machine, OLLAMA_HOST, OPENAI_BASE_URL)")
         _say("  enrichment needs a chat model. Start one, then run `m3 setup` again")
         _say("  so the background services pick it up:")
         _say("    LM Studio or Ollama  — load a model; setup detects it")
+        _say("    another machine      — set OLLAMA_HOST (or OPENAI_BASE_URL) first, or")
+        _say("                           m3 config set llm.endpoints http://host:11434/v1")
         _say("    llama.cpp / vLLM     — m3 config set llm.url http://localhost:8080/v1")
+        _say("    if it needs a key    — m3 secret set LM_API_TOKEN")
         return
 
     for label, url, var, val in reachable:
@@ -1989,6 +2005,79 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         _say("  LM Studio (:1234) not reachable — disabling its probe to avoid a dead connect")
     if not lmstudio_live:
         _record_llm_switch("M3_ENABLE_LMSTUDIO_FAILOVER", "0")
+
+
+def _check_pinned_llm(urls: list[str]) -> None:
+    """Say what a set endpoint needs: a key m3 does not have, or a server that
+    does not answer. Silent when it answers."""
+    try:
+        _m3bin.ensure_on_path()
+        from auth_utils import get_api_key
+
+        from m3_memory.install import llm_detect as D
+
+        stored = get_api_key(D.LLM_SECRET) or None
+    except Exception as e:  # noqa: BLE001 -- a report must not fail setup
+        _warn(f"  could not check the LLM endpoint ({type(e).__name__}: {e}). inspect: m3 doctor")
+        return
+    for url in urls:
+        p = D.probe(D.Candidate("configured", url, "m3_config.toml", D.LLM_SECRET if stored else None, stored))
+        if p.state == "needs-key":
+            _warn(f"  {url} requires an API key ({p.detail}). fix: `m3 secret set {D.LLM_SECRET}`")
+        elif not p.usable:
+            _warn(f"  {url} does not answer ({p.state}); enrichment pauses until it does")
+
+
+def _offer_detected_llm(args: argparse.Namespace) -> bool:
+    """With no LLM endpoint set: list the servers found, and in an interactive
+    setup ask which to use. True when this step settled it (a choice was written,
+    or the user chose none), so the local-port switches are not asked as well."""
+    try:
+        from m3_memory.install import llm_detect as D
+
+        probes = [D.probe(c) for c in D.find_candidates()]
+    except Exception as e:  # noqa: BLE001 -- detection is advisory; fall back to the port probes
+        _warn(f"  looking for LLM servers skipped ({type(e).__name__}: {e})")
+        return False
+    offer = [p for p in probes if p.state in ("ok", "works-with-key", "needs-key")]
+    if not offer:
+        return False  # the port-probe guidance below covers "none found"
+    _say("  LLM servers found for memory enrichment:")
+    for i, p in enumerate(offer, 1):
+        cloud = D.is_cloud(p.candidate.url)
+        tag = "  CLOUD: memory text would be sent there" if cloud else ""
+        _say(f"    {i}. {D.describe(p)}{tag}")
+    interactive = not getattr(args, "non_interactive", True) and not _called_by_upgrade()
+    if not interactive:
+        _say("  not chosen automatically. To use one: `m3 config set llm.endpoints <url>`")
+        _say(f"  (and, if it requires a key: `m3 secret set {D.LLM_SECRET}`), or run `m3 setup`")
+        return False
+    local_ok = [i for i, p in enumerate(offer, 1) if p.usable and D.is_cloud(p.candidate.url) is False]
+    default = str(local_ok[0]) if local_ok else "0"
+    pick = _ask_choice(
+        "  Use which one for memory enrichment? (0 = none)", [str(i) for i in range(len(offer) + 1)], default
+    )
+    if pick == "0":
+        _say("  no LLM chosen; memories are stored and searched, not enriched. Later: `m3 setup`")
+        return True
+    chosen = offer[int(pick) - 1]
+    _record_llm_switch("M3_LLM_ENDPOINTS_CSV", chosen.candidate.url)
+    if chosen.state == "works-with-key" and chosen.candidate.key:
+        if _ask_yes_no(
+            f"  Store the key from {chosen.candidate.key_name} in m3's secrets file (as {D.LLM_SECRET})?",
+            default=True,
+        ):
+            try:
+                _m3bin.ensure_on_path()
+                from m3_core.secret_store import set_secret
+
+                where = set_secret(D.LLM_SECRET, chosen.candidate.key)
+                _ok(f"    stored {D.LLM_SECRET} ({where})")
+            except Exception as e:  # noqa: BLE001 -- said with the manual step
+                _warn(f"    could not store the key ({type(e).__name__}: {e}). fix: `m3 secret set {D.LLM_SECRET}`")
+    elif chosen.state == "needs-key":
+        _warn(f"    {chosen.candidate.url} requires an API key. fix: `m3 secret set {D.LLM_SECRET}`")
+    return True
 
 
 def _llm_key(var: str):
@@ -3496,7 +3585,10 @@ def _hermes_m3_import_problem(plugins_dir: Path) -> tuple[str, str | None]:
 
     root = plugins_dir.parent.parent  # <hermes-agent>/plugins/memory
     sub = ("Scripts", "python.exe") if is_windows() else ("bin", "python")
-    py = next((root / v / sub[0] / sub[1] for v in ("venv", ".venv") if (root / v / sub[0] / sub[1]).exists()), None)
+    py = next(
+        (root / v / sub[0] / sub[1] for v in ("venv", ".venv") if os.path.exists(root / v / sub[0] / sub[1])),
+        None,
+    )
     if py is None:
         return "unknown", f"could not find Hermes' Python under {root} (venv/ or .venv/); check `hermes memory status`"
     try:

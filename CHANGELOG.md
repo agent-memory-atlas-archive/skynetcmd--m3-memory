@@ -19,7 +19,22 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
-## [2026.10.18.0] — 2026-10-18 — upgrades that finish, quieter doctor
+## [2026.10.18.0] — 2026-10-18 — an LLM for enrichment, upgrades that finish, quieter doctor
+
+### Added
+
+- **Setup finds the LLM you already use for memory enrichment and asks.** It
+  looks at Ollama's `OLLAMA_HOST`, `OPENAI_BASE_URL`/`OPENAI_API_BASE`, and
+  Ollama and LM Studio on this machine, with their keys (`LM_API_TOKEN`,
+  `OPENAI_API_KEY`; Ollama's cloud key only for ollama.com), probes each, and
+  marks a cloud endpoint as one. Your choice is written to `llm.endpoints` and a
+  key that worked to the secrets file. An upgrade or unattended install lists
+  them with the commands instead of asking. `m3 doctor` and setup say whether
+  enrichment has an LLM; with none, they name `m3 config set llm.endpoints
+  <url>` and, for a server that needs a key, `m3 secret set LM_API_TOKEN`. The
+  install guides describe it.
+  **Affected:** all installs · **Action:** none; to choose an LLM later, run
+  `m3 setup` · **Data status:** none.
 
 ### Fixed
 

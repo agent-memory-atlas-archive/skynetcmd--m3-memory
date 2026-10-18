@@ -1,8 +1,8 @@
 ---
 tool: bin/llm_failover.py
-sha1: 1ed401742d90
-mtime_utc: 2026-10-18T11:56:37.294895+00:00
-generated_utc: 2026-10-18T11:57:06.335427+00:00
+sha1: 254d91bd6b6a
+mtime_utc: 2026-10-18T12:30:39.479226+00:00
+generated_utc: 2026-10-18T13:03:55.541431+00:00
 private: false
 ---
 
@@ -46,7 +46,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 337)
+- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 336)
 
 
 ---

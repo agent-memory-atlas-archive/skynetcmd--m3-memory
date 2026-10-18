@@ -61,7 +61,15 @@ def test_absent_file_is_silent(config_root, caplog):
     assert caplog.text == ""
 
 
+def _no_detected_llm(monkeypatch):
+    """These tests cover the local-port switches: no detected server is offered."""
+    from m3_memory.install import llm_detect
+
+    monkeypatch.setattr(llm_detect, "find_candidates", lambda found=None: [])
+
+
 def _probe(monkeypatch, reachable_port):
+    _no_detected_llm(monkeypatch)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: reachable_port in url)
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
 
@@ -144,6 +152,7 @@ def test_no_runtime_guidance_is_for_setup_not_the_upgrade(monkeypatch, capsys, f
     host that never had a runtime is the standing state: nothing is printed
     (it was six lines, then one, on every run). A runtime that WAS enabled and
     went away is a change, covered in test_upgrade_output_and_cache_retry."""
+    _no_detected_llm(monkeypatch)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: False)
     monkeypatch.setattr(setup_wizard, "_llm_switch_enabled", lambda var: False)
     if from_upgrade:
@@ -155,5 +164,6 @@ def test_no_runtime_guidance_is_for_setup_not_the_upgrade(monkeypatch, capsys, f
     if from_upgrade:
         assert out == []
     else:
-        assert any("no local LLM runtime detected" in ln for ln in out)
+        assert any("no LLM found" in ln for ln in out)
+        assert any("OLLAMA_HOST" in ln for ln in out), "the guidance names how to point at another machine"
         assert len(out) > 1, out
