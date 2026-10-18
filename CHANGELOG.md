@@ -21,6 +21,10 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **`m3 doctor` no longer reports the loop watchdog's systemd timer as a dangling
+  job.** A timer has no command of its own; the service it starts is checked.
+  **Affected:** Linux installs with the cognitive-loop watchdog · **Action:**
+  none · **Data status:** none.
 - **A job whose profile names no API key says so.** It printed "no None in
   the secrets file".
   **Affected:** enrichment, entity, observer and reflector jobs with a profile

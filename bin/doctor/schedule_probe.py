@@ -208,6 +208,11 @@ def _dangling_unix_jobs(jobs: list, prefix: str) -> list[dict]:
                 }
             )
             continue
+        if j.program is None and j.script is None and j.ident.endswith(".timer"):
+            # A systemd timer has no ExecStart: it starts its .service, which is
+            # judged on its own. Read as "interpreter missing", every Linux install
+            # with the loop watchdog reported a dangling job setup cannot clear.
+            continue
         rec = _flag_missing(f"{prefix}:{j.ident}", j.program, j.script)
         if rec:
             dangling.append(rec)

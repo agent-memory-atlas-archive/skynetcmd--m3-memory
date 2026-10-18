@@ -373,3 +373,20 @@ def test_expected_task_names_sourced_from_install_schedules():
     names = schedule_probe._expected_task_names(os.path.expanduser("~/.m3"))
     assert "AgentOS_CognitiveLoop" in names
     assert any(n.startswith("AgentOS_") for n in names)
+
+
+def test_a_systemd_timer_is_not_a_dangling_job(tmp_path):
+    """A timer has no ExecStart; it starts its .service, judged on its own. Read
+    as "interpreter missing", the loop watchdog's timer showed every Linux
+    install a dangling job that `m3 setup` could not clear. A service whose
+    program is gone is still flagged."""
+    from doctor import schedule_probe as sp
+    from doctor.job_inventory import Job
+
+    gone = str(tmp_path / "gone" / "python")
+    jobs = [
+        Job("systemd", "m3-loop-watchdog.timer", None, None, "/u/m3-loop-watchdog.timer"),
+        Job("systemd", "m3-loop-watchdog.service", gone, None, "/u/m3-loop-watchdog.service"),
+    ]
+    found = sp._dangling_unix_jobs(jobs, "systemd")
+    assert [d["job"] for d in found] == ["systemd:m3-loop-watchdog.service"]
