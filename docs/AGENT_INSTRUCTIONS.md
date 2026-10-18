@@ -758,3 +758,35 @@ must never be deleted manually.
 - The `production` and `chatlog` pragma profiles set `journal_size_limit=64 MiB`
   as a hard ceiling; the `bench` profile sets 256 MiB. These limits mean the
   worst-case WAL size is bounded even if checkpoints are busy-failed by readers.
+
+---
+
+## Installation prompts
+Copy and paste these prompts into your terminal client to let your agent set up m3 for you:
+
+### Claude Code Prompt
+```text
+Install m3-memory for persistent memory. Run: pip install m3-memory
+Then run: m3 setup
+That wires the m3 memory MCP server into my agents and provisions the
+local BGE-M3 embedder — no external embedding service is needed. If it
+doesn't detect Claude Code, run: claude mcp add --scope user -- m3_memory m3
+Then use /mcp to verify the memory server loaded.
+```
+
+### Gemini CLI Prompt
+```text
+Install m3-memory for persistent memory. Run: pip install m3-memory
+Then run: m3 setup
+That wires the m3 "memory" MCP server into my agents and provisions the
+local BGE-M3 embedder — no external embedding service is needed. If it
+doesn't detect Gemini CLI, add {"mcpServers":{"memory":{"command":"m3"}}}
+to my ~/.gemini/settings.json under "mcpServers".
+```
+
+### Active Chatlog Capture Plugin
+To configure instant conversation logging and backup, tell your active coding agent:
+```text
+Install the m3-memory chat log subsystem.
+```
+The agent executes `bin/chatlog_init.py` and configures execution triggers (see [Chat Log Architecture Guide](CHATLOG.md)).

@@ -437,6 +437,21 @@ brew upgrade python git openssl@3        # explicit bump if needed (3.12 is the 
 brew cleanup -s
 ```
 
+### Coming from Python 3.11
+
+m3 requires Python 3.12 or newer since `2026.9.13.0`. On Python 3.11, `pip` refuses
+the new releases and silently keeps you on `2026.9.12.0`, the last one that supported
+3.11. Check with `python --version`, then upgrade Python:
+
+- **macOS:** `brew install python@3.14 && brew link --overwrite python@3.14`
+- **Windows:** `winget install -e --id Python.Python.3.14`
+- **Debian/Ubuntu:** use [deadsnakes](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa)
+  or a distro release that ships 3.14.
+
+Recreate the virtualenv afterwards (below). 3.14 or newer is recommended for new
+installs: 3.12 and 3.13 now get security fixes only, and a future m3 release will raise
+the floor again, announced at least one minor release ahead.
+
 If you use `pyenv` or `asdf`, bump the Python version the venv was built against and recreate the venv (`rm -rf .venv && python3 -m venv .venv`).
 
 ### Windows (PowerShell as Administrator)

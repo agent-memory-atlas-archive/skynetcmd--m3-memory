@@ -112,7 +112,7 @@ chromadb pin bumped).
 |---|---|
 | `save(records)` | `memory_write` per record (kept searchable by your other agents when enabled) + async Observer extraction |
 | `search(query_embedding, …)` | `vector_search` against the CrewAI-space vectors (m3 never re-embeds — CrewAI supplies the query vector) |
-| `update(record)` | `memory_supersede` (contradiction-aware edge) |
+| `update(record)` | `memory_supersede` (a `supersedes` edge; the old version is kept) |
 | `delete(…, older_than=…)` | bi-temporal soft-delete / `gdpr_forget` |
 | `scope_prefix` (`/crew/research/…`) | a scoped sub-path within the tenant (prefix-matched) |
 | `touch_records(ids)` | bumps `last_accessed` — feeds recency ranking |

@@ -228,7 +228,6 @@ Deprecated in v2026.10.17.0 (see the [CHANGELOG](../CHANGELOG.md)). Each still w
 
 - [ ] **Shared memory namespaces** — optional scoped memory pools across multiple local agents
 - [ ] **Agent identity model** — per-agent memory isolation with explicit cross-agent read grants (today: per-`agent_id` scoping at the SQL layer; the cross-agent grant primitive is still implicit)
-- [ ] **Remote P2P sync** — encrypted memory replication over WireGuard / Tailscale without a central server
 - [ ] **Discord, Matrix and Slack for agent collaboration** — m3 already includes a FIPS 140-3 ready communication and notification path that agents use to coordinate and collaborate with each other. This adds Discord, Matrix and Slack as optional channels on top of it, so you can follow the agents' conversation and step in from a chat app. Available only where FIPS is not mandated, and only when you opt in, since messages then leave your machine for the chat service. m3 remains the record, and agents keep working without the chat service.
 
 ---

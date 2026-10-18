@@ -72,7 +72,7 @@ M3Deps(
 - **Cross-agent memory.** A memory your PydanticAI agent writes is immediately
   searchable by every other m3 agent (Claude Code, a CrewAI crew, a LangChain
   app) sharing the store — and vice-versa. One store, every agent.
-- **Real memory dynamics** for free: contradiction-aware supersession, recency
+- **Real memory dynamics** for free: similarity-based supersession with version history, recency
   that refreshes on recall, bitemporal history, commanded forgetting (GDPR),
   hybrid FTS+vector+MMR retrieval — all local, no server, no API key.
 - **Backend-agnostic.** The adapter only speaks m3's tool dispatch, so it works

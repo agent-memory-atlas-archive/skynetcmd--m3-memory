@@ -170,6 +170,35 @@ echo '{"query":"postgres","k":3}' | m3 memory memory_search --json-file -
 Flags and piped JSON compose, and an explicit flag wins — so a script can pipe a
 base object and override one field per invocation.
 
+Search finds a decision across different wording. Saved once:
+
+```console
+$ m3 memory memory_write --type decision --title "auth-jwt-algorithm" \
+    --content "The auth service uses RS256 JWTs. HS256 was rejected because we need asymmetric verification at the edge."
+"Created: 84a944fb-ef3e-403b-9240-f53ab3c015f7"
+```
+
+asked later, in another agent and another model:
+
+```console
+$ m3 memory memory_search --query "which signing algorithm did we pick for tokens?" --k 3
+{
+  "count": 1,
+  "items": [
+    {
+      "id": "84a944fb-ef3e-403b-9240-f53ab3c015f7",
+      "score": 0.7501,
+      "type": "decision",
+      "title": "auth-jwt-algorithm",
+      "content": "The auth service uses RS256 JWTs. HS256 was rejected because we need asymmetric verification at the edge."
+    }
+  ]
+}
+```
+
+The query shares no keywords with the stored text (no "RS256", no "JWT"): BM25 matches
+exact terms, local BGE-M3 vectors match meaning, and MMR keeps the results diverse.
+
 ### Composing tools
 
 Because output is records and input is JSON, one tool's result drives the next

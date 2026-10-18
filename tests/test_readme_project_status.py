@@ -16,8 +16,9 @@ _ROOT = Path(__file__).resolve().parents[1]
 _README = (_ROOT / "README.md").read_text(encoding="utf-8")
 _ROADMAP = (_ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
 
-# A reader that truncates long pages must still reach it.
-_MAX_OFFSET = 8_000
+# A reader that truncates long pages must still reach it. 10,000 since
+# 2026.10.18.0, so "How memory works" can come before it.
+_MAX_OFFSET = 10_000
 
 
 def _section() -> str:
