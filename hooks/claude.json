@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v m3 >/dev/null 2>&1 || { echo '[m3-memory] m3 CLI not on PATH. Run: pipx install m3-memory && pipx ensurepath, then m3 setup' >&2; exit 1; }; exec m3 hook claude-session-start",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v m3 >/dev/null 2>&1 || { echo '[m3-memory] chatlog NOT captured: m3 CLI not on PATH. Run: pipx install m3-memory && pipx ensurepath' >&2; exit 1; }; exec m3 hook claude-capture",
+            "async": true,
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v m3 >/dev/null 2>&1 || { echo '[m3-memory] chatlog NOT captured: m3 CLI not on PATH. Run: pipx install m3-memory && pipx ensurepath' >&2; exit 1; }; exec m3 hook claude-capture",
+            "async": true,
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v m3 >/dev/null 2>&1 || { echo '[m3-memory] m3 CLI not on PATH. Run: pipx install m3-memory && pipx ensurepath, then m3 setup' >&2; exit 1; }; exec m3 hook codex-session-start",
+            "commandWindows": "where m3 >nul 2>nul || (echo [m3-memory] m3 CLI not on PATH. Run: pipx install m3-memory, then pipx ensurepath, then m3 setup 1>&2 & exit 1) & m3 hook codex-session-start",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v m3 >/dev/null 2>&1 || { echo '[m3-memory] chatlog NOT captured: m3 CLI not on PATH. Run: pipx install m3-memory && pipx ensurepath' >&2; exit 1; }; exec m3 hook codex-capture",
+            "commandWindows": "where m3 >nul 2>nul || (echo [m3-memory] chatlog NOT captured: m3 CLI not on PATH. Run: pipx install m3-memory, then pipx ensurepath 1>&2 & exit 1) & m3 hook codex-capture",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -36,6 +36,11 @@
       "default": ""
     }
   },
+  "agents": [
+    "./claude/agents/curate-chatlog.md",
+    "./claude/agents/curate-memory.md"
+  ],
+  "hooks": "./hooks/claude.json",
   "mcpServers": {
     "memory": {
       "command": "m3",

@@ -5,7 +5,7 @@
 > **how-to-register** differs by client.
 
 For most users: run `m3 setup` once and the wizard auto-detects + wires
-every supported client on your machine (Claude Code, Cursor, Cline,
+every supported client on your machine (Claude Code, Codex, Cursor, Cline,
 Gemini CLI, OpenCode, Antigravity, OpenClaw; Hermes via its plugin). Aider is
 not wired by the wizard — it needs the manual proxy setup in Client 5. This doc
 is for users who want to wire clients manually or understand what the wizard does.
@@ -104,6 +104,15 @@ embedding is opt-in: it needs `embed.inproc = true` (`m3 config set embed.inproc
 
 Restart Gemini CLI. Verify: tool list includes the m3 MCP entries.
 
+**Extension** — registers the same `memory` server and loads m3's usage guide
+(`GEMINI.md`) as context; capture hooks still come from `m3 setup`:
+
+```bash
+gemini extensions install https://github.com/skynetcmd/m3-memory
+```
+
+See [gemini_extension.md](gemini_extension.md).
+
 ### Google Antigravity (CLI & Desktop)
 
 **Native plugin** — easiest path.
@@ -136,6 +145,21 @@ repoints this entry instead of adding a second server. In-process (tier-1)
 embedding is opt-in: it needs `embed.inproc = true` (`m3 config set embed.inproc true`), not just `M3_EMBED_GGUF`.
 
 Restart the Antigravity CLI or Desktop app.
+
+### Codex
+
+`m3 setup` registers the server in `~/.codex/config.toml` (`[mcp_servers.memory]`).
+
+**Native plugin** — adds the server, the `m3-*` skills, and the chat-capture and
+session-start hooks (trust them in Codex's `/hooks`):
+
+```bash
+codex plugin marketplace add skynetcmd/m3-memory
+# then, in Codex: /plugins -> skynetcmd -> install m3
+```
+
+Use the plugin's server or `m3 setup`'s, not both. See
+[codex_plugin.md](codex_plugin.md).
 
 ---
 

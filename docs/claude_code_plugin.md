@@ -67,13 +67,12 @@ version from `~/.claude/plugins/cache/skynetcmd/m3/<version>/`.
 
 ## What it does on first run
 
-The plugin's `SessionStart` hook checks for the `m3` (or `mcp-memory`)
-CLI on PATH. If missing, it prints a one-line install hint:
+The plugin's `SessionStart` hook runs `m3 hook claude-session-start`, which
+reports whether chat capture is working and whether a newer m3 is out. If the
+`m3` CLI is not on PATH, it prints a one-line install hint instead:
 
 ```
-[m3-memory] m3 CLI not on PATH. Run:
-  pipx install m3-memory && pipx ensurepath
-  m3 setup
+[m3-memory] m3 CLI not on PATH. Run: pipx install m3-memory && pipx ensurepath, then m3 setup
 ```
 
 The plugin can't run sudo or pipx for you (Claude Code plugins are
@@ -134,14 +133,20 @@ human-reviewable and reversible.
 
 ## Hooks installed by the plugin
 
-- `SessionStart` — checks `m3` is on PATH (advisory only)
-- `PreCompact` — fires the chatlog ingest before context compaction
-- `Stop` — fires the chatlog ingest at end of every assistant turn
+The hooks live in `hooks/claude.json` (named by `.claude-plugin/plugin.json`).
+Each is one line that runs `m3 hook <name>`, so a fix to a hook ships with the
+m3 package, not with the plugin:
+
+- `SessionStart` — `m3 hook claude-session-start`: capture status and version
+- `PreCompact` — `m3 hook claude-capture`: chatlog ingest before context compaction
+- `Stop` — `m3 hook claude-capture`: chatlog ingest at the end of every assistant turn
 
 These run alongside any hooks you have in `~/.claude/settings.json`. If
-you previously wired chatlog hooks via `m3 chatlog init --apply-claude`
-(or its legacy `mcp-memory chatlog init` form), you can leave them — the
-hook scripts are idempotent.
+you previously wired chatlog hooks via `m3 setup` or `m3 chatlog init
+--apply-claude`, you can leave them — the hook scripts are idempotent.
+
+If a hook reports `invalid choice: 'hook'`, the installed m3 is older than the
+plugin (`m3 hook` arrived in 2026.10.18.0): run `m3 upgrade`.
 
 ---
 

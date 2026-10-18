@@ -1,5 +1,6 @@
-"""The plugin hooks (hooks/hooks.json, .antigravity-plugin/hooks.json) and the
-`chatlog hook-path` they call.
+"""The Antigravity plugin hooks (.antigravity-plugin/hooks.json) and the
+`chatlog hook-path` they call (as did the Claude plugin's hooks/hooks.json before
+2026.10.18.0; it now runs `m3 hook`, tested in test_agent_plugins.py).
 
 They run `/bin/sh "<hook-path output>"` on every OS. Two defects lived here:
 `|| true` plus a `/dev/null` fallback swallowed every failure (exit 0, nothing
@@ -20,7 +21,7 @@ import pytest
 from conftest import simulate_os, skip_reason
 
 ROOT = Path(__file__).resolve().parents[1]
-HOOK_FILES = [ROOT / "hooks" / "hooks.json", ROOT / ".antigravity-plugin" / "hooks.json"]
+HOOK_FILES = [ROOT / ".antigravity-plugin" / "hooks.json"]
 
 
 def _capture_commands(path: Path) -> list[str]:

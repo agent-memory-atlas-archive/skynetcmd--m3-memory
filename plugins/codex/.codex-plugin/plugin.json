@@ -1,0 +1,34 @@
+{
+  "name": "m3",
+  "version": "2026.10.18.0",
+  "description": "Give Codex a private memory that lives on your own machine — it remembers across sessions, works fully offline, and uses the cloud only if you choose to. 100+ MCP tools: fast hybrid search, automatic chat capture, contradiction tracking, and one-command GDPR export/delete.",
+  "author": {
+    "name": "skynetcmd",
+    "url": "https://github.com/skynetcmd/m3-memory"
+  },
+  "homepage": "https://github.com/skynetcmd/m3-memory",
+  "repository": "https://github.com/skynetcmd/m3-memory",
+  "license": "Apache-2.0",
+  "keywords": [
+    "memory",
+    "mcp",
+    "rag",
+    "vector-search",
+    "sqlite",
+    "agentic",
+    "long-term-memory",
+    "chatlog",
+    "knowledge-graph",
+    "gdpr"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "m3 Memory",
+    "shortDescription": "Private, local-first memory for Codex: search, save and recall across sessions.",
+    "developerName": "skynetcmd",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/skynetcmd/m3-memory"
+  }
+}

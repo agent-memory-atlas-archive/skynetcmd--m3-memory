@@ -6,6 +6,7 @@ validator against m3's plugin dir:
 
   * Claude Code:  `claude plugin validate .`      (validates .claude-plugin/)
   * Antigravity:  `agy plugin validate .antigravity-plugin`
+  * Gemini CLI:   `gemini extensions validate .`  (gemini-extension.json)
 
 Both are skipped when the binary isn't on PATH (CI images may lack them), so this
 is a guard that fires wherever the tooling exists, not a hard dependency.
@@ -90,6 +91,22 @@ def test_antigravity_plugin_validates():
     out = _run(["agy", "plugin", "validate", str(plugin_dir)], _ROOT)
     assert "[error]" not in out and "Error:" not in out, f"agy plugin validate reported an error:\n{out}"
     assert "[ok]" in out, f"agy plugin validate did not confirm [ok]:\n{out}"
+
+
+@pytest.mark.skipif(
+    shutil.which("gemini") is None,
+    reason=skip_reason("env", "gemini binary not on PATH — extension validator unavailable"),
+)
+def test_gemini_extension_validates():
+    """`gemini extensions validate .` must confirm the root gemini-extension.json.
+    Its warning that m3's YYYY.M.D.N version is not semver is expected. The
+    resolved path is run: npm installs `gemini.cmd` on Windows, which
+    CreateProcess does not find by its bare name."""
+    gemini = shutil.which("gemini")
+    assert gemini
+    out = _run([gemini, "extensions", "validate", str(_ROOT)], _ROOT)
+    assert "has been successfully validated" in out, f"gemini extensions validate did not confirm success:\n{out}"
+    assert "Error" not in out, f"gemini extensions validate reported an error:\n{out}"
 
 
 @pytest.mark.skipif(shutil.which("claude") is None, reason=skip_reason("env", "claude binary not on PATH"))

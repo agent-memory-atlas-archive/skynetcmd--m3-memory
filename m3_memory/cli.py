@@ -1556,6 +1556,14 @@ def _cmd_extract_pending(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_hook(args: argparse.Namespace) -> int:
+    """`m3 hook <name> [args...]`: the one-line hook command the agent plugins ship
+    (a plugin cannot know where m3's hooks folder is; `m3` on PATH it can)."""
+    from m3_memory.hook_launchers import run
+
+    return run(args.name, list(args.args))
+
+
 def _cmd_chatlog(args: argparse.Namespace) -> int:
     """Dispatch `mcp-memory chatlog <init|status|doctor>` to bin/ scripts."""
     sub = args.chatlog_cmd
@@ -1567,15 +1575,17 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
     if sub == "status":
         return _run_bin_script("chatlog_status.py", args.rest)
     if sub == "hook-path":
-        # Print the absolute path of the chatlog hook for the plugin's
-        # hooks/hooks.json, which runs it as `/bin/sh "<path>"` on EVERY OS
-        # (Claude Code runs plugin hooks through a POSIX shell, Git Bash on
-        # Windows). So this is always the .sh launcher: it probes for an
-        # interpreter with m3's deps (pythonw first on Windows) and execs the
+        # Print the absolute path of the chatlog hook for the Antigravity
+        # plugin's .antigravity-plugin/hooks.json, and for Claude Code plugins
+        # installed before 2026.10.18.0 (whose hooks/hooks.json called this; the
+        # Claude plugin now runs `m3 hook claude-capture`). Those run it as
+        # `/bin/sh "<path>"` on EVERY OS (plugin hooks go through a POSIX shell,
+        # Git Bash on Windows). So this is always the .sh launcher: it probes for
+        # an interpreter with m3's deps (pythonw first on Windows) and execs the
         # .py hook, which owns failure handling. The .ps1 this printed on
         # Windows was fed to /bin/sh and could never run.
-        # The contract stays "one path" because hooks.json is served from main
-        # to every installed plugin, independent of the installed m3 version.
+        # The contract stays "one path" because plugin hook files are served from
+        # main, independent of the installed m3 version.
         from m3_memory.installer import find_bridge
 
         bridge = find_bridge()
@@ -2880,6 +2890,18 @@ Examples:
         "hook-path", help="Print absolute path to the chatlog hook script for plugin hooks.", add_help=False
     )
     p_chatlog.set_defaults(func=_cmd_chatlog)
+
+    from m3_memory.hook_launchers import HOOKS as _HOOKS
+
+    p_hook = subparsers.add_parser(
+        "hook",
+        help="Run one of m3's agent hooks (the line a plugin's hooks file holds).",
+        description="Run an m3 hook in this process: the agent's hook input arrives on stdin, "
+        "and the hook's exit code is this command's exit code.",
+    )
+    p_hook.add_argument("name", choices=list(_HOOKS), help="the hook to run")
+    p_hook.add_argument("args", nargs=argparse.REMAINDER, help="passed to the hook script")
+    p_hook.set_defaults(func=_cmd_hook)
 
     p_embedder_mgmt = subparsers.add_parser(
         "embedder",

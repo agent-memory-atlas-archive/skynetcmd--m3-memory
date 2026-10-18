@@ -70,6 +70,9 @@ _DOC_FILES = [
     os.path.join(_ROOT, "skills", "m3-guide", "SKILL.md"),
     os.path.join(_ROOT, ".antigravity-plugin", "skills", "m3-help", "SKILL.md"),
     os.path.join(_ROOT, ".antigravity-plugin", "skills", "m3-guide", "SKILL.md"),
+    os.path.join(_ROOT, "plugins", "codex", "skills", "m3-help", "SKILL.md"),
+    os.path.join(_ROOT, "plugins", "codex", "skills", "m3-guide", "SKILL.md"),
+    os.path.join(_ROOT, "GEMINI.md"),
 ]
 
 # Files whose version string must equal the pyproject [project] version, so a
@@ -84,6 +87,8 @@ _VERSIONED_MANIFESTS = [
     os.path.join(_ROOT, "mcp-server.json"),
     os.path.join(_ROOT, ".claude-plugin", "plugin.json"),
     os.path.join(_ROOT, ".antigravity-plugin", "plugin.json"),
+    os.path.join(_ROOT, "plugins", "codex", ".codex-plugin", "plugin.json"),
+    os.path.join(_ROOT, "gemini-extension.json"),
 ]
 
 # The plugin marketplace manifests (published to every user). Their descriptions
@@ -94,6 +99,9 @@ _PLUGIN_MANIFESTS = [
     os.path.join(_ROOT, ".claude-plugin", "marketplace.json"),
     os.path.join(_ROOT, ".antigravity-plugin", "plugin.json"),
     os.path.join(_ROOT, ".antigravity-plugin", "marketplace.json"),
+    os.path.join(_ROOT, "plugins", "codex", ".codex-plugin", "plugin.json"),
+    os.path.join(_ROOT, ".agents", "plugins", "marketplace.json"),
+    os.path.join(_ROOT, "gemini-extension.json"),
 ]
 
 # Domain-/phase-subcount claims that are intentionally NOT the catalog total
@@ -395,6 +403,7 @@ def test_plugin_manifests_use_no_exact_tool_count():
 _GUIDE_SKILL_COPIES = [
     os.path.join(_ROOT, "skills", "m3-guide", "SKILL.md"),
     os.path.join(_ROOT, ".antigravity-plugin", "skills", "m3-guide", "SKILL.md"),
+    os.path.join(_ROOT, "plugins", "codex", "skills", "m3-guide", "SKILL.md"),
 ]
 
 

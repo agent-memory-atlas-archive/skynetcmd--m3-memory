@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-18T00:02:11.355462+00:00._
+_Generated 2026-10-18T17:56:58.681801+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -55,6 +55,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/embedding_utils.py](embedding_utils.md) | Shared embedding and vector-math utilities for MCP bridges. |  |
 | [bin/enrichment_state.py](enrichment_state.md) | Durable per-group enrichment state for m3_enrich. |  |
 | [bin/fetch_sovereign_assets.py](fetch_sovereign_assets.md) | fetch_sovereign_assets.py — Hydrate the _assets/embedder directory for sovereign setup. |  |
+| [bin/gen_agent_plugins.py](gen_agent_plugins.md) | Generate the Codex plugin's skills and the Gemini CLI extension's context file |  |
 | [bin/gen_capability_matrix.py](gen_capability_matrix.md) | gen_capability_matrix.py — generate docs/CAPABILITY_MATRIX.md from the MCP catalog. |  |
 | [bin/gen_config_docs.py](gen_config_docs.md) | Generate m3's configuration docs and the shipped default config from the registry. |  |
 | [bin/gen_download_badges.py](gen_download_badges.md) | Generate download-count badge data (PyPI + GitHub) for the README. |  |

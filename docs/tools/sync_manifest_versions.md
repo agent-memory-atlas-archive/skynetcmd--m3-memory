@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_manifest_versions.py
-sha1: f6f3b8532a12
-mtime_utc: 2026-10-17T05:24:05.235404+00:00
-generated_utc: 2026-10-17T05:24:06.349299+00:00
+sha1: a0ef0a25ae3a
+mtime_utc: 2026-10-18T17:43:10.888736+00:00
+generated_utc: 2026-10-18T17:56:37.445645+00:00
 private: false
 ---
 
@@ -39,7 +39,7 @@ Every ``"version"`` key is rewritten: the top-level one, and any nested
 
 ## Entry points
 
-- `def main()` (line 194)
+- `def main()` (line 196)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -80,6 +80,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `ROADMAP.md`
 - `SECURITY.md`
+- `gemini-extension.json`
 - `mcp-server.json`
 - `plugin.json`
 - `plugin.yaml`

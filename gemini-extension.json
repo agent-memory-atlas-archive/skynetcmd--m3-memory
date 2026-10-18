@@ -1,0 +1,11 @@
+{
+  "name": "m3",
+  "version": "2026.10.18.0",
+  "description": "Give Gemini CLI a private memory that lives on your own machine — it remembers across sessions, works fully offline, and uses the cloud only if you choose to. 100+ MCP tools: fast hybrid search, automatic chat capture, contradiction tracking, and one-command GDPR export/delete.",
+  "mcpServers": {
+    "memory": {
+      "command": "m3"
+    }
+  },
+  "contextFileName": "GEMINI.md"
+}

@@ -25,6 +25,7 @@ a backwards-compatible alias). Run `m3 <command> --help` for flags.
 | --- | --- |
 | `m3 embedder` | Shared embed server: `install-gpu`, `install`, `start`, `stop`, `status`, `uninstall`, `fetch-model`, `shared` / `unshared`, `backfill`, `reembed` |
 | `m3 chatlog` | Chatlog operations: `init`, `status`, `doctor`, `hook-path` |
+| `m3 hook <name>` | Run one of m3's agent hooks (session start, chat capture); the command the Claude Code and Codex plugins' hooks run |
 | `m3 schedules` | Background scheduled tasks: `verify`, `repair`, `list`, `add`, `remove` |
 | `m3 governor` | Inspect / migrate legacy scheduled tasks to the background governor |
 | `m3 dashboard` | Start the local web dashboard (localhost only) |

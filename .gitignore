@@ -140,6 +140,8 @@ docs/tools/build_lme_m_db.md
 
 # Generated configs (machine-specific paths; run bin/generate_configs.py to create)
 .mcp.json
+# The Codex plugin's server definition is published, not generated.
+!plugins/codex/.mcp.json
 .aider.conf.yml
 config/claude-settings.json
 config/gemini-settings.json
@@ -206,7 +208,11 @@ tests/repro_concurrent_hang.py
 
 
 .agent_os_salt
-.agents/
+# Local agent state, except the Codex plugin marketplace (published).
+.agents/*
+!.agents/plugins/
+.agents/plugins/*
+!.agents/plugins/marketplace.json
 .antigravitycli/
 
 # Per-machine local Claude Code settings — contains user-specific paths/permissions.

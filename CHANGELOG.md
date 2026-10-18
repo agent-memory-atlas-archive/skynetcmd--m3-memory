@@ -35,6 +35,24 @@ the policy is forward-going only.
   install guides describe it.
   **Affected:** all installs · **Action:** none; to choose an LLM later, run
   `m3 setup` · **Data status:** none.
+- **A Codex plugin.** `codex plugin marketplace add skynetcmd/m3-memory`, then
+  install m3 from `/plugins`: the memory server, the `m3-*` skills (the Claude
+  Code commands and the m3 guide) and the chat-capture and session-start hooks.
+  See docs/codex_plugin.md.
+  **Affected:** Codex users · **Action:** optional; install the plugin and
+  trust its hooks in `/hooks` · **Data status:** none.
+- **A Gemini CLI extension.** `gemini extensions install
+  https://github.com/skynetcmd/m3-memory` registers the memory server and loads
+  a short guide to using m3 as context. See docs/gemini_extension.md.
+  **Affected:** Gemini CLI users · **Action:** optional; install the extension
+  · **Data status:** none.
+- **`m3 hook <name>` runs one of m3's agent hooks.** The Claude Code plugin's
+  hooks are now one line each (`m3 hook claude-session-start`,
+  `m3 hook claude-capture`), and its session start reports capture status and
+  the version.
+  **Affected:** Claude Code plugin users · **Action:** update the plugin and
+  m3 together (`m3 upgrade`); an older m3 answers `invalid choice: 'hook'` ·
+  **Data status:** none.
 
 ### Security
 

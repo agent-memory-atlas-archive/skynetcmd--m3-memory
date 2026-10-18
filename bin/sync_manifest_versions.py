@@ -44,6 +44,8 @@ _MANIFESTS = (
     _ROOT / "mcp-server.json",
     _ROOT / ".claude-plugin" / "plugin.json",
     _ROOT / ".antigravity-plugin" / "plugin.json",
+    _ROOT / "plugins" / "codex" / ".codex-plugin" / "plugin.json",
+    _ROOT / "gemini-extension.json",
 )
 
 

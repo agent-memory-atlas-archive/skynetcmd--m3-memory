@@ -292,6 +292,20 @@ Install as a plugin to unlock `/m3:*` slash commands, curation subagents, and au
 ```
 *See [Claude Code Plugin Reference](docs/claude_code_plugin.md) and [Claude.ai Connector Guide](docs/claude_ai_connector.md).*
 
+#### ◎ Codex
+Install the plugin for the `m3-*` skills, chat capture and the memory server:
+```bash
+codex plugin marketplace add skynetcmd/m3-memory
+```
+Then install **m3** from `/plugins` in Codex. *See [Codex Plugin Reference](docs/codex_plugin.md).*
+
+#### ✦ Gemini CLI
+Install the extension for the memory server and m3's usage guide (`m3 setup` wires chat capture):
+```bash
+gemini extensions install https://github.com/skynetcmd/m3-memory
+```
+*See [Gemini CLI Extension Reference](docs/gemini_extension.md).*
+
 #### ▷ Cursor
 Auto-detected and wired by the setup wizard — it writes the m3 `memory` MCP server into `~/.cursor/mcp.json`:
 ```bash
