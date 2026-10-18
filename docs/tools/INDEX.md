@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-17T20:55:05.457433+00:00._
+_Generated 2026-10-18T00:02:11.355462+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -16,6 +16,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/auto_route.py](auto_route.md) | auto_route — multi-signal retrieval branch decider. |  |
 | [bin/backfill_content_hash.py](backfill_content_hash.md) | backfill_content_hash.py — populate memory_embeddings.content_hash on legacy rows. |  |
 | [bin/batch_runner.py](batch_runner.md) | Provider-neutral batch-API runner protocol with Anthropic implementation. |  |
+| [bin/bench_concurrent_writes.py](bench_concurrent_writes.md) | bench_concurrent_writes.py — many agents writing to one SQLite store at once, |  |
 | bin/bench_memory.py | Memory system benchmark script. | yes |
 | bin/benchmark_memory.py | Retrieval Quality Benchmark for M3 Memory System. | yes |
 | [bin/build_kg_variant.py](build_kg_variant.md) | Build a KG-enriched variant from an existing source variant. |  |
