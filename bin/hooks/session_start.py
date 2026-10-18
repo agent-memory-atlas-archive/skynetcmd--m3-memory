@@ -53,9 +53,32 @@ def _version_line() -> str:
         return f"m3 version unknown ({type(e).__name__}: {e}). inspect: m3 doctor"
 
 
+# Recall is offered on a fresh start or a clear; resume, compact and fork
+# sessions already carry their context.
+RECALL_SOURCES = ("startup", "clear", "")
+
+
+def _recall_menu(agent: str, cwd: str) -> str:
+    try:
+        from session_recall import recall_menu_text
+
+        return str(recall_menu_text(agent, cwd=cwd) or "")
+    except Exception as e:  # noqa: BLE001
+        return f"m3 recall unavailable: {type(e).__name__}: {e}; inspect: `m3 doctor`"
+
+
 def build(agent: str, envelope: dict) -> dict:
     """The hook's output for ``agent`` given the host's stdin ``envelope``."""
-    return {"systemMessage": "\n".join((_capture_line(), _version_line()))}
+    status = [_capture_line(), _version_line()]
+    out: dict = {}
+    if str(envelope.get("source") or "") in RECALL_SOURCES:
+        menu = _recall_menu(agent, str(envelope.get("cwd") or ""))
+        if menu.startswith("m3 recall unavailable"):
+            status.append(menu)  # the person sees why there is no menu
+        elif menu:
+            out["hookSpecificOutput"] = {"hookEventName": "SessionStart", "additionalContext": menu}
+    out["systemMessage"] = "\n".join(status)
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -28,9 +28,33 @@ def hook(monkeypatch):
 
 
 @pytest.mark.parametrize("agent", ["claude", "codex", "gemini"])
-def test_each_agent_gets_the_status_lines(hook, agent):
+def test_each_agent_gets_the_status_lines(hook, agent, monkeypatch):
+    monkeypatch.setattr(hook, "_recall_menu", lambda agent, cwd: "")
     out = hook.build(agent, {"source": "startup", "session_id": "s1"})
     assert out == {"systemMessage": "capture: WORKING\nm3 2026.10.18.0 · up to date"}
+
+
+def test_a_fresh_start_gets_the_recall_menu_as_context(hook, monkeypatch):
+    seen = []
+    monkeypatch.setattr(hook, "_recall_menu", lambda agent, cwd: seen.append((agent, cwd)) or "m3: recent sessions…")
+    out = hook.build("codex", {"source": "startup", "cwd": "/work/site"})
+    assert out["hookSpecificOutput"] == {"hookEventName": "SessionStart", "additionalContext": "m3: recent sessions…"}
+    assert seen == [("codex", "/work/site")]
+
+
+@pytest.mark.parametrize("source", ["resume", "compact", "fork"])
+def test_no_menu_when_the_session_already_has_its_context(hook, monkeypatch, source):
+    monkeypatch.setattr(hook, "_recall_menu", lambda agent, cwd: pytest.fail("asked for a menu"))
+    assert "hookSpecificOutput" not in hook.build("claude", {"source": source})
+
+
+def test_recall_unavailable_is_shown_to_the_person(hook, monkeypatch):
+    monkeypatch.setattr(
+        hook, "_recall_menu", lambda agent, cwd: "m3 recall unavailable: store locked; inspect: `m3 doctor`"
+    )
+    out = hook.build("gemini", {"source": "startup"})
+    assert "hookSpecificOutput" not in out
+    assert out["systemMessage"].endswith("m3 recall unavailable: store locked; inspect: `m3 doctor`")
 
 
 def test_a_failing_part_is_named_and_the_other_still_reports(hook, monkeypatch):
