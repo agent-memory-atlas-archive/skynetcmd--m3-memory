@@ -26,11 +26,11 @@ def test_a_local_profile_runs_keyless_on_the_configured_llm(monkeypatch):
     monkeypatch.setattr(
         m3_entities,
         "localize_endpoint",
-        lambda url, backend: ("http://10.0.0.5:11434/v1/chat/completions", "openai"),
+        lambda url, backend: ("http://192.0.2.5:11434/v1/chat/completions", "openai"),
     )
     monkeypatch.setattr("auth_utils.get_api_key", lambda name: None)
     eff = m3_entities.effective_profile(_local_anthropic_profile())
-    assert eff.url == "http://10.0.0.5:11434/v1/chat/completions" and eff.backend == "openai"
+    assert eff.url == "http://192.0.2.5:11434/v1/chat/completions" and eff.backend == "openai"
     assert slm_intent.job_api_key(eff) == "", "a keyless OpenAI-format call must not need a key"
 
 
