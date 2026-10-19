@@ -31,7 +31,7 @@ import hashlib
 import unicodedata
 
 _ALLOWED_CC = frozenset("\t\n\r")
-_ALLOWED_CF = frozenset("‌‍‎‏؜")  # ZWNJ ZWJ LRM RLM ALM
+_ALLOWED_CF = frozenset("\u200c\u200d\u200e\u200f\u061c")  # ZWNJ ZWJ LRM RLM ALM
 # Positions listed in a removal record; the count and hash cover the rest.
 MAX_LISTED = 200
 

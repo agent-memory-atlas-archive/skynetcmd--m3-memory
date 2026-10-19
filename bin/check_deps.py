@@ -64,6 +64,8 @@ EXCEPTIONS: dict[str, dict[str, str]] = {
 
 def first_party() -> list[str]:
     names = {p.stem for p in BIN.glob("*.py")} | {p.name for p in BIN.iterdir() if os.path.isdir(p)}
+    # The hooks put their own folders on sys.path and import each other by bare name.
+    names |= {p.stem for p in (BIN / "hooks").rglob("*.py")}
     return [*sorted(n for n in names if n.isidentifier()), "m3_memory"]
 
 

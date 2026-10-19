@@ -1,9 +1,8 @@
 """A chat turn with no visible text is not stored, and capture treats it as handled.
 
-Measured: 818 stored Claude Code user turns were empty strings, turns that held
-only harness framing (a <system-reminder>, a task notification) which capture
-strips before writing. A turn that is blank once framing and hidden characters
-are removed holds nothing to recall.
+Hazard: a turn holding only harness framing (a <system-reminder>, a task
+notification) is empty once capture strips it. Stored, it is a blank row; left
+uncursored, every hook fire retries it and counts it as a failure.
 """
 
 from __future__ import annotations
@@ -41,7 +40,7 @@ def _turn(**overrides):
     return item
 
 
-@pytest.mark.parametrize("content", [FRAMING_ONLY, "   \n\t", "​‮", FRAMING_ONLY + " ​ "])
+@pytest.mark.parametrize("content", [FRAMING_ONLY, "   \n\t", "\u200b\u202e", FRAMING_ONLY + " \u200b "])
 @pytest.mark.asyncio
 async def test_a_single_blank_write_is_refused(ingest_env, content):
     import chatlog_core

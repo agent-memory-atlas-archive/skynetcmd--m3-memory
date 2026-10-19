@@ -840,7 +840,7 @@ def _register_antigravity_hooks(*, repair_only: bool = False) -> str | None:
     }
     from m3_memory._platform import is_windows
 
-    if is_windows() and any('"' in h["command"] for handlers in wanted.values() for h in handlers):
+    if is_windows() and any('"' in str(h["command"]) for handlers in wanted.values() for h in handlers):
         # Measured with agy 1.3.1: on Windows it hands the line to cmd.exe with each
         # quote escaped, so a quoted path fails ("... is not recognized") and the
         # hook never runs, while Antigravity reports nothing to the person.
@@ -954,7 +954,7 @@ def _register_openclaw_hooks(*, repair_only: bool = False) -> str | None:
             f"[!] wrote {hook_dir} but `openclaw hooks enable {host_plugins.OPENCLAW_HOOK}` exited "
             f"{r.returncode}: {tail}. run it yourself"
         )
-    return f"[+] wired m3 chat capture into OpenClaw ({hook_dir}); it applies without a restart"
+    return f"[+] wired m3 chat capture into OpenClaw ({hook_dir}) and enabled it"
 
 
 def _fix_npm_global_path() -> str | None:
