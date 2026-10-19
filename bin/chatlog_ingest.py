@@ -1126,6 +1126,7 @@ async def _ingest_locked(
     # Enqueue one item per call so each transcript uuid maps to exactly one row
     # id (the bulk result's id list skips validation failures, losing alignment).
     row_of: dict[int, str] = {}
+    blank_uuids: list[str] = []
     failed = 0
     spilled_at_enqueue = 0
     errors: list[str] = []
@@ -1135,6 +1136,11 @@ async def _ingest_locked(
         if ids:
             row_of[idx] = ids[0]
             spilled_at_enqueue += int(res.get("spilled", 0))
+        elif res.get("blank"):
+            # Nothing visible to store: handled, so cursor it and never retry.
+            skipped += 1
+            if uuids[idx]:
+                blank_uuids.append(uuids[idx])
         else:
             failed += 1
             errors.extend(f"item {idx} (uuid={uuids[idx] or '-'}): {err}" for err in res.get("errors", []))
@@ -1146,6 +1152,7 @@ async def _ingest_locked(
     # file the sweeper drains). Rows still queued when the drain gave up are
     # retried by the next hook fire because their uuids stay unseen.
     durable_uuids = [uuids[i] for i, rid in row_of.items() if rid not in pending_ids and uuids[i]]
+    durable_uuids += blank_uuids
     if durable_uuids:
         _commit_cursor([{"uuid": u} for u in durable_uuids], session_id, cursor)
 

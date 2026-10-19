@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: 8991edfab026
-mtime_utc: 2026-10-18T19:53:31.220856+00:00
-generated_utc: 2026-10-18T19:58:15.985332+00:00
+sha1: 29bfcbdd47bd
+mtime_utc: 2026-10-19T00:58:13.792240+00:00
+generated_utc: 2026-10-19T00:58:14.316236+00:00
 private: false
 ---
 
@@ -36,7 +36,7 @@ skipped, failed, error). Exit code is non-zero when capture is incomplete.
 
 ## Entry points
 
-- `async def main()` (line 1217)
+- `async def main()` (line 1224)
 - `if __name__ == "__main__"` guard
 
 ---

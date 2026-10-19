@@ -853,11 +853,17 @@ async def memory_update_impl(
         importance = -1.0
     from memory.backends import dialect as _dialect
     from memory.textprep import _content_hash
-    from memory.write import content_gate_error
+    from memory.write import clean_hidden, content_gate_error, presence_error, record_removals, removal_note
 
-    # The write boundary's size/safety gate applies to an update too: otherwise
-    # memory_update stores what memory_write rejects.
+    # The write boundary's hidden-character cleaning and size/safety gate apply
+    # to an update too: otherwise memory_update stores what memory_write rejects.
+    # Blank content means "unchanged"; supplied content must have visible text.
+    supplied = bool(content)
+    _cleaned, _removals = clean_hidden(content=content, title=title)
+    content, title = _cleaned["content"] or "", _cleaned["title"] or ""
     gate_err = content_gate_error(content or "", title or "", metadata or "")
+    if not gate_err and supplied:
+        gate_err = presence_error(type, content)
     if gate_err:
         return gate_err
     _p = _dialect().param()
@@ -921,6 +927,7 @@ async def memory_update_impl(
             _record_history(id, "update", old["conversation_id"], new_val, "conversation_id", db=db)
             db.execute(f"UPDATE memory_items SET conversation_id = {_p} WHERE id = {_p}", (new_val, id))
         db.execute(f"UPDATE memory_items SET updated_at = {_p} WHERE id = {_p}", (now, id))
+        record_removals(id, _removals, "", db=db)
     if text_changed or (reembed and content):
         # A fresh vector now, through the write path's own owner. When the
         # embedder returns nothing, the memory has no vector and the embed
@@ -928,7 +935,7 @@ async def memory_update_impl(
         from memory.write import rewindow_memory
 
         await rewindow_memory(id)
-    return f"Updated: {id}"
+    return f"Updated: {id}" + removal_note(_removals)
 
 
 def _resolve_pin_id(db, ident: str) -> str:

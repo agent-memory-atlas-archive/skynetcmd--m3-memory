@@ -100,6 +100,9 @@ def compute_cost_usd(provider: str, model_id: str, tokens_in: int | None, tokens
 
 
 # THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
+from m3_core.hidden_text import clean as clean_hidden_text  # noqa: E402
+from m3_core.hidden_text import has_visible_text  # noqa: E402
+from m3_core.hidden_text import removal_record as hidden_removal_record  # noqa: E402
 from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 from m3_core.runtime import utc_stored  # noqa: E402
 
@@ -113,6 +116,19 @@ def _turn_time(value, fallback: str | None) -> str | None:
     except ValueError:
         logger.warning(f"chatlog: turn time {value!r} is not ISO-8601; stored {fallback!r} instead")
         return fallback
+
+
+# A turn with nothing visible once harness framing and hidden characters are
+# removed (a turn that was only a <system-reminder>, say) holds no value.
+BLANK_TURN = "content has no visible text once harness framing and hidden characters are removed"
+
+
+def _strip_hidden(content: str) -> tuple[str, dict | None]:
+    """The turn without hidden/control characters, and the removal record when
+    any were stripped (m3_core.hidden_text). Capture never refuses a turn over
+    them: the cleaned text is stored and the record goes in its metadata."""
+    cleaned, removed = clean_hidden_text(content)
+    return cleaned, (hidden_removal_record(content, removed) if removed else None)
 
 
 def _content_hash(s: str) -> str:
@@ -222,14 +238,21 @@ def _build_metadata(
     redaction_count: int = 0,
     groups_fired: list[str] | None = None,
     original_hash: str | None = None,
+    hidden_removed: dict | None = None,
 ) -> str:
-    """Assemble metadata_json with full provenance + optional cost + optional redaction stamps."""
+    """Assemble metadata_json with full provenance + optional cost + optional redaction stamps.
+
+    ``hidden_removed`` is the m3_core.hidden_text removal record for characters
+    stripped from the turn (positions, code points, Unicode version, original
+    hash), stored under the same key memory history uses."""
     meta: dict[str, Any] = {
         "role": item["role"],
         "host_agent": item["host_agent"],
         "provider": item["provider"],
         "model_id": item["model_id"],
     }
+    if hidden_removed:
+        meta["hidden_removed"] = hidden_removed
     # Optional turn index (nullable)
     if item.get("turn_index") is not None:
         meta["turn_index"] = int(item["turn_index"])
@@ -693,6 +716,9 @@ async def chatlog_write_impl(
     # lets them re-surface from chatlog search as pseudo-injections (see
     # chatlog_redaction.strip_harness_framing).
     content, harness_stripped = chatlog_redaction.strip_harness_framing(content)
+    content, hidden = _strip_hidden(content)
+    if not has_visible_text(content):
+        raise ValueError(BLANK_TURN)
 
     # Redaction (OFF by default — fast path returns original content unchanged)
     scrubbed_content = content
@@ -719,6 +745,7 @@ async def chatlog_write_impl(
         redaction_count=rcount,
         groups_fired=groups_fired,
         original_hash=original_hash,
+        hidden_removed=hidden,
     )
     now = timestamp or _utcnow_iso()
 
@@ -749,9 +776,11 @@ async def chatlog_write_impl(
 
 
 async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dict:
-    """Validate + enqueue N rows. Returns {'written_ids': [...], 'spilled': K, 'failed': K, 'errors': [...]}."""
+    """Validate + enqueue N rows. Returns {'written_ids': [...], 'spilled': K, 'failed': K,
+    'blank': K, 'errors': [...]}. A blank turn (BLANK_TURN) is not stored and not a failure."""
     ids: list[str] = []
     spilled = 0
+    blank = 0
     failed = 0
     errors: list[str] = []
     cfg = chatlog_config.resolve_config()
@@ -776,6 +805,10 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
         content = item["content"]
         # Strip harness control framing ALWAYS (see single-write path).
         content, harness_stripped = chatlog_redaction.strip_harness_framing(content)
+        content, hidden = _strip_hidden(content)
+        if not has_visible_text(content):
+            blank += 1
+            continue
         scrubbed_content = content
         scrubbed = harness_stripped > 0
         rcount = 0
@@ -800,6 +833,7 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
             redaction_count=rcount,
             groups_fired=groups_fired,
             original_hash=original_hash,
+            hidden_removed=hidden,
         )
         now = item.get("timestamp") or _utcnow_iso()
 
@@ -825,6 +859,7 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
         "written_ids": ids,
         "spilled": spilled,
         "failed": failed,
+        "blank": blank,
         "errors": errors,
         "queue_depth": q.qsize(),
     }

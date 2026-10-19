@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_core.py
-sha1: 4be3098ba988
-mtime_utc: 2026-10-18T22:14:11.226394+00:00
-generated_utc: 2026-10-18T22:16:17.679582+00:00
+sha1: 13db7998de2c
+mtime_utc: 2026-10-19T00:58:13.792240+00:00
+generated_utc: 2026-10-19T00:58:14.282654+00:00
 private: false
 ---
 
@@ -68,6 +68,9 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `atexit`
+- `m3_core.hidden_text (clean)`
+- `m3_core.hidden_text (has_visible_text)`
+- `m3_core.hidden_text (removal_record)`
 - `m3_core.runtime (utc_iso)`
 - `m3_core.runtime (utc_stored)`
 - `m3_core.search_modes (normalize_chatlog_search_mode)`

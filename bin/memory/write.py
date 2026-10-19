@@ -20,6 +20,9 @@ from embedding_utils import (
     unpack as _unpack,
 )
 from m3_core.aio import gather_or_cancel
+from m3_core.hidden_text import clean as clean_text
+from m3_core.hidden_text import has_visible_text, removal_record
+from m3_core.hidden_text import summary as hidden_summary
 from m3_core.runtime import utc_stored
 from m3_sdk import M3Context, resolve_db_path
 
@@ -272,6 +275,49 @@ def memory_link_impl(from_id: str, to_id: str, relationship_type: str = "related
     return f"Linked: {from_id} --[{relationship_type}]--> {to_id} (id: {rid})"
 
 
+# Types whose memory carries a payload instead of text, so blank content is
+# legitimate: a conversation is a container its messages point at. Attachments
+# join this when multimodal memories land (with the DB constraint).
+PAYLOAD_TYPES = frozenset({"conversation"})
+
+
+def presence_error(type_: str, content: str | None) -> str | None:
+    """The "has content" rule: a memory holds visible text, or is a payload
+    type. ``"Error: ..."`` for blank, whitespace-only or invisible-only text."""
+    if type_ in PAYLOAD_TYPES or has_visible_text(content):
+        return None
+    return "Error: content has no visible text (empty, whitespace or invisible characters only); nothing was stored"
+
+
+def clean_hidden(**fields: str | None) -> tuple[dict[str, str | None], dict[str, tuple[dict, list]]]:
+    """Each text field without hidden/control characters (m3_core.hidden_text),
+    and for each field that changed, its removal record and removed list."""
+    out: dict[str, str | None] = {}
+    removals: dict[str, tuple[dict, list]] = {}
+    for name, value in fields.items():
+        if not value or not isinstance(value, str):
+            out[name] = value
+            continue
+        cleaned, removed = clean_text(value)
+        out[name] = cleaned
+        if removed:
+            removals[name] = (removal_record(value, removed), removed)
+    return out, removals
+
+
+def record_removals(memory_id: str, removals: dict[str, tuple[dict, list]], actor_id: str, db: Any = None) -> None:
+    """One ``hidden_removed`` history row per cleaned field, holding the removal
+    record (never the original text)."""
+    for field, (record, _removed) in removals.items():
+        _record_history(memory_id, "hidden_removed", None, json.dumps(record), field, actor_id, db=db)
+
+
+def removal_note(removals: dict[str, tuple[dict, list]]) -> str:
+    """The suffix that tells the agent what was removed, e.g.
+    `` (content: 2 hidden/control characters removed (U+202E))``; "" if none."""
+    return "".join(f" ({field}: {hidden_summary(removed)})" for field, (_rec, removed) in removals.items())
+
+
 def content_gate_error(content: str, title: str = "", metadata: str = "") -> str | None:
     """The write boundary's size + safety gate, one owner for write and update.
     Returns an ``"Error: ..."`` string, or None when the fields may be stored."""
@@ -388,7 +434,11 @@ async def memory_write_impl(
             "(rejected to prevent core-memory leak; see task #189)."
         )
 
-    gate_err = content_gate_error(content, title, metadata)
+    # Hidden characters go BEFORE the gate, so the injection check reads the
+    # text that will be stored (a tag-character instruction is invisible to it).
+    _cleaned, _removals = clean_hidden(content=content, title=title)
+    content, title = _cleaned["content"] or "", _cleaned["title"] or ""
+    gate_err = content_gate_error(content, title, metadata) or presence_error(type, content)
     if gate_err:
         return gate_err
     try:
@@ -567,6 +617,7 @@ async def memory_write_impl(
             )
 
     _record_history(item_id, "create", None, content, "content", agent_id or agent)
+    record_removals(item_id, _removals, agent_id or agent)
 
     # Fact enrichment (Phase 4). Non-blocking: tries semaphore, enqueues on miss.
     # Always succeeds — verbatim row is already persisted before enrichment.
@@ -629,7 +680,7 @@ async def memory_write_impl(
         except Exception as e:
             log_swallowed(logger, e, f"ingest emitter failed: {e}")
 
-    result = f"Created: {item_id}"
+    result = f"Created: {item_id}" + removal_note(_removals)
     if _embed_deferred:
         result += " (embedding deferred — searchable now via FTS, vector backfills async)"
     if superseded_ids:
@@ -1414,7 +1465,9 @@ async def memory_write_bulk_impl(
     prepared: list[dict] = []
     bad_scopes: dict[str, int] = {}
     bad_times: list[str] = []
-    for it in items:
+    blank_items: list[int] = []  # input positions skipped by the "has content" rule
+    removals_by_id: dict[str, dict] = {}
+    for pos, it in enumerate(items):
         mid = it.get("id") or str(uuid.uuid4())
         meta = it.get("metadata", "{}")
         if isinstance(meta, dict):
@@ -1424,8 +1477,13 @@ async def memory_write_bulk_impl(
             if scope:
                 bad_scopes[str(scope)] = bad_scopes.get(str(scope), 0) + 1
             scope = "agent"
-        content = it.get("content") or ""
-        title = it.get("title") or ""
+        _cleaned, _removals = clean_hidden(content=it.get("content") or "", title=it.get("title") or "")
+        content, title = _cleaned["content"] or "", _cleaned["title"] or ""
+        if presence_error(it.get("type", "note"), content):
+            blank_items.append(pos)
+            continue
+        if _removals:
+            removals_by_id[mid] = _removals
         agent = (it.get("change_agent") or "").strip().lower() or _infer_change_agent_util(
             it.get("agent_id", ""), it.get("model_id", ""), default=DEFAULT_CHANGE_AGENT
         )
@@ -1497,6 +1555,11 @@ async def memory_write_bulk_impl(
         logger.warning(
             f"memory_write_bulk: {sum(bad_scopes.values())} of {len(items)} item(s) had a scope not in "
             f"{sorted(VALID_SCOPES)} ({bad_scopes}); written as 'agent' (private to their agent_id)"
+        )
+    if blank_items:
+        logger.warning(
+            f"memory_write_bulk: skipped {len(blank_items)} of {len(items)} item(s) with no visible text "
+            f"(input positions {blank_items[:10]}); they were not stored"
         )
     if bad_times:
         logger.warning(
@@ -1636,6 +1699,8 @@ async def memory_write_bulk_impl(
                 p["agent_id"] or p["change_agent"],
                 db=db,
             )
+            if p["id"] in removals_by_id:
+                record_removals(p["id"], removals_by_id[p["id"]], p["agent_id"] or p["change_agent"], db=db)
 
     # Phase 2: batched embeddings for items that requested them.
     # Dedup by content_hash(text) so variants/kinds that share identical

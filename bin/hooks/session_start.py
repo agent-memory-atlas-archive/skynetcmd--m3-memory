@@ -103,7 +103,14 @@ def build(agent: str, envelope: dict) -> dict:
 
 def render(agent: str, status: str, menu: str) -> dict:
     """``status`` (for the person) and the recall ``menu`` (for the agent; may be
-    empty) in the shape ``agent`` reads."""
+    empty) in the shape ``agent`` reads.
+
+    Both are escaped for hidden characters: the menu quotes stored summaries
+    into the agent's context, and a row stored before writes cleaned text could
+    still carry one. JSON encoding is no guard here; the agent decodes it."""
+    from m3_core.hidden_text import escape_for_display
+
+    status, menu = escape_for_display(status), escape_for_display(menu)
     if agent == "antigravity":
         # https://antigravity.google/docs/hooks/ : SessionStart output is injectSteps.
         steps = [{"systemMessage": {"systemMessage": status}}]

@@ -159,6 +159,30 @@ the policy is forward-going only.
 
 ### Security
 
+- **Hidden and control characters are removed from stored text.** Terminal
+  escapes, other control characters, bidirectional overrides and invisible
+  Unicode tag characters (which can spell an instruction a model reads and a
+  person does not) were stored as written. `memory_write`, `memory_update` and
+  bulk writes now store the text without them, record which code points were
+  removed and where (never the original text), and say so in their reply; chat
+  capture strips them and notes it on the turn; the session-start menu escapes
+  any in older rows. Characters that shape real text are kept: tab, newline,
+  zero-width joiners and the direction marks.
+  **Affected:** all installs · **Action:** none · **Data status:** rows stored
+  before this release are not rewritten.
+- **A memory must have visible text.** An empty, whitespace-only or
+  invisible-only `memory_write` or `memory_update` is refused, and bulk writes
+  skip such items with a warning. Chat capture no longer stores a turn that is
+  blank once harness framing and hidden characters are removed (a turn holding
+  only a system reminder); it counts the turn as handled, not failed.
+  Conversation containers are unaffected.
+  **Affected:** all installs · **Action:** none · **Data status:** blank chat
+  turns stored before this release remain.
+- **The memory bridge end-to-end script no longer writes to the live store.** It
+  runs against a temporary database unless given `--database`, and against a
+  PostgreSQL store only with `--configured-store`.
+  **Affected:** developers running `bin/test_memory_bridge.py` · **Action:**
+  none · **Data status:** none.
 - **The dashboard escapes every stored value and error message it renders.** A
   memory history row's field and event names, and the text of four error
   replies, reached the page as HTML.

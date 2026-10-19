@@ -14,6 +14,7 @@ import os
 import struct
 import sys
 import uuid as _uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -44,12 +45,15 @@ def skip(name: str, reason: str = "") -> None:
 
 
 # The verification reads below check rows the bridge just wrote, so they must
-# target the store the bridge routes to. On SQLite that is resolve_db_path(None)
-# (honours M3_DATABASE; run against a scratch DB with
-#   M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
-# ); on PostgreSQL it is the configured database. Every bind is the dialect's.
+# target the store the bridge routes to: resolve_db_path(None) on SQLite, the
+# configured database on PostgreSQL. Every bind is the dialect's.
+#
+# This script WRITES test rows (agent test_e2e_agent, notifications, tasks), so
+# it never defaults to the live store: on SQLite it pins a fresh temporary
+# database (or --database PATH); a store that is not a file (PostgreSQL) runs
+# only with --configured-store. It once wrote into the live store by default.
 from m3_core.context import open_pointed_store  # noqa: E402
-from m3_core.paths import seam_backend, seam_dialect, store_is_a_file  # noqa: E402
+from m3_core.paths import pin_database, seam_backend, seam_dialect, store_is_a_file  # noqa: E402
 from m3_sdk import resolve_db_path  # noqa: E402
 
 # Bound in main(), not at import: the backend is selected after imports.
@@ -1305,7 +1309,36 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     return failed == 0
 
 
+def _choose_store(argv: list[str] | None = None) -> str:
+    """Pin the store this run writes to and say which. Exits when the active
+    backend keeps one server database and --configured-store was not given."""
+    import argparse
+    import tempfile
+
+    ap = argparse.ArgumentParser(description="End-to-end test of the memory bridge (writes test rows).")
+    ap.add_argument("--database", help="SQLite file to test against (default: a new temporary database)")
+    ap.add_argument(
+        "--configured-store",
+        action="store_true",
+        help="run against the configured store; required on PostgreSQL, where the store is not a file",
+    )
+    args = ap.parse_args(argv)
+    if not store_is_a_file():
+        if not args.configured_store:
+            sys.exit(
+                "refusing to run: the active backend is not file-based, so this would write test rows into "
+                "the configured database. Pass --configured-store to do that on purpose."
+            )
+        return "the configured database"
+    if args.configured_store:
+        return resolve_db_path(None)
+    path = args.database or str(Path(tempfile.mkdtemp(prefix="m3-bridge-e2e-")) / "agent_memory.db")
+    pin_database(path)
+    return path
+
+
 async def main() -> None:
+    print(f"  Store:              {_choose_store()}")
     _bind_store()
     print("=" * 62)
     print("  Memory Bridge — End-to-End Test")
