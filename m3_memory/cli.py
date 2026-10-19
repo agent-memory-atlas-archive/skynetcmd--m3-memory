@@ -1577,7 +1577,7 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
     if sub == "hook-path":
         # Print the absolute path of the chatlog hook for the Antigravity
         # plugin (before it ran `m3 hook`), and for Claude Code plugins
-        # installed before 2026.10.18.0 (whose hooks/hooks.json called this; the
+        # installed before 2026.10.19.0 (whose hooks/hooks.json called this; the
         # Claude plugin now runs `m3 hook claude-capture`). Those run it as
         # `/bin/sh "<path>"` on EVERY OS (plugin hooks go through a POSIX shell,
         # Git Bash on Windows). So this is always the .sh launcher: it probes for

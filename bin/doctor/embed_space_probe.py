@@ -101,7 +101,7 @@ def unfindable_memories(conn, dialect, *, limit: int = 10) -> list:
 def stale_vector_memories(conn, dialect, *, limit: int = 10) -> list[str]:
     """Ids of live memories whose text was edited after their newest vector was
     computed, so semantic search still matches the old wording (memory_update
-    re-embedded only on request before 2026.10.18.0). The ONE copy of this
+    re-embedded only on request before 2026.10.19.0). The ONE copy of this
     predicate: the embed backfill's repair and the tests call it."""
     p = dialect.param()
     return [

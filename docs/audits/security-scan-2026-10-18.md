@@ -1,7 +1,7 @@
 # Security scan — 2026-10-18
 
 Scope: the shipped library (`bin/`, `m3_memory/`) at commit `eec4857f`,
-version `2026.10.18.0`, and the dependencies it installs.
+version `2026.10.19.0`, and the dependencies it installs.
 
 **Headline: no HIGH-severity static-analysis findings, no secrets in the tree,
 no known vulnerabilities in what `pip install m3-memory` installs. One optional
@@ -76,7 +76,7 @@ the full transitive set is audited, not the developer's environment:
 
 ```bash
 python -m build --wheel
-uv venv /tmp/audit && uv pip install --python /tmp/audit/bin/python dist/m3_memory-2026.10.18.0-py3-none-any.whl
+uv venv /tmp/audit && uv pip install --python /tmp/audit/bin/python dist/m3_memory-2026.10.19.0-py3-none-any.whl
 uv pip freeze --python /tmp/audit/bin/python | grep -v '^m3-memory' > core.txt
 python -m pip_audit -r core.txt --no-deps --disable-pip
 ```

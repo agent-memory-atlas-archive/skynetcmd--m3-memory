@@ -19,7 +19,7 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
-## [2026.10.18.0] — 2026-10-18 — Codex, session recall, an LLM for enrichment, hooks that update with m3
+## [2026.10.19.0] — 2026-10-19 — Codex, session recall, an LLM for enrichment, hooks that update with m3
 
 ### Added
 

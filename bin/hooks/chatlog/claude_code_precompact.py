@@ -38,7 +38,7 @@ _ISOLATE = ("-E", "-s")
 
 def find_repo_root() -> Path:
     # The hook lives in the m3 payload (bin/hooks/chatlog/), so its own path
-    # locates it. (M3_HOME, which could point elsewhere, was retired 2026.10.18.0.)
+    # locates it. (M3_HOME, which could point elsewhere, was retired 2026.10.19.0.)
     return Path(__file__).resolve().parents[3]
 
 

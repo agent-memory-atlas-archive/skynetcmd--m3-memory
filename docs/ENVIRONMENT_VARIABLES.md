@@ -435,6 +435,6 @@ These names were settings that changed nothing, and are retired. Setting one has
 | `M3_FILES_EXTRACT_CONCURRENCY` | retired: no effect | no reader (files_memory/config.py:111) |
 | `M3_FILES_EXTRACT_MAX_ATTEMPTS` | retired: no effect | no reader (files_memory/config.py:116) |
 | `M3_FILES_PROMO_SUGGEST_THRESHOLD` | retired: no effect | every caller passes 0.30 (files_memory/promotability.py:43) |
-| `M3_HOME` | retired: no effect | retired in 2026.10.18.0: each hook finds m3 from its own location |
+| `M3_HOME` | retired: no effect | retired in 2026.10.19.0: each hook finds m3 from its own location |
 | `M3_ROUTE_SHADOW_MODE` | retired: no effect | route shadow mode was retired in 2026.10.17.3: the native router is used when present |
 | `M3_TRUST_AUTOTUNE` | retired: no effect | no consumer (memory/config.py:265) |

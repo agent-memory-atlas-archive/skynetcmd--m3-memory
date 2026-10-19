@@ -305,7 +305,7 @@ RETIRED: dict[str, str] = {
     "M3_ENTITY_COALESCE_MAX_PAIRS": "every caller passes 1000 (files_memory/entity_coalesce.py:69)",
     "CHATLOG_MODE": "only its presence is checked, to warn (chatlog_config.py:257)",
     "M3_ROUTE_SHADOW_MODE": "route shadow mode was retired in 2026.10.17.3: the native router is used when present",
-    "M3_HOME": "retired in 2026.10.18.0: each hook finds m3 from its own location",
+    "M3_HOME": "retired in 2026.10.19.0: each hook finds m3 from its own location",
 }
 
 NOT_SETTINGS: dict[str, str] = {

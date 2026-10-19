@@ -88,7 +88,7 @@ later `m3 setup`), or turn the plugin's server off and keep its skills and hooks
 | Symptom | Cause | Fix |
 |---|---|---|
 | `[m3-memory] ... m3 CLI not on PATH` | Codex cannot find `m3` | `pipx install m3-memory && pipx ensurepath`, then restart Codex |
-| `invalid choice: 'hook'` | m3 is older than the plugin (`m3 hook` arrived in 2026.10.18.0) | `m3 upgrade` |
+| `invalid choice: 'hook'` | m3 is older than the plugin (`m3 hook` arrived in 2026.10.19.0) | `m3 upgrade` |
 | No turns captured | Hooks not trusted yet | Trust them in `/hooks`; then `m3 chatlog status` |
 | Skills missing | Session started before install | Start a new session |
 

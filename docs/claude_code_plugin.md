@@ -146,7 +146,7 @@ you previously wired chatlog hooks via `m3 setup` or `m3 chatlog init
 --apply-claude`, you can leave them — the hook scripts are idempotent.
 
 If a hook reports `invalid choice: 'hook'`, the installed m3 is older than the
-plugin (`m3 hook` arrived in 2026.10.18.0): run `m3 upgrade`.
+plugin (`m3 hook` arrived in 2026.10.19.0): run `m3 upgrade`.
 
 ---
 
