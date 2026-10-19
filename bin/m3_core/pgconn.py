@@ -50,8 +50,11 @@ def pg_pool(minconn: int, maxconn: int, dsn: str, **kwargs: Any):
     check_dsn(dsn)
     from psycopg2.pool import ThreadedConnectionPool
 
-    class _UtcPool(ThreadedConnectionPool):
-        def _connect(self, key=None):
-            return utc_session(super()._connect(key))
-
-    return _UtcPool(minconn, maxconn, dsn=dsn, **kwargs)
+    pool = ThreadedConnectionPool(minconn, maxconn, dsn=dsn, **kwargs)
+    # The minconn connections opened by the constructor, then every later one.
+    for conn in list(getattr(pool, "_pool", ())):
+        utc_session(conn)
+    connect = getattr(pool, "_connect", None)
+    if connect is not None:
+        pool._connect = lambda key=None: utc_session(connect(key))
+    return pool
