@@ -244,12 +244,6 @@ the policy is forward-going only.
   **Affected:** PostgreSQL stores on a server not set to UTC · **Action:** none ·
   **Data status:** none; stored values were always correct instants.
 
-- **The test suite no longer writes a developer's Antigravity hooks.** Run from
-  a checkout, it pointed `~/.gemini/config/hooks.json` at a temporary folder.
-  **Affected:** developers running the suite from a checkout · **Action:** run
-  `m3 setup` if Antigravity's hooks name a pytest folder ·
-  **Data status:** Antigravity turns were not captured while the hooks pointed there.
-
 - **Editing a memory's text refreshes its vector.** `memory_update` re-embedded
   only with `reembed=true`, so semantic search kept matching an edited memory by
   its old wording. A text edit now computes a fresh vector (or, if the embedder

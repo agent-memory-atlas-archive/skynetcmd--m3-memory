@@ -21,11 +21,21 @@ def stub_embedder(monkeypatch):
     async def _embed_many(texts):
         return [([0.1] * dim, model) for _ in texts]
 
-    for name in ("memory.embed", "memory_core"):
-        mod = importlib.import_module(name)
-        if hasattr(mod, "_embed_many"):
-            monkeypatch.setattr(mod, "_embed_many", _embed_many, raising=False)
-    monkeypatch.setattr(importlib.import_module("memory.embed"), "fast_embedder_available", lambda: True)
+    # memory_core re-exports memory.embed._embed_many: the SAME object (§2). Take
+    # the real function from the owner and put it back on both names afterwards.
+    # monkeypatch alone restores whatever memory_core held at setup, and when an
+    # earlier test had already split the re-export from its owner, that was a
+    # stub, which then stayed for every later test.
+    embed_mod = importlib.import_module("memory.embed")
+    mc = importlib.import_module("memory_core")
+    real = embed_mod._embed_many
+    monkeypatch.setattr(embed_mod, "_embed_many", _embed_many)
+    monkeypatch.setattr(mc, "_embed_many", _embed_many, raising=False)
+    monkeypatch.setattr(embed_mod, "fast_embedder_available", lambda: True)
+    yield
+    monkeypatch.undo()
+    embed_mod._embed_many = real
+    mc._embed_many = real
 
 
 def test_a_bulk_write_checkpoints_through_the_seam_on_each_backend(each_backend, stub_embedder, caplog):

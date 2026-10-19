@@ -2023,7 +2023,11 @@ def _gdpr_copies_elsewhere() -> list[dict]:
     return [
         {
             "where": "the configured warehouse, and every machine that syncs with it",
-            "why": "gdpr_forget erases this machine's stores; sync copied these rows elsewhere and does not erase them",
+            # Inferred from the configuration: the warehouse itself is not queried.
+            "why": (
+                "inferred: a warehouse is configured, so sync may have copied these rows there and to the "
+                "machines syncing with it; gdpr_forget erases this machine's stores only"
+            ),
             "inspect": "erase on each machine that syncs, and remove the rows from the warehouse",
         }
     ]

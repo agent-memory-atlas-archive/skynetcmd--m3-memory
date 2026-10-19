@@ -192,7 +192,9 @@ TOOLS: list[ToolSpec] = [
             "valid 15 minutes. 2) Call again with the same target, confirm=<token>, and compliance "
             "holding legal_basis and verified_by: erases the memories with their embeddings, "
             "relationships, history, read-access log, archived copies and (for a data subject) "
-            "LangGraph checkpoints. Refused if the token expired or the memories changed since the plan."
+            "LangGraph checkpoints. Refused if the token expired or the memories changed since the plan. "
+            "Erases this machine's stores only: with a warehouse configured, copies_remaining names the "
+            "synced copies it does not reach, and complete is false."
         ),
         parameters={
             "type": "object",

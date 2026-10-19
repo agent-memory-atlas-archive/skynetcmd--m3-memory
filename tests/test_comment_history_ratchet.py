@@ -35,7 +35,7 @@ PATTERNS = {
 }
 
 # Current floor. Lower this as history leaves the comments; never raise it.
-_BUDGET = 1097
+_BUDGET = 1096
 
 
 def _texts(src: str) -> list[tuple[int, str]]:
