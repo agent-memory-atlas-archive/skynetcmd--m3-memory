@@ -214,11 +214,15 @@ the policy is forward-going only.
   Conversation containers are unaffected.
   **Affected:** all installs · **Action:** none · **Data status:** blank chat
   turns stored before this release remain.
-- **The memory bridge end-to-end script no longer writes to the live store.** It
-  runs against a temporary database unless given `--database`, and against a
-  PostgreSQL store only with `--configured-store`.
-  **Affected:** developers running `bin/test_memory_bridge.py` · **Action:**
-  none · **Data status:** none.
+- **Benchmark and end-to-end scripts no longer write test rows into your
+  store.** `benchmark_memory.py`, `bench_memory.py`, `test_bulk_parity.py` and
+  `test_memory_bridge.py` write to a new temporary database unless given
+  `--database`, and on PostgreSQL run only with `--configured-store`. The
+  retrieval benchmark wrote its test memories into the configured store and left
+  them there soft-deleted.
+  **Affected:** anyone who ran these scripts from `bin/` · **Action:** none ·
+  **Data status:** earlier runs of `benchmark_memory.py` left soft-deleted
+  test memories (agent ids starting `bench_`) in the configured store.
 - **The dashboard escapes every stored value and error message it renders.** A
   memory history row's field and event names, and the text of four error
   replies, reached the page as HTML.

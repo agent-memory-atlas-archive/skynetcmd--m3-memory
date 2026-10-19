@@ -163,5 +163,23 @@ async def run_benchmark():
         print("\n❌ Benchmark FAILED (MRR < 0.5)")
         sys.exit(1)
 
+def _choose_store(argv: list[str] | None = None) -> str:
+    """The store the benchmark writes its test memories to (m3_core.paths.scratch_store)."""
+    import argparse
+
+    from m3_core.paths import add_scratch_store_args, scratch_store
+
+    ap = argparse.ArgumentParser(description="Retrieval quality benchmark (writes test memories).")
+    add_scratch_store_args(ap)
+    args = ap.parse_args(argv)
+    store = scratch_store("retrieval benchmark", args.database, args.configured_store)
+    from memory.db import _db
+
+    with _db():  # a new scratch store gets its schema before the first write
+        pass
+    return store
+
+
 if __name__ == "__main__":
+    print(f"Store: {_choose_store()}")
     asyncio.run(run_benchmark())

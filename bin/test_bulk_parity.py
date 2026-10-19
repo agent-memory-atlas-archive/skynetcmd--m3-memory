@@ -95,6 +95,12 @@ def check(name: str, condition: bool, detail: str = "") -> bool:
     return condition
 
 
+def scratch_store(purpose: str, db_path: str) -> str:
+    from m3_core.paths import scratch_store as _pin
+
+    return _pin(purpose, db_path)
+
+
 def setup_test_db() -> str:
     """Create a temp SQLite DB with the full schema. Returns path."""
     tmpdir = tempfile.mkdtemp(prefix="m3_test_")
@@ -112,7 +118,7 @@ async def test_1_structural_parity() -> bool:
     print("\n── Test 1: Structural Parity (DB Rows) ────────────────────")
 
     db_path = setup_test_db()
-    os.environ["M3_DATABASE"] = db_path
+    scratch_store("bulk parity", db_path)  # M3_DATABASE is not read: pin the temp store
 
     try:
         from memory_core import memory_write_bulk_impl
@@ -192,7 +198,7 @@ async def test_2_variant_isolation() -> bool:
     """Test 2: Verify variant column isolation."""
     print("\n── Test 2: Variant Isolation (Column Values) ──────────────")
     db_path = setup_test_db()
-    os.environ["M3_DATABASE"] = db_path
+    scratch_store("bulk parity", db_path)  # M3_DATABASE is not read: pin the temp store
     try:
         from memory_core import memory_write_bulk_impl
 
@@ -255,7 +261,7 @@ async def test_3_enrich_override_vs_env() -> bool:
     """Test 3: enrich flag gating."""
     print("\n── Test 3: Enrich Override vs Env ────────────────────────")
     db_path = setup_test_db()
-    os.environ["M3_DATABASE"] = db_path
+    scratch_store("bulk parity", db_path)  # M3_DATABASE is not read: pin the temp store
     try:
         from memory_core import memory_write_bulk_impl
 
@@ -300,7 +306,7 @@ async def test_4_contradiction_default_off() -> bool:
     """Test 4: Bulk defaults check_contradictions to False."""
     print("\n── Test 4: Contradiction Detection (Default Off) ─────────")
     db_path = setup_test_db()
-    os.environ["M3_DATABASE"] = db_path
+    scratch_store("bulk parity", db_path)  # M3_DATABASE is not read: pin the temp store
     try:
         from memory_core import memory_write_bulk_impl
 
@@ -351,7 +357,7 @@ async def test_5_conversation_emitters() -> bool:
     """Test 5: Conversation emitter gating."""
     print("\n── Test 5: Conversation Emitters ──────────────────────────")
     db_path = setup_test_db()
-    os.environ["M3_DATABASE"] = db_path
+    scratch_store("bulk parity", db_path)  # M3_DATABASE is not read: pin the temp store
     try:
         from memory_core import memory_write_bulk_impl
 

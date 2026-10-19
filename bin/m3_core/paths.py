@@ -1021,6 +1021,44 @@ def store_is_a_file() -> bool:
     return bool(backend_factory_for(name).stores_databases_as_files)
 
 
+def add_scratch_store_args(parser: argparse.ArgumentParser) -> None:
+    """The flags every harness that writes test rows takes (see scratch_store)."""
+    parser.add_argument("--database", help="SQLite file for the test rows (default: a new temporary database)")
+    parser.add_argument(
+        "--configured-store",
+        action="store_true",
+        help="write the test rows into the configured store on purpose; required when it is a server database",
+    )
+
+
+def scratch_store(purpose: str, database: str | None = None, configured_store: bool = False) -> str:
+    """Pin the store a benchmark or end-to-end script writes its test rows to, and
+    name it. The default is a new temporary SQLite database, so test rows never
+    reach the person's store: a harness run against the active store once left
+    thousands of benchmark rows in it, and a soft-deleting cleanup keeps them.
+
+    ``database`` pins that SQLite file instead. ``configured_store`` writes into
+    the configured store on purpose, and is the only way to run when the active
+    backend keeps one server database (PostgreSQL), which has no temporary file
+    to fall back to: without it this exits, naming the flag."""
+    if not store_is_a_file():
+        if not configured_store:
+            raise SystemExit(
+                f"refusing to run {purpose}: the active backend keeps one server database, so its test rows "
+                "would be written into the configured store. inspect: pass --configured-store to do that on purpose"
+            )
+        return "the configured database"
+    if configured_store:
+        return resolve_db_path(None)
+    if not database:
+        import tempfile
+
+        slug = "".join(c if c.isalnum() else "-" for c in purpose.lower()).strip("-") or "scratch"
+        database = str(Path(tempfile.mkdtemp(prefix=f"m3-{slug}-")) / "agent_memory.db")
+    pin_database(database)
+    return database
+
+
 # The backend names db.backend may select. `memory.backends.selector` and
 # its registry use this tuple; it lives here so tools that must not import the
 # `memory` package (migration runners, repair scripts) share the one predicate.

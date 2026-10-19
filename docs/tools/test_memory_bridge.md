@@ -1,8 +1,8 @@
 ---
 tool: bin/test_memory_bridge.py
-sha1: 9f97df1edce1
-mtime_utc: 2026-10-18T22:31:56.055789+00:00
-generated_utc: 2026-10-18T22:33:06.895035+00:00
+sha1: f0a7985045a5
+mtime_utc: 2026-10-19T03:14:01.497035+00:00
+generated_utc: 2026-10-19T03:16:55.715688+00:00
 private: false
 ---
 
@@ -22,18 +22,15 @@ embedding model is not loaded in LM Studio.
 
 ## Entry points
 
-- `async def run()` (line 187)
-- `async def main()` (line 1340)
+- `async def run()` (line 186)
+- `async def main()` (line 1324)
 - `if __name__ == "__main__"` guard
 
 ---
 
 ## CLI flags / arguments
 
-| Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
-|---|---|---|---|---|---|
-| `--database` | SQLite file to test against (default: a new temporary database) | — |  | str |  |
-| `--configured-store` | run against the configured store; required on PostgreSQL, where the store is not a file | `False` |  | store_true |  |
+_(no argparse arguments detected)_
 
 ---
 
@@ -57,7 +54,7 @@ embedding model is not loaded in LM Studio.
 
 **http**
 
-- `httpx.AsyncClient()` (line 107)
+- `httpx.AsyncClient()` (line 106)
 
 
 ---
@@ -67,7 +64,8 @@ embedding model is not loaded in LM Studio.
 - `httpx`
 - `m3_core.config.settings (setting)`
 - `m3_core.context (open_pointed_store)`
-- `m3_core.paths (pin_database, seam_backend, seam_dialect, store_is_a_file)`
+- `m3_core.paths (add_scratch_store_args, scratch_store)`
+- `m3_core.paths (seam_backend, seam_dialect, store_is_a_file)`
 - `memory.db (_db)`
 - `platform`
 - `types (SimpleNamespace)`
@@ -76,7 +74,7 @@ embedding model is not loaded in LM Studio.
 
 ## File dependencies (repo paths referenced)
 
-- `agent_memory.db`
+_(none detected)_
 
 ---
 

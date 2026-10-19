@@ -1,8 +1,8 @@
 ---
 tool: bin/test_bulk_parity.py
-sha1: f479e795af97
-mtime_utc: 2026-10-10T21:05:16.585895+00:00
-generated_utc: 2026-10-10T21:05:29.984715+00:00
+sha1: 0778760c33d4
+mtime_utc: 2026-10-19T03:16:10.466161+00:00
+generated_utc: 2026-10-19T03:16:55.684576+00:00
 private: false
 ---
 
@@ -20,7 +20,7 @@ variant handling, contradiction detection, and conversation emitters.
 
 ## Entry points
 
-- `async def main()` (line 487)
+- `async def main()` (line 493)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -33,7 +33,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -48,16 +48,17 @@ _(no argparse arguments detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 102)
-- `sqlite3.connect()  → `db_path`` (line 165)
-- `sqlite3.connect()  → `db_path`` (line 212)
-- `sqlite3.connect()  → `db_path`` (line 235)
+- `sqlite3.connect()  → `db_path`` (line 108)
+- `sqlite3.connect()  → `db_path`` (line 171)
+- `sqlite3.connect()  → `db_path`` (line 218)
+- `sqlite3.connect()  → `db_path`` (line 241)
 
 
 ---
 
 ## Notable external imports
 
+- `m3_core.paths (scratch_store)`
 - `m3_core.seams (is_windows)`
 - `unittest.mock (AsyncMock, patch)`
 

@@ -222,17 +222,18 @@ def test_bridge_e2e_script_pins_a_temporary_store(monkeypatch):
     import importlib.util
     from pathlib import Path
 
+    import m3_core.paths as paths
     from m3_core.paths import configured_main_db, pin_database
 
     path = Path(__file__).resolve().parents[1] / "bin" / "test_memory_bridge.py"
     spec = importlib.util.spec_from_file_location("_bridge_e2e", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    monkeypatch.setattr(mod, "store_is_a_file", lambda: True)
+    monkeypatch.setattr(paths, "store_is_a_file", lambda: True)
     try:
         chosen = mod._choose_store([])
         assert configured_main_db() == chosen and "m3-bridge-e2e-" in chosen
-        monkeypatch.setattr(mod, "store_is_a_file", lambda: False)
+        monkeypatch.setattr(paths, "store_is_a_file", lambda: False)
         with pytest.raises(SystemExit, match="configured-store"):
             mod._choose_store([])
     finally:

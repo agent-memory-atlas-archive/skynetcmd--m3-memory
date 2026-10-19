@@ -3,7 +3,10 @@
 Memory system benchmark script.
 Seeds test data, measures latency/throughput, reports pass/fail against targets.
 
-Usage: python bin/bench_memory.py
+Usage: python bin/bench_memory.py [--database FILE]
+
+SQLite only: it times raw SQLite reads and writes. Its test rows go to a new
+temporary database unless --database names one (m3_core.paths.scratch_store).
 """
 import json
 import os
@@ -16,7 +19,8 @@ import time
 import uuid
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, "memory", "agent_memory.db")
+sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
+DB_PATH = ""  # set by main() to the scratch store
 
 TARGETS = {
     "write_throughput_items_per_sec": 50,
@@ -195,10 +199,32 @@ def cleanup(conn, ids):
     print("  Done.")
 
 
+def _choose_store(argv: list[str] | None = None) -> str:
+    """A SQLite file for the test rows, with m3's schema (m3_core.paths.scratch_store)."""
+    import argparse
+
+    from m3_core.paths import scratch_store, store_is_a_file
+
+    ap = argparse.ArgumentParser(description="SQLite latency and throughput benchmark (writes test rows).")
+    ap.add_argument("--database", help="SQLite file for the test rows (default: a new temporary database)")
+    args = ap.parse_args(argv)
+    if not store_is_a_file():
+        sys.exit(
+            "bench_memory times raw SQLite; the active backend is not SQLite. "
+            "inspect: run it on a SQLite install, or use bench_concurrent_writes"
+        )
+    path = scratch_store("sqlite benchmark", args.database)
+    from memory.db import _db
+
+    with _db():  # a new scratch store gets its schema before the first write
+        pass
+    return path
+
+
 def main():
-    if not os.path.exists(DB_PATH):
-        print(f"Error: Database not found at {DB_PATH}")
-        sys.exit(1)
+    global DB_PATH
+    DB_PATH = _choose_store()
+    print(f"Store: {DB_PATH}")
 
     conn = get_conn()
     report = {}

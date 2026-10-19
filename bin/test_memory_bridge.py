@@ -14,7 +14,6 @@ import os
 import struct
 import sys
 import uuid as _uuid
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -53,7 +52,7 @@ def skip(name: str, reason: str = "") -> None:
 # database (or --database PATH); a store that is not a file (PostgreSQL) runs
 # only with --configured-store. It once wrote into the live store by default.
 from m3_core.context import open_pointed_store  # noqa: E402
-from m3_core.paths import pin_database, seam_backend, seam_dialect, store_is_a_file  # noqa: E402
+from m3_core.paths import seam_backend, seam_dialect, store_is_a_file  # noqa: E402
 from m3_sdk import resolve_db_path  # noqa: E402
 
 # Bound in main(), not at import: the backend is selected after imports.
@@ -1313,28 +1312,13 @@ def _choose_store(argv: list[str] | None = None) -> str:
     """Pin the store this run writes to and say which. Exits when the active
     backend keeps one server database and --configured-store was not given."""
     import argparse
-    import tempfile
+
+    from m3_core.paths import add_scratch_store_args, scratch_store
 
     ap = argparse.ArgumentParser(description="End-to-end test of the memory bridge (writes test rows).")
-    ap.add_argument("--database", help="SQLite file to test against (default: a new temporary database)")
-    ap.add_argument(
-        "--configured-store",
-        action="store_true",
-        help="run against the configured store; required on PostgreSQL, where the store is not a file",
-    )
+    add_scratch_store_args(ap)
     args = ap.parse_args(argv)
-    if not store_is_a_file():
-        if not args.configured_store:
-            sys.exit(
-                "refusing to run: the active backend is not file-based, so this would write test rows into "
-                "the configured database. Pass --configured-store to do that on purpose."
-            )
-        return "the configured database"
-    if args.configured_store:
-        return resolve_db_path(None)
-    path = args.database or str(Path(tempfile.mkdtemp(prefix="m3-bridge-e2e-")) / "agent_memory.db")
-    pin_database(path)
-    return path
+    return scratch_store("bridge e2e", args.database, args.configured_store)
 
 
 async def main() -> None:

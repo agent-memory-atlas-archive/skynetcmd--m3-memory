@@ -27,8 +27,8 @@ import httpx
 PROXY = "http://localhost:9000"
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Honors M3_DATABASE — run the suite against a scratch DB with:
-#   M3_DATABASE=memory/_test.db python bin/test_mcp_proxy.py
+# Reads the configured store only (activity_logs counts); the rows the tool calls
+# write come from the proxy server's own process.
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 from auth_utils import get_api_key  # noqa: E402
 from m3_sdk import resolve_db_path  # noqa: E402
