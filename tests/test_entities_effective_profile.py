@@ -41,3 +41,16 @@ def test_an_anthropic_endpoint_still_requires_its_key(monkeypatch):
     prof = dataclasses.replace(_local_anthropic_profile(), url="https://api.anthropic.com/v1/messages")
     with pytest.raises(SystemExit, match="API key not found"):
         slm_intent.job_api_key(m3_entities.effective_profile(prof))
+
+
+def test_a_run_without_store_flags_reads_the_configured_stores():
+    """The defaults named <repo>/memory/*.db, the layout before the decoupled
+    roots, so `m3_entities.py --dry-run` found no store on a real install."""
+    import chatlog_config
+    from m3_core.paths import resolve_db_path
+
+    legacy = m3_entities.REPO_ROOT / "memory"
+    assert m3_entities._default_core_db() == m3_entities.Path(resolve_db_path(None))
+    assert m3_entities._default_chatlog_db() == m3_entities.Path(chatlog_config.chatlog_db_path())
+    assert legacy not in m3_entities._default_core_db().parents
+    assert legacy not in m3_entities._default_chatlog_db().parents

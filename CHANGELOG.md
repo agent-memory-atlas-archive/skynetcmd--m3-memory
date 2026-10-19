@@ -56,6 +56,11 @@ the policy is forward-going only.
   trail, config and secret writes · **Action:** none ·
   **Data status:** chat turns from a failed capture were retried by the next
   hook; an audit entry or setting write that failed this way was not made.
+- **`m3_entities` run by hand finds your stores.** Without `--core-db` or
+  `--chatlog-db` it looked under the checkout's old `memory/` folder and found
+  no store; it now reads the configured ones.
+  **Affected:** running entity extraction by hand · **Action:** none ·
+  **Data status:** none.
 - **`m3 doctor` no longer flags m3's own loop-watchdog timer.** It read the
   timer as "not a job this version installs", because a timer starts a service
   rather than running a program itself.

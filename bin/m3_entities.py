@@ -228,6 +228,26 @@ async def _discover_loaded_model_async(client: httpx.AsyncClient, url: str, toke
         return None
 
 
+def _default_core_db() -> Path:
+    """The main store a run without --core-db reads: the configured one, from its
+    owner (the engine root). The fallback named the pre-decoupled-roots
+    <repo>/memory/agent_memory.db, so a standalone run found no store. On a server
+    backend the owner answers no file and the old fallback stands."""
+    from m3_core.paths import resolve_db_path
+
+    try:
+        return Path(resolve_db_path(None))
+    except ValueError:
+        return Path(configured_main_db() or (REPO_ROOT / "memory" / "agent_memory.db"))
+
+
+def _default_chatlog_db() -> Path:
+    """The chat store a run without --chatlog-db reads, from its owner."""
+    import chatlog_config
+
+    return Path(chatlog_config.chatlog_db_path())
+
+
 def effective_profile(profile: Profile) -> Profile:
     """``profile`` with the endpoint this run calls: a local profile follows the
     configured LLM (localize_endpoint), so the key rule and the run plan use that
@@ -1025,15 +1045,11 @@ async def _main_async(args: argparse.Namespace) -> int:
     # DB targets
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
-        core_db = (
-            Path(args.core_db)
-            if args.core_db
-            else Path(configured_main_db() or (REPO_ROOT / "memory" / "agent_memory.db"))
-        )
+        core_db = Path(args.core_db) if args.core_db else _default_core_db()
         if os.path.exists(core_db):
             db_targets.append(("core", core_db))
     if not args.core_only:
-        chatlog_db = Path(args.chatlog_db) if args.chatlog_db else (REPO_ROOT / "memory" / "agent_chatlog.db")
+        chatlog_db = Path(args.chatlog_db) if args.chatlog_db else _default_chatlog_db()
         if os.path.exists(chatlog_db):
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
