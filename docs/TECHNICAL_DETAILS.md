@@ -423,7 +423,7 @@ Always-on: when `metadata.temporal_anchors` is supplied, resolved ISO dates are 
 
 ### Test Suite (`tests/`)
 
-7,700+ collected tests (8,100+ with the native core) from 5,700+ test functions across 680+ files (parametrised cases expand the total), run in CI on Linux, macOS and Windows × Python 3.12–3.15 plus a PostgreSQL lane, and at release on 3 OSes × SQLite and PostgreSQL × pure-Python and native core (12 lanes, about 75,000 executions in all, measured 2026-10-10), across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
+8,200+ collected tests (8,600+ with the native core) from 6,100+ test functions across 730+ files (parametrised cases expand the total), run in CI on Linux, macOS and Windows × Python 3.12–3.15 plus a PostgreSQL lane, and at release on 3 OSes × SQLite and PostgreSQL × pure-Python and native core (12 lanes, about 75,000 executions in all, measured 2026-10-10), across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
 
 | Category | Tests | What's Verified |
 |----------|-------|----------------|

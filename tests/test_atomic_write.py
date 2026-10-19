@@ -95,6 +95,7 @@ def test_persistent_permission_error_surfaces(tmp_path, monkeypatch):
 # os.replace / Path.replace calls that MOVE an existing file rather than publish a new write.
 _MOVES = {
     ("bin/chatlog_embed_sweeper.py", "spill_path"): "moves a spill file into quarantine",
+    ("bin/chatlog_embed_sweeper.py", "src"): "moves a quarantined spill file back for its daily retry",
     ("bin/m3_halt.py", "p"): "rotates a log file to its .1 backup",
     ("bin/chatlog_ingest.py", "path"): "moves a corrupt ingest cursor aside to .corrupt-<utc>",
     ("bin/memory/backends/postgres_backend.py", "partial"): "publishes a finished backup copy",

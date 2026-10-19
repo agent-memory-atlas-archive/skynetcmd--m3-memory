@@ -557,6 +557,8 @@ def _real_agent_configs() -> list[Path]:
         home / ".gemini" / "antigravity-cli" / "settings.json",
         home / ".gemini" / "config" / "mcp_config.json",
         home / ".gemini" / "config" / "hooks.json",
+        home / ".codex" / "hooks.json",
+        home / ".codex" / "config.toml",
         home / ".cursor" / "mcp.json",
         home / ".config" / "opencode" / "opencode.json",
         home / ".codeium" / "windsurf" / "mcp_config.json",
@@ -620,6 +622,7 @@ INSTALLER_HOME_WRITERS = (
     "_register_cline_mcp",
     "_register_codex_mcp",
     "_register_codex_hooks",
+    "_register_antigravity_hooks",
     "_sqlite3_cli_hint",
     "_fix_npm_global_path",
     "_print_backup_reminder",
@@ -1363,6 +1366,23 @@ def _isolated_shell_rc(monkeypatch, tmp_path):
             return tmp_path / rc.name if Path(rc).parent == _REAL_HOME else rc
 
         monkeypatch.setattr(persist, "_pick_unix_shell_rc", _pick)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _isolated_antigravity_home(monkeypatch, tmp_path):
+    """Antigravity's files (hooks.json, mcp_config.json) all hang off one owner,
+    m3_memory.antigravity.gemini_home; point it at a temp folder so no writer
+    (setup, doctor --fix, the post-install step) reaches the real ones. Only the
+    real home is redirected; a test that patched Path.home keeps its own."""
+    agy = importlib.import_module("m3_memory.antigravity")
+    real_home = agy.gemini_home
+
+    def _home():
+        p = real_home()
+        return tmp_path / p.name if p.parent == _REAL_HOME else p
+
+    monkeypatch.setattr(agy, "gemini_home", _home)
     yield
 
 

@@ -14,9 +14,11 @@ from m3_memory import installer as I
 
 
 @pytest.fixture
-def canonical(tmp_path, monkeypatch):
+def canonical(tmp_path, monkeypatch, installer_home_writers_stubbed):
     """Point the installer at a fake live install under tmp_path so the canonical
-    config is deterministic and bridge resolution succeeds."""
+    config is deterministic and bridge resolution succeeds. The writers that
+    resolve the real home (Codex, Antigravity) are stubbed: _heal_all_agents
+    calls them."""
     repo = tmp_path / ".m3" / "repo"
     (repo / "bin").mkdir(parents=True)
     bridge = repo / "bin" / "memory_bridge.py"

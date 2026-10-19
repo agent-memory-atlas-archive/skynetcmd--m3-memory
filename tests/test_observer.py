@@ -386,7 +386,7 @@ def test_write_observation_populates_three_dates(bench_db, monkeypatch, m3_setti
     ).fetchone()
     assert row[0] == "observation"
     assert row[1] == "User started yoga in March 2024."
-    assert row[2] == "2024-03-01"  # valid_from = referenced_date
+    assert row[2] == "2024-03-01T00:00:00+00:00"  # valid_from = referenced_date, stored in UTC
     assert row[3] == "test-variant"
     assert row[4] == "alice"
     md = json.loads(row[5])
@@ -427,7 +427,7 @@ def test_write_observation_falls_back_to_observation_date_when_referenced_null(b
     conn = sqlite3.connect(str(bench_db))
     vf = conn.execute("SELECT valid_from FROM memory_items WHERE id=?", (obs_id,)).fetchone()[0]
     # Should fall back to observation_date when referenced_date is None.
-    assert vf == "2024-04-15"
+    assert vf == "2024-04-15T00:00:00+00:00"
     conn.close()
 
 
