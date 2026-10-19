@@ -225,6 +225,9 @@ jobs:
     name: Test on ${{ matrix.os }} (py${{ matrix.python-version }})
     needs: [lint, typecheck, matrix-setup]
     runs-on: ${{ matrix.os }}
+    # About twice the slowest measured cell (windows py3.12, 46.6 min), so a hung
+    # test fails within the hour instead of holding a runner for GitHub's 6 h.
+    timeout-minutes: 90
     # Every cell gates, 3.15 included: it was non-blocking only while 3.15 was
     # pre-release (until 3.15.0 final, 2026-10-09). Do not restore
     # continue-on-error for a version pyproject classifies as supported.
@@ -297,6 +300,7 @@ jobs:
     name: Test pure-Python fallback (ubuntu, py3.12)
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # about twice its slowest measured run (14.9 min)
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -395,6 +399,7 @@ jobs:
     name: PostgreSQL lane (requires_pg)
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
+    timeout-minutes: 45  # about twice its slowest measured run (20.5 min)
     services:
       postgres:
         # postgres:16 plus the pgvector extension, so the in-database vector

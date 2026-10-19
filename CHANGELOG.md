@@ -19,6 +19,13 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Changed
+
+- **CI test jobs stop a hung run within the hour.** The test matrix, the
+  PostgreSQL lane and the pure-Python lane time out at about twice their
+  slowest measured run, instead of GitHub's six hours.
+  **Affected:** contributors · **Action:** none · **Data status:** none.
+
 ### Fixed
 
 - **The cognitive loop keeps running when one of its passes cannot.** A pass
