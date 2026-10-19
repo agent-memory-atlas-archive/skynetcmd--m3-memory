@@ -443,8 +443,10 @@ if [ -n "$PY_CHANGED" ]; then
     echo "[pre-push] lint gate — WARNING: ruff not on PATH; deferring to CI (pip install ruff)." >&2
     LINT_STATE="DEFERRED to CI (ruff not on PATH)"
   else
+    # --force-exclude: a file named on the command line still honours pyproject's
+    # exclusions, as CI's `ruff format --check .` does.
     # shellcheck disable=SC2086
-    if ! printf '%s\n' "$PY_CHANGED" | xargs ruff format --check -q || ! printf '%s\n' "$PY_CHANGED" | xargs ruff check -q; then
+    if ! printf '%s\n' "$PY_CHANGED" | xargs ruff format --check -q --force-exclude || ! printf '%s\n' "$PY_CHANGED" | xargs ruff check -q --force-exclude; then
       echo "[pre-push] BLOCKED: ruff found problems in the files above." >&2
       echo "  fix: ruff format <files> && ruff check --fix <files>, then commit." >&2
       exit 1
