@@ -57,6 +57,9 @@ def _run_hook(stdin: str) -> subprocess.CompletedProcess:
 
 
 def test_deletion_only_push_passes_without_scanning():
+    if not (_ROOT / ".git").exists():
+        # The hook reads the repository; a `git archive` tree (the Linux lane's) has none.
+        pytest.skip(skip_reason("env", "the checkout is not a git repository"))
     head = subprocess.run(["git", "-C", str(_ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     stdin = f"(delete) {_ZERO} refs/heads/old-a {head}\n(delete) {_ZERO} refs/heads/old-b {head}\n"
     r = _run_hook(stdin)

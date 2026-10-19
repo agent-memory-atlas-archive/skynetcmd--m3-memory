@@ -97,8 +97,35 @@ class Sandbox:
         assert r.returncode == 0, r.stderr[-2000:]
         return r.stdout.strip().splitlines()[-1]
 
+    def require_installed_checkout(self) -> None:
+        """The hook line runs whatever m3 this interpreter has INSTALLED (the
+        launcher imports m3_memory with -E -s, from a folder outside the
+        checkout). A suite run from a checkout with no install, or another
+        version installed, would test nothing or the wrong code: skip, named.
+        The host-capture workflow installs the checkout first."""
+        code = (
+            "import json, os, m3_memory; from m3_memory._bin import bin_dir; "
+            "print(json.dumps([os.path.dirname(m3_memory.__file__), str(bin_dir() or '')]))"
+        )
+        r = self.run([sys.executable, "-E", "-s", "-c", code])
+        if r.returncode != 0 or not r.stdout.strip():
+            pytest.skip(skip_reason("env", f"m3 is not installed for {sys.executable}; the hook line needs an install"))
+        pkg, bin_dir = (Path(p) for p in json.loads(r.stdout.strip().splitlines()[-1]))
+        repo = Path(__file__).resolve().parents[1]
+        pairs = [(pkg / n, repo / "m3_memory" / n) for n in ("hook_launchers.py", "host_plugins.py")]
+        pairs += [(bin_dir / n, repo / "bin" / n) for n in ("chatlog_ingest.py", "chatlog_core.py")]
+        pairs += [(bin_dir / p.relative_to(repo / "bin"), p) for p in (repo / "bin" / "hooks" / "chatlog").glob("*.py")]
+        for installed, ours in pairs:
+            if not installed.is_file() or installed.read_bytes() != ours.read_bytes():
+                pytest.skip(
+                    skip_reason(
+                        "env", f"the m3 installed for {sys.executable} is not this checkout ({installed} differs)"
+                    )
+                )
+
     def hook_argv(self, hook: str) -> list[str]:
         """What setup writes for ``hook``: launchers installed, the line as argv."""
+        self.require_installed_checkout()
         code = (
             "import json, sys; from m3_memory import hook_launchers as h; h.install_launchers(); "
             "print(json.dumps([h.command_for(sys.argv[1], sys.executable), h.argv_for(sys.argv[1], sys.executable)]))"

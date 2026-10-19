@@ -874,7 +874,7 @@ def _write_owned(path: Path, text: str, *, marked: bool = True) -> str | None:
     from m3_memory import host_plugins
 
     try:
-        current = path.read_text(encoding="utf-8") if path.is_file() else None
+        current = path.read_text(encoding="utf-8") if os.path.isfile(path) else None
     except OSError as e:
         return f"[!] {path} could not be read ({e}); it was left as it is"
     if current == text:
@@ -897,7 +897,7 @@ def _register_opencode_hooks(*, repair_only: bool = False) -> str | None:
     from m3_memory import hook_launchers, host_plugins
 
     path = host_plugins.opencode_plugin_path()
-    if not host_plugins.opencode_installed() or (repair_only and not path.is_file()):
+    if not host_plugins.opencode_installed() or (repair_only and not os.path.isfile(path)):
         return None
     hook_launchers.install_launchers()
     argv = hook_launchers.argv_for("opencode-capture", _python_exe(windowless=True))
@@ -918,7 +918,7 @@ def _register_openclaw_hooks(*, repair_only: bool = False) -> str | None:
 
     hook_dir = host_plugins.openclaw_hook_dir()
     exe = host_plugins.openclaw_binary()
-    if exe is None or (repair_only and not hook_dir.is_dir()):
+    if exe is None or (repair_only and not os.path.isdir(hook_dir)):
         return None
     hook_launchers.install_launchers()
     argv = hook_launchers.argv_for("openclaw-capture", _python_exe(windowless=True))

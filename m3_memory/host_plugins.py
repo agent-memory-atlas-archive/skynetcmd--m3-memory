@@ -17,6 +17,7 @@ Every path hangs off ``home()``.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -41,7 +42,7 @@ def openclaw_hook_dir() -> Path:
 
 
 def opencode_installed() -> bool:
-    return shutil.which("opencode") is not None or (home() / ".config" / "opencode").is_dir()
+    return shutil.which("opencode") is not None or os.path.isdir(home() / ".config" / "opencode")
 
 
 def openclaw_binary() -> str | None:
