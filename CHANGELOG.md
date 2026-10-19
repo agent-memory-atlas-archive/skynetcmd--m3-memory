@@ -19,6 +19,26 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The cognitive loop keeps running when one of its passes cannot.** A pass
+  that stopped on a configuration problem (the entity pass, on a missing API
+  key) ended the whole loop; the service manager restarted it every few seconds
+  and no background work ran. That pass is now turned off with its reason in the
+  loop's log, and `m3 doctor` names it and its fix. Doctor's remedy for a loop
+  that is not running points at the loop's log and `m3 doctor --fix`.
+  **Affected:** installs where a loop pass cannot start, most often entity
+  extraction without its API key · **Action:** apply the fix `m3 doctor` names;
+  the pass comes back when the loop restarts ·
+  **Data status:** loop work missed while it restarted is picked up on later cycles.
+- **`m3 upgrade` repairs what setup's checks find.** When setup finished the
+  install but a closing check failed (a service down), the upgrade stopped and
+  asked for setup to be re-run; it now runs its repair step and reports that
+  step's result. Its steps no longer print "finish with `m3 setup`" while the
+  upgrade is running setup.
+  **Affected:** anyone running `m3 upgrade` · **Action:** none ·
+  **Data status:** none.
+
 ## [2026.10.19.0] — 2026-10-19 — Codex, session recall, an LLM for enrichment, hooks that update with m3
 
 ### Added

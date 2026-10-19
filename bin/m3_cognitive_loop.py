@@ -635,7 +635,13 @@ _HB_WARNED_AT = 0.0
 _HB_WARN_EVERY_S = 900.0
 
 
-def _write_heartbeat(cycle: int, interval: int, state: str = "running", reason: str | None = None) -> None:
+def _write_heartbeat(
+    cycle: int,
+    interval: int,
+    state: str = "running",
+    reason: str | None = None,
+    stopped: dict[str, str] | None = None,
+) -> None:
     """Stamp a liveness beat at each cycle boundary.
 
     KeepAlive only resurrects a process that DIED. A loop that is alive but
@@ -669,6 +675,8 @@ def _write_heartbeat(cycle: int, interval: int, state: str = "running", reason: 
         }
         if reason:
             beat["reason"] = reason
+        if stopped:
+            beat["stopped_passes"] = stopped  # pass name -> why it exited (m3 doctor reports it)
         atomic_write(path, json.dumps(beat))
     except OSError as e:
         now = time.monotonic()
@@ -1938,6 +1946,21 @@ async def run_audit_pass(args):
         logger.error(f"Audit pass error: {type(e).__name__}: {e}")
 
 
+async def _run_pass(p: dict, args, stopped_passes: dict[str, str]) -> None:
+    """Run one pass of the cycle. A pass that exits (sys.exit: a missing API key,
+    a profile it cannot load) is turned off for this process and logged, instead
+    of ending the loop: the service manager would restart it every few seconds
+    and no pass would ever run."""
+    try:
+        await p["run"](args)
+    except SystemExit as e:
+        stopped_passes[p["name"]] = str(e)
+        logger.error(
+            f"observed: the {p['name']} pass exited ({e}). It is off until the loop restarts; "
+            "the other passes keep running. inspect: m3 doctor"
+        )
+
+
 async def main_loop(args):
     """Main execution loop with adaptive backoff and signal awareness."""
     # This daemon is a thin orchestrator: every pass delegates to an in-process
@@ -1999,6 +2022,9 @@ async def main_loop(args):
     # the loop at 1s forever. A real backlog still drains at full speed; it just
     # takes a breath once per burst.
     _drain_ticks = 0
+    # Passes that exited (sys.exit: a missing API key, a profile they cannot load)
+    # stay off for this process; the others keep running.
+    stopped_passes: dict[str, str] = {}
     while not _STOP_EVENT.is_set():
         # ── Cooperative quiesce (HALT_m3) ──────────────────────────────────────
         # An exclusive op (migration/backup/repair) raised the halt: flush our WAL
@@ -2218,7 +2244,7 @@ async def main_loop(args):
 
         halted = False
         for p in order:
-            if p["skip"]:
+            if p["skip"] or p["name"] in stopped_passes:
                 continue
             # prune is pure SQL → gated only by CPU/RAM; everything else uses the
             # per-pass verdict (GPU folded in only for local-GPU passes).
@@ -2226,7 +2252,7 @@ async def main_loop(args):
             if _run_gate(pace):
                 if p["sets_limit"]:
                     args.limit_per_pass = _effective_limit(pace)
-                await p["run"](args)
+                await _run_pass(p, args, stopped_passes)
             if _STOP_EVENT.is_set():
                 break
             # An exclusive op raised the halt mid-cycle: stop before the next
@@ -2247,7 +2273,7 @@ async def main_loop(args):
 
         # Beat AFTER the passes + checkpoint: it then means "completed a full
         # cycle", so a loop wedged mid-pass goes stale and the watchdog sees it.
-        _write_heartbeat(_cycle, args.interval)
+        _write_heartbeat(_cycle, args.interval, stopped=stopped_passes)
 
         elapsed = time.monotonic() - start_time
         wait_time = max(0, args.interval - elapsed)

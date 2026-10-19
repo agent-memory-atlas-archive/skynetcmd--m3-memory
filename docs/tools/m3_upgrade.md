@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: 12117fbeb2ec
-mtime_utc: 2026-10-18T16:59:11.099955+00:00
-generated_utc: 2026-10-18T17:01:58.697208+00:00
+sha1: 46406c848f67
+mtime_utc: 2026-10-19T11:59:51.483467+00:00
+generated_utc: 2026-10-19T12:01:03.158821+00:00
 private: false
 ---
 
@@ -59,8 +59,8 @@ is stopped or replaced.
 
 ## Entry points
 
-- `def run()` (line 607)
-- `def main()` (line 855)
+- `def run()` (line 612)
+- `def main()` (line 860)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -97,14 +97,14 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 560)
-- `subprocess.Popen()  → `cmd`` (line 616)
-- `subprocess.run()  → `[exe, '--version']`` (line 112)
-- `subprocess.run()  → `[sys.executable, '-c', code]`` (line 191)
-- `subprocess.run()  → `cmd`` (line 633)
-- `subprocess.run()  → `cmd`` (line 653)
-- `subprocess.run()` (line 137)
-- `subprocess.run()` (line 703)
+- `subprocess.Popen()  → `cmd`` (line 565)
+- `subprocess.Popen()  → `cmd`` (line 621)
+- `subprocess.run()  → `[exe, '--version']`` (line 117)
+- `subprocess.run()  → `[sys.executable, '-c', code]`` (line 196)
+- `subprocess.run()  → `cmd`` (line 638)
+- `subprocess.run()  → `cmd`` (line 658)
+- `subprocess.run()` (line 142)
+- `subprocess.run()` (line 708)
 
 
 ---

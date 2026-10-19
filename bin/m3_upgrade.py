@@ -68,6 +68,11 @@ PIP = "pip"
 PIP_USER = "pip-user"
 PLUGIN = "plugin"
 EDITABLE = "editable"  # pip install -e <checkout>: upgrade the checkout, not from PyPI
+
+# `m3 setup`'s exit code when the install completed but its closing verification
+# failed (setup_wizard returns 0, 2 or 3). Not imported: this script must not
+# import m3_memory while the package is being replaced.
+SETUP_VERIFY_FAILED = 3
 VCS = "git-url"  # pip install git+<url>: reinstall from the ref you want
 UNKNOWN = "unknown"
 
@@ -1268,7 +1273,15 @@ def main(argv: list[str] | None = None) -> int:
 
     # Tells setup that this run verifies and summarizes (see setup_wizard._called_by_upgrade).
     rc = run(setup_cmd, dry=dry)
-    if rc != 0:
+    if rc == SETUP_VERIFY_FAILED:
+        # Setup finished the install; only its closing checks failed (a service
+        # down). Re-running setup would not change that, and step 5 exists to
+        # repair it, so go on to step 5 and let its result decide the outcome.
+        print(
+            f"\n`m3 setup` finished the install, but its checks found problems (exit {rc}). "
+            "Step 5 repairs what can be repaired."
+        )
+    elif rc != 0:
         state = (
             f"m3 is still {old_version} (nothing was upgraded)"
             if unchanged

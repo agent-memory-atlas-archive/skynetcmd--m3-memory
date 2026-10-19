@@ -37,8 +37,22 @@ def test_the_note_is_shown_except_by_the_commands_that_finish_setup(record, monk
 
     _installer, f = record
     f.write_text(json.dumps({"version": "2026.6.1.0"}), encoding="utf-8")
-    if command not in cli._FINISHES_SETUP:
+    if cli._should_note_setup_pending(command):
         cli._note_setup_pending()
     err = capsys.readouterr().err
     assert ("finish with `m3 setup`" in err) is noted
     assert (command in cli._FINISHES_SETUP) is not noted
+
+
+def test_a_child_of_m3_upgrade_does_not_say_to_run_setup(record, monkeypatch, capsys):
+    """`m3 upgrade` runs `m3 stop` and setup runs m3 subcommands; each printed
+    "finish with `m3 setup`" while the upgrade was running that setup."""
+    from m3_memory import cli
+    from m3_memory.wizard import ui
+
+    _installer, f = record
+    f.write_text(json.dumps({"version": "2026.6.1.0"}), encoding="utf-8")
+    monkeypatch.setattr(ui, "_caller", "upgrade")
+    assert cli._should_note_setup_pending("stop") is False
+    monkeypatch.setattr(ui, "_caller", None)
+    assert cli._should_note_setup_pending("stop") is True

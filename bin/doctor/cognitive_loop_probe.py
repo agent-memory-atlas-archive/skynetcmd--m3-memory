@@ -190,6 +190,27 @@ def _chat_model_reachable() -> bool | None:
     return any(_reach(ep)[0] == "ok" for ep in endpoints)
 
 
+def _stopped_passes() -> dict[str, str]:
+    """Passes the running loop turned off, with why (its heartbeat file); {} when
+    none or unreadable."""
+    import json
+
+    from m3_core.paths import get_m3_config_root
+
+    try:
+        with open(os.path.join(get_m3_config_root(), ".loop_heartbeat.json"), encoding="utf-8") as f:
+            stopped = json.load(f).get("stopped_passes") or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return {str(k): str(v) for k, v in stopped.items()} if isinstance(stopped, dict) else {}
+
+
+def _down_remedy() -> str:
+    from m3_core.paths import get_m3_logs_root
+
+    return f"inspect: {os.path.join(get_m3_logs_root(), 'cognitive_loop.log')}; restart: m3 doctor --fix"
+
+
 def run(brief: bool = False) -> int:
     """Report cognitive-loop dormancy. Always returns 0 (report-only)."""
     try:
@@ -216,7 +237,7 @@ def run(brief: bool = False) -> int:
         if not installed and running is not True:
             print("⚠️  cognitive loop: not installed — derived knowledge won't build; fix: m3 setup --cognitive-loop")
         elif definitely_down:
-            print("⚠️  cognitive loop: installed but not running; `m3 setup`")
+            print(f"⚠️  cognitive loop: installed but not running. {_down_remedy()}")
         elif memories and entities == 0:
             if _chat_model_reachable() is False:
                 print(
@@ -226,6 +247,9 @@ def run(brief: bool = False) -> int:
                 )
             else:
                 print(f"⚠️  cognitive loop: 0 entities extracted from {memories} memories (loop hasn't distilled yet)")
+        elif stopped := _stopped_passes():
+            for name, why in stopped.items():
+                print(f"⚠️  cognitive loop: running, but its {name} pass is off: {why}")
         else:
             suffix = f" · {entities} entities" if entities else ""
             print(f"✅ cognitive loop: OK ({backend}{suffix})")

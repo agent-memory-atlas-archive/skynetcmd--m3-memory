@@ -2239,6 +2239,16 @@ def _warn_if_not_applied(result, tool: str) -> None:
 _FINISHES_SETUP = frozenset({"setup", "upgrade", "install-m3", "reinstall", "update", "uninstall"})
 
 
+def _should_note_setup_pending(command: str | None) -> bool:
+    """Whether this command prints the setup-pending note: not the commands that
+    finish setup, and not a child of `m3 upgrade` (its stop step, setup's own
+    subcommands), which would tell the person to run the setup the upgrade is
+    already running."""
+    from m3_memory.wizard.ui import called_by_upgrade
+
+    return command not in _FINISHES_SETUP and not called_by_upgrade()
+
+
 def _note_setup_pending() -> None:
     """One stderr line while the package is newer than the last `m3 setup`: after
     `pipx upgrade` nothing said setup was still to run, and agents stayed wired
@@ -2969,7 +2979,7 @@ Examples:
         _run_bridge()
         return
 
-    if args.command not in _FINISHES_SETUP:
+    if _should_note_setup_pending(args.command):
         _note_setup_pending()
     try:
         code = args.func(args)

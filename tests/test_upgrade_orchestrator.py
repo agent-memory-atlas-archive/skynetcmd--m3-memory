@@ -975,3 +975,47 @@ def test_a_failed_setup_does_not_claim_an_upgrade_that_did_not_happen(tmp_path, 
     out = capsys.readouterr().out
     assert rc == 5
     assert "IS upgraded" not in out and "nothing was upgraded" in out
+
+
+def _setup_verify_failed_run(tmp_path, monkeypatch, doctor_rc):
+    """An upgrade whose `m3 setup` finished the install but failed its closing
+    checks (exit 3, a service down), followed by the step-5 doctor."""
+    scripts, pkg = _pip_install(tmp_path, version="2026.10.5.0")
+    monkeypatch.setattr(m3u.shutil, "which", lambda n: str(scripts / "m3.exe"))
+    monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
+    monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
+    monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
+    ran = []
+
+    def _run(cmd, **k):
+        ran.append(cmd)
+        return m3u.SETUP_VERIFY_FAILED if "setup" in cmd else 0
+
+    def _captured(cmd, **k):
+        ran.append(cmd)
+        if "doctor" not in cmd:
+            return (0, "")  # the package step's reinstall retry and the stop step
+        return (doctor_rc, "[OK] m3 HEALTHY" if doctor_rc == 0 else "cognitive-loop: NOT running")
+
+    monkeypatch.setattr(m3u, "run", _run)
+    monkeypatch.setattr(m3u, "run_captured_rc", _captured)
+    rc = m3u.main(["--yes"])
+    return rc, ran
+
+
+def test_setup_checks_failing_go_on_to_the_repair_step(tmp_path, monkeypatch, capsys):
+    """Setup's exit 3 means the install finished and only its checks failed.
+    Re-running setup would not help; step 5 (doctor --fix) exists for this."""
+    rc, ran = _setup_verify_failed_run(tmp_path, monkeypatch, doctor_rc=0)
+    out = capsys.readouterr().out
+    assert any("doctor" in c and "--fix" in c for c in ran), "step 5 never ran"
+    assert rc == 0 and "\nDone.\n" in out
+    assert "by hand to finish wiring it up" not in out, "told to re-run a setup that had finished"
+    assert "finished the install, but its checks found problems" in out
+
+
+def test_setup_checks_failing_and_still_broken_after_repair_say_so(tmp_path, monkeypatch, capsys):
+    rc, _ran = _setup_verify_failed_run(tmp_path, monkeypatch, doctor_rc=3)
+    out = capsys.readouterr().out
+    assert rc == 3 and "Upgrade incomplete." in out
+    assert "health  : m3 doctor reported problems (exit 3)" in out
