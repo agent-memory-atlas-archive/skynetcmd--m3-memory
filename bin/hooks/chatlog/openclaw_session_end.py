@@ -207,7 +207,11 @@ def run_ingest(py: str, ingest: Path, extra_args: list) -> dict:
     }
     try:
         result = subprocess.run(
-            [py, *_ISOLATE, str(ingest), *extra_args], capture_output=True, text=True, timeout=60, creationflags=_NO_WINDOW
+            [py, *_ISOLATE, str(ingest), *extra_args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            creationflags=_NO_WINDOW,
         )
     except subprocess.TimeoutExpired as e:
         err = e.stderr.decode("utf-8", "replace") if isinstance(e.stderr, bytes) else (e.stderr or "")
