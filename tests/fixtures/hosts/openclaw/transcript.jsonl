@@ -1,0 +1,5 @@
+{"type": "session", "sessionId": "host-ci-openclaw-0001", "timestamp": "2026-10-18T17:00:00.000Z"}
+{"type": "model_change", "model": "gpt-4o"}
+{"type": "custom", "payload": {"note": "ignored"}}
+{"id": "m1", "type": "message", "timestamp": "2026-10-18T17:00:01.000Z", "message": {"role": "user", "content": "How do I pin a memory?"}}
+{"id": "m2", "type": "message", "timestamp": "2026-10-18T17:00:08.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "Final reply from OpenClaw: use memory_pin."}]}}

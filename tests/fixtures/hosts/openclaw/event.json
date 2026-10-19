@@ -1,0 +1,1 @@
+{"type": "command", "action": "reset", "context": {"previousSessionEntry": {"sessionId": "host-ci-openclaw-0001", "sessionFile": "{transcript}"}, "workspaceDir": "{cwd}"}}

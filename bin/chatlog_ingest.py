@@ -788,7 +788,25 @@ def _parse_opencode_sqlite(db_path: Path, session_id: str | None = None):
         con.close()
 
 
-def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
+def _parse_opencode_session(session_id: str) -> tuple[list[dict], str | None]:
+    """The named OpenCode session from the first store that holds it, SQLite or
+    the legacy tree. The plugin names the session that went idle; reading the
+    newest one instead captures another window's session when two are open."""
+    for cand in opencode_store_candidates():
+        db = cand if cand.suffix == ".db" else cand / "opencode.db"
+        if os.path.isfile(db):
+            items, sid = _parse_opencode_sqlite(db, session_id)  # logs its own read errors
+            if items:
+                return items, sid
+        legacy = cand / "storage" / "message" / session_id
+        if os.path.isdir(legacy):
+            items, sid = _parse_opencode(str(legacy))
+            if items:
+                return items, sid
+    return [], None
+
+
+def _parse_opencode(transcript_path: str, session_id: str | None = None) -> tuple[list[dict], str | None]:
     """Parse an OpenCode session. Returns (items, sessionId).
 
     ⚠ NOT A TRANSCRIPT FILE. OpenCode has two storage layouts and neither is a
@@ -808,6 +826,8 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
     # each re-deriving a per-OS default, so the candidate list has one owner
     # (§1: three OSes; §10a: copies drift).
     if transcript_path in ("auto", "", "-"):
+        if session_id:
+            return _parse_opencode_session(session_id)
         for cand in opencode_store_candidates():
             items, sid = _parse_opencode(str(cand))
             if items or sid:
@@ -1050,7 +1070,8 @@ async def _ingest(
         if transcript_path not in ("auto", "", "-") and not os.path.exists(transcript_path):
             logger.warning(f"Transcript path not found: {transcript_path}")
             return {"written": 0, "skipped": 0, "failed": 0, "error": f"transcript not found: {transcript_path}"}
-        items, parsed_session = parser(transcript_path)
+        # A store holds many sessions; the host's session id picks one.
+        items, parsed_session = parser(transcript_path, session_override or None)
     else:
         if not os.path.isfile(transcript_path):
             logger.warning(f"Transcript path not found: {transcript_path}")

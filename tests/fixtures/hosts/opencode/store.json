@@ -1,0 +1,36 @@
+{
+  "storage/message/ses_hostci0001/msg_1.json": {
+    "id": "msg_1",
+    "sessionID": "ses_hostci0001",
+    "role": "user",
+    "time": {
+      "created": 1792342800000
+    },
+    "model": {
+      "providerID": "xai",
+      "modelID": "grok-3-mini"
+    }
+  },
+  "storage/part/msg_1/prt_1.json": {
+    "id": "prt_1",
+    "messageID": "msg_1",
+    "type": "text",
+    "text": "Run the migration."
+  },
+  "storage/message/ses_hostci0001/msg_2.json": {
+    "id": "msg_2",
+    "sessionID": "ses_hostci0001",
+    "role": "assistant",
+    "time": {
+      "created": 1792342808000
+    },
+    "modelID": "grok-3-mini",
+    "providerID": "xai"
+  },
+  "storage/part/msg_2/prt_2.json": {
+    "id": "prt_2",
+    "messageID": "msg_2",
+    "type": "text",
+    "text": "Final reply from OpenCode: the migration ran."
+  }
+}

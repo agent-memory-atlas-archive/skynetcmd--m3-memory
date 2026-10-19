@@ -1,0 +1,89 @@
+name: Host capture
+
+# One job per agent host: m3 installed as a user installs it, the hook line setup
+# writes for that host run against the host's recorded input
+# (tests/fixtures/hosts/<host>/), and every turn, the session's final reply
+# included, read back from the chat store (tests/test_host_capture.py).
+# A host's job runs when that host's files change (tests/host_capture.py owns the
+# map); every host runs on a release tag and on a manual run. No aggregate gate
+# job: each host reports on its own.
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  M3_STRICT_SKIPS: "1"
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      hosts: ${{ steps.pick.outputs.hosts }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+    - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: "3.12"
+    - name: Pick the hosts this change touches
+      id: pick
+      shell: bash
+      env:
+        EVENT: ${{ github.event_name }}
+        REF_TYPE: ${{ github.ref_type }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+      run: |
+        base="${PR_BASE:-$PUSH_BEFORE}"
+        if [ "$EVENT" = "workflow_dispatch" ] || [ "$REF_TYPE" = "tag" ] \
+           || [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+          # A release, a manual run, or no usable base (a new branch): every host.
+          hosts=$(python tests/host_capture.py hosts --all)
+        else
+          hosts=$(git diff --name-only "$base" HEAD | python tests/host_capture.py hosts --changed -)
+        fi
+        echo "hosts=$hosts" >> "$GITHUB_OUTPUT"
+        echo "hosts: $hosts"
+
+  capture:
+    needs: changes
+    if: needs.changes.outputs.hosts != '[]'
+    name: ${{ matrix.host }} capture on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(needs.changes.outputs.hosts) }}
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: "3.12"
+        cache: 'pip'
+    # The pinned dependencies, then m3 itself as a user installs it, so the hook
+    # line runs the packaged hooks rather than the checkout's.
+    - name: Install m3-memory
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install --no-deps .
+    - name: Capture a recorded ${{ matrix.host }} session
+      shell: bash
+      env:
+        HOST: ${{ matrix.host }}
+      run: python -m pytest tests/test_host_capture.py -m slow -q -rfE -k "capture and ${HOST//-/_}"

@@ -46,7 +46,8 @@ the policy is forward-going only.
   turn finishes, and an OpenClaw hook in `~/.openclaw/hooks/m3-capture/` that
   saves them when a session is retired (`/new`, `/reset`, or a daily or idle
   reset), turned on with `openclaw hooks enable`. Until now both needed wiring
-  by hand, and the documented OpenCode hook folder does not exist. A one-shot
+  by hand, and the documented OpenCode hook folder does not exist. OpenCode
+  capture reads the session that finished, not the newest one. A one-shot
   `opencode run` is not captured: it exits before OpenCode delivers plugin
   events. `m3 chat init` now describes what setup wires for Codex, OpenCode and
   OpenClaw.
@@ -163,6 +164,13 @@ the policy is forward-going only.
   **Affected:** all installs · **Action:** none · **Data status:** turns already
   in quarantine are retried by the daily pass after the upgrade.
 
+- **CI captures a recorded session for each agent host.** One job per host
+  (Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, OpenClaw, Aider)
+  installs m3, runs the hook setup writes for that host on a recorded input, and
+  checks every turn, the final reply included, reaches the chat store. A host's
+  job runs when its files change, and all of them run on Linux, macOS and
+  Windows for a release tag.
+  **Affected:** contributors · **Action:** none · **Data status:** none.
 - **Code comments describe the code, not its history.** A test counts comment
   blocks and docstrings that narrate change history (dates, PR or issue
   numbers, "used to"); the count may only fall. A comment whose history is

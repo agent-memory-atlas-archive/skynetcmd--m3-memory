@@ -167,3 +167,44 @@ def test_openclaw_handler_passes_only_a_readable_transcript(tmp_path):
             "hook_event_name": "command:reset",
             "cwd": "/ws",
         }, got
+
+
+# ── which OpenCode session the plugin's event captures ───────────────────────
+
+
+def test_opencode_capture_reads_the_named_session_not_the_newest(tmp_path, monkeypatch):
+    """Two OpenCode windows share one store. session.idle names the session that
+    finished; reading the newest instead captured the other window's turns."""
+    import sqlite3
+
+    import chatlog_ingest
+
+    store = tmp_path / "opencode"
+    store.mkdir()
+    con = sqlite3.connect(store / "opencode.db")
+    con.executescript(
+        "CREATE TABLE session (id TEXT, time_created INTEGER, time_updated INTEGER);"
+        "CREATE TABLE message (id TEXT, session_id TEXT, time_created INTEGER, data TEXT);"
+        "CREATE TABLE part (id TEXT, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT);"
+    )
+    for sid, updated, text in (
+        ("ses_idle", 1, "turn in the idle window"),
+        ("ses_newer", 9, "turn in the other window"),
+    ):
+        con.execute("INSERT INTO session VALUES (?, 1, ?)", (sid, updated))
+        con.execute(
+            "INSERT INTO message VALUES (?, ?, 1, ?)",
+            (f"m_{sid}", sid, json.dumps({"role": "user", "time": {"created": 1792342800000}})),
+        )
+        con.execute(
+            "INSERT INTO part VALUES (?, ?, ?, 1, ?)",
+            (f"p_{sid}", f"m_{sid}", sid, json.dumps({"type": "text", "text": text})),
+        )
+    con.commit()
+    con.close()
+    monkeypatch.setattr(chatlog_ingest, "opencode_store_candidates", lambda: [store])
+
+    items, session = chatlog_ingest._parse_opencode("auto", "ses_idle")
+    assert session == "ses_idle" and [i["content"] for i in items] == ["turn in the idle window"]
+    # No session named (an older plugin, a manual run): the newest, as before.
+    assert chatlog_ingest._parse_opencode("auto")[1] == "ses_newer"
