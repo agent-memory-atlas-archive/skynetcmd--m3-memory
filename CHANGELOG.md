@@ -150,6 +150,12 @@ the policy is forward-going only.
   **Affected:** all installs · **Action:** none · **Data status:** turns already
   in quarantine are retried by the daily pass after the upgrade.
 
+- **Code comments describe the code, not its history.** A test counts comment
+  blocks and docstrings that narrate change history (dates, PR or issue
+  numbers, "used to"); the count may only fall. A comment whose history is
+  the evidence carries `history-ok`.
+  **Affected:** contributors · **Action:** none · **Data status:** none.
+
 ### Removed
 
 - **`M3_HOME` is no longer read.** Hooks find m3 from their own location;
