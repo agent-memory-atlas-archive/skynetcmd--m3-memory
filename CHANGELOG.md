@@ -40,6 +40,15 @@ the policy is forward-going only.
   **Affected:** installs using a keyless local LLM (Ollama, LM Studio without
   auth) · **Action:** none · **Data status:** memories left without entities
   are extracted on the next passes.
+- **Concurrent writers on Windows no longer fail taking a lock.** When one
+  process released a lock as another took it, Windows refused to recreate the
+  lock file while its deletion was still finishing, and the second writer
+  failed with a permission error. It now waits out that moment; a denial that
+  lasts is reported with the path.
+  **Affected:** Windows: chat capture when two hooks fire together, the audit
+  trail, config and secret writes · **Action:** none ·
+  **Data status:** chat turns from a failed capture were retried by the next
+  hook; an audit entry or setting write that failed this way was not made.
 - **`m3 doctor` no longer flags m3's own loop-watchdog timer.** It read the
   timer as "not a job this version installs", because a timer starts a service
   rather than running a program itself.

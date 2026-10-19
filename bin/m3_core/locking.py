@@ -9,6 +9,11 @@ from m3_core.paths import get_m3_config_root
 logger = logging.getLogger("M3_SDK")
 
 
+# How long a PermissionError creating a lock file is treated as a release still
+# in progress (a delete pending on Windows) before it is reported as denied.
+_DENIED_RETRY_S = 2.0
+
+
 class LockTimeout(RuntimeError):
     """The lock stayed held past the wait. A class, not a message test: the
     native-lock fallback re-raised any RuntimeError whose text said "lock"."""
@@ -39,6 +44,7 @@ def file_lock(lock_path: str, *, purpose: str):
     fd = None
     start_time = time.time()
     acquired = False
+    denied_since: float | None = None
 
     while time.time() - start_time < 120.0:
         try:
@@ -60,6 +66,23 @@ def file_lock(lock_path: str, *, purpose: str):
             if _reclaim_stale_lock(lock_path):
                 continue  # reclaimed — retry os.open immediately, no sleep
             time.sleep(0.5)
+        except PermissionError as e:
+            # Windows refuses to create a file whose deletion is still pending:
+            # the previous holder's release, a few milliseconds long. Raised at
+            # once, it crashed a concurrent writer (the audit-trail concurrency
+            # test, windows-latest). A denial that outlasts the window is a real
+            # permission problem and is reported as one.
+            now = time.time()
+            denied_since = denied_since or now
+            if now - denied_since > _DENIED_RETRY_S:
+                raise PermissionError(
+                    e.errno,
+                    f"cannot create the {purpose} lock {lock_path}: permission denied for "
+                    f"{_DENIED_RETRY_S:.0f} s. observed: {e.strerror}. inspect: write access to "
+                    f"{Path(lock_path).parent}",
+                    lock_path,
+                ) from e
+            time.sleep(0.05)
 
     if not acquired:
         raise LockTimeout(

@@ -156,10 +156,16 @@ def test_the_flusher_does_not_sleep_on_the_shared_time_module(monkeypatch):
                 raise _Stop
 
     monkeypatch.setattr(time, "sleep", lambda s: pytest.fail("the flusher slept on the shared time module"))
-    monkeypatch.setattr(db, "_read_log_tick", _Tick(), raising=False)  # absent before the fix
-    monkeypatch.setattr(db, "flush_read_log", lambda: 0)
+    # A private copy of the module's globals, as in the next test: the live
+    # flusher thread reads the real module's, so patching _read_log_tick there
+    # handed it this _Tick, and _Stop killed that thread (charged to a later test).
+    import types
+
+    scope = dict(db.__dict__)
+    scope.update(_read_log_tick=_Tick(), flush_read_log=lambda: 0)
+    loop = types.FunctionType(db._read_log_loop.__code__, scope)
     with pytest.raises(_Stop):
-        db._read_log_loop()
+        loop()
 
 
 def test_a_superseded_flusher_ends():
