@@ -229,6 +229,12 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **PostgreSQL timestamps are read in UTC.** m3's connections used the server's
+  time zone, so on a server not set to UTC every timestamp m3 read back carried a
+  local offset. Each connection now sets its session time zone to UTC.
+  **Affected:** PostgreSQL stores on a server not set to UTC · **Action:** none ·
+  **Data status:** none; stored values were always correct instants.
+
 - **The test suite no longer writes a developer's Antigravity hooks.** Run from
   a checkout, it pointed `~/.gemini/config/hooks.json` at a temporary folder.
   **Affected:** developers running the suite from a checkout · **Action:** run
