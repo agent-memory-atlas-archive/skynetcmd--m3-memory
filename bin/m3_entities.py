@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -225,6 +226,16 @@ async def _discover_loaded_model_async(client: httpx.AsyncClient, url: str, toke
         return await discover_model_async(client, base, token, fresh=True)
     except Exception:  # noqa: BLE001 — discovery is advisory; keep the blank model
         return None
+
+
+def effective_profile(profile: Profile) -> Profile:
+    """``profile`` with the endpoint this run calls: a local profile follows the
+    configured LLM (localize_endpoint), so the key rule and the run plan use that
+    endpoint and wire format, not the profile's pinned url. Checked on the raw
+    profile, an Anthropic-format local profile stopped the run for a key that the
+    OpenAI-format call it actually makes does not need."""
+    url, backend = localize_endpoint(profile.url, getattr(profile, "backend", "openai") or "openai")
+    return dataclasses.replace(profile, url=url, backend=backend)
 
 
 def _build_extractor(
@@ -1032,11 +1043,13 @@ async def _main_async(args: argparse.Namespace) -> int:
             "inspect: the --core-db / --chatlog-db arguments."
         )
 
+    effective = effective_profile(profile)
+
     # Build dry-run plan
     plan = {
         "profile_name": profile.name,
-        "model": profile.model,
-        "url": profile.url,
+        "model": profile.model or "(the loaded model)",
+        "url": effective.url,
         "vocab_yaml": str(vocab_path),
         "entity_types": sorted(valid_types),
         "predicates": sorted(valid_predicates),
@@ -1086,7 +1099,7 @@ async def _main_async(args: argparse.Namespace) -> int:
     # Token + smoke
     from slm_intent import job_api_key
 
-    token = job_api_key(profile)
+    token = job_api_key(effective)
 
     if not args.skip_preflight:
         await _smoke_profile(profile, token, valid_types, valid_predicates)
