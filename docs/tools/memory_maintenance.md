@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: 42f043eb4077
-mtime_utc: 2026-10-16T19:21:00.454018+00:00
-generated_utc: 2026-10-16T19:33:16.719569+00:00
+sha1: 591d1f7c005b
+mtime_utc: 2026-10-19T02:01:51.961635+00:00
+generated_utc: 2026-10-19T02:02:21.737799+00:00
 private: false
 ---
 
@@ -41,6 +41,7 @@ _(none detected)_
 - `llm_failover (LLMUnavailable, apply_thinking_suppression, report_available, report_unavailable)`
 - `m3_sdk (_LAST_USER_INTERACTION)`
 - `m3_sdk (get_m3_config_root)`
+- `m3_sdk (resolve_warehouse_dsn)`
 - `memory_core`
 - `memory_core (_content_hash, _cosine, _db, _embed, _get_embed_client, _pack, _unpack, ctx, get_best_llm, m3_core_rs, memory_link_impl)`
 - `memory_core (memory_write_impl)`
@@ -53,7 +54,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 2796)
+- `httpx.AsyncClient()` (line 2827)
 
 
 ---

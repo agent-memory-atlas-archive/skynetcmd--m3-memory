@@ -186,6 +186,15 @@ the policy is forward-going only.
 
 ### Security
 
+- **`gdpr_forget` no longer reports a complete erasure while synced copies
+  remain.** It erases this machine's stores; with a warehouse configured, the
+  rows sync copied to it and to the machines syncing with it stay. The plan and
+  the confirmation now list them under `copies_remaining`, and `complete` is
+  false until no copy is known to remain.
+  **Affected:** installs syncing to a PostgreSQL warehouse · **Action:** erase on
+  each machine that syncs, and remove the rows from the warehouse ·
+  **Data status:** erasures run before this release left those copies in place.
+
 - **Hidden and control characters are removed from stored text.** Terminal
   escapes, other control characters, bidirectional overrides and invisible
   Unicode tag characters (which can spell an instruction a model reads and a

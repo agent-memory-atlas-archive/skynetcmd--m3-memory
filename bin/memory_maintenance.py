@@ -2003,6 +2003,32 @@ def _gdpr_ids_arg(memory_ids) -> list[str]:
     return [str(i).strip() for i in (memory_ids or []) if str(i).strip()]
 
 
+def _gdpr_copies_elsewhere() -> list[dict]:
+    """Copies of this store that gdpr_forget does not reach: with a warehouse
+    configured, sync has copied rows to it (and from it to other machines)."""
+    try:
+        from m3_sdk import resolve_warehouse_dsn
+
+        configured = bool(resolve_warehouse_dsn())
+    except Exception as e:  # noqa: BLE001 -- unknown is reported, never assumed empty
+        return [
+            {
+                "where": "unknown",
+                "why": f"could not tell whether a warehouse is configured ({type(e).__name__}: {e})",
+                "inspect": "m3 doctor",
+            }
+        ]
+    if not configured:
+        return []
+    return [
+        {
+            "where": "the configured warehouse, and every machine that syncs with it",
+            "why": "gdpr_forget erases this machine's stores; sync copied these rows elsewhere and does not erase them",
+            "inspect": "erase on each machine that syncs, and remove the rows from the warehouse",
+        }
+    ]
+
+
 def gdpr_forget_impl(
     user_id: str = "",
     compliance: "dict | str | None" = None,
@@ -2102,6 +2128,7 @@ def gdpr_forget_impl(
             "derived_ids": plan["derived_ids"],
             "entities_erased": len(plan["entity_ids"]) + len(chat.get("entity_ids", [])),
             "not_found": sorted(set(ids_requested) - set(item_ids) - set(chat["item_ids"])),
+            "copies_remaining": _gdpr_copies_elsewhere(),  # what confirming will not reach
             "token": token,
             "expires_at": datetime.fromtimestamp(exp, UTC).isoformat(),
             "requires": list(_GDPR_REQUIRED_COMPLIANCE),
@@ -2248,10 +2275,14 @@ def gdpr_forget_impl(
             }
         )
 
+    remaining = _gdpr_copies_elsewhere()
     return {
         "step": "erased",
         "erased": True,
-        "complete": not failures,
+        # Complete means every copy m3 knows of is gone. This erases this
+        # machine's stores only; a synced copy is not reached.
+        "complete": not failures and not remaining,
+        "copies_remaining": remaining,
         "request_id": req_id,
         "items_erased": len(item_ids) + len(chat["item_ids"]),
         "counts": counts,

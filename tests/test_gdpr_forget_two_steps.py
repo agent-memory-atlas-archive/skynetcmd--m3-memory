@@ -180,3 +180,37 @@ def test_a_subjects_langgraph_checkpoints_are_erased_and_no_one_elses(subject):
 def test_exactly_one_target():
     assert "exactly one" in _forget()
     assert "exactly one" in _forget(user_id="u", memory_ids=["x"])
+
+
+@pytest.mark.parametrize("warehouse", [None, "postgresql://warehouse.invalid/m3"])
+def test_an_erasure_is_complete_only_when_no_synced_copy_remains(subject, monkeypatch, warehouse):
+    """gdpr_forget erases this machine's stores. With a warehouse configured,
+    sync has copied the rows there and to the machines syncing with it: the
+    reply names what remains and does not claim the erasure is complete."""
+    import importlib
+
+    monkeypatch.setattr(importlib.import_module("m3_sdk"), "resolve_warehouse_dsn", lambda: warehouse)
+    backend, user, ids = subject
+    plan = _forget(user_id=user)
+    assert bool(plan["copies_remaining"]) is bool(warehouse), plan["copies_remaining"]
+    done = _forget(user_id=user, confirm=plan["token"], compliance=_RECORD)
+    assert done["erased"] is True and _alive(backend, ids) == set()
+    if warehouse:
+        assert done["complete"] is False and "warehouse" in done["copies_remaining"][0]["where"]
+        assert "warehouse.invalid" not in str(done), "the reply must not carry the DSN"
+    else:
+        assert done["complete"] is True and done["copies_remaining"] == []
+
+
+def test_an_unknown_sync_state_is_reported_not_assumed_empty(subject, monkeypatch):
+    import importlib
+
+    def _boom():
+        raise RuntimeError("keyring locked")
+
+    monkeypatch.setattr(importlib.import_module("m3_sdk"), "resolve_warehouse_dsn", _boom)
+    _backend, user, _ids = subject
+    plan = _forget(user_id=user)
+    done = _forget(user_id=user, confirm=plan["token"], compliance=_RECORD)
+    assert done["complete"] is False and done["copies_remaining"][0]["where"] == "unknown"
+    assert "keyring locked" in done["copies_remaining"][0]["why"]
