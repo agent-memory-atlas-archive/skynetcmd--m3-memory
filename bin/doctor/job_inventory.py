@@ -129,6 +129,7 @@ def _read_plist(path: str) -> dict:
 
 
 _EXECSTART = re.compile(r"^\s*ExecStart\s*=\s*(.+?)\s*$", re.MULTILINE)
+_TIMER_UNIT = re.compile(r"^\s*Unit\s*=\s*(.+?)\s*$", re.MULTILINE)
 
 
 def _words(command: str) -> list[str]:
@@ -148,6 +149,18 @@ def _systemd_jobs() -> list[Job]:
                 text = f.read()
         except OSError:
             continue
+        if name.endswith(".timer"):
+            # A timer runs no program itself: it starts a service (Unit=, by
+            # default the same-named .service), and is judged by what that runs.
+            # Without this, m3's own watchdog timer read as "not a job this
+            # version installs".
+            u = _TIMER_UNIT.search(text)
+            service = u.group(1).strip() if u else name[: -len(".timer")] + ".service"
+            try:
+                with open(os.path.join(base, service), encoding="utf-8") as f:
+                    text = f.read()
+            except OSError:
+                text = ""
         m = _EXECSTART.search(text)
         toks = _words(m.group(1).lstrip("-@+!:")) if m else []
         program = toks[0] if toks else None

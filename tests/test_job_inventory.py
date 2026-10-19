@@ -391,3 +391,30 @@ def test_only_this_users_processes_of_that_program_are_stopped(monkeypatch, tmp_
     monkeypatch.setattr(seams, "owned_by_current_user", lambda p: p.mine)
     assert ji._stop_processes_of(str(prog)) == [1]
     assert [p.terminated for p in procs] == [True, False, False]
+
+
+def test_a_timer_is_judged_by_the_service_it_starts(tmp_path, monkeypatch):
+    """A .timer runs no program itself; m3's own watchdog timer read as "not a
+    job this version installs" on every Linux install (seen upgrading claude-dev)."""
+    import install_schedules as sched
+    from doctor import job_inventory as ji
+
+    units = tmp_path / "systemd"
+    units.mkdir()
+    this_py = _install(tmp_path / "this", "2026.10.15.0")
+    monkeypatch.setattr(ji, "_SYSTEMD_USER", str(units))
+    monkeypatch.setattr(ji, "is_windows", lambda: False)
+    monkeypatch.setattr(ji, "is_macos", lambda: False)
+    monkeypatch.setattr(ji, "_cron_jobs", list)
+    monkeypatch.setattr(ji, "_this_version", lambda: "2026.10.15.0")
+    monkeypatch.setattr(ji, "_taken_over_by_loop", set)
+    monkeypatch.setattr(sched, "_venv_python", lambda root, windowless=False: str(this_py))
+    (units / "m3-loop-watchdog.service").write_text(
+        f"[Service]\nType=oneshot\nExecStart={this_py} {ROOT / 'bin' / 'm3_loop_watchdog.py'}\n", encoding="utf-8"
+    )
+    (units / "m3-loop-watchdog.timer").write_text("[Timer]\nOnCalendar=*:0/5\n\n[Install]\n", encoding="utf-8")
+
+    jobs = _by_ident(ji.inventory(str(ROOT)))
+    assert jobs["m3-loop-watchdog.service"].verdict == "current"
+    assert jobs["m3-loop-watchdog.timer"].verdict == "current", jobs["m3-loop-watchdog.timer"].detail
+    assert jobs["m3-loop-watchdog.timer"].program == str(this_py)

@@ -31,6 +31,19 @@ the policy is forward-going only.
   extraction without its API key · **Action:** apply the fix `m3 doctor` names;
   the pass comes back when the loop restarts ·
   **Data status:** loop work missed while it restarted is picked up on later cycles.
+- **Entity extraction runs on the LLM you set up, without a key it does not
+  need.** Its shipped profile names a local Anthropic-format server; the run
+  follows your configured LLM in OpenAI format, but the API key was checked
+  against the profile as written, so a machine with a keyless local server
+  stopped the pass for a missing key. The key is now checked against the
+  endpoint the pass calls, and its run plan shows that endpoint.
+  **Affected:** installs using a keyless local LLM (Ollama, LM Studio without
+  auth) · **Action:** none · **Data status:** memories left without entities
+  are extracted on the next passes.
+- **`m3 doctor` no longer flags m3's own loop-watchdog timer.** It read the
+  timer as "not a job this version installs", because a timer starts a service
+  rather than running a program itself.
+  **Affected:** Linux · **Action:** none · **Data status:** none.
 - **`m3 upgrade` repairs what setup's checks find.** When setup finished the
   install but a closing check failed (a service down), the upgrade stopped and
   asked for setup to be re-run; it now runs its repair step and reports that
