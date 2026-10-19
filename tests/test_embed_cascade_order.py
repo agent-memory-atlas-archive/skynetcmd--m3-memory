@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import types
 
 import pytest
 from m3_core.paths import pin_database
@@ -87,6 +88,16 @@ def _isolate_env(monkeypatch, tmp_path):
     for mod in [m for m in sys.modules if m.startswith("memory.")]:
         del sys.modules[mod]
     sys.modules.update(saved)
+    # The re-imports also re-pointed each parent package's attribute (memory.db,
+    # ...) at the fresh copy; put the originals back there too, or a later test
+    # patches sys.modules' memory.db while code reached through `memory.db`
+    # runs the other one. Only module attributes: memory.backends.dialect is an
+    # accessor FUNCTION that shares a submodule's name and must never be rebound.
+    for name, module in saved.items():
+        parent, _, child = name.rpartition(".")
+        owner = sys.modules.get(parent)
+        if owner is not None and isinstance(getattr(owner, child, module), types.ModuleType):
+            setattr(owner, child, module)
 
 
 @pytest.mark.asyncio
