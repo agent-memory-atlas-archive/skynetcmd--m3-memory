@@ -148,7 +148,11 @@ def model(monkeypatch):
 
 def _pending_ids(tag):
     return [
-        p.session.conversation_id for p in _sr().find_backlog().pending if p.session.conversation_id.startswith(tag)
+        p.session.conversation_id
+        # The test's own clock: NOW is taken at import, so on a long run the real clock
+        # has moved on and a turn written as 3 minutes old reads as quiet.
+        for p in _sr().find_backlog(now=NOW).pending
+        if p.session.conversation_id.startswith(tag)
     ]
 
 
@@ -163,7 +167,7 @@ def test_quiet_and_ended_sessions_are_ready_active_ones_wait(each_backend, tag):
     _turn(each_backend, f"{tag}-old", NOW - timedelta(days=5))  # outside the 2-day window
     got = sorted(_pending_ids(tag))
     assert got == sorted([quiet, ended]), f"observed ready {got} on {each_backend.name}"
-    reasons = {p.session.conversation_id: p.reason for p in _sr().find_backlog().pending}
+    reasons = {p.session.conversation_id: p.reason for p in _sr().find_backlog(now=NOW).pending}
     assert reasons[quiet] == "quiet" and reasons[ended] == "ended"
 
 
