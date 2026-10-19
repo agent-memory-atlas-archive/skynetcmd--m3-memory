@@ -41,6 +41,19 @@ the policy is forward-going only.
   Antigravity · **Data status:** earlier conversations were not captured; their
   transcripts stay in `~/.gemini/antigravity*/brain/`, and Antigravity rebuilds a
   conversation's transcript when it is resumed.
+- **Chat capture for OpenCode and OpenClaw, wired by setup.** `m3 setup` installs
+  a plugin in `~/.config/opencode/plugins/` that saves a session's turns when a
+  turn finishes, and an OpenClaw hook in `~/.openclaw/hooks/m3-capture/` that
+  saves them when a session is retired (`/new`, `/reset`, or a daily or idle
+  reset), turned on with `openclaw hooks enable`. Until now both needed wiring
+  by hand, and the documented OpenCode hook folder does not exist. A one-shot
+  `opencode run` is not captured: it exits before OpenCode delivers plugin
+  events. `m3 chat init` now describes what setup wires for Codex, OpenCode and
+  OpenClaw.
+  **Affected:** OpenCode and OpenClaw users · **Action:** run `m3 setup`, then
+  restart OpenCode · **Data status:** earlier sessions were not captured;
+  OpenCode keeps them in its own store and OpenClaw in
+  `~/.openclaw/agents/*/sessions/`.
 - **One session-start hook for Claude Code, Codex and Gemini CLI.** It shows
   whether chat capture is working and which m3 is running against the newest
   release, and offers the session-recall menu on a fresh start. Gemini CLI gains

@@ -221,12 +221,11 @@ The wrapper encodes the CLI's exit `reason` into the row `variant` (`session_end
 
 #### OpenCode
 
-Copy the hook to OpenCode's session-end hook directory:
-
-```bash
-cp /absolute/path/to/m3-memory/bin/hooks/chatlog/opencode_session_end.sh ~/.opencode/hooks/session_end
-chmod +x ~/.opencode/hooks/session_end
-```
+`m3 setup` installs a small plugin, `~/.config/opencode/plugins/m3-capture.js`,
+which saves a session's turns when a turn finishes (OpenCode's `session.idle`
+event). Restart OpenCode to load it. A one-shot `opencode run` exits before
+OpenCode delivers plugin events, so those sessions are not captured; the app and
+`opencode serve` are.
 
 #### Aider
 
@@ -240,7 +239,11 @@ bash /absolute/path/to/m3-memory/bin/hooks/chatlog/aider_chat_watcher.sh <repo-r
 
 #### OpenClaw
 
-m3 ships `bin/hooks/chatlog/openclaw_session_end.{py,sh,ps1}`, fired on OpenClaw's `command:new` / `command:reset` events. OpenClaw passes no transcript path, so the hook ingests the newest session JSONL under `~/.openclaw/agents/<agent>/sessions/`. `chatlog_init.py` prints the wiring instructions when you enable it.
+`m3 setup` installs a hook in `~/.openclaw/hooks/m3-capture/` and turns it on with
+`openclaw hooks enable m3-capture`. It saves a session's turns when the session is
+retired: `/new`, `/reset`, or a daily or idle reset. When OpenClaw does not name a
+readable transcript, the hook reads the newest session JSONL under
+`~/.openclaw/agents/<agent>/sessions/`.
 
 ### Installing the Embed Sweeper Schedule
 

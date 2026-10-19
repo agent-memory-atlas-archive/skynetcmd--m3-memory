@@ -140,6 +140,12 @@ def command_for(name: str, python: str) -> str:
     return f"{_quote(python)} {' '.join(ISOLATE_FLAGS)} {_quote(str(launcher_path(name)))}"
 
 
+def argv_for(name: str, python: str) -> list[str]:
+    """``command_for`` as an argument list, for a host that starts the hook from
+    its own code (m3_memory.host_plugins) rather than a shell line."""
+    return [python.replace("\\", "/"), *ISOLATE_FLAGS, str(launcher_path(name)).replace("\\", "/")]
+
+
 def is_launcher_command(cmd: object) -> bool:
     """True when ``cmd`` runs one of m3's launchers (so a writer replaces it in place)."""
     if not isinstance(cmd, str):
@@ -170,6 +176,7 @@ def run(name: str, argv: list[str] | None = None) -> int:
 __all__ = [
     "HOOKS",
     "MARKER",
+    "argv_for",
     "command_for",
     "hooks_dir",
     "install_launchers",

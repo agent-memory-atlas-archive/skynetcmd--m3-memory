@@ -150,6 +150,12 @@ def show_hook_wiring_instructions(agent: str, hook_spec: HookSpec) -> None:
         print("    - Follow the 'Claude Code Settings' section below to add hooks to ~/.claude/settings.json")
     elif agent == "antigravity":
         print("    - `m3 setup` writes it to ~/.gemini/config/hooks.json (Stop and SessionStart)")
+    elif agent == "codex":
+        print("    - `m3 setup` writes it to ~/.codex/hooks.json (Stop and SessionStart)")
+    elif agent == "opencode":
+        print("    - `m3 setup` installs ~/.config/opencode/plugins/m3-capture.js; restart OpenCode")
+    elif agent == "openclaw":
+        print("    - `m3 setup` installs ~/.openclaw/hooks/m3-capture/ and runs `openclaw hooks enable m3-capture`")
     elif agent == "gemini-cli":
         print("    - Register the hook in ~/.gemini/settings.json (see docs/CHATLOG.md for snippet)")
         if on_windows:

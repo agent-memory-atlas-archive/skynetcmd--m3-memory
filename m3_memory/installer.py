@@ -867,6 +867,96 @@ def _register_antigravity_hooks(*, repair_only: bool = False) -> str | None:
     return f"[+] wired m3 hooks (session start, chat capture) in {path}; restart Antigravity to load them"
 
 
+def _write_owned(path: Path, text: str, *, marked: bool = True) -> str | None:
+    """Write a file m3 owns outright. A ``marked`` file starts with
+    host_plugins.MARKER, and one holding the name without it is someone else's.
+    Returns "unchanged", None when written, or a message when it was left alone."""
+    from m3_memory import host_plugins
+
+    try:
+        current = path.read_text(encoding="utf-8") if path.is_file() else None
+    except OSError as e:
+        return f"[!] {path} could not be read ({e}); it was left as it is"
+    if current == text:
+        return "unchanged"
+    if marked and current is not None and not current.startswith(host_plugins.MARKER):
+        return (
+            f"[!] {path} is not m3's file; it was left as it is and m3 capture is not wired there. inspect: that file"
+        )
+    _bin.ensure_on_path()
+    from m3_core.atomic_io import atomic_write
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(path, text)
+    return None
+
+
+def _register_opencode_hooks(*, repair_only: bool = False) -> str | None:
+    """Install m3's OpenCode plugin (m3_memory.host_plugins), which runs chat
+    capture when a turn finishes. ``repair_only`` rewrites only an existing one."""
+    from m3_memory import hook_launchers, host_plugins
+
+    path = host_plugins.opencode_plugin_path()
+    if not host_plugins.opencode_installed() or (repair_only and not path.is_file()):
+        return None
+    hook_launchers.install_launchers()
+    argv = hook_launchers.argv_for("opencode-capture", _python_exe(windowless=True))
+    try:
+        msg = _write_owned(path, host_plugins.opencode_plugin_text(argv))
+    except OSError as e:
+        return f"[X] could not write {path} ({e}); OpenCode chat capture is not wired"
+    if msg == "unchanged":
+        return None
+    return msg or f"[+] wired m3 chat capture into OpenCode ({path}); restart OpenCode to load it"
+
+
+def _register_openclaw_hooks(*, repair_only: bool = False) -> str | None:
+    """Install m3's OpenClaw hook (m3_memory.host_plugins), which runs chat
+    capture when a session is retired, and turn it on with ``openclaw hooks
+    enable``. ``repair_only`` rewrites only an existing one."""
+    from m3_memory import hook_launchers, host_plugins
+
+    hook_dir = host_plugins.openclaw_hook_dir()
+    exe = host_plugins.openclaw_binary()
+    if exe is None or (repair_only and not hook_dir.is_dir()):
+        return None
+    hook_launchers.install_launchers()
+    argv = hook_launchers.argv_for("openclaw-capture", _python_exe(windowless=True))
+    changed = False
+    try:
+        for name, text, marked in (
+            ("handler.js", host_plugins.openclaw_handler_text(argv), True),
+            # HOOK.md cannot carry the marker (it opens with front matter); the
+            # handler written first proves the folder is m3's.
+            ("HOOK.md", host_plugins.openclaw_hook_md(), False),
+        ):
+            msg = _write_owned(hook_dir / name, text, marked=marked)
+            if msg not in (None, "unchanged"):
+                return msg
+            changed = changed or msg is None
+    except OSError as e:
+        return f"[X] could not write {hook_dir} ({e}); OpenClaw chat capture is not wired"
+    if not changed:
+        return None  # current, and its enabled state is the person's to keep
+    try:
+        r = subprocess.run(
+            [exe, "hooks", "enable", host_plugins.OPENCLAW_HOOK],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            **_hidden_window_kwargs(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return f"[!] wrote {hook_dir} but `openclaw hooks enable {host_plugins.OPENCLAW_HOOK}` failed ({e}); run it yourself"
+    if r.returncode != 0:
+        tail = (r.stderr or r.stdout or "").strip()[-300:]
+        return (
+            f"[!] wrote {hook_dir} but `openclaw hooks enable {host_plugins.OPENCLAW_HOOK}` exited "
+            f"{r.returncode}: {tail}. run it yourself"
+        )
+    return f"[+] wired m3 chat capture into OpenClaw ({hook_dir}); it applies without a restart"
+
+
 def _fix_npm_global_path() -> str | None:
     """Append ~/.npm-global/bin to ~/.profile for non-interactive shells.
 
@@ -1735,6 +1825,8 @@ def _post_install(
             _register_cline_mcp(),
             _register_codex_mcp(),
             _register_codex_hooks(),
+            _register_opencode_hooks(),
+            _register_openclaw_hooks(),
             _sqlite3_cli_hint(),
             _fix_npm_global_path(),
         )
@@ -2777,7 +2869,12 @@ def _heal_all_agents(*, force: bool = False) -> int:
         print(f"  {msg}")
         if msg.lstrip().startswith("[+]"):
             changed += 1
-    for msg in (_register_codex_hooks(repair_only=True), _register_antigravity_hooks(repair_only=True)):
+    for msg in (
+        _register_codex_hooks(repair_only=True),
+        _register_antigravity_hooks(repair_only=True),
+        _register_opencode_hooks(repair_only=True),
+        _register_openclaw_hooks(repair_only=True),
+    ):
         if msg:
             print(f"  {msg}")
             if msg.lstrip().startswith("[+]"):

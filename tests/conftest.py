@@ -558,6 +558,8 @@ def _real_agent_configs() -> list[Path]:
         home / ".gemini" / "config" / "mcp_config.json",
         home / ".gemini" / "config" / "hooks.json",
         home / ".codex" / "hooks.json",
+        home / ".config" / "opencode" / "plugins" / "m3-capture.js",
+        home / ".openclaw" / "hooks" / "m3-capture" / "handler.js",
         home / ".codex" / "config.toml",
         home / ".cursor" / "mcp.json",
         home / ".config" / "opencode" / "opencode.json",
@@ -623,6 +625,8 @@ INSTALLER_HOME_WRITERS = (
     "_register_codex_mcp",
     "_register_codex_hooks",
     "_register_antigravity_hooks",
+    "_register_opencode_hooks",
+    "_register_openclaw_hooks",
     "_sqlite3_cli_hint",
     "_fix_npm_global_path",
     "_print_backup_reminder",
@@ -1383,6 +1387,24 @@ def _isolated_antigravity_home(monkeypatch, tmp_path):
         return tmp_path / p.name if p.parent == _REAL_HOME else p
 
     monkeypatch.setattr(agy, "gemini_home", _home)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _isolated_host_plugins(monkeypatch, tmp_path):
+    """OpenCode's plugin and OpenClaw's hook (m3_memory.host_plugins) hang off
+    one home; point it at a temp folder when it resolves to the real one, and
+    hide the real `openclaw` so no test runs `openclaw hooks enable` against
+    the developer's OpenClaw. A test of that writer patches openclaw_binary."""
+    hp = importlib.import_module("m3_memory.host_plugins")
+    real_home = hp.home
+
+    def _home():
+        p = real_home()
+        return tmp_path if p == _REAL_HOME else p
+
+    monkeypatch.setattr(hp, "home", _home)
+    monkeypatch.setattr(hp, "openclaw_binary", lambda: None)
     yield
 
 

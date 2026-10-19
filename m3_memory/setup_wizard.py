@@ -3233,6 +3233,14 @@ def _opencode_config_paths() -> list[Path]:
 
 
 def _wire_opencode() -> bool:
+    """m3's memory server and chat capture in OpenCode."""
+    from m3_memory.installer import _register_opencode_hooks
+
+    ok = _wire_opencode_mcp()
+    return _report_registration(_register_opencode_hooks()) and ok
+
+
+def _wire_opencode_mcp() -> bool:
     """Register/repoint the `memory` MCP entry in opencode.json.
 
     Self-healing (mirrors _register_gemini_mcp): a present-but-STALE entry (dead
@@ -3492,6 +3500,14 @@ def _openclaw_mcp_set(argv: list[str]) -> bool:
 
 
 def _wire_openclaw() -> bool:
+    """m3's memory server and chat capture in OpenClaw."""
+    from m3_memory.installer import _register_openclaw_hooks
+
+    ok = _wire_openclaw_mcp()
+    return _report_registration(_register_openclaw_hooks()) and ok
+
+
+def _wire_openclaw_mcp() -> bool:
     """Register m3 as a native MCP server in OpenClaw via `openclaw mcp set`.
 
     OpenClaw has spoken MCP natively since 2026.3.22, which retires the
@@ -3924,6 +3940,8 @@ def _repair_kept_wiring() -> None:
             _register_antigravity_hooks,
             _register_codex_hooks,
             _register_codex_mcp,
+            _register_openclaw_hooks,
+            _register_opencode_hooks,
             _scan_agent_configs,
             claude_uses_m3,
         )
@@ -3939,6 +3957,8 @@ def _repair_kept_wiring() -> None:
             _register_codex_mcp(repair_only=True),
             _register_codex_hooks(repair_only=True),
             _register_antigravity_hooks(repair_only=True),
+            _register_opencode_hooks(repair_only=True),
+            _register_openclaw_hooks(repair_only=True),
         ):
             if msg:  # TOML and hooks files: not in the JSON MCP scan above
                 print(f"  {msg}")
