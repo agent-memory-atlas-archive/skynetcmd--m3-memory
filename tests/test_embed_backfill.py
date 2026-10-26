@@ -740,3 +740,135 @@ async def test_run_sweep_restores_m3_database_on_exception(tmp_path, monkeypatch
         await eb._run_sweep(_make_args(swept), eb.Counters())
 
     assert configured_main_db() == sentinel, "the main-database pin leaked after a failing sweep; see #180"
+
+
+_POST_SWEEP_STEPS = (
+    "_run_owed_contradiction_checks",
+    "_repair_unfindable",
+    "_repair_stale_after_edit",
+)
+
+
+def _record_post_sweep_steps(eb, monkeypatch, *, failing: str | None = None) -> list[str]:
+    ran: list[str] = []
+    for name in _POST_SWEEP_STEPS:
+
+        async def step(_args, name=name):
+            ran.append(name)
+            if name == failing:
+                raise RuntimeError(f"{name} broke")
+
+        monkeypatch.setattr(eb, name, step, raising=False)
+    return ran
+
+
+def _one_unembedded_row(store: Path, schema, monkeypatch):
+    import embed_backfill as eb
+    import memory_core as mc
+
+    schema(store)
+    _seed_rows(store, [{"id": "row-A", "content": "a row"}])
+    pin_database(str(store))
+
+    async def fake_embed_many(texts):
+        return [([0.1, 0.2, 0.3, 0.4], "test-model") for _ in texts]
+
+    monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
+    return eb, eb.Counters()
+
+
+@pytest.mark.asyncio
+async def test_post_sweep_steps_run_on_the_core_store_only(tmp_path, monkeypatch):
+    """The chatlog file shares the core table names and the loop sweeps it as
+    --target core, so only its tables say it is not the core store. Run there,
+    the core-only steps fail every cycle on 'no such table: memory_history'."""
+    from conftest import create_full_chatlog_schema, create_full_main_schema
+
+    for name, schema, expected in (
+        ("chatlog.db", create_full_chatlog_schema, []),
+        ("main.db", create_full_main_schema, list(_POST_SWEEP_STEPS)),
+    ):
+        eb, counters = _one_unembedded_row(tmp_path / name, schema, monkeypatch)
+        ran = _record_post_sweep_steps(eb, monkeypatch)
+        await eb._run_sweep(_make_args(tmp_path / name), counters)
+        assert counters.embedded == 1, f"observed: {counters.embedded} rows embedded in {name}"
+        assert ran == expected, f"observed: post-sweep steps {ran} on {name}"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_post_sweep_step_does_not_skip_the_others(tmp_path, monkeypatch):
+    """Each step runs; the failure comes back as PostSweepError naming the step,
+    so the loop can say the embedding landed instead of blaming the embedder."""
+    import re
+
+    from conftest import create_full_main_schema
+
+    eb, counters = _one_unembedded_row(tmp_path / "main.db", create_full_main_schema, monkeypatch)
+    ran = _record_post_sweep_steps(eb, monkeypatch, failing="_run_owed_contradiction_checks")
+    with pytest.raises(eb.PostSweepError, match=re.escape("owed contradiction checks (RuntimeError")):
+        await eb._run_sweep(_make_args(tmp_path / "main.db"), counters)
+    assert counters.embedded == 1
+    assert ran == list(_POST_SWEEP_STEPS), f"observed: only {ran} ran after the first failed"
+
+
+@pytest.mark.asyncio
+async def test_the_loop_does_not_blame_the_embedder_for_a_post_sweep_failure(tmp_path, monkeypatch, caplog):
+    """A repair that raises after the embeddings landed is reported as that
+    step's failure, with its traceback, never as a possible embedder outage."""
+    import embed_backfill as eb
+    import m3_cognitive_loop as loop
+
+    async def sweep(_args, counters):
+        counters.embedded = 3
+        boom = sqlite3.OperationalError("no such table: memory_history")
+        raise eb.PostSweepError(
+            "main.db", ["owed contradiction checks", "unfindable-memory repair"], [("unfindable-memory repair", boom)]
+        )
+
+    async def no_spill():
+        return None
+
+    monkeypatch.setattr(loop, "has_embed_work", lambda _db: True)
+    monkeypatch.setattr(loop, "_drain_chatlog_spill", no_spill)
+    monkeypatch.setattr(loop, "_embed_targets", lambda _db: [(str(tmp_path / "main.db"), "core")])
+    monkeypatch.setattr(loop, "_fill_vector_copies", lambda: 0)
+    monkeypatch.setattr(eb, "_run_sweep", sweep)
+    caplog.set_level("ERROR")
+    await loop.run_embed_pass(argparse.Namespace(database=str(tmp_path / "main.db"), limit_per_pass=10))
+    text = " ".join(r.getMessage() for r in caplog.records)
+    assert "embedded 3 row(s)" in text and "unfindable-memory repair" in text, f"observed: {text!r}"
+    assert "not the embedder" in text and "embedder is down" not in text, f"observed: {text!r}"
+    assert "completed: owed contradiction checks" in text and "migrate_memory.py status" in text, f"observed: {text!r}"
+    assert any(r.exc_info for r in caplog.records), "observed: the failed step's traceback was not logged"
+
+
+@pytest.mark.asyncio
+async def test_one_failing_owed_check_does_not_stall_the_others(tmp_path, monkeypatch, capsys):
+    """A row whose check raises must not abort the loop over the owed rows: the
+    store returns the same rows first every sweep, so the rest would wait forever.
+    The summary counts what was checked, not what was attempted."""
+    import importlib
+
+    import embed_backfill as eb
+
+    from conftest import create_full_main_schema
+
+    store = tmp_path / "main.db"
+    create_full_main_schema(store)
+    pin_database(str(store))
+    write = importlib.import_module("memory.write")
+    calls: list[str] = []
+
+    async def check(mid):
+        calls.append(mid)
+        if mid == "a":
+            raise ValueError("bad row")
+        return None if mid == "b" else []
+
+    monkeypatch.setattr(write, "owed_contradiction_checks", lambda _conn, limit: ["a", "b", "c"])
+    monkeypatch.setattr(write, "run_deferred_contradiction_check", check)
+    with pytest.raises(RuntimeError, match="1 of 3 owed checks raised; first: a"):
+        await eb._run_owed_contradiction_checks(_make_args(store))
+    assert calls == ["a", "b", "c"], f"observed: only {calls} were checked after the first raised"
+    out = capsys.readouterr().out
+    assert "3 owed, 1 checked, 0 memories superseded, 1 not run, 1 failed" in out, f"observed: {out!r}"

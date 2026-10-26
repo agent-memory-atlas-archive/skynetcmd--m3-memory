@@ -28,6 +28,19 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **A contradiction check deferred while the embedder was down is no longer
+  lost when a later backfill step fails.** The backfill now reads the owed
+  checks from the store, runs them before its repairs, and runs every step even
+  when one fails; a row whose check raises no longer stops the others.
+  **Affected:** every OS and backend · **Action:** none ·
+  **Data status:** memories whose check was skipped kept their flag and are
+  checked by the first backfill after upgrading.
+
+- **A backfill repair failure no longer reports the embedder as the cause.**
+  The cognitive loop now says how many rows were embedded, which step failed
+  with its traceback, and which steps completed. **Affected:** every OS and
+  backend · **Action:** none · **Data status:** none.
+
 - **The cognitive loop keeps running when one of its passes cannot.** A pass
   that stopped on a configuration problem (the entity pass, on a missing API
   key) ended the whole loop; the service manager restarted it every few seconds

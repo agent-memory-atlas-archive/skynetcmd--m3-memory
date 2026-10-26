@@ -174,3 +174,37 @@ def test_the_deferred_check_is_a_no_op_the_second_time_and_on_unflagged_rows(ids
     assert _row(backend, m["old"])["is_deleted"] == 0, "an unflagged row must not be checked"
     assert asyncio.run(run_deferred_contradiction_check(m["new"])) == [m["old"]]
     assert asyncio.run(run_deferred_contradiction_check(m["new"])) is None, "second run must be a no-op"
+
+
+def test_an_owed_check_survives_a_sweep_that_fails_after_embedding(ids, monkeypatch):
+    """The flag is the promise; the sweep that embeds the row must not be its only
+    chance to keep it. If a post-sweep step raises, the embedded row is never
+    fetched again, so the next sweep must find its check from the flag."""
+    import embed_backfill as eb
+    import memory_core as mc
+
+    backend, m = ids
+    _insert(backend, m["old"], "deploys go to staging first", vec=VEC)
+    _insert(backend, m["new"], "deploys go straight to production", meta={"contradiction_check": "deferred"})
+
+    async def fake_embed_many(texts):
+        return [(VEC, "t") for _ in texts]
+
+    real_repair, calls = eb._repair_unfindable, []
+
+    async def fails_once(args):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("a post-sweep repair failed")
+        await real_repair(args)
+
+    monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
+    monkeypatch.setattr(eb, "_repair_unfindable", fails_once)
+    prefix = m["new"].split("-")[0]
+    with pytest.raises(Exception):
+        asyncio.run(eb._run_sweep_inner(_sweep_args(prefix), eb.Counters()))
+    asyncio.run(eb._run_sweep_inner(_sweep_args(prefix), eb.Counters()))  # the next cycle
+
+    where = f"on {backend.name}. inspect: embed_backfill deferred contradiction checks"
+    assert _row(backend, m["old"])["is_deleted"] == 1, f"observed: the owed check never ran {where}"
+    assert "contradiction_check" not in _meta(_row(backend, m["new"])), where

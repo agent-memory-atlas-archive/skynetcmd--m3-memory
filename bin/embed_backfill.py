@@ -139,6 +139,21 @@ def _tables(args: argparse.Namespace) -> tuple[str, str]:
     return "memory_items", "memory_embeddings"
 
 
+def _is_core_store(args: argparse.Namespace) -> bool:
+    """Whether the swept store is the core store, whose memories the core-only
+    passes (deferred contradiction checks, unfindable and edited vectors)
+    repair. Asked by capability: those passes read memory_history,
+    which only the core store has. The table NAMES cannot tell: on SQLite the
+    chatlog is a separate file with the core names, and `--db <chatlog>` ran
+    the passes against it and crashed on the missing table."""
+    items_table, _ = _tables(args)
+    if items_table != "memory_items":
+        return False
+    with _bound_db(args.db) as conn:
+        sql, params = _sql().table_exists("memory_history")
+        return bool(conn.execute(sql, params).fetchone())
+
+
 @contextmanager
 def _bound_db(db_path):
     """Yield a seam connection bound to `db_path` for the duration of a block.
@@ -527,25 +542,13 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     # Pulls candidates from args.db using _build_query. The helper passes
     # us the high-water mark (after_id) and a fetch size; we just plug
     # them into the existing SQL builder.
-    # Rows whose write deferred its contradiction check (memory.write's
-    # CONTRADICTION_CHECK_KEY): noted as they are fetched, checked after their
-    # vector is written. Core store only: the chatlog's rows are never checked.
-    from memory.write import contradiction_check_owed, run_deferred_contradiction_check
-
-    items_table, _ = _tables(args)
-    check_core = items_table == "memory_items"
-    owed: set[str] = set()
-    written: set[str] = set()
+    check_core = _is_core_store(args)
 
     def _fetch(after_id, limit):
         sql, params = _build_query(args, after_id=after_id)
         params_with_limit = [*params, limit]
         with _bound_db(args.db) as conn:
-            rows = conn.execute(sql, params_with_limit).fetchall()
-        if check_core:
-            # Positional, like embed_sweep_lib: a row is (id, content, title, metadata_json).
-            owed.update(r[0] for r in rows if contradiction_check_owed(r[3]))
-        return rows
+            return conn.execute(sql, params_with_limit).fetchall()
 
     # ── Write callback ────────────────────────────────────────────────
     # Persists one embedding row. Uses mc._db() so writes funnel through
@@ -564,10 +567,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
         with mc._db() as db:
             # The id is fresh, so the only conflict key cannot collide: the row
             # is always written.
-            if active_backend().insert_embeddings(db, [row], on_conflict="ignore", table=embeddings):
-                written.add(mid)
-                return True
-            return False
+            return bool(active_backend().insert_embeddings(db, [row], on_conflict="ignore", table=embeddings))
 
     # ── Text transform callback ───────────────────────────────────────
     # Match memory_write_impl's inline behavior: augment with anchors.
@@ -609,16 +609,91 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
             log=_log,
         )
         if check_core and not args.dry_run:
-            await _repair_unfindable(args)
-            await _repair_stale_after_edit(args)
-        due = sorted(owed & written)
-        if due and not args.dry_run:
-            superseded = 0
-            for mid in due:
-                got = await run_deferred_contradiction_check(mid)
-                superseded += len(got or [])
-            _log(f"deferred contradiction checks: {len(due)} run, {superseded} memories superseded")
+            # Owed checks first: each is a promise a write recorded, while the
+            # repairs are opportunistic. Every step runs even when an earlier one
+            # fails; the failures come back together as PostSweepError, so the
+            # caller can say the embeddings themselves landed.
+            steps = (
+                ("owed contradiction checks", _run_owed_contradiction_checks),
+                ("unfindable-memory repair", _repair_unfindable),
+                ("stale-after-edit repair", _repair_stale_after_edit),
+            )
+            failed: list[tuple[str, BaseException]] = []
+            for label, step in steps:
+                try:
+                    await step(args)
+                except Exception as e:  # noqa: BLE001 - collected and raised below
+                    failed.append((label, e))
+            if failed:
+                raise PostSweepError(_db_for_display(str(args.db)), [label for label, _ in steps], failed)
     return 0
+
+
+class PostSweepError(RuntimeError):
+    """The sweep wrote its embeddings; one or more core-store steps after it failed.
+    Keeps each step's exception so the caller can log its traceback."""
+
+    def __init__(self, store: str, steps: list[str], failed: list[tuple[str, BaseException]]):
+        self.store = store
+        self.failed = failed
+        bad = {label for label, _ in failed}
+        ok = [s for s in steps if s not in bad]
+        super().__init__(
+            f"failed on {store}: "
+            + "; ".join(f"{label} ({type(e).__name__}: {e})" for label, e in failed)
+            + f". completed: {', '.join(ok) if ok else 'none'}"
+        )
+
+
+_OWED_CHECKS_PER_SWEEP = 1000
+
+
+async def _run_owed_contradiction_checks(args: argparse.Namespace) -> None:
+    """Run the contradiction checks writes deferred for want of a vector, for every
+    such row that now has one, read from the store (memory.write.owed_contradiction_checks).
+    A row whose check raises does not stop the others; the failures are raised
+    together after the rest have run, and the flag stays set so the next sweep
+    tries them again."""
+    from memory.write import owed_contradiction_checks, run_deferred_contradiction_check
+
+    store = _db_for_display(str(args.db))
+    with _bound_db(args.db) as conn:
+        due = owed_contradiction_checks(conn, limit=_OWED_CHECKS_PER_SWEEP)
+    if not due:
+        return
+    checked = superseded = 0
+    not_run: list[str] = []
+    errors: list[tuple[str, Exception]] = []
+    for mid in due:
+        try:
+            got = await run_deferred_contradiction_check(mid)
+        except Exception as e:  # noqa: BLE001 - one row must not stall the rest; raised below
+            errors.append((mid, e))
+            continue
+        if got is None:
+            not_run.append(mid)
+        else:
+            checked += 1
+            superseded += len(got)
+    more = (
+        f"; capped at {_OWED_CHECKS_PER_SWEEP}, the rest run next sweep" if len(due) == _OWED_CHECKS_PER_SWEEP else ""
+    )
+    _log(
+        f"deferred contradiction checks on {store}: {len(due)} owed, {checked} checked, "
+        f"{superseded} memories superseded, {len(not_run)} not run, {len(errors)} failed{more}"
+        + (
+            f". observed: not run (the row lost its vector or its flag between the read and the check): {not_run[:5]}"
+            if not_run
+            else ""
+        )
+    )
+    if errors:
+        first_id, first = errors[0]
+        raise RuntimeError(
+            f"{len(errors)} of {len(due)} owed checks raised; first: {first_id} "
+            f"({type(first).__name__}: {first}); ids: {[i for i, _ in errors[:5]]}. "
+            f"Their flags stay set and the next sweep retries them. inspect: memory_get {first_id}"
+        ) from first
 
 
 async def _repair_unfindable(args: argparse.Namespace) -> None:

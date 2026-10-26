@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_cognitive_loop.py
-sha1: 226310e47fea
-mtime_utc: 2026-10-19T11:55:37.704081+00:00
-generated_utc: 2026-10-19T12:01:03.049689+00:00
+sha1: c24bbd601aec
+mtime_utc: 2026-10-26T02:52:10.344835+00:00
+generated_utc: 2026-10-26T02:52:46.596618+00:00
 private: false
 ---
 
@@ -30,7 +30,7 @@ for m3_enrich and m3_entities.
 
 ## Entry points
 
-- `def main()` (line 2378)
+- `def main()` (line 2397)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -120,7 +120,7 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `path`` (line 1273)
+- `sqlite3.connect()  → `path`` (line 1275)
 
 
 ---
@@ -139,6 +139,7 @@ _(none detected)_
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (configured_main_db, pin_chatlog_db, pin_database)`
+- `m3_core.paths (store_is_a_file)`
 - `m3_core.runtime (utc_iso)`
 - `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`

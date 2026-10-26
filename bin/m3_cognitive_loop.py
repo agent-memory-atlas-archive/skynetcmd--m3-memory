@@ -1080,13 +1080,15 @@ def _embed_target_dbs(core_db: str | None) -> list[str]:
 def _embed_targets(core_db: str | None) -> list[tuple[str | None, str]]:
     """(db, store) pairs the embed pass drains.
 
-    SQLite keeps each store in its own file, so the targets are the existing
-    files from _embed_target_dbs. Other backends keep the core and chatlog
-    stores in one database, so both stores are targets and `db` is unused.
+    Where each store is its own file, the targets are the existing files from
+    _embed_target_dbs, and "core" only names the tables (the chatlog file uses
+    the core names); it is not the store's role, which embed_backfill reads from
+    the file (`_is_core_store`). Other backends keep the core and chatlog stores
+    in one database, so both stores are targets and `db` is unused.
     """
-    from memory.backends import active_backend
+    from m3_core.paths import store_is_a_file
 
-    if active_backend().name == "sqlite":
+    if store_is_a_file():
         return [(p, "core") for p in _embed_target_dbs(core_db)]
     return [(None, "core"), (None, "chatlog")]
 
@@ -1411,6 +1413,23 @@ async def run_embed_pass(args):
                     f"embedder tier is returning vectors, or every row was "
                     f"skipped; inspect: `m3 doctor` and the shared embed "
                     f"server's /health"
+                )
+        except embed_backfill.PostSweepError as e:
+            # The embeddings landed; a step after them failed. The embedder is
+            # not involved, so naming it would point at a healthy server.
+            missing_table = any("no such table" in str(x) or "does not exist" in str(x) for _, x in e.failed)
+            logger.error(
+                f"observed: embed-backfill embedded {counters.embedded} row(s) in "
+                f"{_target_label(db_path, store)} and then a post-sweep step {e}. "
+                f"cause: the named step, after embedding, so not the embedder. "
+                f"inspect: the traceback(s) below"
+                + ("; a missing table: `python bin/migrate_memory.py status`" if missing_table else "")
+                + ". Will retry this database next cycle."
+            )
+            for label, exc in e.failed:
+                logger.error(
+                    f"embed-backfill post-sweep step '{label}' on {_target_label(db_path, store)}",
+                    exc_info=(type(exc), exc, exc.__traceback__),
                 )
         except Exception as e:
             logger.error(

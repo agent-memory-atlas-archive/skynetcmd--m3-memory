@@ -908,6 +908,25 @@ def contradiction_check_owed(metadata_json: object) -> bool:
     return dialect().json_column_to_dict(metadata_json).get(CONTRADICTION_CHECK_KEY) == _CHECK_DEFERRED
 
 
+def owed_contradiction_checks(conn, *, limit: int) -> list[str]:
+    """Ids of live rows that have a vector and whose contradiction check is still
+    owed: contradiction_check_owed's condition, read from the store. The flag is
+    the record of the promise, so whoever keeps it reads the store: remembering
+    only the rows one sweep embedded loses the check when that sweep stops after
+    writing the vector, because the embedded row is never fetched again."""
+    from memory.backends import dialect
+
+    d = dialect()
+    p = d.param()
+    flag = d.json_extract_text("mi.metadata_json", CONTRADICTION_CHECK_KEY)
+    rows = conn.execute(
+        f"SELECT mi.id FROM memory_items mi WHERE COALESCE(mi.is_deleted, 0) = 0 AND {flag} = {p} "
+        f"AND EXISTS (SELECT 1 FROM memory_embeddings e WHERE e.memory_id = mi.id) LIMIT {p}",
+        (_CHECK_DEFERRED, limit),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
 def _set_check_flag(item_id: str, owed: bool) -> None:
     """Add or remove the deferred-check key in the row's metadata_json (read-modify-write
     through the dialect's JSON read/bind pair, so no backend-specific JSON SQL)."""

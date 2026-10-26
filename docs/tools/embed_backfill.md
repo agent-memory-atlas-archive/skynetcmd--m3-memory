@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_backfill.py
-sha1: bda96cec5466
-mtime_utc: 2026-10-18T21:45:40.071747+00:00
-generated_utc: 2026-10-18T21:51:48.963157+00:00
+sha1: 21a04476da75
+mtime_utc: 2026-10-26T02:52:28.391543+00:00
+generated_utc: 2026-10-26T02:52:46.307456+00:00
 private: false
 ---
 
@@ -60,7 +60,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 ## Entry points
 
-- `def main()` (line 882)
+- `def main()` (line 957)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -115,7 +115,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 **sqlite**
 
-- `sqlite3.connect()  → `str(db_path)`` (line 163)
+- `sqlite3.connect()  → `str(db_path)`` (line 178)
 
 
 ---
@@ -132,7 +132,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 - `memory.backends (chatlog_table)`
 - `memory.backends (dialect)`
 - `memory.backends.base (EmbeddingRow)`
-- `memory.write (contradiction_check_owed, run_deferred_contradiction_check)`
+- `memory.write (owed_contradiction_checks, run_deferred_contradiction_check)`
 - `memory.write (rewindow_memory)`
 
 ---
