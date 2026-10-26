@@ -638,11 +638,12 @@ class PostSweepError(RuntimeError):
         self.failed = failed
         bad = {label for label, _ in failed}
         ok = [s for s in steps if s not in bad]
-        super().__init__(
-            f"failed on {store}: "
-            + "; ".join(f"{label} ({type(e).__name__}: {e})" for label, e in failed)
+        # Without the store, for a caller whose own message already names it.
+        self.summary = (
+            "; ".join(f"{label} ({type(e).__name__}: {e})" for label, e in failed)
             + f". completed: {', '.join(ok) if ok else 'none'}"
         )
+        super().__init__(f"failed on {store}: {self.summary}")
 
 
 _OWED_CHECKS_PER_SWEEP = 1000

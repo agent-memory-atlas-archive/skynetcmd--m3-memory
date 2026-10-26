@@ -840,6 +840,8 @@ async def test_the_loop_does_not_blame_the_embedder_for_a_post_sweep_failure(tmp
     assert "not the embedder" in text and "embedder is down" not in text, f"observed: {text!r}"
     assert "completed: owed contradiction checks" in text and "migrate_memory.py status" in text, f"observed: {text!r}"
     assert any(r.exc_info for r in caplog.records), "observed: the failed step's traceback was not logged"
+    summary = caplog.records[0].getMessage()
+    assert summary.count("main.db") == 1, f"observed: the store is named more than once: {summary!r}"
 
 
 @pytest.mark.asyncio

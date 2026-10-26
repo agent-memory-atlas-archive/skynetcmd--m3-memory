@@ -1420,7 +1420,7 @@ async def run_embed_pass(args):
             missing_table = any("no such table" in str(x) or "does not exist" in str(x) for _, x in e.failed)
             logger.error(
                 f"observed: embed-backfill embedded {counters.embedded} row(s) in "
-                f"{_target_label(db_path, store)} and then a post-sweep step {e}. "
+                f"{_target_label(db_path, store)} and then a post-sweep step failed: {e.summary}. "
                 f"cause: the named step, after embedding, so not the embedder. "
                 f"inspect: the traceback(s) below"
                 + ("; a missing table: `python bin/migrate_memory.py status`" if missing_table else "")
