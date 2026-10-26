@@ -7,7 +7,14 @@ on:
     branches: [ "main" ]
   # Manual run of the full matrix on any branch (matrix-setup's non-PR branch):
   # lets a branch that is not yet public run on GitHub's OS images before it is.
-  workflow_dispatch: {}
+  # `python` narrows the run to one supported version on all three OSes.
+  workflow_dispatch:
+    inputs:
+      python:
+        description: "Python version for every OS, or 'all' for the full grid"
+        type: choice
+        options: ["all", "3.12", "3.13", "3.14", "3.15"]
+        default: "all"
 
 permissions:
   contents: read
@@ -214,9 +221,14 @@ jobs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
       - id: set
+        env:
+          PY: ${{ github.event.inputs.python }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo 'matrix={"os":["ubuntu-latest"],"python-version":["3.12"]}' >> "$GITHUB_OUTPUT"
+          elif [ -n "$PY" ] && [ "$PY" != "all" ]; then
+            case "$PY" in 3.12|3.13|3.14|3.15) ;; *) echo "observed: python input '$PY' is not a supported version" >&2; exit 1 ;; esac
+            echo "matrix={\"os\":[\"ubuntu-latest\",\"macos-latest\",\"windows-latest\"],\"python-version\":[\"$PY\"]}" >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"os":["ubuntu-latest","macos-latest","windows-latest"],"python-version":["3.12","3.13","3.14","3.15"]}' >> "$GITHUB_OUTPUT"
           fi
