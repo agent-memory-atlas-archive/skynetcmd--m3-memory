@@ -19,6 +19,8 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+## [2026.10.25.0] — 2026-10-25 — a cognitive loop that keeps running, backfill that keeps its checks
+
 ### Changed
 
 - **CI test jobs stop a hung run within the hour.** The test matrix, the

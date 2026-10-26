@@ -1,5 +1,5 @@
 name: m3
-version: "2026.10.19.0"
+version: "2026.10.25.0"
 description: "m3-memory: a local-first memory backend. Hybrid FTS5 + vector recall with MMR, a bitemporal model, contradiction supersession, and async fact extraction from each turn. Runs in-process; memories stay on this machine unless you configure sync."
 author: skynetcmd
 license: Apache-2.0
